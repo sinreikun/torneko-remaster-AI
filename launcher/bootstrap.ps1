@@ -1,0 +1,347 @@
+param([Parameter(Mandatory=$true)][string]$Payload, [switch]$SelfTest, [switch]$UiSmokeTest)
+$ErrorActionPreference = 'Stop'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$BaseDir = Join-Path $env:LOCALAPPDATA 'LocalGamePilot'
+$AppDir = Join-Path $BaseDir 'app-0.2.0'
+
+# This block runs in a dedicated runspace. UI updates are polled on the UI thread.
+$InstallWorker = {
+    param($BaseDir, $AppDir, $Payload, $Options, $State)
+    $ErrorActionPreference = 'Stop'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    function Check-Cancel {
+        if ($State.Cancel) { throw 'キャンセルしました。もう一度開始すると導入済みの部品を再利用します。' }
+    }
+    function Get-Json($Url, $Body = $null) {
+        Check-Cancel
+        $request = [Net.HttpWebRequest]::Create($Url)
+        $request.UserAgent = 'LocalGamePilot/0.2.0'
+        if ($request.Address.IsLoopback) { $request.Proxy = $null }
+        $request.Timeout = 30000
+        $request.ReadWriteTimeout = 30000
+        if ($null -ne $Body) {
+            $request.Method = 'POST'; $request.ContentType = 'application/json'
+            $bytes = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json))
+            $request.ContentLength = $bytes.Length
+            $bodyStream = $request.GetRequestStream()
+            try { $bodyStream.Write($bytes, 0, $bytes.Length) } finally { $bodyStream.Dispose() }
+        }
+        $response = $request.GetResponse()
+        try {
+            $reader = New-Object IO.StreamReader($response.GetResponseStream())
+            try { return ($reader.ReadToEnd() | ConvertFrom-Json) } finally { $reader.Dispose() }
+        } finally { $response.Dispose() }
+    }
+    function Download($Url, $Destination) {
+        if (-not $Url.StartsWith('https://')) { throw 'HTTPS 以外の配布元は使用できません。' }
+        Check-Cancel
+        $part = $Destination + '.part'
+        $request = [Net.HttpWebRequest]::Create($Url)
+        $request.UserAgent = 'LocalGamePilot/0.2.0'
+        $request.Timeout = 30000
+        $request.ReadWriteTimeout = 30000
+        $response = $request.GetResponse()
+        try {
+            if ($response.ResponseUri.Scheme -ne 'https') { throw 'HTTPS 以外への転送を拒否しました。' }
+            $downloadStream = $response.GetResponseStream()
+            $output = [IO.File]::Create($part)
+            try {
+                $buffer = New-Object byte[] 262144
+                [long]$total = 0
+                while (($read = $downloadStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    Check-Cancel
+                    $output.Write($buffer, 0, $read); $total += $read
+                    $State.Message = ('ダウンロード: {0:N1} MB / {1:N1} MB' -f ($total / 1048576), ([Math]::Max(0,$response.ContentLength) / 1048576))
+                }
+                if ($response.ContentLength -ge 0 -and $total -ne $response.ContentLength) { throw 'ダウンロードサイズが一致しません。' }
+            } finally { $output.Dispose(); $downloadStream.Dispose() }
+        } finally { $response.Dispose() }
+        Move-Item -LiteralPath $part -Destination $Destination -Force
+    }
+    function Run-Process($File, $Arguments, $Label) {
+        Check-Cancel
+        $State.Message = $Label
+        $log = Join-Path $BaseDir 'install.stdout.log'
+        $errlog = Join-Path $BaseDir 'install.stderr.log'
+        # Do not kill installers mid-transaction. Cancellation takes effect at the next safe boundary.
+        $State.Message = $Label + '（実行中。中止はこの処理の完了後）'
+        $p = Start-Process -FilePath $File -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError $errlog
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+            $detail = ''
+            if (Test-Path $errlog) { $detail = Get-Content -LiteralPath $errlog -Raw }
+            throw ($Label + ' に失敗しました。終了コード: ' + $p.ExitCode + "`n" + $detail)
+        }
+        Check-Cancel
+    }
+    try {
+        New-Item -ItemType Directory -Path $BaseDir -Force | Out-Null
+        $downloads = Join-Path $BaseDir 'downloads'
+        New-Item -ItemType Directory -Path $downloads -Force | Out-Null
+        $runtime = Join-Path $BaseDir ('python-' + $Options.Python)
+        $python = Join-Path $runtime 'python.exe'
+        $pythonw = Join-Path $runtime 'pythonw.exe'
+        if (-not (Test-Path $python)) {
+            $State.Message = 'Python の公式配布一覧を確認しています…'
+            $page = Invoke-WebRequest -Uri 'https://www.python.org/downloads/windows/' -UseBasicParsing -TimeoutSec 30
+            $series = [regex]::Escape($Options.Python)
+            $pattern = 'https://www\.python\.org/ftp/python/(' + $series + '\.\d+)/python-\1-amd64\.exe'
+            $candidates = @([regex]::Matches($page.Content, $pattern) | ForEach-Object {
+                [PSCustomObject]@{ Version = [version]$_.Groups[1].Value; Url = $_.Value }
+            } | Sort-Object Version -Descending)
+            if ($candidates.Count -eq 0) { throw '選択した Python の公式 x64 インストーラーが見つかりません。' }
+            $installer = Join-Path $downloads ('python-' + $candidates[0].Version.ToString() + '.exe')
+            Download $candidates[0].Url $installer
+            $State.Message = 'Python の発行元署名を検証しています…'
+            $signature = Get-AuthenticodeSignature -LiteralPath $installer
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(?:^|,\s*)O=Python Software Foundation(?:,|$)') {
+                throw 'Python の署名または発行元を確認できません。未検証ファイルは実行しません。'
+            }
+            $arguments = '/quiet InstallAllUsers=0 Include_launcher=0 InstallLauncherAllUsers=0 Include_tcltk=1 Include_pip=1 Include_test=0 Include_doc=0 Shortcuts=0 AssociateFiles=0 PrependPath=0 TargetDir="' + $runtime + '"'
+            Run-Process $installer $arguments 'Python と画面UIの導入'
+            if (-not (Test-Path $pythonw)) { throw 'Python の導入が完了していません。' }
+        }
+        $State.Message = '画面取得部品を確認しています…'
+        # Always verify/import and reconcile the declared dependency. pip verifies TLS and wheel hashes.
+        Run-Process $python '-m pip install --disable-pip-version-check "Pillow>=12,<13"' '画面取得部品 Pillow の導入・確認'
+        Run-Process $python '-c "import tkinter; from PIL import ImageGrab; print(''ready'')"' 'Python と画面部品の検証'
+        Check-Cancel
+        if (-not (Test-Path $AppDir)) {
+            $State.Message = '本体を展開しています…'
+            $staging = $AppDir + '.staging-' + [Guid]::NewGuid().ToString('N')
+            New-Item -ItemType Directory -Path $staging | Out-Null
+            try {
+                Expand-Archive -LiteralPath $Payload -DestinationPath $staging -Force
+                if (-not (Test-Path (Join-Path $staging 'autoplayer/core.py'))) { throw '本体アーカイブが不正です。' }
+                Move-Item -LiteralPath $staging -Destination $AppDir
+            } finally { if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force } }
+        }
+        $endpoint = $Options.Endpoint.TrimEnd('/')
+        if ($Options.Backend -eq 'managed') {
+            $endpoint = 'http://127.0.0.1:11435'
+            $ollamaDir = Join-Path $BaseDir 'ollama'
+            $ollama = Join-Path $ollamaDir 'ollama.exe'
+            if (-not (Test-Path $ollama)) {
+                $State.Message = 'Ollama の公式配布情報を取得しています…'
+                $release = Get-Json 'https://api.github.com/repos/ollama/ollama/releases/latest'
+                $assets = @($release.assets | Where-Object { $_.name -eq 'ollama-windows-amd64.zip' })
+                if ($assets.Count -ne 1) { throw '公式 Ollama x64 アーカイブが見つかりません。' }
+                $asset = $assets[0]
+                if (-not $asset.browser_download_url.StartsWith('https://github.com/ollama/ollama/releases/download/')) { throw 'Ollama の公式配布元ではありません。' }
+                if ($asset.digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { throw '公式配布情報に SHA-256 がないため導入できません。' }
+                $archive = Join-Path $downloads 'ollama-windows-amd64.zip'
+                Download $asset.browser_download_url $archive
+                $State.Message = 'Ollama の SHA-256 を検証しています…'
+                $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($actual -ne $asset.digest.Substring(7).ToLowerInvariant()) { throw 'Ollama の SHA-256 が一致しません。' }
+                $staging = $ollamaDir + '.staging-' + [Guid]::NewGuid().ToString('N')
+                try {
+                    Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
+                    if (-not (Test-Path (Join-Path $staging 'ollama.exe'))) { throw 'Ollama の実行ファイルがありません。' }
+                    Move-Item -LiteralPath $staging -Destination $ollamaDir
+                    $release.tag_name | Set-Content -LiteralPath (Join-Path $ollamaDir 'version.txt') -Encoding UTF8
+                } finally { if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force } }
+            }
+            $running = $false
+            try { $null = Get-Json ($endpoint + '/api/version'); $running = $true } catch { }
+            if (-not $running) {
+                $State.Message = 'ローカル LLM サーバーを起動しています…'
+                $oldHost = [Environment]::GetEnvironmentVariable('OLLAMA_HOST', 'Process')
+                $oldModels = [Environment]::GetEnvironmentVariable('OLLAMA_MODELS', 'Process')
+                try {
+                    [Environment]::SetEnvironmentVariable('OLLAMA_HOST', '127.0.0.1:11435', 'Process')
+                    [Environment]::SetEnvironmentVariable('OLLAMA_MODELS', (Join-Path $BaseDir 'models'), 'Process')
+                    $server = Start-Process -FilePath $ollama -ArgumentList 'serve' -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $BaseDir 'ollama.stdout.log') -RedirectStandardError (Join-Path $BaseDir 'ollama.stderr.log')
+                } finally {
+                    [Environment]::SetEnvironmentVariable('OLLAMA_HOST', $oldHost, 'Process')
+                    [Environment]::SetEnvironmentVariable('OLLAMA_MODELS', $oldModels, 'Process')
+                }
+                $ready = $false
+                for ($i = 0; $i -lt 120; $i++) {
+                    Check-Cancel
+                    if ($server.HasExited) { throw 'Ollama サーバーが終了しました。' }
+                    try { $null = Get-Json ($endpoint + '/api/version'); $ready = $true; break } catch { Start-Sleep -Milliseconds 500 }
+                }
+                if (-not $ready) { throw 'Ollama の起動を確認できません。' }
+            }
+        }
+        $State.Message = 'モデルを確認しています…'
+        $tags = Get-Json ($endpoint + '/api/tags')
+        if (-not @($tags.models | Where-Object { $_.name -eq $Options.Model }).Count) {
+            $State.Message = 'モデルのダウンロードを開始しています…'
+            $request = [Net.HttpWebRequest]::Create($endpoint + '/api/pull')
+            $request.Method = 'POST'; $request.ContentType = 'application/json'
+            $request.Proxy = $null; $request.Timeout = 30000; $request.ReadWriteTimeout = 120000
+            $body = [Text.Encoding]::UTF8.GetBytes((@{ name = $Options.Model; stream = $true } | ConvertTo-Json))
+            $request.ContentLength = $body.Length
+            $stream = $request.GetRequestStream()
+            try { $stream.Write($body, 0, $body.Length) } finally { $stream.Dispose() }
+            $response = $request.GetResponse()
+            $reader = New-Object IO.StreamReader($response.GetResponseStream())
+            $success = $false
+            try {
+                while ($null -ne ($line = $reader.ReadLine())) {
+                    Check-Cancel
+                    $progress = $line | ConvertFrom-Json
+                    if ($progress.error) { throw $progress.error }
+                    $State.Message = ('モデル: {0} {1:N1} / {2:N1} GB' -f $progress.status, ($progress.completed / 1073741824), ($progress.total / 1073741824))
+                    if ($progress.status -eq 'success') { $success = $true }
+                }
+            } finally { $reader.Dispose(); $response.Dispose() }
+            if (-not $success) { throw 'モデルの取得完了を確認できません。' }
+        }
+        $State.Message = 'モデルの画像対応能力を確認しています…'
+        $show = Get-Json ($endpoint + '/api/show') @{model = $Options.Model}
+        if (-not (@($show.capabilities) -contains 'vision')) { throw '選択モデルの画像対応を確認できません。Ollama の更新が必要な場合があります。' }
+        $data = Join-Path $BaseDir 'data'
+        New-Item -ItemType Directory -Path $data -Force | Out-Null
+        $settingsFile = Join-Path $data 'settings.json'
+        $settings = @{}
+        if (Test-Path $settingsFile) {
+            $old = Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($property in $old.PSObject.Properties) { $settings[$property.Name] = $property.Value }
+        }
+        $settings['provider'] = 'ollama'; $settings['endpoint'] = $endpoint; $settings['model'] = $Options.Model
+        $json = $settings | ConvertTo-Json -Depth 10
+        $utf8 = New-Object Text.UTF8Encoding($false)
+        [IO.File]::WriteAllText($settingsFile + '.tmp', $json, $utf8)
+        Move-Item -LiteralPath ($settingsFile + '.tmp') -Destination $settingsFile -Force
+        [IO.File]::WriteAllText((Join-Path $BaseDir 'bootstrap.json'), ($Options | ConvertTo-Json), $utf8)
+        Check-Cancel
+        $State.Python = $pythonw; $State.Ready = $true
+        $State.Message = '準備完了。本体を起動します。'
+    } catch { $State.Error = $_.Exception.Message }
+    finally { $State.Done = $true }
+}
+
+if ($SelfTest) {
+    # Validate the payload using the same Windows extraction primitive, without downloading or installing.
+    $check = Join-Path ([IO.Path]::GetTempPath()) ('GamePilotTest-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        Expand-Archive -LiteralPath $Payload -DestinationPath $check
+        if (-not (Test-Path (Join-Path $check 'autoplayer/core.py'))) { throw 'Missing application payload' }
+        $errors = $null; $tokens = $null
+        $null = [Management.Automation.Language.Parser]::ParseInput($InstallWorker.ToString(), [ref]$tokens, [ref]$errors)
+        if ($errors.Count) { throw ($errors | Out-String) }
+        Write-Output 'Bootstrap payload and worker syntax passed.'
+    } finally { if (Test-Path $check) { Remove-Item $check -Recurse -Force } }
+    exit 0
+}
+
+$form = New-Object Windows.Forms.Form
+$form.Text = 'ゲーム攻略ツール - 初回準備 / 起動'
+$form.ClientSize = New-Object Drawing.Size(720, 590)
+$form.StartPosition = 'CenterScreen'
+$form.FormBorderStyle = 'FixedDialog'; $form.MaximizeBox = $false
+$form.Font = New-Object Drawing.Font('Yu Gothic UI', 10)
+function Label($text, $x, $y, $width, $height) {
+    $control = New-Object Windows.Forms.Label
+    $control.Text = $text; $control.Location = New-Object Drawing.Point($x,$y)
+    $control.Size = New-Object Drawing.Size($width,$height); $form.Controls.Add($control)
+    return $control
+}
+$null = Label '必要な部品を選択してください。ダウンロード・検証・導入・起動は自動で進みます。' 20 15 680 45
+$null = Label 'Python（本体と画面UIのランタイム / PSF License / 約30 MB + 導入領域）' 20 65 680 25
+$pythonChoice = New-Object Windows.Forms.ComboBox
+$pythonChoice.DropDownStyle = 'DropDownList'; $pythonChoice.Location = New-Object Drawing.Point(20,95)
+$pythonChoice.Size = New-Object Drawing.Size(680,28)
+$pythonChoice.Items.AddRange(@('Python 3.14 - 新しい標準版（公式の最新x64インストーラー）','Python 3.13 - 互換性を優先（公式の最新x64インストーラー）')); $pythonChoice.SelectedIndex = 0
+$form.Controls.Add($pythonChoice)
+$null = Label 'LLM実行環境（Ollama: MIT / モデルの利用条件は別）' 20 140 680 25
+$backendChoice = New-Object Windows.Forms.ComboBox
+$backendChoice.DropDownStyle = 'DropDownList'; $backendChoice.Location = New-Object Drawing.Point(20,170)
+$backendChoice.Size = New-Object Drawing.Size(680,28)
+$backendChoice.Items.AddRange(@('Ollama を自動導入・起動 - CPU/GPUを自動判定（数百MB〜数GB）','起動済みの Ollama を再利用 - ランタイムのダウンロード不要')); $backendChoice.SelectedIndex = 0
+$form.Controls.Add($backendChoice)
+$endpointBox = New-Object Windows.Forms.TextBox
+$endpointBox.Location = New-Object Drawing.Point(20,205); $endpointBox.Size = New-Object Drawing.Size(680,28)
+$endpointBox.Text = 'http://127.0.0.1:11434'; $endpointBox.Enabled = $false; $form.Controls.Add($endpointBox)
+$backendChoice.Add_SelectedIndexChanged({ $endpointBox.Enabled = ($backendChoice.SelectedIndex -eq 1) })
+$null = Label '画像対応モデル（必要なRAM/VRAMはモデル容量より大きくなります）' 20 245 680 25
+$modelChoice = New-Object Windows.Forms.ComboBox
+$modelChoice.DropDownStyle = 'DropDownList'; $modelChoice.Location = New-Object Drawing.Point(20,275)
+$modelChoice.Size = New-Object Drawing.Size(680,28)
+$modelChoice.Items.AddRange(@('qwen2.5vl:3b - 軽量 約3.2GB / Apache-2.0','qwen2.5vl:7b - 推奨 約6GB / Apache-2.0','qwen2.5vl:32b - 大容量 約21GB / Apache-2.0','gemma3:4b - 別系列 約3.3GB / Gemma Terms')); $modelChoice.SelectedIndex = 1
+$form.Controls.Add($modelChoice)
+if (Test-Path (Join-Path $BaseDir 'bootstrap.json')) {
+    try {
+        $saved = Get-Content -LiteralPath (Join-Path $BaseDir 'bootstrap.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $index = [Array]::IndexOf(@('3.14','3.13'), $saved.Python)
+        if ($index -ge 0) { $pythonChoice.SelectedIndex = $index }
+        $index = [Array]::IndexOf(@('managed','existing'), $saved.Backend)
+        if ($index -ge 0) { $backendChoice.SelectedIndex = $index }
+        $index = [Array]::IndexOf(@('qwen2.5vl:3b','qwen2.5vl:7b','qwen2.5vl:32b','gemma3:4b'), $saved.Model)
+        if ($index -ge 0) { $modelChoice.SelectedIndex = $index }
+        if ($saved.Endpoint) { $endpointBox.Text = $saved.Endpoint }
+    } catch { }
+}
+$license = New-Object Windows.Forms.LinkLabel
+$license.Text = '選択モデルの情報・利用条件'; $license.Location = New-Object Drawing.Point(20,315)
+$license.Size = New-Object Drawing.Size(500,25)
+$license.Add_LinkClicked({
+    $names = @('qwen2.5vl:3b','qwen2.5vl:7b','qwen2.5vl:32b','gemma3:4b')
+    Start-Process ('https://ollama.com/library/' + $names[$modelChoice.SelectedIndex])
+}); $form.Controls.Add($license)
+$consent = New-Object Windows.Forms.CheckBox
+$consent.Text = '選択した部品の利用条件を確認し、このPCへの導入に同意します。'
+$consent.Location = New-Object Drawing.Point(20,350); $consent.Size = New-Object Drawing.Size(680,30)
+$form.Controls.Add($consent)
+$null = Label '保存先: %LOCALAPPDATA%\LocalGamePilot（管理者権限・PATHの変更なし）' 20 390 680 30
+$status = Label '待機中。導入済みの部品・モデルは再利用します。' 20 430 680 65
+$start = New-Object Windows.Forms.Button
+$start.Text = '自動セットアップして起動'; $start.Location = New-Object Drawing.Point(20,510)
+$start.Size = New-Object Drawing.Size(460,45); $form.Controls.Add($start)
+$cancel = New-Object Windows.Forms.Button
+$cancel.Text = '中止 / 閉じる'; $cancel.Location = New-Object Drawing.Point(500,510)
+$cancel.Size = New-Object Drawing.Size(200,45); $form.Controls.Add($cancel)
+$State = [hashtable]::Synchronized(@{ Done=$false; Cancel=$false; Ready=$false; Error=''; Message='' })
+$script:engine = $null; $script:handle = $null
+$start.Add_Click({
+    if (-not $consent.Checked) { [Windows.Forms.MessageBox]::Show('利用条件を確認して同意してください。') | Out-Null; return }
+    $endpoint = $endpointBox.Text.Trim()
+    $uri = $null
+    if (-not [Uri]::TryCreate($endpoint, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'http' -or $uri.Host -notin @('127.0.0.1','localhost','[::1]') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/') {
+        [Windows.Forms.MessageBox]::Show('接続先は http://127.0.0.1:11434 のようなローカルURLを指定してください。') | Out-Null; return
+    }
+    $Options = @{
+        Python = @('3.14','3.13')[$pythonChoice.SelectedIndex]
+        Backend = @('managed','existing')[$backendChoice.SelectedIndex]
+        Model = @('qwen2.5vl:3b','qwen2.5vl:7b','qwen2.5vl:32b','gemma3:4b')[$modelChoice.SelectedIndex]
+        Endpoint = $endpoint
+    }
+    $State.Done=$false; $State.Ready=$false; $State.Cancel=$false; $State.Error=''
+    $start.Enabled=$false; $pythonChoice.Enabled=$false; $backendChoice.Enabled=$false; $modelChoice.Enabled=$false; $endpointBox.Enabled=$false
+    $script:engine = [PowerShell]::Create()
+    $null = $script:engine.AddScript($InstallWorker.ToString()).AddArgument($BaseDir).AddArgument($AppDir).AddArgument($Payload).AddArgument($Options).AddArgument($State)
+    $script:handle = $script:engine.BeginInvoke()
+})
+$cancel.Add_Click({ if ($start.Enabled) { $form.Close() } else { $State.Cancel=$true; $status.Text='中止しています。実行中の導入処理が完了するまでお待ちください。' } })
+$form.Add_FormClosing({ param($sender,$e) if (-not $start.Enabled) { $State.Cancel=$true; $e.Cancel=$true } })
+$timer = New-Object Windows.Forms.Timer
+$timer.Interval = 200
+$timer.Add_Tick({
+    if ($UiSmokeTest -and $start.Enabled) { $form.Close(); return }
+    if (-not $start.Enabled) { $status.Text = $State.Message }
+    if ($State.Done) {
+        $State.Done=$false
+        try { $null = $script:engine.EndInvoke($script:handle) } catch { $State.Error=$_.Exception.Message }
+        if ($script:engine.Streams.Error.Count -and -not $State.Error) { $State.Error=($script:engine.Streams.Error | Out-String) }
+        $script:engine.Dispose(); $script:engine=$null
+        $start.Enabled=$true; $pythonChoice.Enabled=$true; $backendChoice.Enabled=$true; $modelChoice.Enabled=$true; $endpointBox.Enabled=($backendChoice.SelectedIndex -eq 1)
+        if ($State.Error) { $status.Text=$State.Error; [Windows.Forms.MessageBox]::Show($State.Error,'セットアップ停止') | Out-Null }
+        elseif ($State.Ready -and -not $State.Cancel) {
+            $psi = New-Object Diagnostics.ProcessStartInfo
+            $psi.FileName=$State.Python; $psi.Arguments='-m autoplayer'; $psi.WorkingDirectory=$AppDir
+            $psi.UseShellExecute=$false; $psi.EnvironmentVariables['GAMEPILOT_DATA_DIR']=Join-Path $BaseDir 'data'
+            $process=[Diagnostics.Process]::Start($psi)
+            $form.Hide(); $timer.Stop()
+            # The native launcher retains a mutex until the application exits.
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) { [Windows.Forms.MessageBox]::Show('本体が異常終了しました。保存先のログを確認してください。','起動エラー') | Out-Null }
+            $form.Close()
+        }
+    }
+})
+$timer.Start()
+try { $null = $form.ShowDialog() } finally { $timer.Dispose(); if ($script:engine) { $script:engine.Dispose() }; $form.Dispose() }

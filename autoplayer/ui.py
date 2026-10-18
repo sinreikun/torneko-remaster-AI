@@ -8,10 +8,11 @@ from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
 from dataclasses import asdict
 import webbrowser
+import os
 from .core import Settings, LocalLLM, Controller
 from .components import CATALOG, MODELS, pull_model, install_capture
 
-DATA=Path(__file__).resolve().parent.parent/'data'
+DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.parent/'data'))
 
 class Application:
     def __init__(self,root):
@@ -59,7 +60,10 @@ class Application:
         root.protocol('WM_DELETE_WINDOW',self.close); root.after(100,self.poll)
     def setup(self,parent):
         ttk.Label(parent,text='本体には外部ランタイムやモデルを同梱しません。選択して公式ページから取得してください。',wraplength=900).pack(anchor='w')
-        for item in CATALOG:
+        managed = bool(os.environ.get('GAMEPILOT_DATA_DIR'))
+        if managed:
+            ttk.Label(parent,text='Python・画面取得部品・Ollama は起動用exeが自動で導入・検証します。\nランタイムを変更する場合は本体を閉じ、同じexeを再実行してください。',wraplength=850).pack(anchor='w',pady=10)
+        for item in ([] if managed else CATALOG):
             box=ttk.LabelFrame(parent,text=f"{item['name']} / {item['size']} / {item['license']}",padding=5); box.pack(fill='x',pady=3)
             ttk.Label(box,text=item['description'],wraplength=820).pack(anchor='w')
             ttk.Button(box,text='公式ダウンロード・説明',command=lambda url=item['url']:webbrowser.open(url)).pack(anchor='e')

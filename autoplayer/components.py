@@ -26,14 +26,14 @@ CATALOG=[
   'url':'https://lmstudio.ai/download'},
 ]
 MODELS=[
- {'name':'qwen2.5vl:3b','size':'約3.2 GB','license':'Qwen Research License（利用条件を確認）','description':'軽量寄り。小さな文字や複雑な状況の判断精度には限界があります。','url':'https://ollama.com/library/qwen2.5vl:3b'},
+ {'name':'qwen2.5vl:3b','size':'約3.2 GB','license':'Apache-2.0','description':'軽量寄り。小さな文字や複雑な状況の判断精度には限界があります。','url':'https://ollama.com/library/qwen2.5vl:3b'},
  {'name':'qwen2.5vl:7b','size':'約6 GB','license':'Apache-2.0','description':'推奨の初期選択。必要メモリーはモデル容量より大きく、画像・文脈長でも増加します。','url':'https://ollama.com/library/qwen2.5vl:7b'},
  {'name':'qwen2.5vl:32b','size':'約21 GB','license':'Apache-2.0','description':'大容量メモリー向け。判断精度を優先する候補ですが、速度と攻略成功は保証されません。','url':'https://ollama.com/library/qwen2.5vl:32b'},
  {'name':'gemma3:4b','size':'約3.3 GB','license':'Gemma Terms','description':'画像対応の別系列。Ollama で利用規約を確認して選択してください。','url':'https://ollama.com/library/gemma3:4b'},
 ]
 
 def install_capture():
-    subprocess.run([sys.executable,'-m','pip','install','Pillow>=11,<13'],check=True)
+    subprocess.run([sys.executable,'-m','pip','install','Pillow>=12,<13'],check=True)
 
 def pull_model(endpoint,model,report,stop):
     from .core import Settings
