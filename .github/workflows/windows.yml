@@ -26,7 +26,7 @@ jobs:
           $zig = python -c "import pathlib,ziglang; print(pathlib.Path(ziglang.__file__).parent/'zig.exe')"
           python tools/build_exe.py --zig $zig
       - name: Python and distribution tests
-        run: python -m unittest discover -s tests -v
+        run: python tools/test.py
       - name: Native exe launch and payload self-test
         shell: powershell
         run: |
@@ -63,6 +63,7 @@ jobs:
           git rm -r --cached . | Out-Null
           New-Item -ItemType Directory -Path ci-evidence -Force | Out-Null
           @{commit=$env:GITHUB_SHA; run=$env:GITHUB_RUN_ID; integration=$env:INTEGRATION_OUTCOME} | ConvertTo-Json | Set-Content ci-evidence/status.json
+          Copy-Item build/unit-tests.* ci-evidence/ -ErrorAction SilentlyContinue
           $folder = "$env:RUNNER_TEMP/GamePilotIntegration"
           if (Test-Path "$folder/integration-report.json") { Copy-Item "$folder/integration-report.json" ci-evidence/ }
           Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 120 | Set-Content (Join-Path ci-evidence $_.Name) }

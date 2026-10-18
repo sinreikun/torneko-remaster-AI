@@ -40,6 +40,13 @@ class DurableMemoryTests(unittest.TestCase):
             memory.remember({'scene':'victory'})
             self.assertFalse(any(r['destination']=='victory' for r in memory.context()['known_transitions']))
             memory.close()
+    def test_corrupt_memory_is_preserved_and_rebuilt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'memory.sqlite';original=b'broken non-SQLite content'
+            path.write_bytes(original)
+            memory=MemoryStore(path,Settings());self.assertEqual(memory.history(),[]);memory.close()
+            backups=list(Path(directory).glob('memory.sqlite.broken-*'))
+            self.assertEqual(len(backups),1);self.assertEqual(backups[0].read_bytes(),original)
     def test_goal_and_knowledge_isolation(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'memory'
@@ -93,6 +100,12 @@ class RecoveryTests(unittest.TestCase):
         waiting=change(scene='loading',action={'keys':[],'hold_ms':1,'wait_ms':0})
         agent,b,_=self.run_agent(Script([waiting]*9+[change(status='complete')]),Settings(max_steps=12))
         self.assertTrue(agent.completed);self.assertEqual(b.actions,[])
+    def test_key_name_aliases_still_respect_allowlist(self):
+        for name,expected in [('ENTER','enter'),('Return','enter'),('SPACEBAR','space')]:
+            value=change(action={'keys':[name],'hold_ms':80,'wait_ms':0})
+            self.assertEqual(parse_decision(json.dumps(value),Settings()).keys,[expected])
+        with self.assertRaises(ValueError):
+            parse_decision(json.dumps(change(action={'keys':['ESC'],'hold_ms':80,'wait_ms':0})),Settings(allowed_keys=['enter']))
     def test_memory_protocol_bounds(self):
         for values in ({'plan':['x']*9},{'progress':[4]},{'memory_updates':[{'key':'x','value':'y','confidence':float('nan')}]},{'risk':'run shell'}):
             with self.subTest(values=values),self.assertRaises(ValueError): parse_decision(json.dumps(change(**values)),Settings())

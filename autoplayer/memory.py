@@ -11,8 +11,21 @@ class MemoryStore:
         signature=json.dumps([settings.window_title,settings.allowed_keys,settings.goal,settings.knowledge],ensure_ascii=False)
         self.profile=hashlib.sha256(signature.encode()).hexdigest()
         self.last_row=None
-        self.db=sqlite3.connect(path)
-        self.db.execute('PRAGMA journal_mode=WAL')
+        try:
+            self.db=sqlite3.connect(path)
+            self.db.execute('PRAGMA journal_mode=WAL')
+            if self.db.execute('PRAGMA quick_check').fetchone()[0]!='ok': raise sqlite3.DatabaseError('integrity check failed')
+        except sqlite3.DatabaseError as error:
+            if hasattr(self,'db'): self.db.close()
+            if getattr(error,'sqlite_errorcode',None) not in (sqlite3.SQLITE_CORRUPT,sqlite3.SQLITE_NOTADB) and str(error)!='integrity check failed': raise
+            # Preserve the database AND WAL before rebuilding; do not reinterpret a locked/full disk as corruption.
+            suffix='.broken-'+str(time.time_ns())
+            original=Path(path)
+            for tail in ('','-wal','-shm'):
+                candidate=Path(str(original)+tail)
+                if candidate.exists(): candidate.rename(Path(str(original)+suffix+tail))
+            self.db=sqlite3.connect(path)
+            self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS experiences(id INTEGER PRIMARY KEY, profile TEXT NOT NULL, time REAL NOT NULL, row TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS experiences_profile ON experiences(profile,id);

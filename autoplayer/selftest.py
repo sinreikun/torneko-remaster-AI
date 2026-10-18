@@ -50,6 +50,7 @@ def main():
         event=threading.Event();commands.put((fn,event))
         if not event.wait(10): raise RuntimeError('Fixture UI did not respond')
     def work():
+        observations=[]
         try:
             with tempfile.TemporaryDirectory(prefix='gamepilot-real-') as temp:
                 base=Path(temp)
@@ -73,7 +74,7 @@ def main():
                     print(json.dumps(results['scenarios'][-1]),flush=True)
             results['passed']=True
         except Exception:
-            results['passed']=False;results['error']=traceback.format_exc()
+            results['passed']=False;results['error']=traceback.format_exc();results['last_observations']=observations[-6:]
             print(results['error'],flush=True)
         finally:
             Path(args.output).parent.mkdir(parents=True,exist_ok=True)
