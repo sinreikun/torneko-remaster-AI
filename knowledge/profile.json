@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "profile_id": "torneko-remaster",
+  "profile_version": "0.2.0",
+  "display_name": "トルネコの大冒険 不思議のダンジョン ちょっとステキなリマスター（Steam）",
+  "window": {
+    "process_name": "TornekosMysteryDungeon-Win64-Shipping",
+    "class_name": "UnrealWindow"
+  },
+  "input": {
+    "default_hold_ms": 80,
+    "min_interval_ms": 120,
+    "keys": {
+      "dpad_up": "W",
+      "dpad_left": "A",
+      "dpad_down": "S",
+      "dpad_right": "D",
+      "button1": "Num1",
+      "button2": "Num2",
+      "button3": "Num3",
+      "button4": "Num4",
+      "button5": "Num5",
+      "button6": "Num6",
+      "button7": "Num7",
+      "button8": "Num0"
+    },
+    "forbidden_keys": [
+      "Escape",
+      "F12",
+      "Alt",
+      "Tab"
+    ],
+    "forbidden_combos": [
+      "Shift+Tab",
+      "Alt+Enter",
+      "Ctrl+W",
+      "Ctrl+Q"
+    ]
+  },
+  "diagnostics": {
+    "toggle": [
+      "button8",
+      "button2"
+    ]
+  }
+}

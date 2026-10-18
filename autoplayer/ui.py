@@ -55,6 +55,7 @@ class Application:
         self.knowledge=tk.Text(run,height=7,wrap='word'); self.knowledge.insert('1.0',self.cfg.knowledge)
         self.knowledge.grid(row=9,column=0,columnspan=2,sticky='ew')
         ttk.Button(run,text='知識ファイルを読み込む…',command=self.load_knowledge).grid(row=10,column=0,sticky='w')
+        ttk.Button(run,text='保存した記憶・進捗を表示',command=self.show_memory).grid(row=10,column=1,sticky='w')
         controls=ttk.Frame(run); controls.grid(row=11,column=0,columnspan=2,sticky='ew',pady=8)
         self.dry=tk.BooleanVar(value=False)
         ttk.Checkbutton(controls,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
@@ -65,6 +66,15 @@ class Application:
         self.log=tk.Text(run,height=14,wrap='word',state='disabled'); self.log.grid(row=14,column=0,columnspan=2,sticky='nsew'); run.rowconfigure(14,weight=1)
         self.setup(setup)
         root.protocol('WM_DELETE_WINDOW',self.close); root.after(100,self.poll)
+    def show_memory(self):
+        try:
+            memory=MemoryStore(DATA/'memory.sqlite',self.settings())
+            try: value=memory.context()
+            finally: memory.close()
+            window=tk.Toplevel(self.root);window.title('記憶・進捗（モデルの報告は未確定の仮説）')
+            text=tk.Text(window,width=100,height=30,wrap='word');text.pack(fill='both',expand=True)
+            text.insert('1.0',json.dumps(value,ensure_ascii=False,indent=2));text.configure(state='disabled')
+        except Exception as error: messagebox.showerror('記憶を開けません',str(error))
     def refresh_windows(self):
         if os.name=='nt':
             from .windows import visible_windows
@@ -174,4 +184,7 @@ class Application:
         else: self.root.destroy()
 
 def main():
+    if os.name=='nt':
+        import ctypes
+        ctypes.windll.user32.SetProcessDPIAware()
     root=tk.Tk(); Application(root); root.mainloop()

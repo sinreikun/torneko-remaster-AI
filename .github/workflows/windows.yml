@@ -10,13 +10,15 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
       - name: Install build compiler
-        run: python -m pip install ziglang==0.13.0
+        run: python -m pip install ziglang==0.13.0 "Pillow>=12,<13"
       - name: Build small native exe
         shell: pwsh
         run: |
@@ -37,12 +39,30 @@ jobs:
           & $script -Payload (Resolve-Path build/application.zip) -UiSmokeTest
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Real unattended install, model, window capture and input
+        id: integration
         shell: powershell
         timeout-minutes: 45
         run: |
           $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
           & $script -Payload (Resolve-Path build/application.zip) -IntegrationTest -TestBaseDir "$env:RUNNER_TEMP/GamePilotIntegration"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Publish machine-readable CI evidence branch
+        if: always()
+        shell: pwsh
+        env:
+          INTEGRATION_OUTCOME: ${{ steps.integration.outcome }}
+        run: |
+          $branch = "ci-evidence/run-$env:GITHUB_RUN_ID"
+          git checkout --orphan $branch
+          git rm -r --cached . | Out-Null
+          New-Item -ItemType Directory -Path ci-evidence -Force | Out-Null
+          @{commit=$env:GITHUB_SHA; run=$env:GITHUB_RUN_ID; integration=$env:INTEGRATION_OUTCOME} | ConvertTo-Json | Set-Content ci-evidence/status.json
+          $folder = "$env:RUNNER_TEMP/GamePilotIntegration"
+          if (Test-Path "$folder/integration-report.json") { Copy-Item "$folder/integration-report.json" ci-evidence/ }
+          Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 120 | Set-Content (Join-Path ci-evidence $_.Name) }
+          git add ci-evidence
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Record unattended Windows integration evidence"
+          git push origin "HEAD:refs/heads/$branch"
       - name: Preserve automated integration evidence
         if: always()
         uses: actions/upload-artifact@v4

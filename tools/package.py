@@ -5,7 +5,7 @@ import zipfile
 root=Path(__file__).resolve().parents[1]
 out=root/'dist';out.mkdir(exist_ok=True)
 files=[]
-for directory in ['autoplayer','knowledge','tests','tools','launcher','.github']:
+for directory in ['autoplayer','knowledge','tests','tools','launcher','.github','reference']:
     files.extend(p for p in (root/directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix!='.pyc')
 files.extend(root/p for p in ['README.md','requirements.txt','start.bat','setup.bat','VALIDATION.md'])
 path=out/'LocalGamePilot-0.3.0-source.zip'

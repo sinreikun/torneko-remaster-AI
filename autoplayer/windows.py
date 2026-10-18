@@ -26,6 +26,7 @@ class WindowsGame:
         self.u.IsIconic.argtypes=[W.HWND]; self.u.IsIconic.restype=W.BOOL
         self.u.GetWindowTextLengthW.argtypes=[W.HWND]
         self.u.GetWindowTextW.argtypes=[W.HWND,W.LPWSTR,C.c_int]
+        self.u.GetClassNameW.argtypes=[W.HWND,W.LPWSTR,C.c_int]
         self.u.GetClientRect.argtypes=[W.HWND,C.POINTER(W.RECT)]
         self.u.ClientToScreen.argtypes=[W.HWND,C.POINTER(W.POINT)]
         self.u.GetAsyncKeyState.argtypes=[C.c_int]; self.u.GetAsyncKeyState.restype=C.c_short
@@ -54,6 +55,30 @@ class WindowsGame:
             if self.u.IsWindowVisible(h) and self.title in self._text(h).casefold(): matches.append(h)
             return True
         self.u.EnumWindows(visit,0)
+        if not matches:
+            from pathlib import Path
+            import json
+            profile=Path(__file__).resolve().parent.parent/'knowledge/profile.json'
+            if profile.exists():
+                spec=json.loads(profile.read_text(encoding='utf-8'))['window']
+                kernel=C.WinDLL('kernel32',use_last_error=True)
+                kernel.OpenProcess.argtypes=[W.DWORD,W.BOOL,W.DWORD];kernel.OpenProcess.restype=W.HANDLE
+                kernel.QueryFullProcessImageNameW.argtypes=[W.HANDLE,W.DWORD,W.LPWSTR,C.POINTER(W.DWORD)]
+                kernel.CloseHandle.argtypes=[W.HANDLE]
+                @callback
+                def identify(h,_):
+                    name=C.create_unicode_buffer(256)
+                    self.u.GetClassNameW(h,name,256)
+                    if not self.u.IsWindowVisible(h) or name.value!=spec['class_name']: return True
+                    pid=W.DWORD();self.u.GetWindowThreadProcessId(h,C.byref(pid))
+                    handle=kernel.OpenProcess(0x1000,False,pid.value)
+                    if handle:
+                        try:
+                            path=C.create_unicode_buffer(32768);size=W.DWORD(32768)
+                            if kernel.QueryFullProcessImageNameW(handle,0,path,C.byref(size)) and Path(path.value).stem.casefold()==spec['process_name'].casefold(): matches.append(h)
+                        finally: kernel.CloseHandle(handle)
+                    return True
+                self.u.EnumWindows(identify,0)
         if len(matches)!=1: raise RuntimeError(f'対象ウィンドウが {len(matches)} 個あります。固有のタイトルの一部を指定してください。')
         self.hwnd=matches[0]
     def ready(self):
@@ -81,6 +106,10 @@ class WindowsGame:
         return ImageStat.Stat(ImageChops.difference(before,after)).mean[0]
     def is_current(self,png): return self.difference(png,self.capture())<18
     def changed(self,before,after): return self.difference(before,after)>1.0
+    def observe_turn(self,baseline,scene,wait_ms,stop):
+        from .observation import TurnObserver
+        if not hasattr(self,'observer'): self.observer=TurnObserver()
+        return self.observer.observe(self.capture,baseline,scene,stop,wait_ms)
     def activate(self):
         self.u.ShowWindow(self.hwnd,9)
         self.u.SetForegroundWindow(self.hwnd)
