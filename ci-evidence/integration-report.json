@@ -1,0 +1,7 @@
+{
+  "fixture": "synthetic visible Windows game",
+  "model": "qwen2.5vl:3b",
+  "scenarios": [],
+  "passed": false,
+  "error": "Traceback (most recent call last):\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-73D073679B63\\autoplayer\\selftest.py\", line 68, in work\n    agent.run()\n    ~~~~~~~~~^^\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-73D073679B63\\autoplayer\\core.py\", line 199, in run\n    decision=self.llm.decide(image,self.history,repeats>=3 or stagnant>=3)\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-73D073679B63\\autoplayer\\core.py\", line 168, in decide\n    return parse_decision(self._request(png,SYSTEM,prompt),cfg)\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-73D073679B63\\autoplayer\\core.py\", line 98, in parse_decision\n    raise ValueError('invalid or forbidden keys')\nValueError: invalid or forbidden keys\n"
+}
