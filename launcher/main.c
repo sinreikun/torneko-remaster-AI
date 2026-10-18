@@ -1,6 +1,7 @@
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
+#include <shellapi.h>
 #include <stdio.h>
 #include "payload.h"
 
@@ -21,8 +22,11 @@ static int ps_quote(const wchar_t *source,wchar_t *dest,size_t capacity) {
     dest[out]=0;return 1;
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR args,int show) {
-    (void)instance;(void)previous;(void)show;
-    BOOL self_test=wcscmp(args,L"--self-test")==0;
+    (void)instance;(void)previous;(void)args;(void)show;
+    int argc=0;
+    LPWSTR *argv=CommandLineToArgvW(GetCommandLineW(),&argc);
+    BOOL self_test=argv && argc==2 && wcscmp(argv[1],L"--self-test")==0;
+    if(argv) LocalFree(argv);
     HANDLE mutex=CreateMutexW(NULL,TRUE,L"Local\\LocalGamePilot-Launcher");
     if(!mutex || GetLastError()==ERROR_ALREADY_EXISTS) {
         if(!self_test) MessageBoxW(NULL,L"Local Game Pilot is already running.",L"Local Game Pilot",MB_OK|MB_ICONINFORMATION);

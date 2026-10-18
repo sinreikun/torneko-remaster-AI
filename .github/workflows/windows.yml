@@ -33,7 +33,12 @@ jobs:
       - name: Native exe launch and payload self-test
         shell: powershell
         run: |
-          $process = Start-Process -FilePath (Resolve-Path dist/LocalGamePilot.exe) -ArgumentList '--self-test' -Wait -PassThru
+          $process = Start-Process -FilePath (Resolve-Path dist/LocalGamePilot.exe) -ArgumentList '--self-test' -PassThru
+          $null = $process.Handle
+          if (-not $process.WaitForExit(90000)) {
+            taskkill /PID $process.Id /T /F | Out-Null
+            throw 'Native executable startup timed out'
+          }
           if ($process.ExitCode) { throw "Native executable startup failed: $($process.ExitCode)" }
       - name: Windows PowerShell 5.1 payload and syntax verification
         shell: powershell

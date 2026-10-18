@@ -31,7 +31,7 @@ def main():
     exe=out/'LocalGamePilot.exe'
     environment={**os.environ,'ZIG_GLOBAL_CACHE_DIR':str(build/'zig-global'),'ZIG_LOCAL_CACHE_DIR':str(build/'zig-local')}
     subprocess.run([args.zig,'cc','-target','x86_64-windows-gnu','-Os','-s','-municode','-Wl,--subsystem,windows',
-                    '-Wall','-Wextra','-Werror','-I',str(build),str(root/'launcher/main.c'),'-o',str(exe),'-luser32'],check=True,env=environment)
+                    '-Wall','-Wextra','-Werror','-I',str(build),str(root/'launcher/main.c'),'-o',str(exe),'-luser32','-lshell32'],check=True,env=environment)
     digest=hashlib.sha256(exe.read_bytes()).hexdigest()
     (out/'LocalGamePilot.exe.sha256').write_text(f'{digest}  {exe.name}\n',encoding='ascii')
     print(json.dumps({'path':str(exe),'bytes':exe.stat().st_size,'sha256':digest},indent=2))
