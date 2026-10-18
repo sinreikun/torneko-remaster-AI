@@ -117,8 +117,9 @@ class WindowsGame:
     def _send(self,vk,up=False):
         scan=self.u.MapVirtualKeyW(vk,0)
         if not scan: raise RuntimeError('キーのスキャンコードを取得できません。')
-        flags=0x0008 | (0x0002 if up else 0) | (0x0001 if vk in (0x25,0x26,0x27,0x28) else 0)
-        event=INPUT(type=1,data=INPUTUNION(ki=KEYBDINPUT(0,scan,flags,0,0)))
+        numpad=0x60<=vk<=0x69
+        flags=(0 if numpad else 0x0008) | (0x0002 if up else 0) | (0x0001 if vk in (0x25,0x26,0x27,0x28) else 0)
+        event=INPUT(type=1,data=INPUTUNION(ki=KEYBDINPUT(vk if numpad else 0,scan,flags,0,0)))
         if self.u.SendInput(1,C.byref(event),C.sizeof(INPUT))!=1:
             raise RuntimeError('Windows がキー入力を受け付けませんでした。')
     def _vk(self,k):

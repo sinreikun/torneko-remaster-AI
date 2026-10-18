@@ -147,6 +147,7 @@ class Application:
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
                 try:
                     agent=Controller(cfg,backend,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),path,self.stop,memory)
+                    self.queue.put(('status','ローカルLLMで画面を判断しています。CPUの初回推論は数分かかる場合があります。'))
                     agent.run(dry)
                     if agent.completed: self.queue.put(('status','目標達成を別の観測で確認しました。'))
                 finally: memory.close()
