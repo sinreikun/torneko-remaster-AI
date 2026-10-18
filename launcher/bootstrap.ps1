@@ -1,5 +1,13 @@
 param([Parameter(Mandatory=$true)][string]$Payload, [switch]$SelfTest, [switch]$UiSmokeTest, [switch]$IntegrationTest, [string]$TestBaseDir)
 $ErrorActionPreference = 'Stop'
+# A GUI exe can inherit PowerShell 7's module path from its caller. Prefer the
+# Windows PowerShell 5.1 system modules; do not depend on caller profiles.
+$systemModules = [IO.Path]::Combine($PSHOME, 'Modules')
+$env:PSModulePath = $systemModules + [IO.Path]::PathSeparator + $env:PSModulePath
+foreach ($module in @('Microsoft.PowerShell.Utility','Microsoft.PowerShell.Management','Microsoft.PowerShell.Archive')) {
+    Import-Module ([IO.Path]::Combine($systemModules, $module)) -ErrorAction Stop
+}
+
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing

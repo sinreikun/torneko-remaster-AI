@@ -6,6 +6,9 @@ on:
     paths-ignore: ['**.md', 'reference/**']
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
