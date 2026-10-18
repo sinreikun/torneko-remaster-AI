@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Payload, [switch]$SelfTest, [switch]$UiSmokeTest, [switch]$IntegrationTest, [string]$TestBaseDir)
+param([Parameter(Mandatory=$true)][string]$Payload, [switch]$SelfTest, [switch]$UiSmokeTest, [switch]$IntegrationTest, [switch]$DownloadSelfTest, [string]$TestBaseDir)
 $ErrorActionPreference = 'Stop'
 # A GUI exe can inherit PowerShell 7's module path from its caller. Prefer the
 # Windows PowerShell 5.1 system modules; do not depend on caller profiles.
@@ -12,7 +12,7 @@ foreach ($module in @('Microsoft.PowerShell.Utility','Microsoft.PowerShell.Manag
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $BaseDir = Join-Path $env:LOCALAPPDATA 'LocalGamePilot'
-if ($IntegrationTest) {
+if ($IntegrationTest -or $DownloadSelfTest) {
     if (-not $TestBaseDir) { throw 'Integration tests require an isolated TestBaseDir.' }
     $BaseDir = [IO.Path]::GetFullPath($TestBaseDir)
 }
@@ -273,6 +273,59 @@ $InstallWorker = {
         try { [IO.File]::WriteAllText((Join-Path $BaseDir 'setup-error.log'), $State.Error) } catch { }
     }
     finally { $State.Done = $true }
+}
+
+if ($DownloadSelfTest) {
+    try {
+    New-Item -ItemType Directory -Path $BaseDir -Force | Out-Null
+    $State = @{Cancel=$false;Message=''}
+    $definitions = $InstallWorker.Ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]}, $true)
+    . ([scriptblock]::Create(($definitions | ForEach-Object {$_.Extent.Text}) -join "`n"))
+    $extract = Join-Path $BaseDir 'payload'
+    Expand-Archive -LiteralPath $Payload -DestinationPath $extract -Force
+    $source = Join-Path $extract 'knowledge/profile.json'
+    $expected = (Get-FileHash $source -Algorithm SHA256).Hash
+    $url = 'https://github.com/' + $env:GITHUB_REPOSITORY + '/raw/' + $env:GITHUB_SHA + '/knowledge/profile.json'
+    $target = Join-Path $BaseDir 'download.json'
+    $checks = @()
+    Download $url $target $expected
+    if ((Get-FileHash $target -Algorithm SHA256).Hash -ne $expected) { throw 'Full download failed' }
+    $checks += 'HTTPS download and SHA-256'
+    # Recreate the exact persistent state left by an interrupted download.
+    $bytes = [IO.File]::ReadAllBytes($source)
+    [IO.File]::WriteAllBytes($target + '.part', $bytes[0..16])
+    $request = [Net.HttpWebRequest]::Create($url); $request.Method='HEAD'; $request.Timeout=30000
+    $response = $request.GetResponse()
+    try { $etag = $response.Headers['ETag'] } finally { $response.Dispose() }
+    @{url=$url;etag=$etag} | ConvertTo-Json | Set-Content ($target + '.part.json') -Encoding UTF8
+    Remove-Item $target
+    Download $url $target $expected
+    if ((Get-FileHash $target -Algorithm SHA256).Hash -ne $expected) { throw 'Resume/restart integrity failed' }
+    $checks += 'Interrupted transfer resumes or safely restarts'
+    # A verified cached artifact must not need another network connection.
+    Download 'https://unreachable.invalid/cached' $target $expected
+    $checks += 'Verified cache works without network'
+    $bad = Join-Path $BaseDir 'bad.json'
+    $rejected = $false
+    try { Download $url $bad ('0' * 64) } catch { $rejected=$true }
+    if (-not $rejected -or (Test-Path $bad)) { throw 'Corrupt artifact was accepted' }
+    $checks += 'Wrong checksum rejected after bounded retries'
+    $State.Cancel=$true; $rejected=$false
+    try { Download $url $bad $expected } catch { $rejected=$true }
+    $State.Cancel=$false
+    if (-not $rejected) { throw 'Cancellation failed' }
+    $checks += 'Cancellation stops transfer'
+    $rejected=$false
+    try { Download 'http://localhost/unsigned' $bad $expected } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Plain HTTP was accepted' }
+    $checks += 'Plain HTTP rejected'
+    @{passed=$true;checks=$checks} | ConvertTo-Json | Set-Content (Join-Path $BaseDir 'download-tests.json') -Encoding UTF8
+    Write-Output 'Downloader fault and resume tests passed.'
+    exit 0
+    } catch {
+        @{passed=$false;error=$_.Exception.Message;checks=$checks} | ConvertTo-Json | Set-Content (Join-Path $BaseDir 'download-tests.json') -Encoding UTF8
+        throw
+    }
 }
 
 if ($IntegrationTest) {

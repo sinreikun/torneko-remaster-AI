@@ -47,6 +47,12 @@ jobs:
           $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
           & $script -Payload (Resolve-Path build/application.zip) -UiSmokeTest
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Downloader resume, cancellation and integrity fault tests
+        shell: powershell
+        run: |
+          $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
+          & $script -Payload (Resolve-Path build/application.zip) -DownloadSelfTest -TestBaseDir "$env:RUNNER_TEMP/GamePilotDownloads"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Real unattended install, model, window capture and input
         id: integration
         shell: powershell
@@ -67,6 +73,7 @@ jobs:
           New-Item -ItemType Directory -Path ci-evidence -Force | Out-Null
           @{commit=$env:GITHUB_SHA; run=$env:GITHUB_RUN_ID; integration=$env:INTEGRATION_OUTCOME} | ConvertTo-Json | Set-Content ci-evidence/status.json
           Copy-Item build/unit-tests.* ci-evidence/ -ErrorAction SilentlyContinue
+          Copy-Item "$env:RUNNER_TEMP/GamePilotDownloads/download-tests.json" ci-evidence/ -ErrorAction SilentlyContinue
           $folder = "$env:RUNNER_TEMP/GamePilotIntegration"
           if (Test-Path "$folder/integration-report.json") { Copy-Item "$folder/integration-report.json" ci-evidence/ }
           Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 120 | Set-Content (Join-Path ci-evidence $_.Name) }
