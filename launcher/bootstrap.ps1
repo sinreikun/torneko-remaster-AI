@@ -47,6 +47,16 @@ $InstallWorker = {
             try { return ($reader.ReadToEnd() | ConvertFrom-Json) } finally { $reader.Dispose() }
         } finally { $response.Dispose() }
     }
+    function Get-FreeSpace($Path) {
+        $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($Path))
+        return $drive.AvailableFreeSpace
+    }
+    function Assert-PythonSignature($Path) {
+        $signature = Get-AuthenticodeSignature -LiteralPath $Path
+        if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(?:^|,\s*)O=Python Software Foundation(?:,|$)') {
+            throw 'Python の署名または発行元を確認できません。未検証ファイルは実行しません。'
+        }
+    }
     function Download($Url, $Destination, $ExpectedHash = '') {
         if (-not $Url.StartsWith('https://')) { throw 'HTTPS 以外の配布元は使用できません。' }
         $part = $Destination + '.part'
@@ -77,8 +87,7 @@ $InstallWorker = {
                 $resume = $offset -gt 0 -and [int]$response.StatusCode -eq 206
                 if ($resume -and $response.Headers['Content-Range'] -notmatch ('^bytes ' + $offset + '-')) { throw '再開位置が一致しません。' }
                 if (-not $resume) { $offset = 0 }
-                $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($Destination))
-                if ($response.ContentLength -gt 0 -and $drive.AvailableFreeSpace -lt ($response.ContentLength + 536870912)) { throw 'ダウンロード用の空き容量が不足しています。' }
+                if ($response.ContentLength -gt 0 -and (Get-FreeSpace $Destination) -lt ($response.ContentLength + 536870912)) { throw 'ダウンロード用の空き容量が不足しています。' }
                 @{url=$Url; etag=$response.Headers['ETag']} | ConvertTo-Json | Set-Content -LiteralPath $metadataFile -Encoding UTF8
                 $mode = if ($resume) { [IO.FileMode]::Append } else { [IO.FileMode]::Create }
                 $downloadStream = $response.GetResponseStream()
@@ -143,10 +152,7 @@ $InstallWorker = {
             $installer = Join-Path $downloads ('python-' + $candidates[0].Version.ToString() + '.exe')
             Download $candidates[0].Url $installer
             $State.Message = 'Python の発行元署名を検証しています…'
-            $signature = Get-AuthenticodeSignature -LiteralPath $installer
-            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(?:^|,\s*)O=Python Software Foundation(?:,|$)') {
-                throw 'Python の署名または発行元を確認できません。未検証ファイルは実行しません。'
-            }
+            Assert-PythonSignature $installer
             $arguments = '/quiet InstallAllUsers=0 Include_launcher=0 InstallLauncherAllUsers=0 Include_tcltk=1 Include_pip=1 Include_test=0 Include_doc=0 Shortcuts=0 AssociateFiles=0 PrependPath=0 TargetDir="' + $runtime + '"'
             Run-Process $installer $arguments 'Python と画面UIの導入'
             if (-not (Test-Path $pythonw)) { throw 'Python の導入が完了していません。' }
@@ -187,8 +193,7 @@ $InstallWorker = {
                 Add-Type -AssemblyName System.IO.Compression.FileSystem
                 $zip = [IO.Compression.ZipFile]::OpenRead($archive)
                 try { [long]$extractedBytes = ($zip.Entries | Measure-Object -Property Length -Sum).Sum } finally { $zip.Dispose() }
-                $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($ollamaDir))
-                if ($drive.AvailableFreeSpace -lt ($extractedBytes + 536870912)) { throw 'Ollama の展開用空き容量が不足しています。' }
+                if ((Get-FreeSpace $ollamaDir) -lt ($extractedBytes + 536870912)) { throw 'Ollama の展開用空き容量が不足しています。' }
                 $staging = $ollamaDir + '.staging-' + [Guid]::NewGuid().ToString('N')
                 try {
                     Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
@@ -319,6 +324,21 @@ if ($DownloadSelfTest) {
     try { Download 'http://localhost/unsigned' $bad $expected } catch { $rejected=$true }
     if (-not $rejected) { throw 'Plain HTTP was accepted' }
     $checks += 'Plain HTTP rejected'
+    $freeSpaceFunction = ${function:Get-FreeSpace}
+    try {
+        function Get-FreeSpace($Path) { return 0 }
+        $rejected=$false
+        try { Download $url $bad $expected } catch { $rejected=$_.Exception.Message -like '*空き容量*' }
+        if (-not $rejected -or (Test-Path $bad)) { throw 'Insufficient disk space was not handled safely' }
+        $checks += 'Insufficient disk space prevents file creation'
+    } finally { Set-Item -Path Function:Get-FreeSpace -Value $freeSpaceFunction }
+    $ownExe = [IO.Path]::GetFullPath((Join-Path (Split-Path $Payload -Parent) '../dist/LocalGamePilot.exe'))
+    if (-not (Test-Path $ownExe)) { throw 'Missing native executable signature test fixture' }
+    $rejected=$false
+    try { Assert-PythonSignature $ownExe } catch { $rejected=$_.Exception.Message -like '*署名*' }
+    if (-not $rejected) { throw 'A non-Python executable passed the publisher guard' }
+    $checks += 'Unsigned or wrong-publisher installer rejected'
+
     @{passed=$true;checks=$checks} | ConvertTo-Json | Set-Content (Join-Path $BaseDir 'download-tests.json') -Encoding UTF8
     Write-Output 'Downloader fault and resume tests passed.'
     exit 0
