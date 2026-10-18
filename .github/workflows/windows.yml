@@ -36,6 +36,22 @@ jobs:
           $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
           & $script -Payload (Resolve-Path build/application.zip) -UiSmokeTest
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Real unattended install, model, window capture and input
+        shell: powershell
+        timeout-minutes: 45
+        run: |
+          $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
+          & $script -Payload (Resolve-Path build/application.zip) -IntegrationTest -TestBaseDir "$env:RUNNER_TEMP/GamePilotIntegration"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Preserve automated integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-integration-evidence
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/GamePilotIntegration/integration-report.json
+            ${{ runner.temp }}/GamePilotIntegration/*.log
       - uses: actions/upload-artifact@v4
         with:
           name: LocalGamePilot-Windows-x64

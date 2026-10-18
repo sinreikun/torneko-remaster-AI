@@ -1,10 +1,15 @@
-param([Parameter(Mandatory=$true)][string]$Payload, [switch]$SelfTest, [switch]$UiSmokeTest)
+param([Parameter(Mandatory=$true)][string]$Payload, [switch]$SelfTest, [switch]$UiSmokeTest, [switch]$IntegrationTest, [string]$TestBaseDir)
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $BaseDir = Join-Path $env:LOCALAPPDATA 'LocalGamePilot'
-$AppDir = Join-Path $BaseDir 'app-0.2.0'
+if ($IntegrationTest) {
+    if (-not $TestBaseDir) { throw 'Integration tests require an isolated TestBaseDir.' }
+    $BaseDir = [IO.Path]::GetFullPath($TestBaseDir)
+}
+$payloadHash = (Get-FileHash -LiteralPath $Payload -Algorithm SHA256).Hash.Substring(0,12)
+$AppDir = Join-Path $BaseDir ('app-0.3.0-' + $payloadHash)
 
 # This block runs in a dedicated runspace. UI updates are polled on the UI thread.
 $InstallWorker = {
@@ -17,7 +22,7 @@ $InstallWorker = {
     function Get-Json($Url, $Body = $null) {
         Check-Cancel
         $request = [Net.HttpWebRequest]::Create($Url)
-        $request.UserAgent = 'LocalGamePilot/0.2.0'
+        $request.UserAgent = 'LocalGamePilot/0.3.0'
         if ($request.Address.IsLoopback) { $request.Proxy = $null }
         $request.Timeout = 30000
         $request.ReadWriteTimeout = 30000
@@ -34,31 +39,66 @@ $InstallWorker = {
             try { return ($reader.ReadToEnd() | ConvertFrom-Json) } finally { $reader.Dispose() }
         } finally { $response.Dispose() }
     }
-    function Download($Url, $Destination) {
+    function Download($Url, $Destination, $ExpectedHash = '') {
         if (-not $Url.StartsWith('https://')) { throw 'HTTPS 以外の配布元は使用できません。' }
-        Check-Cancel
         $part = $Destination + '.part'
-        $request = [Net.HttpWebRequest]::Create($Url)
-        $request.UserAgent = 'LocalGamePilot/0.2.0'
-        $request.Timeout = 30000
-        $request.ReadWriteTimeout = 30000
-        $response = $request.GetResponse()
-        try {
-            if ($response.ResponseUri.Scheme -ne 'https') { throw 'HTTPS 以外への転送を拒否しました。' }
-            $downloadStream = $response.GetResponseStream()
-            $output = [IO.File]::Create($part)
+        $metadataFile = $part + '.json'
+        if ($ExpectedHash -and (Test-Path $Destination)) {
+            if ((Get-FileHash $Destination -Algorithm SHA256).Hash -eq $ExpectedHash) { return }
+            Remove-Item -LiteralPath $Destination -Force
+        }
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Check-Cancel
+            $response = $null
             try {
-                $buffer = New-Object byte[] 262144
-                [long]$total = 0
-                while (($read = $downloadStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                    Check-Cancel
-                    $output.Write($buffer, 0, $read); $total += $read
-                    $State.Message = ('ダウンロード: {0:N1} MB / {1:N1} MB' -f ($total / 1048576), ([Math]::Max(0,$response.ContentLength) / 1048576))
+                $request = [Net.HttpWebRequest]::Create($Url)
+                $request.UserAgent = 'LocalGamePilot/0.3.0'
+                $request.Timeout = 30000; $request.ReadWriteTimeout = 30000
+                [long]$offset = 0
+                if ((Test-Path $part) -and (Test-Path $metadataFile)) {
+                    try {
+                        $metadata = Get-Content $metadataFile -Raw | ConvertFrom-Json
+                        if ($metadata.url -eq $Url -and $metadata.etag) {
+                            $offset = (Get-Item $part).Length
+                            if ($offset -gt 0) { $request.AddRange($offset); $request.Headers['If-Range'] = $metadata.etag }
+                        }
+                    } catch { $offset = 0 }
                 }
-                if ($response.ContentLength -ge 0 -and $total -ne $response.ContentLength) { throw 'ダウンロードサイズが一致しません。' }
-            } finally { $output.Dispose(); $downloadStream.Dispose() }
-        } finally { $response.Dispose() }
-        Move-Item -LiteralPath $part -Destination $Destination -Force
+                $response = $request.GetResponse()
+                if ($response.ResponseUri.Scheme -ne 'https') { throw 'HTTPS 以外への転送を拒否しました。' }
+                $resume = $offset -gt 0 -and [int]$response.StatusCode -eq 206
+                if ($resume -and $response.Headers['Content-Range'] -notmatch ('^bytes ' + $offset + '-')) { throw '再開位置が一致しません。' }
+                if (-not $resume) { $offset = 0 }
+                $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($Destination))
+                if ($response.ContentLength -gt 0 -and $drive.AvailableFreeSpace -lt ($response.ContentLength + 536870912)) { throw 'ダウンロード用の空き容量が不足しています。' }
+                @{url=$Url; etag=$response.Headers['ETag']} | ConvertTo-Json | Set-Content -LiteralPath $metadataFile -Encoding UTF8
+                $mode = if ($resume) { [IO.FileMode]::Append } else { [IO.FileMode]::Create }
+                $downloadStream = $response.GetResponseStream()
+                $output = New-Object IO.FileStream($part, $mode, [IO.FileAccess]::Write)
+                try {
+                    $buffer = New-Object byte[] 262144
+                    [long]$total = $offset
+                    while (($read = $downloadStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                        Check-Cancel
+                        $output.Write($buffer, 0, $read); $total += $read
+                        $State.Message = ('取得: {0:N1} MB / {1:N1} MB（試行{2}/3）' -f ($total / 1048576), ([Math]::Max(0,$response.ContentLength + $offset) / 1048576), $attempt)
+                    }
+                    if ($response.ContentLength -ge 0 -and $total -ne $response.ContentLength + $offset) { throw 'ダウンロードサイズが一致しません。' }
+                } finally { $output.Dispose(); $downloadStream.Dispose() }
+                if ($ExpectedHash -and (Get-FileHash $part -Algorithm SHA256).Hash -ne $ExpectedHash) {
+                    Remove-Item -LiteralPath $part -Force
+                    throw '取得したファイルの SHA-256 が一致しません。'
+                }
+                Move-Item -LiteralPath $part -Destination $Destination -Force
+                Remove-Item -LiteralPath $metadataFile -Force -ErrorAction SilentlyContinue
+                return
+            } catch {
+                if ($State.Cancel -or $attempt -eq 3) { throw }
+                if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 416) { Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue }
+                $State.Message = '通信を再試行しています… ' + $_.Exception.Message
+                Start-Sleep -Milliseconds (500 * $attempt)
+            } finally { if ($response) { $response.Dispose() } }
+        }
     }
     function Run-Process($File, $Arguments, $Label) {
         Check-Cancel
@@ -131,15 +171,19 @@ $InstallWorker = {
                 if (-not $asset.browser_download_url.StartsWith('https://github.com/ollama/ollama/releases/download/')) { throw 'Ollama の公式配布元ではありません。' }
                 if ($asset.digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { throw '公式配布情報に SHA-256 がないため導入できません。' }
                 $archive = Join-Path $downloads 'ollama-windows-amd64.zip'
-                Download $asset.browser_download_url $archive
+                Download $asset.browser_download_url $archive $asset.digest.Substring(7)
                 $State.Message = 'Ollama の SHA-256 を検証しています…'
                 $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
                 if ($actual -ne $asset.digest.Substring(7).ToLowerInvariant()) { throw 'Ollama の SHA-256 が一致しません。' }
+                $archiveBytes = (Get-Item $archive).Length
+                $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($ollamaDir))
+                if ($drive.AvailableFreeSpace -lt ($archiveBytes * 3)) { throw 'Ollama の展開用空き容量が不足しています。' }
                 $staging = $ollamaDir + '.staging-' + [Guid]::NewGuid().ToString('N')
                 try {
                     Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
                     if (-not (Test-Path (Join-Path $staging 'ollama.exe'))) { throw 'Ollama の実行ファイルがありません。' }
                     Move-Item -LiteralPath $staging -Destination $ollamaDir
+                    Remove-Item -LiteralPath $archive -Force
                     $release.tag_name | Set-Content -LiteralPath (Join-Path $ollamaDir 'version.txt') -Encoding UTF8
                 } finally { if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force } }
             }
@@ -199,8 +243,10 @@ $InstallWorker = {
         $settingsFile = Join-Path $data 'settings.json'
         $settings = @{}
         if (Test-Path $settingsFile) {
-            $old = Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            foreach ($property in $old.PSObject.Properties) { $settings[$property.Name] = $property.Value }
+            try {
+                $old = Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | ConvertFrom-Json
+                foreach ($property in $old.PSObject.Properties) { $settings[$property.Name] = $property.Value }
+            } catch { Copy-Item -LiteralPath $settingsFile -Destination ($settingsFile + '.broken-' + [Guid]::NewGuid().ToString('N')) }
         }
         $settings['provider'] = 'ollama'; $settings['endpoint'] = $endpoint; $settings['model'] = $Options.Model
         $json = $settings | ConvertTo-Json -Depth 10
@@ -213,6 +259,26 @@ $InstallWorker = {
         $State.Message = '準備完了。本体を起動します。'
     } catch { $State.Error = $_.Exception.Message }
     finally { $State.Done = $true }
+}
+
+if ($IntegrationTest) {
+    $options = @{Python='3.13'; Backend='managed'; Model='qwen2.5vl:3b'; Endpoint='http://127.0.0.1:11435'}
+    $state = [hashtable]::Synchronized(@{Done=$false;Cancel=$false;Ready=$false;Error='';Message=''})
+    & $InstallWorker $BaseDir $AppDir $Payload $options $state
+    if ($state.Error -or -not $state.Ready) { throw ('AUTOMATED INSTALL FAILED: ' + $state.Error) }
+    # Repeat the same installer to validate reuse and recovery without touching user configuration.
+    $state.Done=$false; $state.Ready=$false
+    & $InstallWorker $BaseDir $AppDir $Payload $options $state
+    if ($state.Error -or -not $state.Ready) { throw ('REPEAT INSTALL FAILED: ' + $state.Error) }
+    $python = Join-Path (Split-Path $state.Python) 'python.exe'
+    $report = Join-Path $BaseDir 'integration-report.json'
+    Push-Location $AppDir
+    try {
+        & $python -m autoplayer.selftest --endpoint $options.Endpoint.Replace('11434','11435') --model $options.Model --output $report
+        if ($LASTEXITCODE) { throw 'REAL VISION / INPUT INTEGRATION FAILED' }
+    } finally { Pop-Location }
+    Write-Output ('INTEGRATION PASSED: ' + $report)
+    exit 0
 }
 
 if ($SelfTest) {
@@ -263,6 +329,10 @@ $modelChoice = New-Object Windows.Forms.ComboBox
 $modelChoice.DropDownStyle = 'DropDownList'; $modelChoice.Location = New-Object Drawing.Point(20,275)
 $modelChoice.Size = New-Object Drawing.Size(680,28)
 $modelChoice.Items.AddRange(@('qwen2.5vl:3b - 軽量 約3.2GB / Apache-2.0','qwen2.5vl:7b - 推奨 約6GB / Apache-2.0','qwen2.5vl:32b - 大容量 約21GB / Apache-2.0','gemma3:4b - 別系列 約3.3GB / Gemma Terms')); $modelChoice.SelectedIndex = 1
+try {
+    $ramGB = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1073741824
+    if ($ramGB -lt 12) { $modelChoice.SelectedIndex = 0 }
+} catch { }
 $form.Controls.Add($modelChoice)
 if (Test-Path (Join-Path $BaseDir 'bootstrap.json')) {
     try {

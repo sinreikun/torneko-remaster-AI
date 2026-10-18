@@ -10,6 +10,7 @@ from dataclasses import asdict
 import webbrowser
 import os
 from .core import Settings, LocalLLM, Controller
+from .memory import MemoryStore
 from .components import CATALOG, MODELS, pull_model, install_capture
 
 DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.parent/'data'))
@@ -22,6 +23,9 @@ class Application:
         if (DATA/'settings.json').exists():
             try: self.cfg=Settings(**json.loads((DATA/'settings.json').read_text(encoding='utf-8'))).validate()
             except Exception as e: messagebox.showwarning('設定',f'設定を読み込めません。既定値で開始します。\n{e}')
+        if not self.cfg.knowledge:
+            default_knowledge=Path(__file__).resolve().parent.parent/'knowledge/torneko.md'
+            if default_knowledge.exists(): self.cfg.knowledge=default_knowledge.read_text(encoding='utf-8')
         tabs=ttk.Notebook(root); tabs.pack(fill='both',expand=True)
         run=ttk.Frame(tabs,padding=10); setup_tab=ttk.Frame(tabs)
         tabs.add(run,text='攻略・目標・知識'); tabs.add(setup_tab,text='環境・モデルの選択と取得')
@@ -39,6 +43,9 @@ class Application:
             val=getattr(self.cfg,key); val=','.join(val) if isinstance(val,list) else str(val)
             self.vars[key]=tk.StringVar(value=val)
             if key=='provider': w=ttk.Combobox(run,textvariable=self.vars[key],values=['ollama','openai'],state='readonly')
+            elif key=='window_title':
+                self.window_choice=ttk.Combobox(run,textvariable=self.vars[key],postcommand=self.refresh_windows)
+                w=self.window_choice
             else: w=ttk.Entry(run,textvariable=self.vars[key])
             w.grid(row=row,column=1,sticky='ew',pady=3)
         run.columnconfigure(1,weight=1)
@@ -49,17 +56,21 @@ class Application:
         self.knowledge.grid(row=9,column=0,columnspan=2,sticky='ew')
         ttk.Button(run,text='知識ファイルを読み込む…',command=self.load_knowledge).grid(row=10,column=0,sticky='w')
         controls=ttk.Frame(run); controls.grid(row=11,column=0,columnspan=2,sticky='ew',pady=8)
-        self.dry=tk.BooleanVar(value=True)
+        self.dry=tk.BooleanVar(value=False)
         ttk.Checkbutton(controls,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
-        self.start_button=ttk.Button(controls,text='保存して開始（5秒後）',command=self.start); self.start_button.pack(side='left',padx=8)
+        self.start_button=ttk.Button(controls,text='保存して自動攻略を開始',command=self.start); self.start_button.pack(side='left',padx=8)
         ttk.Button(controls,text='停止 / F8',command=self.stop.set).pack(side='left')
-        ttk.Label(run,text='開始後5秒以内にゲームを前面へ。前面が変わると停止します。推論中も F8 で停止予約できます。').grid(row=12,column=0,columnspan=2,sticky='w')
+        ttk.Label(run,text='開始時に対象ゲームを自動で前面にします。F8で停止。ゲーム以外を前面にすると停止します。').grid(row=12,column=0,columnspan=2,sticky='w')
         self.status=tk.StringVar(value='待機中'); ttk.Label(run,textvariable=self.status).grid(row=13,column=0,columnspan=2,sticky='w')
         self.log=tk.Text(run,height=14,wrap='word',state='disabled'); self.log.grid(row=14,column=0,columnspan=2,sticky='nsew'); run.rowconfigure(14,weight=1)
         self.setup(setup)
         root.protocol('WM_DELETE_WINDOW',self.close); root.after(100,self.poll)
+    def refresh_windows(self):
+        if os.name=='nt':
+            from .windows import visible_windows
+            self.window_choice.configure(values=visible_windows())
     def setup(self,parent):
-        ttk.Label(parent,text='本体には外部ランタイムやモデルを同梱しません。選択して公式ページから取得してください。',wraplength=900).pack(anchor='w')
+        ttk.Label(parent,text='本体には外部ランタイムやモデルを同梱しません。起動用exeが必要な部品の取得と導入を自動で進めます。',wraplength=900).pack(anchor='w')
         managed = bool(os.environ.get('GAMEPILOT_DATA_DIR'))
         if managed:
             ttk.Label(parent,text='Python・画面取得部品・Ollama は起動用exeが自動で導入・検証します。\nランタイムを変更する場合は本体を閉じ、同じexeを再実行してください。',wraplength=850).pack(anchor='w',pady=10)
@@ -105,8 +116,10 @@ class Application:
     def start(self):
         if self.busy(): return
         try:
-            cfg=self.settings(); DATA.mkdir(exist_ok=True)
-            (DATA/'settings.json').write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8')
+            cfg=self.settings(); DATA.mkdir(parents=True,exist_ok=True)
+            temporary=DATA/'settings.json.tmp'
+            temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8')
+            temporary.replace(DATA/'settings.json')
             self.cfg=cfg
         except Exception as e: messagebox.showerror('設定エラー',str(e)); return
         dry=self.dry.get()
@@ -119,11 +132,14 @@ class Application:
                     if backend.emergency(): self.stop.set()
             watch=threading.Thread(target=monitor,daemon=True); watch.start()
             try:
-                for left in range(5,0,-1):
-                    self.queue.put(('status',f'{left} 秒後に開始。ゲームを前面にしてください。'))
-                    if self.stop.wait(1): return
+                backend.activate()
                 path=DATA/'runs'/f'{time.time_ns()}.jsonl'
-                Controller(cfg,backend,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),path,self.stop).run(dry)
+                memory=MemoryStore(DATA/'memory.sqlite',cfg)
+                try:
+                    agent=Controller(cfg,backend,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),path,self.stop,memory)
+                    agent.run(dry)
+                    if agent.completed: self.queue.put(('status','目標達成を別の観測で確認しました。'))
+                finally: memory.close()
             finally: monitor_done.set(); backend.release_all()
         self.launch(work)
     def install(self):
@@ -141,11 +157,12 @@ class Application:
             while True:
                 kind,value=self.queue.get_nowait()
                 if kind=='error': self.status.set('エラーで停止'); messagebox.showerror('処理停止',value)
-                elif kind=='done': self.start_button.configure(state='normal'); self.status.set('処理終了（再開時は現在の画面から再判断）')
+                elif kind=='done': self.start_button.configure(state='normal')
                 elif kind=='status': self.status.set(value)
                 elif kind=='progress': self.progress.set(value)
                 elif kind=='model': self.vars['model'].set(value); self.vars['provider'].set('ollama'); self.progress.set('モデルの取得が完了しました。')
                 elif kind=='decision':
+                    self.status.set(f"{value.get('scene',value.get('status',''))} / {value.get('subgoal',value.get('reason',''))}")
                     self.log.configure(state='normal'); self.log.insert('end',json.dumps(value,ensure_ascii=False)+'\n'); self.log.see('end'); self.log.configure(state='disabled')
         except queue.Empty: pass
         self.root.after(100,self.poll)

@@ -21,6 +21,7 @@ class Script:
         v=next(self.values)
         if isinstance(v,Exception): raise v
         return parse_decision(json.dumps(v),Settings())
+    def verify_completion(self,image): return {'achieved':True,'confidence':.99,'evidence':['verified test fixture']}
 
 def change(**kwargs):
     v=copy.deepcopy(VALID);v.update(kwargs);return v
@@ -51,7 +52,7 @@ class LoopTests(unittest.TestCase):
     def run_loop(self,values,dry=False,backend=None,stop=None,steps=10):
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
         path=Path(tmp.name)/'run.jsonl';backend=backend or Backend();llm=Script(values);out=[]
-        controller=Controller(Settings(max_steps=steps),backend,llm,out.append,path,stop)
+        controller=Controller(Settings(max_steps=steps,recovery_attempts=0),backend,llm,out.append,path,stop)
         controller.run(dry)
         rows=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
         return backend,llm,out,rows
