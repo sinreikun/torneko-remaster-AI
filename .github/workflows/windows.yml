@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths-ignore: ['**.md', 'reference/**']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -26,6 +27,11 @@ jobs:
           python tools/build_exe.py --zig $zig
       - name: Python and distribution tests
         run: python -m unittest discover -s tests -v
+      - name: Native exe launch and payload self-test
+        shell: powershell
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path dist/LocalGamePilot.exe) -ArgumentList '--self-test' -Wait -PassThru
+          if ($process.ExitCode) { throw "Native executable startup failed: $($process.ExitCode)" }
       - name: Windows PowerShell 5.1 payload and syntax verification
         shell: powershell
         run: |

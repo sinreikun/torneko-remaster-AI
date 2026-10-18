@@ -103,6 +103,7 @@ $InstallWorker = {
     function Run-Process($File, $Arguments, $Label) {
         Check-Cancel
         $State.Message = $Label
+        Add-Content -LiteralPath (Join-Path $BaseDir 'setup-trace.log') -Value ((Get-Date -Format o) + ' ' + $Label) -Encoding UTF8
         $log = Join-Path $BaseDir 'install.stdout.log'
         $errlog = Join-Path $BaseDir 'install.stderr.log'
         # Do not kill installers mid-transaction. Cancellation takes effect at the next safe boundary.
@@ -175,9 +176,11 @@ $InstallWorker = {
                 $State.Message = 'Ollama の SHA-256 を検証しています…'
                 $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
                 if ($actual -ne $asset.digest.Substring(7).ToLowerInvariant()) { throw 'Ollama の SHA-256 が一致しません。' }
-                $archiveBytes = (Get-Item $archive).Length
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+                try { [long]$extractedBytes = ($zip.Entries | Measure-Object -Property Length -Sum).Sum } finally { $zip.Dispose() }
                 $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($ollamaDir))
-                if ($drive.AvailableFreeSpace -lt ($archiveBytes * 3)) { throw 'Ollama の展開用空き容量が不足しています。' }
+                if ($drive.AvailableFreeSpace -lt ($extractedBytes + 536870912)) { throw 'Ollama の展開用空き容量が不足しています。' }
                 $staging = $ollamaDir + '.staging-' + [Guid]::NewGuid().ToString('N')
                 try {
                     Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
@@ -257,7 +260,10 @@ $InstallWorker = {
         Check-Cancel
         $State.Python = $pythonw; $State.Ready = $true
         $State.Message = '準備完了。本体を起動します。'
-    } catch { $State.Error = $_.Exception.Message }
+    } catch {
+        $State.Error = $_.Exception.Message
+        try { [IO.File]::WriteAllText((Join-Path $BaseDir 'setup-error.log'), $State.Error) } catch { }
+    }
     finally { $State.Done = $true }
 }
 

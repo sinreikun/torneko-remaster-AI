@@ -26,6 +26,20 @@ class DurableMemoryTests(unittest.TestCase):
             memory=MemoryStore(path,cfg)
             self.assertEqual(len(memory.context()['provisional_claims']),1)
             self.assertEqual(memory.context()['provisional_claims'][0]['value'],'moves selection');memory.close()
+    def test_transition_graph_does_not_join_separate_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'db';cfg=Settings()
+            memory=MemoryStore(path,cfg)
+            memory.remember({'scene':'title','keys':['enter'],'executed':True})
+            memory.remember({'scene':'menu','keys':[],'executed':False})
+            memory.remember({'scene':'loading','keys':[],'executed':False})
+            graph=memory.context()['known_transitions']
+            self.assertTrue(any(r['origin']=='title' and r['destination']=='menu' and r['keys']==['enter'] for r in graph))
+            self.assertTrue(any(r['origin']=='menu' and r['destination']=='loading' and r['keys']==[] for r in graph))
+            memory.close();memory=MemoryStore(path,cfg)
+            memory.remember({'scene':'victory'})
+            self.assertFalse(any(r['destination']=='victory' for r in memory.context()['known_transitions']))
+            memory.close()
     def test_goal_and_knowledge_isolation(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'memory'

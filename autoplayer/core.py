@@ -30,6 +30,7 @@ memory_updates contains at most 8 objects {"key":"short label","value":"tentativ
 Keep facts about observed controls, routes, inventory, hazards, and locations; correct old claims when contradicted.
 plan is at most 8 short milestones toward the user's goal. progress lists visually supported milestones.
 risk must be normal, uncertain, or destructive. Never act on destructive confirmations.
+Optional state_key is a short screen/location identifier grounded in visible evidence (e.g. floor and position only if visible).
 On failure or stagnant observations revise the plan and avoid ineffective actions in memory.
 For loading animations or black transition screens wait with no keys. Do not treat loading as defeat.
 keys may be empty to observe. Confidence must be 0..1. Never send chords involving OS shortcuts.
@@ -56,11 +57,11 @@ class Settings:
         if u.scheme not in ('http','https') or u.hostname not in ('localhost','127.0.0.1','::1') or u.username or u.password or u.query or u.fragment:
             raise ValueError('LLM の接続先は認証情報を含まない localhost の HTTP(S) URL を指定してください。')
         if self.provider not in ('ollama','openai'): raise ValueError('未対応の API 形式')
-        if not self.model.strip() or not self.goal.strip(): raise ValueError('モデル名と目標が必要です。')
+        if not isinstance(self.model,str) or len(self.model)>256 or not isinstance(self.goal,str) or len(self.goal)>2000 or not self.model.strip() or not self.goal.strip(): raise ValueError('モデル名と目標が必要です。')
         if not self.window_title.strip(): raise ValueError('対象ウィンドウ名が必要です。')
-        if not self.allowed_keys or not set(self.allowed_keys) <= KEYS: raise ValueError('許可キーが不正です。')
-        if not 1 <= self.max_steps <= 100000: raise ValueError('手数上限が不正です。')
-        if not 1 <= self.max_hold_ms <= 1000 or not 0 <= self.max_wait_ms <= 10000: raise ValueError('操作時間の上限が不正です。')
+        if not isinstance(self.allowed_keys,list) or any(not isinstance(k,str) for k in self.allowed_keys) or not self.allowed_keys or not set(self.allowed_keys) <= KEYS: raise ValueError('許可キーが不正です。')
+        if type(self.max_steps) is not int or not 1 <= self.max_steps <= 100000: raise ValueError('手数上限が不正です。')
+        if type(self.max_hold_ms) is not int or type(self.max_wait_ms) is not int or not 1 <= self.max_hold_ms <= 1000 or not 0 <= self.max_wait_ms <= 10000: raise ValueError('操作時間の上限が不正です。')
         if not 0 <= self.min_confidence <= 1 or not 1 <= self.timeout <= 600: raise ValueError('信頼度またはタイムアウトが不正です。')
         if type(self.recovery_attempts) is not int or not 0 <= self.recovery_attempts <= 5: raise ValueError("再試行上限が不正です。")
         return self
@@ -80,6 +81,7 @@ class Decision:
     progress: list[str] = field(default_factory=list)
     memory_updates: list[dict] = field(default_factory=list)
     risk: str = "normal"
+    state_key: str = ""
 
 
 def parse_decision(raw: str, cfg: Settings) -> Decision:
@@ -107,7 +109,8 @@ def parse_decision(raw: str, cfg: Settings) -> Decision:
         if not isinstance(claim,dict) or any(not isinstance(claim.get(k),str) or len(claim[k])>600 for k in ('key','value')): raise ValueError('invalid claim')
         if type(claim.get('confidence')) not in (int,float) or not 0<=claim['confidence']<=1: raise ValueError('invalid claim confidence')
     if v.get('risk','normal') not in ('normal','uncertain','destructive'): raise ValueError('invalid risk')
-    return Decision(*(v[k] for k in ('scene','observation','subgoal','reason','confidence','status')), keys,a['hold_ms'],a['wait_ms'],v.get('plan',[]),v.get('progress',[]),claims,v.get('risk','normal'))
+    if not isinstance(v.get('state_key',''),str) or len(v.get('state_key',''))>160: raise ValueError('invalid state key')
+    return Decision(*(v[k] for k in ('scene','observation','subgoal','reason','confidence','status')), keys,a['hold_ms'],a['wait_ms'],v.get('plan',[]),v.get('progress',[]),claims,v.get('risk','normal'),v.get('state_key',''))
 
 def select_knowledge(text,query,limit=2500):
     if len(text)<=limit: return text
@@ -132,7 +135,7 @@ class LocalLLM:
             path='/api/chat'
             body={'model':cfg.model,'stream':False,'format':'json','keep_alive':'10m','messages':[
                 {'role':'system','content':system},{'role':'user','content':json.dumps(prompt,ensure_ascii=False),'images':[encoded]}],
-                'options':{'temperature':0,'num_predict':1600,'num_ctx':8192}}
+                'options':{'temperature':0,'num_predict':1600,'num_ctx':16384 if len(json.dumps(prompt,ensure_ascii=False).encode())>10000 else 8192}}
         else:
             path='/chat/completions' if cfg.endpoint.rstrip('/').endswith('/v1') else '/v1/chat/completions'
             body={'model':cfg.model,'temperature':0,'max_tokens':1600,'messages':[
@@ -160,7 +163,11 @@ class LocalLLM:
                 for key,value in row.items() if key in ('scene','observation','subgoal','keys','executed','changed','turn_kind')})
         context=dict(self.context)
         if 'provisional_claims' in context:
-            context['provisional_claims']=[{k:(v[:180] if isinstance(v,str) else v) for k,v in item.items()} for item in context['provisional_claims'][:10]]
+            context['provisional_claims']=[{k:(v[:120] if isinstance(v,str) else v) for k,v in item.items()} for item in context['provisional_claims'][:6]]
+        for name in ('plan','reported_progress'):
+            if name in context: context[name]=[x[:120] for x in context[name][-6:]]
+        context['ineffective_actions']=context.get('ineffective_actions',[])[-4:]
+        context['known_transitions']=[{k:(v[:100] if isinstance(v,str) else v) for k,v in item.items()} for item in context.get('known_transitions',[])[:4]]
         prompt={'goal':cfg.goal,'knowledge':select_knowledge(cfg.knowledge,cfg.goal+' '+str(compact[-1:])),'allowed_keys':cfg.allowed_keys,
             'limits':{'hold_ms':[1,cfg.max_hold_ms],'wait_ms':[0,cfg.max_wait_ms]},
             'recent_history':compact,'memory':context,'stalled':stalled,

@@ -21,10 +21,11 @@ static int ps_quote(const wchar_t *source,wchar_t *dest,size_t capacity) {
     dest[out]=0;return 1;
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR args,int show) {
-    (void)instance;(void)previous;(void)args;(void)show;
+    (void)instance;(void)previous;(void)show;
+    BOOL self_test=wcscmp(args,L"--self-test")==0;
     HANDLE mutex=CreateMutexW(NULL,TRUE,L"Local\\LocalGamePilot-Launcher");
     if(!mutex || GetLastError()==ERROR_ALREADY_EXISTS) {
-        MessageBoxW(NULL,L"Local Game Pilot is already running.",L"Local Game Pilot",MB_OK|MB_ICONINFORMATION);
+        if(!self_test) MessageBoxW(NULL,L"Local Game Pilot is already running.",L"Local Game Pilot",MB_OK|MB_ICONINFORMATION);
         if(mutex) CloseHandle(mutex);return 1;
     }
     wchar_t temp[MAX_PATH],dir[MAX_PATH],script[MAX_PATH],zip[MAX_PATH],log[MAX_PATH];
@@ -39,7 +40,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR args,int show) 
     if(swprintf(powershell,MAX_PATH,L"%ls\\WindowsPowerShell\\v1.0\\powershell.exe",system)<0) goto failed;
     if(!ps_quote(script,quoted_script,MAX_PATH*2) || !ps_quote(zip,quoted_zip,MAX_PATH*2)) goto failed;
     /* Command mode runs our embedded UI without requiring a machine-wide script policy change. */
-    if(swprintf(command,MAX_PATH*8,L"\"%ls\" -NoLogo -NoProfile -NonInteractive -STA -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('%ls'))) -Payload '%ls'\"",powershell,quoted_script,quoted_zip)<0) goto failed;
+    if(swprintf(command,MAX_PATH*8,L"\"%ls\" -NoLogo -NoProfile -NonInteractive -STA -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('%ls'))) -Payload '%ls' %ls\"",powershell,quoted_script,quoted_zip,self_test?L"-SelfTest":L"")<0) goto failed;
     STARTUPINFOW startup={0}; PROCESS_INFORMATION process={0};
     startup.cb=sizeof(startup);
     SECURITY_ATTRIBUTES security={sizeof(security),NULL,TRUE};
@@ -58,13 +59,13 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR args,int show) 
     if(exitcode) {
         wchar_t message[MAX_PATH*2];
         swprintf(message,MAX_PATH*2,L"Setup could not start or finish. Details:\n%ls\n\nWindows PowerShell 5.1 and Windows 10/11 x64 are required. Organization execution policies are respected.",log);
-        MessageBoxW(NULL,message,L"Local Game Pilot",MB_OK|MB_ICONERROR);
+        if(!self_test) MessageBoxW(NULL,message,L"Local Game Pilot",MB_OK|MB_ICONERROR);
     } else { DeleteFileW(log);result=0; }
     DeleteFileW(script);DeleteFileW(zip);
     if(!result) RemoveDirectoryW(dir);
     ReleaseMutex(mutex);CloseHandle(mutex);
     return result;
 failed:
-    MessageBoxW(NULL,L"Unable to prepare setup files or start Windows PowerShell.",L"Local Game Pilot",MB_OK|MB_ICONERROR);
+    if(!self_test) MessageBoxW(NULL,L"Unable to prepare setup files or start Windows PowerShell.",L"Local Game Pilot",MB_OK|MB_ICONERROR);
     ReleaseMutex(mutex);CloseHandle(mutex);return 1;
 }
