@@ -24,7 +24,9 @@ class Script:
     def verify_completion(self,image): return {'achieved':True,'confidence':.99,'evidence':['verified test fixture']}
 
 def change(**kwargs):
-    v=copy.deepcopy(VALID);v.update(kwargs);return v
+    v=copy.deepcopy(VALID);v.update(kwargs)
+    if kwargs.get('status')=='complete' and 'action' not in kwargs: v['action']={'keys':[],'hold_ms':1,'wait_ms':0}
+    return v
 
 class ProtocolTests(unittest.TestCase):
     def test_decision(self): self.assertEqual(parse_decision(json.dumps(VALID),Settings()).keys,['enter'])
@@ -130,6 +132,12 @@ class APITests(unittest.TestCase):
             LocalLLM(Settings(endpoint=url,provider='openai')).decide(b'png',[],True)
             path,body=self.requests[-1];self.assertEqual(path,'/v1/chat/completions')
             self.assertTrue(body['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/png;base64,'))
+    def test_text_only_verifier_does_not_send_a_fake_image(self):
+        for provider in ('ollama','openai'):
+            LocalLLM(Settings(endpoint=self.url,provider=provider))._request(None,'Verify facts',{'observations':['TITLE']})
+            _,body=self.requests[-1]
+            if provider=='ollama': self.assertNotIn('images',body['messages'][1])
+            else: self.assertEqual(len(body['messages'][1]['content']),1)
     def test_download_contract(self):
         out=[];self.assertTrue(pull_model(self.url,'qwen2.5vl:7b',out.append,threading.Event()))
         self.assertEqual(out[-1]['status'],'success')
