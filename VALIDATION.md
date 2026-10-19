@@ -4,7 +4,7 @@
 
 - コミット `245067f` の [Windows run 39180270430](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39180270430) で単体・配布テスト段階が成功。追加した実Windows OCR試験も成功し、生成した画像から `TITLE` と `ENTER` を読み取った。実ゲームの日本語OCR精度を示す試験ではない。統合試験全体の結果とは区別する。
 
-- Linux: 57テスト中53成功、Windows専用4件をスキップ。`tools/test.py` が件数とログを保存。
+- Linux: 58テスト中54成功、Windows専用4件をスキップ。`tools/test.py` が件数とログを保存。
 - Windows: コミット `80ac434` の42テストが全件成功、スキップなし。日本語・アポストロフィ入り一時パスからのexe起動、Tk本体UI初期化、NumLock両状態でのテンキー入力も含む。
 - Windowsの証拠: [run 39177823509](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39177823509)、`ci-evidence/run-39177823509` の `unit-tests.json`。この実行全体は後続変更のため中止しており、統合試験の成功を示すものではない。
 - WindowsでPython、Pillow、Ollama、qwen2.5vl:3bの実導入と二度目の再利用を実行し、実モデルへの画像送信まで到達。
@@ -33,3 +33,5 @@ HTTPS、SHA-256、途中状態からの再開/安全な再取得、ネットワ�
 ## 出典付き知識・OCR・自律目標
 
 2026-10-19に公開資料を2回の独立した自動調査で取得。`knowledge/SOURCES.md` に使用・不使用の資料と理由を記載。初代とリマスターを区別し、25件の要約を登録した。OCRと版の照合、曖昧な統計値の排除、現在OCR引用のない改訂の拒否、別ゲームへの知識漏洩防止、実LLM APIへのOCR・出典供給と目標記録をテストする。Windows専用テストでは画像を生成してWindows OCRへ渡し、実際の文字読み取りを確認する。
+
+Windows日本語OCRに挿入される単語間の空白を、知識用語の照合時に吸収する試験も追加した。原文のOCR引用は変更しない。

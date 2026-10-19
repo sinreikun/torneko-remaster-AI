@@ -18,6 +18,12 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(rule['applicability'],'cross_edition_hypothesis')
         self.assertEqual(rule['verification'],'term_observed_only')
         self.assertEqual(context['metrics']['hp']['values'],[3,30])
+    def test_japanese_ocr_word_spaces_match_without_rewriting_quotes(self):
+        context=KnowledgeEngine().reconcile(ocr('ちょっとステキ な リマスター 幸 せ の 箱'))
+        rule=next(f for f in context['facts'] if f['id']=='main-goal')
+        self.assertIn('幸せの箱',rule['screen_match'])
+        self.assertEqual(context['ocr']['lines'][0]['text'],'ちょっとステキ な リマスター 幸 せ の 箱')
+        self.assertEqual(context['edition'],'remaster')
     def test_ambiguous_or_impossible_ocr_not_current_statistics(self):
         for text in ['HP 3/30 HP 9/30','HP 35/30','HP 3/0','満腹度 130%']:
             self.assertFalse(KnowledgeEngine().reconcile(ocr(text))['metrics'])

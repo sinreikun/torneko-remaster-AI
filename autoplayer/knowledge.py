@@ -5,7 +5,10 @@ from pathlib import Path
 import re
 import unicodedata
 
-def normalize(text): return unicodedata.normalize('NFKC',text).casefold()
+def normalize(text):
+    text=unicodedata.normalize('NFKC',text).casefold()
+    # Windows Japanese OCR inserts word spaces; retain raw quotes separately.
+    return re.sub(r'(?<=[\u3040-\u30ff\u3400-\u9fff])\s+(?=[\u3040-\u30ff\u3400-\u9fff])','',text)
 
 class KnowledgeEngine:
     def __init__(self,path=None):
