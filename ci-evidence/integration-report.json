@@ -1,0 +1,14 @@
+{
+  "kind": "application_runtime",
+  "synthetic_game_used": false,
+  "real_game_test": "required",
+  "checks": {
+    "vision_model_installed": true,
+    "real_application_ui": true,
+    "no_game_input_sent": true,
+    "diagnostic_zip_created": true,
+    "clipboard_file_attachment": true
+  },
+  "success": false,
+  "error": "'charmap' codec can't encode character '\\u3092' in position 28: character maps to <undefined>"
+}
