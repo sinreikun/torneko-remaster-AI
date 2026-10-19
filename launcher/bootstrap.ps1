@@ -423,6 +423,59 @@ if ($SelfTest) {
     exit 0
 }
 
+# bootstrap.json is written only after a successful, consented installation.
+# Subsequent launches use that installation without re-running installers,
+# model downloads, or overwriting the user's current application settings.
+$resumeError = ''
+$process = $null
+if (-not $UiSmokeTest -and (Test-Path (Join-Path $BaseDir 'bootstrap.json'))) {
+    try {
+        $saved = Get-Content -LiteralPath (Join-Path $BaseDir 'bootstrap.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($saved.Python -notin @('3.14','3.13') -or $saved.Backend -notin @('managed','existing')) { throw '保存された準備情報が不正です。' }
+        $pythonw = Join-Path $BaseDir ('python-' + $saved.Python + '/pythonw.exe')
+        if (-not (Test-Path $pythonw)) { throw '導入済みの Python が見つかりません。' }
+        if (-not (Test-Path (Join-Path $AppDir 'autoplayer/__main__.py'))) {
+            $staging = $AppDir + '.staging-' + [Guid]::NewGuid().ToString('N')
+            try {
+                Expand-Archive -LiteralPath $Payload -DestinationPath $staging -Force
+                if (-not (Test-Path (Join-Path $staging 'autoplayer/__main__.py'))) { throw '本体アーカイブが不正です。' }
+                if (Test-Path $AppDir) { Remove-Item -LiteralPath $AppDir -Recurse -Force }
+                Move-Item -LiteralPath $staging -Destination $AppDir
+            } finally { if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force } }
+        }
+        if ($saved.Backend -eq 'managed') {
+            $ollama = Join-Path $BaseDir 'ollama/ollama.exe'
+            if (-not (Test-Path $ollama)) { throw '導入済みの Ollama が見つかりません。' }
+            $running = $false
+            $response = $null
+            try {
+                $request = [Net.HttpWebRequest]::Create('http://127.0.0.1:11435/api/version')
+                $request.Proxy = $null; $request.Timeout = 1000; $request.ReadWriteTimeout = 1000
+                $response = $request.GetResponse(); $running = $true
+            } catch { } finally { if ($response) { $response.Dispose() } }
+            if (-not $running) {
+                $serverInfo = New-Object Diagnostics.ProcessStartInfo
+                $serverInfo.FileName = $ollama; $serverInfo.Arguments = 'serve'
+                $serverInfo.UseShellExecute = $false; $serverInfo.CreateNoWindow = $true
+                $serverInfo.EnvironmentVariables['OLLAMA_HOST'] = '127.0.0.1:11435'
+                $serverInfo.EnvironmentVariables['OLLAMA_MODELS'] = Join-Path $BaseDir 'models'
+                $server = [Diagnostics.Process]::Start($serverInfo)
+                $server.Dispose()
+            }
+        }
+        $psi = New-Object Diagnostics.ProcessStartInfo
+        $psi.FileName = $pythonw; $psi.Arguments = '-m autoplayer'; $psi.WorkingDirectory = $AppDir
+        $psi.UseShellExecute = $false; $psi.EnvironmentVariables['GAMEPILOT_DATA_DIR'] = Join-Path $BaseDir 'data'
+        $process = [Diagnostics.Process]::Start($psi)
+    } catch { $resumeError = '通常起動できないため準備画面を表示しました: ' + $_.Exception.Message }
+    if ($process) {
+        $process.WaitForExit()
+        $appExitCode = $process.ExitCode; $process.Dispose()
+        if ($appExitCode -ne 0) { [Windows.Forms.MessageBox]::Show('本体が異常終了しました。保存先のログを確認してください。','起動エラー') | Out-Null }
+        exit $appExitCode
+    }
+}
+
 $form = New-Object Windows.Forms.Form
 $form.Text = 'ゲーム攻略ツール - 初回準備 / 起動'
 $form.ClientSize = New-Object Drawing.Size(720, 590)
@@ -487,6 +540,7 @@ $consent.Location = New-Object Drawing.Point(20,350); $consent.Size = New-Object
 $form.Controls.Add($consent)
 $null = Label '保存先: %LOCALAPPDATA%\LocalGamePilot（管理者権限・PATHの変更なし）' 20 390 680 30
 $status = Label '待機中。導入済みの部品・モデルは再利用します。' 20 430 680 65
+if ($resumeError) { $status.Text = $resumeError }
 $start = New-Object Windows.Forms.Button
 $start.Text = '自動セットアップして起動'; $start.Location = New-Object Drawing.Point(20,510)
 $start.Size = New-Object Drawing.Size(460,45); $form.Controls.Add($start)

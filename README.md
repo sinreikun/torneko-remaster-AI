@@ -8,7 +8,7 @@ Windows のゲーム画面をローカル画像対応LLMへ送り、目標・攻
 
 **[LocalGamePilot.exe をダウンロード](https://github.com/sinreikun/torneko-remaster-AI/raw/refs/heads/main/release/LocalGamePilot.exe)して実行してください。** Python の手動導入やコマンド操作は不要です。
 
-1. exe を実行するとセットアップUIが開きます。
+1. 初回のみ、exe を実行するとセットアップUIが開きます。準備済みなら次回から本体が直接開きます。EXE更新時も導入済みの部品と設定を再利用します。
 2. Python の版、LLM実行環境、画像モデルを選択します。それぞれに用途・容量・ライセンスの説明があります。
 3. 利用条件を確認し「自動セットアップして起動」を押します。
 4. 必要な部品のダウンロード・検証・導入、Ollama の起動、モデル取得が自動で進み、準備完了後に本体が開きます。
