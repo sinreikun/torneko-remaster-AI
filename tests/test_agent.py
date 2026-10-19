@@ -134,7 +134,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(observer_body['messages'][1]['images'],['cG5n'])
         branches=body['format']['oneOf']
         for branch in branches:
-            self.assertEqual(branch['properties']['action']['properties']['keys']['items']['enum'],cfg.allowed_keys)
+            self.assertEqual(branch['properties']['action']['properties']['keys']['items']['enum'],[k for k in cfg.allowed_keys if k!='num7'])
         complete=next(branch for branch in branches if branch['properties']['status']['enum']==['complete'])
         self.assertEqual(complete['properties']['action']['properties']['keys']['maxItems'],0)
         prompt=json.loads(body['messages'][1]['content']);self.assertEqual(prompt['goal'],'勝利する');self.assertEqual(prompt['knowledge'],'W moves up')
