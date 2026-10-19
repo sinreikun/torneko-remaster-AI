@@ -2,6 +2,8 @@
 
 ## 確認済みの結果
 
+- コミット `245067f` の [Windows run 39180270430](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39180270430) で単体・配布テスト段階が成功。追加した実Windows OCR試験も成功し、生成した画像から `TITLE` と `ENTER` を読み取った。実ゲームの日本語OCR精度を示す試験ではない。統合試験全体の結果とは区別する。
+
 - Linux: 57テスト中53成功、Windows専用4件をスキップ。`tools/test.py` が件数とログを保存。
 - Windows: コミット `80ac434` の42テストが全件成功、スキップなし。日本語・アポストロフィ入り一時パスからのexe起動、Tk本体UI初期化、NumLock両状態でのテンキー入力も含む。
 - Windowsの証拠: [run 39177823509](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39177823509)、`ci-evidence/run-39177823509` の `unit-tests.json`。この実行全体は後続変更のため中止しており、統合試験の成功を示すものではない。
