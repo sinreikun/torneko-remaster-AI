@@ -1,0 +1,717 @@
+{
+  "fixture": "synthetic visible Windows game",
+  "model": "qwen2.5vl:3b",
+  "scenarios": [],
+  "actual_state": "VICTORY",
+  "last_trace": [
+    {
+      "event": "retry",
+      "attempt": 1,
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key."
+    },
+    {
+      "event": "decision",
+      "step": 2,
+      "scene": "VICTORY",
+      "observation": "green screen with 'VICTORY' and 'GOAL ACHIEVED' text",
+      "subgoal": "terminate the game",
+      "reason": "the game has reached the victory screen",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY screen reached",
+          "value": "The game has reached the victory screen.",
+          "confidence": 0.99
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    },
+    {
+      "event": "decision",
+      "step": 3,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    },
+    {
+      "event": "decision",
+      "step": 4,
+      "scene": "Victory screen showing GOAL ACHIEVED",
+      "observation": "The screen displays \"VICTORY\" and \"GOAL ACHIEVED\" in large, bold text. The background is green, and there is no additional text or imagery.",
+      "subgoal": "Victory is the only goal.",
+      "reason": "The screen confirms that the goal has been achieved, as indicated by the \"VICTORY\" and \"GOAL ACHIEVED\" messages.",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [
+        "Victory achieved"
+      ],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "Victory achieved in an automated game fixture.",
+          "confidence": 1.0
+        },
+        {
+          "key": "GOAL ACHIEVED",
+          "value": "Victory achieved in an automated game fixture.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    },
+    {
+      "event": "decision",
+      "step": 5,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    },
+    {
+      "event": "decision",
+      "step": 6,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    },
+    {
+      "event": "decision",
+      "step": 7,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    },
+    {
+      "event": "decision",
+      "step": 8,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "verification",
+      "achieved": false,
+      "confidence": 0,
+      "evidence": [
+        "VICTORY",
+        "GOAL ACHIEVED"
+      ],
+      "reason": "Observed scene does not demonstrate the requested completed game.",
+      "visual_facts": {
+        "scene_type": "gameplay",
+        "visible_text": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "description": "Victory achieved in an automated game fixture.",
+        "independent_ocr": {
+          "language": "en-US",
+          "lines": [
+            {
+              "text": "AUTOMATED GAME FIXTURE",
+              "max_word_height": 26
+            },
+            {
+              "text": "VICTORY",
+              "max_word_height": 60
+            },
+            {
+              "text": "GOAL ACHIEVED",
+              "max_word_height": 38
+            },
+            {
+              "text": "Follow the visible instruction. Victory is the only goal.",
+              "max_word_height": 24
+            }
+          ],
+          "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+        }
+      }
+    }
+  ],
+  "passed": false,
+  "error": "Traceback (most recent call last):\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-34627844BAE4\\autoplayer\\selftest.py\", line 84, in work\n    agent.run()\n    ~~~~~~~~~^^\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-34627844BAE4\\autoplayer\\core.py\", line 353, in run\n    if verification_failures>3+self.cfg.recovery_attempts: raise RuntimeError('\u5225\u306e\u89b3\u6e2c\u3067\u76ee\u6a19\u9054\u6210\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044\u305f\u3081\u505c\u6b62\u3057\u307e\u3057\u305f\u3002')\n                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: \u5225\u306e\u89b3\u6e2c\u3067\u76ee\u6a19\u9054\u6210\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044\u305f\u3081\u505c\u6b62\u3057\u307e\u3057\u305f\u3002\n",
+  "last_observations": [
+    {
+      "status": "completion_rejected",
+      "evidence": {
+        "achieved": false,
+        "confidence": 0,
+        "evidence": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "reason": "Observed scene does not demonstrate the requested completed game.",
+        "visual_facts": {
+          "scene_type": "gameplay",
+          "visible_text": [
+            "VICTORY",
+            "GOAL ACHIEVED"
+          ],
+          "description": "Victory achieved in an automated game fixture.",
+          "independent_ocr": {
+            "language": "en-US",
+            "lines": [
+              {
+                "text": "AUTOMATED GAME FIXTURE",
+                "max_word_height": 26
+              },
+              {
+                "text": "VICTORY",
+                "max_word_height": 60
+              },
+              {
+                "text": "GOAL ACHIEVED",
+                "max_word_height": 38
+              },
+              {
+                "text": "Follow the visible instruction. Victory is the only goal.",
+                "max_word_height": 24
+              }
+            ],
+            "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+          }
+        }
+      }
+    },
+    {
+      "step": 6,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "status": "completion_rejected",
+      "evidence": {
+        "achieved": false,
+        "confidence": 0,
+        "evidence": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "reason": "Observed scene does not demonstrate the requested completed game.",
+        "visual_facts": {
+          "scene_type": "gameplay",
+          "visible_text": [
+            "VICTORY",
+            "GOAL ACHIEVED"
+          ],
+          "description": "Victory achieved in an automated game fixture.",
+          "independent_ocr": {
+            "language": "en-US",
+            "lines": [
+              {
+                "text": "AUTOMATED GAME FIXTURE",
+                "max_word_height": 26
+              },
+              {
+                "text": "VICTORY",
+                "max_word_height": 60
+              },
+              {
+                "text": "GOAL ACHIEVED",
+                "max_word_height": 38
+              },
+              {
+                "text": "Follow the visible instruction. Victory is the only goal.",
+                "max_word_height": 24
+              }
+            ],
+            "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+          }
+        }
+      }
+    },
+    {
+      "step": 7,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "status": "completion_rejected",
+      "evidence": {
+        "achieved": false,
+        "confidence": 0,
+        "evidence": [
+          "VICTORY",
+          "GOAL ACHIEVED"
+        ],
+        "reason": "Observed scene does not demonstrate the requested completed game.",
+        "visual_facts": {
+          "scene_type": "gameplay",
+          "visible_text": [
+            "VICTORY",
+            "GOAL ACHIEVED"
+          ],
+          "description": "Victory achieved in an automated game fixture.",
+          "independent_ocr": {
+            "language": "en-US",
+            "lines": [
+              {
+                "text": "AUTOMATED GAME FIXTURE",
+                "max_word_height": 26
+              },
+              {
+                "text": "VICTORY",
+                "max_word_height": 60
+              },
+              {
+                "text": "GOAL ACHIEVED",
+                "max_word_height": 38
+              },
+              {
+                "text": "Follow the visible instruction. Victory is the only goal.",
+                "max_word_height": 24
+              }
+            ],
+            "note": "OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed."
+          }
+        }
+      }
+    },
+    {
+      "step": 8,
+      "scene": "VICTORY",
+      "observation": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+      "subgoal": "reach the green VICTORY screen showing GOAL ACHIEVED",
+      "reason": "the current screen confirms the goal is achieved",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "VICTORY",
+          "value": "green screen with white text displaying 'VICTORY' and 'GOAL ACHIEVED'",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    }
+  ]
+}
