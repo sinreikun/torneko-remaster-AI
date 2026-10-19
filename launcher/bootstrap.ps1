@@ -358,39 +358,7 @@ if ($DownloadSelfTest) {
     $checks += 'Plain HTTP rejected'
     $freeSpaceFunction = ${function:Get-FreeSpace}
     try {
-        function Get-OfficialPage($Url) {
-        Check-Cancel
-        if (-not $Url.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unsupported release metadata origin' }
-        $request = [Net.HttpWebRequest]::Create($Url)
-        $request.UserAgent = 'LocalGamePilot/0.3.0'; $request.Timeout=30000; $request.ReadWriteTimeout=30000
-        $response = $request.GetResponse()
-        try {
-            if (-not $response.ResponseUri.AbsoluteUri.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unexpected release metadata redirect' }
-            $reader = New-Object IO.StreamReader($response.GetResponseStream())
-            try { return @{Text=$reader.ReadToEnd();Uri=$response.ResponseUri.AbsoluteUri} } finally { $reader.Dispose() }
-        } finally { $response.Dispose() }
-    }
-    function Get-OllamaRelease {
-        try {
-            $release = Get-Json 'https://api.github.com/repos/ollama/ollama/releases/latest'
-            $assets = @($release.assets | Where-Object { $_.name -eq 'ollama-windows-amd64.zip' })
-            if ($assets.Count -eq 1 -and $assets[0].digest -match '^sha256:[0-9a-fA-F]{64}$') { return $release }
-        } catch { $State.Message='公式APIに接続できないため、公式リリースページのSHA-256を確認しています…' }
-        # GitHub API has shared anonymous rate limits. The same publisher's HTML
-        # exposes its asset digest; never replace verification with an unsigned URL.
-        $latest = Get-OfficialPage 'https://github.com/ollama/ollama/releases/latest'
-        $match = [regex]::Match($latest.Uri,'^https://github[.]com/ollama/ollama/releases/tag/(v[0-9]+[.][0-9]+[.][0-9]+)$')
-        if (-not $match.Success) { throw 'Cannot identify the official stable Ollama release' }
-        $tag = $match.Groups[1].Value
-        $page = Get-OfficialPage ('https://github.com/ollama/ollama/releases/expanded_assets/' + $tag)
-        $relative = '/ollama/ollama/releases/download/' + $tag + '/ollama-windows-amd64.zip'
-        $rows = @([regex]::Matches($page.Text,'(?s)<li\b.*?</li>') | Where-Object { $_.Value.Contains('href="' + $relative + '"') })
-        if ($rows.Count -ne 1) { throw 'Cannot identify the official Windows archive metadata' }
-        $hashes = @([regex]::Matches($rows[0].Value,'sha256:([0-9a-fA-F]{64})') | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
-        if ($hashes.Count -ne 1) { throw 'Official release page has no unambiguous SHA-256 digest' }
-        return [pscustomobject]@{tag_name=$tag;assets=@([pscustomobject]@{name='ollama-windows-amd64.zip';browser_download_url=('https://github.com' + $relative);digest=('sha256:' + $hashes[0])})}
-    }
-    function Get-FreeSpace($Path) { return 0 }
+        function Get-FreeSpace($Path) { return 0 }
         $rejected=$false
         try { Download $url $bad $expected } catch { $rejected=$_.Exception.Message -like '*空き容量*' }
         if (-not $rejected -or (Test-Path $bad)) { throw 'Insufficient disk space was not handled safely' }
