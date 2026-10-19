@@ -2,13 +2,14 @@
 import concurrent.futures, hashlib, html, json, re, urllib.request, urllib.parse
 from pathlib import Path
 URLS = [
- 'https://ja.wikipedia.org/wiki/'+urllib.parse.quote('トルネコの大冒険_不思議のダンジョン'),
- 'https://en.wikipedia.org/wiki/Torneko_no_Daib%C5%8Dken:_Fushigi_no_Dungeon',
- 'https://www.google.com/search?q='+urllib.parse.quote('トルネコ ちょっとステキなリマスター 公式'),
- 'https://www.bing.com/search?q='+urllib.parse.quote('トルネコの大冒険 攻略 不思議のダンジョン 幸せの箱 27階'),
- 'https://store.steampowered.com/search/?term=Torneko',
- 'https://strategywiki.org/wiki/Torneko_no_Daibouken:_Fushigi_no_Dungeon',
+ 'https://www.dragonquest.jp/torneko_re/',
+ 'https://www.jp.square-enix.com/topics/detail/4172/',
+ 'https://store.steampowered.com/app/4027450/?l=japanese',
+ 'https://store.steampowered.com/app/4483340/?l=japanese',
+ 'https://torneko1.kouryaku.red/',
+ 'https://dq1torneko.kouryaku.red/',
 ]
+
 def fetch(pair):
  i,url=pair
  record={'url':url}
