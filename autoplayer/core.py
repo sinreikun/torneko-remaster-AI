@@ -262,7 +262,7 @@ class LocalLLM:
             compact.append({key:(value[:180] if isinstance(value,str) else value)
                 for key,value in row.items() if key in ('scene','observation','subgoal','keys','executed','changed','turn_kind','action_kind','observed_keys','transition_attribution')})
         context=dict(self.context)
-        reground=stalled or getattr(self,'needs_regrounding',False) or any(response_placeholder(row.get('observation','')) or response_placeholder(row.get('subgoal','')) for row in history[-6:])
+        reground=stalled or bool(context.get('unresponsive_actions')) or getattr(self,'needs_regrounding',False) or any(response_placeholder(row.get('observation','')) or response_placeholder(row.get('subgoal','')) for row in history[-6:])
         if reground:
             # Retain measured diagnostics and source revisions; suspend model-authored claims.
             self.knowledge_engine.goal=None
@@ -421,7 +421,7 @@ class Controller:
     def run(self, dry_run=False):
         self.journal.parent.mkdir(parents=True,exist_ok=True)
         repeats=0; previous=None; uncertain=0; stale=0; errors=0; stagnant=0; verification_failures=0
-        unresponsive_actions={}
+        unresponsive_actions={};blocked_at={};neutral_changes=[]
         try:
             for step in (range(self.cfg.max_steps) if self.cfg.max_steps else itertools.count()):
                 if self.stop.is_set(): break
@@ -436,6 +436,9 @@ class Controller:
                     if self.control and revision!=self.control.revision:
                         if not self.control.checkpoint():break
                         continue
+                if neutral:neutral_changes=(neutral_changes+[neutral.raw_change])[-8:]
+                for key,at in list(blocked_at.items()):
+                    if step-at>=12:unresponsive_actions.pop(key,None);blocked_at.pop(key,None)
                 if hasattr(self.backend,'record_frame'): self.backend.record_frame(image,'observation')
                 import hashlib
                 fingerprint=hashlib.sha256(image).digest()
@@ -538,9 +541,16 @@ class Controller:
                     after=self.backend.capture()
                     row['changed']=self.backend.changed(image,after) if hasattr(self.backend,'changed') else image!=after
                 if row['executed']: stagnant=0 if row.get('changed') else stagnant+1
-                if row.get('changed'):unresponsive_actions.clear() # A new observation, not proof of input causality.
+                # A few animated grid cells are not evidence that a stuck
+                # input became useful. This controls planning only, not success.
+                if hasattr(self.backend,'observe_turn'):
+                    row['recovery_context_change']=bool(row.get('raw_change',0)>max(.01,4*max(neutral_changes,default=0)))
+                else:row['recovery_context_change']=bool(row.get('changed'))
+                if row['recovery_context_change']:
+                    unresponsive_actions.clear();blocked_at.clear()
                 elif row['executed']:
                     key=tuple(row['observed_keys']);unresponsive_actions[key]=unresponsive_actions.get(key,0)+1
+                    if unresponsive_actions[key]>=3:blocked_at.setdefault(key,step)
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
                 self._write({'event':'result',**row})
                 self.emit({'event':'result',**row})

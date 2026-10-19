@@ -28,6 +28,18 @@ class NeutralObservationTests(unittest.TestCase):
         self.assertTrue(all(row['attribution']=='undetermined_after_input' for row in stats[:3]))
         self.assertTrue(all(row['action_kind']=='observe' for row in stats[3:]))
         self.assertEqual(len([r for r in rows if r.get('action_guard')=='repeated_unconfirmed_response']),9)
+    def test_tiny_animation_does_not_release_held_actions(self):
+        backend=Backend()
+        def observation(*args):return SimpleNamespace(image=b'latest',kind='normal',changed=True,raw_change=2/768,masked_activity=0,duration_ms=1200)
+        backend.observe_turn=Mock(side_effect=observation)
+        backend,script,rows,stats=self.run_steps([change() for _ in range(8)],backend)
+        self.assertEqual(len(backend.actions),3)
+        self.assertTrue(all(not r['recovery_context_change'] for r in rows if r.get('event')=='result'))
+        self.assertTrue(all(r['changed_after'] for r in stats))
+    def test_held_action_has_bounded_cooldown_without_stopping(self):
+        backend,script,rows,stats=self.run_steps([change() for _ in range(16)])
+        self.assertEqual(len(stats),16)
+        self.assertEqual(len(backend.actions),5)
     def test_low_confidence_wait_is_neutral_not_stalled_or_failure(self):
         value=change(confidence=.01,risk='uncertain',action={'keys':[],'hold_ms':1,'wait_ms':0})
         backend,script,rows,stats=self.run_steps([value]*10)

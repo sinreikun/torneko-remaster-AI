@@ -64,3 +64,25 @@ class KnowledgeTests(unittest.TestCase):
         text=' '.join(line['text'] for line in record['lines']).upper()
         self.assertIn('TITLE',text);self.assertIn('ENTER',text)
         self.assertTrue(record['frame_sha256']);self.assertIsNone(record['confidence'])
+
+class Diagnostic5345KnowledgeTests(unittest.TestCase):
+    def test_spaced_hp_keeps_exact_quote_and_reviews_satisfied_goal(self):
+        engine=KnowledgeEngine()
+        context=engine.reconcile(ocr('1 階 HP 1 5 / 1 5 満腹度 9 3 %'))
+        self.assertEqual(context['metrics']['hp']['values'],[15,15])
+        self.assertEqual(context['metrics']['hp']['quote'],'HP 1 5 / 1 5')
+        self.assertEqual(context['metrics']['fullness']['values'],[93])
+        self.assertTrue(context['goal_review']['hp_full'])
+        self.assertIn('すでに満たされています',context['goal_review']['instruction'])
+    def test_split_numbers_do_not_cross_lines_and_conflicts_stay_ambiguous(self):
+        engine=KnowledgeEngine()
+        self.assertNotIn('hp',engine.reconcile(ocr('HP 1\n5 / 15'))['metrics'])
+        self.assertNotIn('hp',engine.reconcile(ocr('HP 1 3 / 1 5 HP 15/15'))['metrics'])
+    def test_future_hp_is_not_saved_as_current_progress_or_claim(self):
+        engine=KnowledgeEngine();context=engine.reconcile(ocr('HP 1 3 / 1 5'))
+        decision=parse_decision(json.dumps(change(progress=['HPが13/15から15/15に回復'],memory_updates=[{'key':'HP','value':'15/15','confidence':.9},{'key':'route','value':'通路が見える','confidence':.7}])),Settings())
+        state=engine.accept(decision,context)
+        self.assertEqual(decision.progress,[])
+        self.assertEqual([item['key'] for item in decision.memory_updates],['route'])
+        self.assertEqual(len(state['unconfirmed_model_reports']),2)
+        self.assertEqual(state['ocr']['lines'][0]['text'],'HP 1 3 / 1 5')
