@@ -36,6 +36,18 @@ class MapSettingTests(unittest.TestCase):
             agent=self.agent(folder,['マップ','HP 15/15'])
             agent.hide_map(PNG,state())
             self.assertEqual([c.args[0] for c in agent.backend.act.call_args_list],[['num0'],['d'],['num1']])
+    def test_spaced_ocr_labels_are_recognized(self):
+        with tempfile.TemporaryDirectory() as folder:
+            agent=self.agent(folder,['道 具 マ ッ プ そ の 他','HP 15/15'])
+            agent.hide_map(PNG,state())
+            self.assertEqual([c.args[0] for c in agent.backend.act.call_args_list],[['num0'],['d'],['num1']])
+    def test_menu_state_never_requests_num7_map_observation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            agent=self.agent(folder,[]);agent.policy=object()
+            agent.backend.capture_map_display=Mock()
+            current=state();current['menu_evidence']=True
+            self.assertIsNone(agent.map_sample(PNG,current,'map_observation',True))
+            agent.backend.capture_map_display.assert_not_called()
     def test_pause_stops_remaining_sequence(self):
         with tempfile.TemporaryDirectory() as folder:
             agent=self.agent(folder,[]);agent.stop.wait.return_value=True

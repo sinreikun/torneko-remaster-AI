@@ -12,6 +12,7 @@ from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .minimap import read_minimap
 from .exploration import ExplorationRoutes
+from .interfaces import compact_text,torneko_menu_kind
 
 VERSION=4
 MOVES=('w','a','s','d')
@@ -38,9 +39,9 @@ class ExperiencePolicy:
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native=None
         minimap=read_minimap(png,isolated=map_display);metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
-        text='\n'.join(line.get('text','') for line in (native or {}).get('lines',[]))
+        text='\n'.join(compact_text(line.get('text','')) for line in (native or {}).get('lines',[]))
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
-        menu=any(token in text for token in ('メニュー','持ち物','どうぐ','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
+        menu=bool(torneko_menu_kind(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
         hp=metrics.get('hp',{}).get('values');floor=metrics.get('floor',{}).get('values')
         eligible=minimap.get('status')=='observed' and bool(hp and floor) and not menu
         food=metrics.get('fullness',{}).get('values')

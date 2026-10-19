@@ -375,6 +375,12 @@ class LocalLLM:
         context['unconfirmed_input_responses']=context.get('unconfirmed_input_responses',[])[-4:]
         context['known_transitions']=[{k:(v[:100] if isinstance(v,str) else v) for k,v in item.items()} for item in context.get('known_transitions',[])[:4]]
         native=self.ocr.read(png)
+        if is_torneko(cfg.window_title):
+            from .interfaces import torneko_menu_kind
+            menu_kind=torneko_menu_kind(native)
+            if menu_kind:
+                context['current_interface']={'kind':menu_kind,'source':'current_OCR_labels',
+                    'instruction':'現在は複数のOCR項目からメニューを確認。過去の探索目標をそのまま操作理由にしない。num0を繰り返して開こうとせず、必要な操作の根拠がなければnum2で閉じ、新しい画面を確認する。Num7はこのメニューでの地図観測に使わない。'}
         if cfg.profile_id:
             from .interfaces import choice_action
             bindings=cfg.key_bindings
@@ -589,6 +595,8 @@ class Controller:
             llm.methods=MethodLearner(memory)
         self.completed=False; self.feedback={}
         self.policy=None;self.improvement=None;self.map_visibility_attempted=False
+        from .interfaces import MenuRecovery
+        self.menu_recovery=MenuRecovery()
         self.background_evidence=None
         if memory and cfg.profile_id:
             from .background import BackgroundEvidence
@@ -613,7 +621,8 @@ class Controller:
         def text(png):
             native=self.llm.ocr.read(png)
             self._write({'event':'display_setting_ocr','ocr':native,'learning':False})
-            return '\n'.join(l.get('text','') for l in native.get('lines',[]))
+            from .interfaces import compact_text
+            return '\n'.join(compact_text(l.get('text','')) for l in native.get('lines',[]))
         def send(key):
             if control.is_set():return False
             self._write({'event':'display_setting_input','keys':[key],'learning':False})
@@ -626,7 +635,7 @@ class Controller:
         menu_text=text(menu)
         if 'マップ' not in menu_text:
             self._write({'event':'display_setting_unconfirmed','reason':'マップ項目を確認できず右・決定を保留','learning':False})
-            if any(w in menu_text for w in ('メニュー','どうぐ','持ち物','装備')):send('num2')
+            if any(w in menu_text for w in ('メニュー','どうぐ','道具','持ち物','装備')):send('num2')
             return self.backend.capture()
         if not send('d') or not send('num1'):return self.backend.capture()
         after=self.backend.capture()
@@ -750,9 +759,18 @@ class Controller:
                     if not self.control.checkpoint(): break
                     self._write({'event':'not_executed','reason':'paused_during_inference','step':step+1})
                     continue
-                policy_choice=None;llm_proposal=None
+                policy_choice=None;llm_proposal=None;original_proposal=dict(decision.__dict__)
+                menu_recovery=None
+                if self.policy and not dry_run:
+                    menu_recovery=self.menu_recovery.choose(native,decision,self.cfg.allowed_keys)
+                    if menu_recovery:
+                        from dataclasses import replace
+                        decision=replace(decision,scene='menu',keys=['num2'],confidence=.9,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),
+                            observation='現在のOCRでメニュー固有の複数項目を確認。',subgoal='反復しているメニューを閉じて現在画面を再確認する',
+                            reason=menu_recovery['reason'],goal_success='メニュー項目が閉じた後の新しい画面を確認する。',
+                            plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={})
                 if self.policy and policy_state:
-                    llm_proposal=dict(decision.__dict__)
+                    llm_proposal=original_proposal
                     decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None)
                 timing_trial=self.duration_learner.choose(decision) if self.duration_learner and not dry_run else None
                 pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run else None
@@ -767,6 +785,10 @@ class Controller:
                     self._write({'event':'stopped','status':'llm_unavailable','reason':'画面観察のLLM応答が連続して不正。回復試行の上限です。Backend異常ではありません。'})
                     raise self._observation_error('LLMの画面観察応答を回復できません。Backend故障ではありません。')
                 if pace_trial:row['adaptive_pacing']=pace_trial
+                if menu_recovery:
+                    row['menu_recovery']=menu_recovery
+                    row['decision_policy']={'source':'observed_menu_recovery','success_verified':False}
+                    row['learning']=False
                 if self.improvement:row['self_improvement']=self.improvement.context()
                 if self.policy:
                     row.update(policy_choice=policy_choice,llm_proposal=llm_proposal,policy_state=policy_state,policy_baseline_kind='held_map_display_not_keyless' if policy_state.get('observation_mode')=='num7_held' else 'neutral_observation')
@@ -893,8 +915,8 @@ class Controller:
                     fast_anchor=None
                 if not fast and row.get('executed') and (row.get('policy_choice') or {}).get('source')=='learned_policy' and (row.get('model_report_learning') is not False or policy_state.get('observation_mode')=='num7_held') and row.get('turn_kind')!='aborted' and (row.get('policy_learning') or {}).get('status')=='trained' and not policy_damage and after_state['eligible']:
                     fast_anchor=decision;fast_floor=policy_state['metrics'].get('floor',{}).get('values');fast_objective=policy_state['objective']
-                if getattr(self.llm,'methods',None) and row.get('method_selection') and (row.get('policy_choice') or {}).get('source')=='learned_policy':
-                    row['method_learning']={'signal':None,'eligible':False,'reason':'model_action_replaced_by_map_policy','game_success_verified':False}
+                if getattr(self.llm,'methods',None) and row.get('method_selection') and ((row.get('policy_choice') or {}).get('source')=='learned_policy' or menu_recovery):
+                    row['method_learning']={'signal':None,'eligible':False,'reason':'model_action_replaced_by_menu_recovery' if menu_recovery else 'model_action_replaced_by_map_policy','game_success_verified':False}
                 elif getattr(self.llm,'methods',None) and row.get('method_selection'):
                     from .strategies import progress_signal
                     after_image=observation.image if hasattr(self.backend,'observe_turn') else after
