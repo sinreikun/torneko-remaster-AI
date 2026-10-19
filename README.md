@@ -109,3 +109,5 @@ python tools/package.py
 `tools/build_exe.py` は自前ソースのZIPとPowerShell UIを埋め込んだWin32ランチャーを生成します。成果物は `dist/LocalGamePilot.exe` と SHA-256。`release/` は利用者が直接ダウンロードできるexeの配置先です。対応する検証範囲は VALIDATION.md に記録します。バージョンタグのpush時はWindows CI成功後にGitHub Releaseにも成果物を登録します。
 
 ソースから起動する開発者は Python 3.12以上と `requirements.txt` を導入し、`python -m autoplayer` で実行できます。利用者向けにはこの作業は不要です。
+
+同じキー列の入力後に画面変化が3回未確認になった場合、そのキー列の再送を保留して無入力観測へ戻し、LLMへ別の安全な操作・仮説の再検討を求めます。無反応だけでBackend異常とは判断しません。説明の英語応答を検出した場合は操作内容を保持したまま日本語に変換し、変換失敗時はキーを送らず再観測します。

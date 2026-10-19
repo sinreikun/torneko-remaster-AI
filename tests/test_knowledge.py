@@ -42,12 +42,12 @@ class KnowledgeTests(unittest.TestCase):
     def test_llm_receives_sources_and_ocr_and_sets_goal(self):
         cfg=Settings(window_title='トルネコ');llm=LocalLLM(cfg);calls=[]
         llm.ocr.read=lambda image:ocr('HP 3/30 満腹度 5%')
-        value=change(subgoal='Find safe healing',goal_success='HP visibly above 20 and no adjacent enemy')
+        value=change(subgoal='安全に回復する方法を探す',goal_success='HPが20を超え、隣接した敵がいない画面を確認する')
         def request(image,system,prompt,schema):calls.append(prompt);return json.dumps(value)
         llm._request=request;llm.decide(b'frame',[],False)
         knowledge=calls[0]['source_knowledge']
         self.assertEqual(knowledge['metrics']['hp']['values'],[3,30]);self.assertTrue(knowledge['sources'])
-        self.assertEqual(llm.take_state()['autonomous_goal']['objective'],'Find safe healing')
+        self.assertEqual(llm.take_state()['autonomous_goal']['objective'],'安全に回復する方法を探す')
     def test_other_game_does_not_receive_torneko_rules(self):
         llm=LocalLLM(Settings(window_title='Other game'));prompts=[]
         llm._request=lambda image,system,prompt,schema:(prompts.append(prompt) or json.dumps(change()))

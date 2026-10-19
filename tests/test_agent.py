@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from autoplayer.core import Settings,LocalLLM,Controller,parse_decision
 from autoplayer.components import pull_model
 
-VALID={'scene':'title','observation':'Start game visible','subgoal':'Start','goal_success':'Gameplay visible after starting','reason':'Start selected','confidence':.95,'status':'continue','action':{'keys':['enter'],'hold_ms':80,'wait_ms':0}}
+VALID={'scene':'title','observation':'開始画面が見える','subgoal':'ゲームを開始する','goal_success':'開始後のプレイ画面が見える','reason':'開始操作を選ぶ','confidence':.95,'status':'continue','action':{'keys':['enter'],'hold_ms':80,'wait_ms':0}}
 class Backend:
     def __init__(self): self.actions=[];self.releases=0
     def capture(self): return b'fake-test-frame'
@@ -60,7 +60,8 @@ class LoopTests(unittest.TestCase):
         return backend,llm,out,rows
     def test_scene_sequence(self):
         values=[change(scene=s,observation=s+' visible') for s in ['title','loading','dialog','gameplay','inventory','defeat']]+[change(scene='victory',status='complete')]
-        b,l,o,rows=self.run_loop(values)
+        backend=Backend();backend.changed=lambda before,after:True
+        b,l,o,rows=self.run_loop(values,backend=backend)
         self.assertEqual(len(b.actions),6); self.assertEqual(len(l.calls),7)
         self.assertEqual(l.calls[1][1][0]['scene'],'title')
         self.assertEqual(rows[-1]['status'],'complete');self.assertEqual(b.releases,1)

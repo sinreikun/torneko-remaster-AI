@@ -23,9 +23,11 @@ class NeutralObservationTests(unittest.TestCase):
         return backend,script,rows,stats
     def test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure(self):
         backend,script,rows,stats=self.run_steps([change() for _ in range(12)])
-        self.assertEqual(len(backend.actions),12)
+        self.assertEqual(len(backend.actions),3)
         self.assertEqual(len(stats),12)
-        self.assertTrue(all(row['attribution']=='undetermined_after_input' for row in stats))
+        self.assertTrue(all(row['attribution']=='undetermined_after_input' for row in stats[:3]))
+        self.assertTrue(all(row['action_kind']=='observe' for row in stats[3:]))
+        self.assertEqual(len([r for r in rows if r.get('action_guard')=='repeated_unconfirmed_response']),9)
     def test_low_confidence_wait_is_neutral_not_stalled_or_failure(self):
         value=change(confidence=.01,risk='uncertain',action={'keys':[],'hold_ms':1,'wait_ms':0})
         backend,script,rows,stats=self.run_steps([value]*10)
@@ -75,3 +77,29 @@ class CompactReportTests(unittest.TestCase):
             self.assertEqual(len(list(frames.glob('*.png'))),34)
             with zipfile.ZipFile(path) as z:self.assertEqual(len([n for n in z.namelist() if n.endswith('.png')]),2)
             self.assertEqual(report['bundle_mode'],'compact')
+
+class JapaneseResponseTests(unittest.TestCase):
+    def test_translation_cannot_change_keys_or_evidence(self):
+        from autoplayer.core import LocalLLM,parse_decision
+        llm=LocalLLM.__new__(LocalLLM)
+        decision=parse_decision(json.dumps(change(observation='Visible corridor',subgoal='Explore corridor',reason='Find stairs',plan=[],progress=[],memory_updates=[],goal_success='',goal_evidence=['HP 13/15'])),Settings())
+        llm._request=Mock(return_value=json.dumps({'texts':['通路が見える','通路を調べる','階段を探す']}))
+        translated=llm.localize_decision(decision)
+        self.assertEqual(translated.keys,decision.keys)
+        self.assertEqual(translated.goal_evidence,['HP 13/15'])
+        self.assertEqual(translated.observation,'通路が見える')
+        self.assertEqual(decision.observation,'Visible corridor')
+    def test_failed_translation_becomes_neutral_observation(self):
+        from autoplayer.core import LocalLLM,parse_decision
+        llm=LocalLLM.__new__(LocalLLM);llm._request=Mock(return_value='{}')
+        decision=parse_decision(json.dumps(change(reason='Start selected')),Settings())
+        translated=llm.localize_decision(decision)
+        self.assertEqual(translated.keys,[]);self.assertEqual(translated.status,'continue')
+        self.assertEqual(translated.memory_updates,[])
+
+    def test_response_with_japanese_prose_needs_no_translation(self):
+        from autoplayer.core import LocalLLM,parse_decision
+        llm=LocalLLM.__new__(LocalLLM);llm._request=Mock()
+        decision=parse_decision(json.dumps(change()),Settings())
+        self.assertIs(llm.localize_decision(decision),decision)
+        llm._request.assert_not_called()
