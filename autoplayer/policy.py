@@ -12,7 +12,7 @@ from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .minimap import read_minimap
 
-VERSION=1
+VERSION=2
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -142,20 +142,25 @@ class ExperiencePolicy:
         action=keys[0];observed=self.signals(before,after)
         natural=self.signals(neutral_before,before) if neutral_before else {k:0. for k in observed}
         net={k:max(0.,v-natural[k]) for k,v in observed.items()}
-        # First discovery of a location pays more than repeatedly walking a loop.
+        # Returning to an already observed location is not exploration progress.
+        # Register the departure too, so A -> B -> A cannot reward both halves.
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO policy_visits VALUES(?,?,1)',(self.profile,before['location']))
         visit=self.db.execute('SELECT count FROM policy_visits WHERE profile=? AND location=?',(self.profile,after['location'])).fetchone()
-        novelty=1/math.sqrt(1+(visit[0] if visit else 0))
-        reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']+(.15*net['visual']*novelty if not before['eligible'] else 0)-.04
+        revisits=visit[0] if visit else 0
+        novelty=0. if revisits else 1.
+        revisit_cost=.12*min(3,revisits) if net['position'] and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
+        reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']+(.15*net['visual']*novelty if not before['eligible'] else 0)-.04-revisit_cost
         hp0=before['metrics'].get('hp',{}).get('values');hp1=after['metrics'].get('hp',{}).get('values')
         if hp0 and hp1 and hp0[1]==hp1[1]:reward-=2*max(0.,hp0[0]-hp1[0])/hp0[1]
         # No positive reward for natural HP regeneration or simply remaining at full HP.
         reward=max(-1.,min(1.,reward));positive=reward>0
         current=self.values(before).get(action,{'q':0.})['q']
-        next_q=max((v['q'] for k,v in self.values(after).items() if k in MOVES and k in self.settings.allowed_keys),default=0.)
+        next_q=max(0.,max((v['q'] for k,v in self.values(after).items() if k in MOVES and k in self.settings.allowed_keys),default=0.))
         new_q=current+.25*(reward+.85*next_q-current)
         event={'status':'trained','state':before['id'],'next_state':after['id'],'objective':before['objective'],'keys':keys,
             'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'net_signals':net,
-            'novelty_weight':novelty,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
+            'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}
         with self.db:
             self.db.execute('INSERT INTO policy_actions(profile,state,objective,action,trials,q,positive,reward_sum) VALUES(?,?,?,?,1,?,?,?) ON CONFLICT(profile,state,objective,action) DO UPDATE SET trials=trials+1,q=excluded.q,positive=positive+excluded.positive,reward_sum=reward_sum+excluded.reward_sum',

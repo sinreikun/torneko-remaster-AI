@@ -44,6 +44,24 @@ class PolicyTests(unittest.TestCase):
         reopened=ExperiencePolicy(self.store,Settings(knowledge='編集後の攻略知識').validate())
         self.assertEqual(reopened.values(before),values)
         selected,_=reopened.choose(proposal,before,stable=True);self.assertEqual(selected.keys,['a'])
+    def test_return_trip_does_not_learn_a_profitable_loop(self):
+        a,b=state('A'),state('B',261.7)
+        first=self.policy.learn(a,b,receipt_row('w'),a)
+        self.assertGreater(first['reward'],0)
+        for _ in range(8):
+            for before,after,key in ((b,a,'s'),(a,b,'w')):
+                result=self.policy.learn(before,after,receipt_row(key),before)
+                self.assertEqual(result['novelty_weight'],0)
+                self.assertLess(result['reward'],0)
+                self.assertFalse(result['positive_progress_proxy'])
+        self.assertLess(self.policy.values(a)['w']['q'],0)
+        self.assertLess(self.policy.values(b)['s']['q'],0)
+        proposal=parse_decision(json.dumps(change(action={'keys':['w'],'hold_ms':80,'wait_ms':0})),self.cfg)
+        self.assertNotEqual(self.policy.choose(proposal,a,stable=True)[0].keys,['w'])
+        # A return with independently observed new coverage can still earn credit.
+        expanded=state('A',pixels=1000)
+        self.assertGreater(self.policy.learn(b,expanded,receipt_row('s'),b)['reward'],0)
+
     def test_natural_movement_does_not_get_input_progress_credit(self):
         initial=state('old',249.7,570);before=state('A',255.7,610);after=state('B',261.7,650)
         result=self.policy.learn(before,after,receipt_row(),initial)

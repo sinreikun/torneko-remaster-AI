@@ -34,13 +34,13 @@ def read_minimap(png):
             if 60<=r<=205 and g>105 and g-r>=18 and b-g>=8:blue.add((x,y))
             if r>90 and g>95 and b<min(r,g)*.55 and abs(r-g)<60:yellow.add((x,y))
             if r>145 and r>g*1.6 and r>b*1.5:red.add((x,y))
-    candidates=[]
+    candidates=[];yellow_parts=components(yellow)
     for region in components(blue):
         if not 30<=len(region)<=width*height*.12:continue
         xs,ys=zip(*region);left,right=min(xs),max(xs);top,bottom=min(ys),max(ys)
         if right-left<5 or bottom-top<5:continue
-        markers=[part for part in components({p for p in yellow if left-3<=p[0]<=right+3 and top-3<=p[1]<=bottom+3})
-            if 2<=len(part)<=100 and max(p[0] for p in part)-min(p[0] for p in part)<=12 and max(p[1] for p in part)-min(p[1] for p in part)<=12]
+        markers=[part for part in yellow_parts
+            if any(left-3<=x<=right+3 and top-3<=y<=bottom+3 for x,y in part) and 2<=len(part)<=100 and max(p[0] for p in part)-min(p[0] for p in part)<=12 and max(p[1] for p in part)-min(p[1] for p in part)<=12]
         if len(markers)!=1:continue
         marker=markers[0];mx=sum(p[0] for p in marker)/len(marker);my=sum(p[1] for p in marker)/len(marker)
         # A small, roughly square yellow marker must touch the blue overlay.
@@ -58,8 +58,28 @@ def read_minimap(png):
         shape=sorted({(round((x-left)/tile),round((y-top)/tile)) for x,y in region})
         candidates.append({'status':'observed','confidence':.8,'bbox':[left,top,right,bottom],
             'player':[round(mx,2),round(my,2)],'cell_size':tile,'player_cell':[round(mx/tile),round(my/tile)],
-            'known_pixels':len(region),'shape':hashlib.sha256(repr(shape).encode()).hexdigest()[:16],
+            '_region':region,'known_pixels':len(region),'shape':hashlib.sha256(repr(shape).encode()).hexdigest()[:16],
             'neighbors':nearby,'enemies':enemy_cells,'analysis_size':[width,height],'source_size':list(source_size),
             'note':'色・形状の推定。座標は画面内であり、固定のワールド座標とは未確認。'})
-    if len(candidates)!=1:return {'status':'unavailable','reason':'ミニマップと自位置を一意に検出できません。','candidates':len(candidates)}
-    return candidates[0]
+    # The yellow marker may split the blue overlay into disconnected pieces.
+    # Multiple blue components attached to the *same* marker are one map, not
+    # competing player detections. Distinct markers remain ambiguous.
+    grouped={}
+    for candidate in candidates:
+        grouped.setdefault(tuple(candidate['player']),[]).append(candidate)
+    merged=[]
+    for parts in grouped.values():
+        item=dict(parts[0]);region=set().union(*(set(p['_region']) for p in parts))
+        xs,ys=zip(*region);left,top,right,bottom=min(xs),min(ys),max(xs),max(ys)
+        tile=item['cell_size']
+        shape=sorted({(round((x-left)/tile),round((y-top)/tile)) for x,y in region})
+        item.update(bbox=[left,top,right,bottom],known_pixels=len(region),
+            shape=hashlib.sha256(repr(shape).encode()).hexdigest()[:16],blue_components=len(parts),
+            enemies=sorted({tuple(e) for p in parts for e in p['enemies']}))
+        for key in item['neighbors']:
+            item['neighbors'][key]=dict(item['neighbors'][key])
+            item['neighbors'][key]['known']=any(p['neighbors'][key]['known'] for p in parts)
+            item['neighbors'][key]['enemy']=any(p['neighbors'][key]['enemy'] for p in parts)
+        item.pop('_region',None);merged.append(item)
+    if len(merged)!=1:return {'status':'unavailable','reason':'ミニマップと自位置を一意に検出できません。','candidates':len(merged)}
+    return merged[0]
