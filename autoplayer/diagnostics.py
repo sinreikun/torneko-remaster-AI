@@ -101,6 +101,9 @@ def export_diagnostics(data,destination,detailed=False):
                     if name=='memory.sqlite' and target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='policy_actions'").fetchone():
                         entry['policy_summary']=[dict(zip(('profile','state_actions','trials','positive_progress_observations','goal_trials','goal_wins'),r)) for r in target.execute('SELECT profile,COUNT(*),SUM(trials),SUM(positive),SUM(goal_trials),SUM(goal_wins) FROM policy_actions GROUP BY profile')]
                         entry['recent_policy_events']=[r[0][:12000] for r in target.execute('SELECT data FROM policy_events ORDER BY id DESC LIMIT 30')]
+                    if name=='memory.sqlite' and target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='improvement_events'").fetchone():
+                        entry['recent_improvement_events']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_events ORDER BY id DESC LIMIT 30')]
+                        entry['improvement_state']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_state LIMIT 20')]
                     report['databases'][name]=entry
                 except (sqlite3.Error,OSError,TimeoutError) as error:
                     report['databases'][name]={'status':'failed','reason':str(error)}

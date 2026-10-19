@@ -87,7 +87,7 @@ class ExperiencePolicy:
         return {'version':VERSION,'profile':self.profile,'objective':state['objective'],'state_id':state['id'],'eligible':state['eligible'],
             'ranking':ranking,'control_reference':REFERENCE,
             'note':'priorityは実経験のTD値＋未試行の探索加点。確率は正の観測報酬の推定でありゲームクリア確率ではない。試行0は未推定。全体目標の確率は検証済み終了エピソードがある場合のみ。'}
-    def choose(self,decision,state,blocked=(),stable=False):
+    def choose(self,decision,state,blocked=(),stable=False,adjustment=None):
         context=self.context(state,blocked)
         if not stable or decision.status!='continue' or decision.risk!='normal' or not state['eligible']:
             return decision,{'source':'model_or_neutral','context':context}
@@ -99,15 +99,24 @@ class ExperiencePolicy:
             return decision,{'source':'model_nonmovement','context':context}
         candidates=[v for v in context['ranking'] if v['automatic_candidate']]
         if not candidates:return replace(decision,keys=[]),{'source':'neutral_no_safe_candidate','context':context}
+        if adjustment:
+            strategy=adjustment.get('strategy')
+            for candidate in candidates:
+                key=candidate['keys'][0]
+                delta=(.6/(candidate['trials']+1) if strategy=='explore_untried' else
+                    (-.8 if strategy=='avoid_cycle' and [state['id'],key] in adjustment.get('avoid',[]) else 0.))
+                candidate['adjustment']=delta;candidate['priority']=round(candidate['priority']+delta,5)
+            candidates.sort(key=lambda v:v['priority'],reverse=True)
         # Least visited actions break cold-start ties deterministically; learned Q then dominates.
         selected=candidates[0];key=selected['keys'][0]
         reason=('地図の自位置・既知領域と、この状態で蓄積した行動価値・試行回数から優先度を選択しました。' if selected['trials'] else 'この状態では未試行の候補です。地図と安全条件を確認し、経験を蓄積するための短い移動を選択しました。')
+        if adjustment:reason+=' 停滞の原因仮説を検証するため、許可された移動候補内で優先度を一時調整しています。'
         caption=f"地図の黄色マーカーを解析座標{state['minimap']['player']}に観測。青い既知領域は{state['minimap']['known_pixels']}画素。画面内の推定値です。"
         chosen=replace(decision,scene='gameplay',observation=caption,keys=[key],hold_ms=min(80,self.settings.max_hold_ms),wait_ms=600,
             confidence=.8,reason=reason,subgoal='食料を探すため未確認の通路を探索する' if state['objective']=='forage' else 'ミニマップ上の未訪問位置または未確認の通路を探索する',
             goal_success='地図の自位置の移動または既知領域の増加を次の観測で確認する',
             progress=[],memory_updates=[],plan=[],goal_evidence=[],knowledge_assessments=[])
-        return chosen,{'source':'learned_policy','selected':selected,'context':context,
+        return chosen,{'source':'learned_policy','selected':selected,'context':context,'adjustment':adjustment,
             'safety':'同じ自位置を中立観測で再確認し、メニュー文字・近傍の敵・低HPがない場合の短い移動のみ。'}
     @staticmethod
     def signals(before,after):

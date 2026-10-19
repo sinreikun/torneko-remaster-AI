@@ -78,7 +78,7 @@ class Application:
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={}
-        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','キー配置・ミニマップ']:
+        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','自己改善','キー配置・ミニマップ']:
             group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
             button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
             body=tk.Text(group,height=4,wrap='word',state='disabled',relief='flat');body.pack(fill='x')
@@ -107,6 +107,7 @@ class Application:
         self.set_panel('目的',self.cfg.goal+'\n小目標: 未設定')
         from .controls import REFERENCE
         self.set_panel('キー配置・ミニマップ',REFERENCE)
+        self.set_panel('自己改善','停滞時にLLMが仮説を提案し、最大4入力・8判断で検証します。効果不明・悪化なら撤回。採用も24判断限定です。')
         self.set_panel('行動学習','実際に送信した単独キーと前後の地図・HUD観測から、状態別の行動価値を保存・更新します。LLMの重みの再訓練ではありません。')
         self.set_panel('候補と評価','LLMの信頼度・危険度・許可キーを表示します。\n未生成の候補点数は表示しません。')
         self.set_panel('系列のパターン','保存済み経験から状態・操作の反復を集計します。診断は含めません。')
@@ -427,8 +428,10 @@ class Application:
     def update_decision(self,value):
         event=value.get('event');self.append_log(value)
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
+        if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='result':
             if value.get('policy_choice'):
+                self.set_panel('自己改善',{'state':value.get('self_improvement'),'evaluation':value.get('improvement_evaluation')})
                 self.set_panel('行動学習',{'selection':value.get('policy_choice'),'update':value.get('policy_learning')})
                 self.set_panel('候補と評価',value['policy_choice'].get('context',{}))
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
