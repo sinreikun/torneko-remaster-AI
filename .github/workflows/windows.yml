@@ -7,8 +7,8 @@ on:
   pull_request:
   workflow_dispatch:
 concurrency:
-  group: windows-${{ github.ref }}
-  cancel-in-progress: true
+  group: windows-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:

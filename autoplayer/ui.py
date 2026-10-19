@@ -49,7 +49,7 @@ class Application:
             else: w=ttk.Entry(run,textvariable=self.vars[key])
             w.grid(row=row,column=1,sticky='ew',pady=3)
         run.columnconfigure(1,weight=1)
-        ttk.Label(run,text='攻略目標（具体的な達成条件を含める）').grid(row=6,column=0,columnspan=2,sticky='w')
+        ttk.Label(run,text='最終目標（初期設定済み。小目標は LLM が自動設定・更新）').grid(row=6,column=0,columnspan=2,sticky='w')
         self.goal=tk.Text(run,height=3,wrap='word'); self.goal.insert('1.0',self.cfg.goal); self.goal.grid(row=7,column=0,columnspan=2,sticky='ew')
         ttk.Label(run,text='攻略知識・キーの意味・優先事項（テキストで注入。セーブ削除・購入等は実行禁止）').grid(row=8,column=0,columnspan=2,sticky='w')
         self.knowledge=tk.Text(run,height=7,wrap='word'); self.knowledge.insert('1.0',self.cfg.knowledge)

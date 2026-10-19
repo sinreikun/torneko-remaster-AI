@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from autoplayer.core import Settings,LocalLLM,Controller,parse_decision
 from autoplayer.components import pull_model
 
-VALID={'scene':'title','observation':'Start game visible','subgoal':'Start','reason':'Start selected','confidence':.95,'status':'continue','action':{'keys':['enter'],'hold_ms':80,'wait_ms':0}}
+VALID={'scene':'title','observation':'Start game visible','subgoal':'Start','goal_success':'Gameplay visible after starting','reason':'Start selected','confidence':.95,'status':'continue','action':{'keys':['enter'],'hold_ms':80,'wait_ms':0}}
 class Backend:
     def __init__(self): self.actions=[];self.releases=0
     def capture(self): return b'fake-test-frame'
