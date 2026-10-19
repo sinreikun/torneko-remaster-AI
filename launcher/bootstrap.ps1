@@ -47,6 +47,38 @@ $InstallWorker = {
             try { return ($reader.ReadToEnd() | ConvertFrom-Json) } finally { $reader.Dispose() }
         } finally { $response.Dispose() }
     }
+    function Get-OfficialPage($Url) {
+        Check-Cancel
+        if (-not $Url.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unsupported release metadata origin' }
+        $request = [Net.HttpWebRequest]::Create($Url)
+        $request.UserAgent = 'LocalGamePilot/0.3.0'; $request.Timeout=30000; $request.ReadWriteTimeout=30000
+        $response = $request.GetResponse()
+        try {
+            if (-not $response.ResponseUri.AbsoluteUri.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unexpected release metadata redirect' }
+            $reader = New-Object IO.StreamReader($response.GetResponseStream())
+            try { return @{Text=$reader.ReadToEnd();Uri=$response.ResponseUri.AbsoluteUri} } finally { $reader.Dispose() }
+        } finally { $response.Dispose() }
+    }
+    function Get-OllamaRelease {
+        try {
+            $release = Get-Json 'https://api.github.com/repos/ollama/ollama/releases/latest'
+            $assets = @($release.assets | Where-Object { $_.name -eq 'ollama-windows-amd64.zip' })
+            if ($assets.Count -eq 1 -and $assets[0].digest -match '^sha256:[0-9a-fA-F]{64}$') { return $release }
+        } catch { $State.Message='公式APIに接続できないため、公式リリースページのSHA-256を確認しています…' }
+        # GitHub API has shared anonymous rate limits. The same publisher's HTML
+        # exposes its asset digest; never replace verification with an unsigned URL.
+        $latest = Get-OfficialPage 'https://github.com/ollama/ollama/releases/latest'
+        $match = [regex]::Match($latest.Uri,'^https://github[.]com/ollama/ollama/releases/tag/(v[0-9]+[.][0-9]+[.][0-9]+)$')
+        if (-not $match.Success) { throw 'Cannot identify the official stable Ollama release' }
+        $tag = $match.Groups[1].Value
+        $page = Get-OfficialPage ('https://github.com/ollama/ollama/releases/expanded_assets/' + $tag)
+        $relative = '/ollama/ollama/releases/download/' + $tag + '/ollama-windows-amd64.zip'
+        $rows = @([regex]::Matches($page.Text,'(?s)<li\b.*?</li>') | Where-Object { $_.Value.Contains('href="' + $relative + '"') })
+        if ($rows.Count -ne 1) { throw 'Cannot identify the official Windows archive metadata' }
+        $hashes = @([regex]::Matches($rows[0].Value,'sha256:([0-9a-fA-F]{64})') | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
+        if ($hashes.Count -ne 1) { throw 'Official release page has no unambiguous SHA-256 digest' }
+        return [pscustomobject]@{tag_name=$tag;assets=@([pscustomobject]@{name='ollama-windows-amd64.zip';browser_download_url=('https://github.com' + $relative);digest=('sha256:' + $hashes[0])})}
+    }
     function Get-FreeSpace($Path) {
         $drive = New-Object IO.DriveInfo([IO.Path]::GetPathRoot($Path))
         return $drive.AvailableFreeSpace
@@ -179,7 +211,7 @@ $InstallWorker = {
             $ollama = Join-Path $ollamaDir 'ollama.exe'
             if (-not (Test-Path $ollama)) {
                 $State.Message = 'Ollama の公式配布情報を取得しています…'
-                $release = Get-Json 'https://api.github.com/repos/ollama/ollama/releases/latest'
+                $release = Get-OllamaRelease
                 $assets = @($release.assets | Where-Object { $_.name -eq 'ollama-windows-amd64.zip' })
                 if ($assets.Count -ne 1) { throw '公式 Ollama x64 アーカイブが見つかりません。' }
                 $asset = $assets[0]
@@ -326,7 +358,39 @@ if ($DownloadSelfTest) {
     $checks += 'Plain HTTP rejected'
     $freeSpaceFunction = ${function:Get-FreeSpace}
     try {
-        function Get-FreeSpace($Path) { return 0 }
+        function Get-OfficialPage($Url) {
+        Check-Cancel
+        if (-not $Url.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unsupported release metadata origin' }
+        $request = [Net.HttpWebRequest]::Create($Url)
+        $request.UserAgent = 'LocalGamePilot/0.3.0'; $request.Timeout=30000; $request.ReadWriteTimeout=30000
+        $response = $request.GetResponse()
+        try {
+            if (-not $response.ResponseUri.AbsoluteUri.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unexpected release metadata redirect' }
+            $reader = New-Object IO.StreamReader($response.GetResponseStream())
+            try { return @{Text=$reader.ReadToEnd();Uri=$response.ResponseUri.AbsoluteUri} } finally { $reader.Dispose() }
+        } finally { $response.Dispose() }
+    }
+    function Get-OllamaRelease {
+        try {
+            $release = Get-Json 'https://api.github.com/repos/ollama/ollama/releases/latest'
+            $assets = @($release.assets | Where-Object { $_.name -eq 'ollama-windows-amd64.zip' })
+            if ($assets.Count -eq 1 -and $assets[0].digest -match '^sha256:[0-9a-fA-F]{64}$') { return $release }
+        } catch { $State.Message='公式APIに接続できないため、公式リリースページのSHA-256を確認しています…' }
+        # GitHub API has shared anonymous rate limits. The same publisher's HTML
+        # exposes its asset digest; never replace verification with an unsigned URL.
+        $latest = Get-OfficialPage 'https://github.com/ollama/ollama/releases/latest'
+        $match = [regex]::Match($latest.Uri,'^https://github[.]com/ollama/ollama/releases/tag/(v[0-9]+[.][0-9]+[.][0-9]+)$')
+        if (-not $match.Success) { throw 'Cannot identify the official stable Ollama release' }
+        $tag = $match.Groups[1].Value
+        $page = Get-OfficialPage ('https://github.com/ollama/ollama/releases/expanded_assets/' + $tag)
+        $relative = '/ollama/ollama/releases/download/' + $tag + '/ollama-windows-amd64.zip'
+        $rows = @([regex]::Matches($page.Text,'(?s)<li\b.*?</li>') | Where-Object { $_.Value.Contains('href="' + $relative + '"') })
+        if ($rows.Count -ne 1) { throw 'Cannot identify the official Windows archive metadata' }
+        $hashes = @([regex]::Matches($rows[0].Value,'sha256:([0-9a-fA-F]{64})') | ForEach-Object { $_.Groups[1].Value.ToLowerInvariant() } | Select-Object -Unique)
+        if ($hashes.Count -ne 1) { throw 'Official release page has no unambiguous SHA-256 digest' }
+        return [pscustomobject]@{tag_name=$tag;assets=@([pscustomobject]@{name='ollama-windows-amd64.zip';browser_download_url=('https://github.com' + $relative);digest=('sha256:' + $hashes[0])})}
+    }
+    function Get-FreeSpace($Path) { return 0 }
         $rejected=$false
         try { Download $url $bad $expected } catch { $rejected=$_.Exception.Message -like '*空き容量*' }
         if (-not $rejected -or (Test-Path $bad)) { throw 'Insufficient disk space was not handled safely' }
@@ -338,6 +402,15 @@ if ($DownloadSelfTest) {
     try { Assert-PythonSignature $ownExe } catch { $rejected=$_.Exception.Message -like '*署名*' }
     if (-not $rejected) { throw 'A non-Python executable passed the publisher guard' }
     $checks += 'Unsigned or wrong-publisher installer rejected'
+
+    $jsonFunction = ${function:Get-Json}
+    try {
+        function Get-Json($Url,$Body=$null) { throw 'Injected GitHub anonymous API rate limit (403)' }
+        $release = Get-OllamaRelease
+        $asset = @($release.assets | Where-Object name -eq 'ollama-windows-amd64.zip')[0]
+        if ($asset.digest -notmatch '^sha256:[0-9a-f]{64}$' -or -not $asset.browser_download_url.StartsWith('https://github.com/ollama/ollama/releases/download/')) { throw 'Release fallback lost publisher or checksum validation' }
+        $checks += 'GitHub API denial falls back to official HTML with SHA-256'
+    } finally { Set-Item -Path Function:Get-Json -Value $jsonFunction }
 
     @{passed=$true;checks=$checks} | ConvertTo-Json | Set-Content (Join-Path $BaseDir 'download-tests.json') -Encoding UTF8
     Write-Output 'Downloader fault and resume tests passed.'
