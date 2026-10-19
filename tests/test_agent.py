@@ -47,7 +47,7 @@ class ProtocolTests(unittest.TestCase):
         for endpoint in ['http://localhost:11434','http://127.0.0.1:8080/v1','http://[::1]:1234']:
             Settings(endpoint=endpoint).validate()
     def test_invalid_settings(self):
-        for args in [dict(max_steps=0),dict(allowed_keys=[]),dict(allowed_keys=['f4']),dict(window_title=''),dict(goal=''),dict(provider='unknown')]:
+        for args in [dict(max_steps=-1),dict(allowed_keys=[]),dict(allowed_keys=['f4']),dict(window_title=''),dict(goal=''),dict(provider='unknown')]:
             with self.subTest(args=args),self.assertRaises(ValueError): Settings(**args).validate()
 
 class LoopTests(unittest.TestCase):

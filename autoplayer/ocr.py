@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import time
 
-class ScreenOCR:
+class WindowsOCR:
     def __init__(self): self.last_hash=None; self.last=None
     def read(self,png):
         digest=hashlib.sha256(png).hexdigest()
@@ -31,3 +31,31 @@ class ScreenOCR:
             except (OSError,subprocess.SubprocessError,ValueError,RuntimeError) as error: record['reason']=str(error)[:700]
         self.last_hash=digest;self.last=record
         return dict(record)
+
+
+class ScreenOCR:
+    """Auto chooses installed V5, V4, then Windows; failures stay visible."""
+    def __init__(self,engine='auto'):
+        if engine not in ('auto','windows.media.ocr','ocr-paddle-v5','ocr-paddle-ja'): raise ValueError('Unknown OCR engine')
+        self.selected=engine;self.readers={};self.last_hash=None;self.last=None
+    def engines(self):
+        from .ocr_components import MODELS,installed
+        return [model['id'] for model in MODELS if installed(model)]+['windows.media.ocr']
+    def read_engine(self,png,engine):
+        if engine not in self.readers:
+            if engine=='windows.media.ocr': self.readers[engine]=WindowsOCR()
+            else:
+                from .paddle_ocr import PaddleOCR
+                self.readers[engine]=PaddleOCR(engine)
+        return self.readers[engine].read(png)
+    def read(self,png):
+        digest=hashlib.sha256(png).hexdigest()
+        if digest==self.last_hash: return dict(self.last)
+        failures=[]
+        for engine in (self.engines() if self.selected=='auto' else [self.selected]):
+            value=self.read_engine(png,engine)
+            if value['status']=='ok': break
+            failures.append({'engine':engine,'reason':value.get('reason','unavailable')})
+        if failures: value={**value,'fallback_failures':failures}
+        self.last_hash=digest;self.last=value
+        return dict(value)

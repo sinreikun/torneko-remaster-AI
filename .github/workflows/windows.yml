@@ -58,7 +58,7 @@ jobs:
           $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
           & $script -Payload (Resolve-Path build/application.zip) -DownloadSelfTest -TestBaseDir "$env:RUNNER_TEMP/GamePilotDownloads"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Real unattended install, model, window capture and input
+      - name: Real unattended install, model and application UI (no demo game)
         id: integration
         shell: powershell
         timeout-minutes: 45
@@ -81,7 +81,7 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP/GamePilotDownloads/download-tests.json" ci-evidence/ -ErrorAction SilentlyContinue
           $folder = "$env:RUNNER_TEMP/GamePilotIntegration"
           if (Test-Path "$folder/integration-report.json") { Copy-Item "$folder/integration-report.json" ci-evidence/ }
-          Copy-Item "$folder/fixture-*.png" ci-evidence/ -ErrorAction SilentlyContinue
+          Copy-Item "$folder/application-ui.png" ci-evidence/ -ErrorAction SilentlyContinue
           Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 120 | Set-Content (Join-Path ci-evidence $_.Name) }
           git add ci-evidence
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Record unattended Windows integration evidence"
@@ -95,7 +95,8 @@ jobs:
           path: |
             ${{ runner.temp }}/GamePilotIntegration/integration-report.json
             ${{ runner.temp }}/GamePilotIntegration/*.log
-            ${{ runner.temp }}/GamePilotIntegration/fixture-*.png
+            ${{ runner.temp }}/GamePilotIntegration/application-ui.png
+            ${{ runner.temp }}/GamePilotIntegration/runtime-diagnostics.zip
       - uses: actions/upload-artifact@v4
         with:
           name: LocalGamePilot-Windows-x64

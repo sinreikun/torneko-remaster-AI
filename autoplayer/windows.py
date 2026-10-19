@@ -3,6 +3,7 @@ import ctypes as C
 from ctypes import wintypes as W
 import io
 import sys
+import threading
 
 class KEYBDINPUT(C.Structure):
     _fields_=[('wVk',W.WORD),('wScan',W.WORD),('dwFlags',W.DWORD),('time',W.DWORD),('dwExtraInfo',C.c_size_t)]
@@ -52,6 +53,7 @@ class WindowsGame:
         try: self.u.SetProcessDPIAware()
         except AttributeError: pass
         self.hwnd=None; self.title=title.casefold(); self.held=set(); self.input_target=None
+        self.capture_lock=threading.RLock();self.last_frame=None;self.last_capture_at=0
         self._find()
         self.u.GetWindowThreadProcessId(self.hwnd,C.byref(self.process_id))
     def _text(self,h):
@@ -95,11 +97,17 @@ class WindowsGame:
         self.hwnd=matches[0]
     def ready(self):
         if not self.u.IsWindow(self.hwnd): raise RuntimeError('ゲームウィンドウが閉じられました。')
+        current_pid=W.DWORD();self.u.GetWindowThreadProcessId(self.hwnd,C.byref(current_pid))
+        if current_pid.value!=self.process_id.value:raise RuntimeError('接続先プロセスが変わりました。再接続してください。')
         if self.u.IsIconic(self.hwnd): raise RuntimeError('ゲームが最小化されています。')
-        if self.u.GetAsyncKeyState(0x77)&0x8000: raise RuntimeError('F8 による緊急停止')
-        if any(self.u.GetAsyncKeyState(v)&0x8000 for v in (0x10,0x11,0x12,0x5b,0x5c)):
-            raise RuntimeError('修飾キーが押されているため停止しました。')
+        if self.emergency(): raise RuntimeError('緊急停止キーが押されました。')
     def capture(self):
+        with self.capture_lock:
+            image=self._capture()
+            import time
+            self.last_frame=image;self.last_capture_at=time.time()
+            return image
+    def _capture(self):
         self.ready()
         r=W.RECT()
         if not self.u.GetClientRect(self.hwnd,C.byref(r)):
@@ -143,7 +151,6 @@ class WindowsGame:
             if info.hwndFocus and self.u.IsChild(self.hwnd,info.hwndFocus):
                 return info.hwndFocus
         # Tk wraps its input-bearing client in a top-level decoration HWND.
-        # It is also used by our native background-input regression fixture.
         name=C.create_unicode_buffer(256)
         self.u.GetClassNameW(self.hwnd,name,256)
         if name.value=='TkTopLevel':
@@ -186,7 +193,27 @@ class WindowsGame:
             except RuntimeError as error: errors.append(error)
         if not self.held: self.input_target=None
         if errors: raise errors[0]
-    def emergency(self): return bool(self.u.GetAsyncKeyState(0x77)&0x8000)
+    def foreground(self): return self.u.GetForegroundWindow()
+    def matches_profile(self):
+        import json
+        from pathlib import Path
+        spec=json.loads((Path(__file__).resolve().parent.parent/'knowledge/profile.json').read_text(encoding='utf-8'))['window']
+        name=C.create_unicode_buffer(256)
+        self.u.GetClassNameW(self.hwnd,name,256)
+        if name.value!=spec['class_name']: return False
+        kernel=C.WinDLL('kernel32',use_last_error=True)
+        kernel.OpenProcess.argtypes=[W.DWORD,W.BOOL,W.DWORD];kernel.OpenProcess.restype=W.HANDLE
+        kernel.QueryFullProcessImageNameW.argtypes=[W.HANDLE,W.DWORD,W.LPWSTR,C.POINTER(W.DWORD)]
+        kernel.CloseHandle.argtypes=[W.HANDLE]
+        handle=kernel.OpenProcess(0x1000,False,self.process_id.value)
+        if not handle: return False
+        try:
+            path=C.create_unicode_buffer(32768);size=W.DWORD(32768)
+            return bool(kernel.QueryFullProcessImageNameW(handle,0,path,C.byref(size)) and Path(path.value).stem.casefold()==spec['process_name'].casefold())
+        finally: kernel.CloseHandle(handle)
+    def emergency(self):
+        pressed=lambda vk:bool(self.u.GetAsyncKeyState(vk)&0x8000)
+        return pressed(0x77) or (pressed(0x11) and pressed(0x10) and pressed(0x78))
 
 
 def visible_windows():

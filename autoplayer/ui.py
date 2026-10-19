@@ -17,55 +17,226 @@ DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.pa
 
 class Application:
     def __init__(self,root):
-        self.root=root; root.title('ローカルLLM ゲーム攻略ツール'); root.geometry('980x820')
-        self.queue=queue.Queue(); self.stop=threading.Event(); self.worker=None
-        self.cfg=Settings()
+        self.root=root;root.title('ローカルLLM ゲーム攻略ツール — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
+        self.queue=queue.Queue();self.stop=threading.Event();self.worker=None
+        self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
+        self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
+        self.run_started=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0};self.last_row={}
+        self.cfg=Settings();self.ui_state={}
         if (DATA/'settings.json').exists():
             try: self.cfg=Settings(**json.loads((DATA/'settings.json').read_text(encoding='utf-8'))).validate()
-            except Exception as e: messagebox.showwarning('設定',f'設定を読み込めません。既定値で開始します。\n{e}')
+            except Exception as error: messagebox.showwarning('設定',f'設定を読み込めません。既定値で開始します。\n{error}')
+        if (DATA/'ui-settings.json').exists():
+            try: self.ui_state=json.loads((DATA/'ui-settings.json').read_text(encoding='utf-8'))
+            except (OSError,ValueError): pass
         if not self.cfg.knowledge:
-            default_knowledge=Path(__file__).resolve().parent.parent/'knowledge/torneko.md'
-            if default_knowledge.exists(): self.cfg.knowledge=default_knowledge.read_text(encoding='utf-8')
-        tabs=ttk.Notebook(root); tabs.pack(fill='both',expand=True)
-        run=ttk.Frame(tabs,padding=10); setup_tab=ttk.Frame(tabs)
-        tabs.add(run,text='攻略・目標・知識'); tabs.add(setup_tab,text='環境・モデルの選択と取得')
-        canvas=tk.Canvas(setup_tab,highlightthickness=0)
-        scroll=ttk.Scrollbar(setup_tab,orient='vertical',command=canvas.yview)
-        canvas.configure(yscrollcommand=scroll.set)
-        scroll.pack(side='right',fill='y'); canvas.pack(side='left',fill='both',expand=True)
-        setup=ttk.Frame(canvas,padding=10)
-        window=canvas.create_window((0,0),window=setup,anchor='nw')
-        setup.bind('<Configure>',lambda e:canvas.configure(scrollregion=canvas.bbox('all')))
-        canvas.bind('<Configure>',lambda e:canvas.itemconfigure(window,width=e.width))
+            default=Path(__file__).resolve().parent.parent/'knowledge/torneko.md'
+            if default.exists(): self.cfg.knowledge=default.read_text(encoding='utf-8')
+        header=ttk.Frame(root,padding=8);header.pack(fill='x')
+        ttk.Label(header,text='ゲーム攻略くん + ローカルLLM',font=('',16,'bold')).pack(side='left')
+        self.badges=tk.StringVar(value='未接続 / WindowMessage・背面対応 / 診断と学習を分離')
+        ttk.Label(header,textvariable=self.badges).pack(side='left',padx=16)
+        toolbar=ttk.Frame(root,padding=(8,0));toolbar.pack(fill='x')
+        ttk.Button(toolbar,text='ゲームに接続',command=self.connect).pack(side='left')
+        self.start_button=ttk.Button(toolbar,text='▶ 攻略開始',command=self.start);self.start_button.pack(side='left',padx=4)
+        self.pause_button=ttk.Button(toolbar,text='⏸ 一時停止',command=self.pause);self.pause_button.pack(side='left')
+        ttk.Button(toolbar,text='■ 停止',command=self.stop.set).pack(side='left',padx=4)
+        ttk.Button(toolbar,text='緊急停止 (F8 / Ctrl+Shift+F9)',command=self.emergency).pack(side='left')
+        tools_bar=ttk.Frame(root,padding=(8,4));tools_bar.pack(fill='x')
+        ttk.Button(tools_bar,text='OCRテスト',command=self.open_ocr).pack(side='left',padx=4)
+        ttk.Button(tools_bar,text='セットアップ',command=lambda:self.tabs.select(self.setup_tab)).pack(side='left')
+        ttk.Button(tools_bar,text='診断データを書き出す',command=self.export).pack(side='left',padx=4)
+        ttk.Button(tools_bar,text='最新ZIPを開く',command=self.open_report).pack(side='left')
+        ttk.Button(tools_bar,text='提出用ZIPをコピー',command=self.copy_report).pack(side='left',padx=4)
+        options=ttk.Frame(root,padding=8);options.pack(fill='x')
+        ttk.Label(options,text='実行時間').pack(side='left')
+        self.duration=tk.StringVar(value=self.ui_state.get('duration','なし'))
+        self.duration_box=ttk.Combobox(options,textvariable=self.duration,values=['なし','10分','20分','30分','60分'],state='readonly',width=6)
+        self.duration_box.pack(side='left',padx=6)
+        self.separation=tk.BooleanVar(value=False);self.compat=tk.BooleanVar(value=self.ui_state.get('compat',True))
+        ttk.Checkbutton(options,text='分離試験（診断・10分）',variable=self.separation).pack(side='left')
+        ttk.Checkbutton(options,text='開始時に入力の互換性テスト',variable=self.compat).pack(side='left',padx=6)
+        self.dry=tk.BooleanVar(value=False);ttk.Checkbutton(options,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
+        ttk.Label(options,text='背面のまま動作 / 最小化不可 / 診断は学習に使用しません').pack(side='right')
+        self.status=tk.StringVar(value='待機中 — ゲームに接続するとライブ画面を表示します。')
+        ttk.Label(root,textvariable=self.status,padding=(10,4),wraplength=1400).pack(fill='x')
+        self.tabs=ttk.Notebook(root);self.tabs.pack(fill='both',expand=True,padx=8,pady=5)
+        dashboard=ttk.Frame(self.tabs);config_tab=ttk.Frame(self.tabs);config=self.scroll_frame(config_tab);self.setup_tab=ttk.Frame(self.tabs)
+        self.tabs.add(dashboard,text='攻略・観測・検証');self.tabs.add(config_tab,text='目標・攻略知識・接続設定');self.tabs.add(self.setup_tab,text='セットアップ')
+        split=ttk.Panedwindow(dashboard,orient='horizontal');split.pack(fill='both',expand=True)
+        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=3);split.add(right,weight=2)
+        self.live=tk.Canvas(left,bg='black',highlightthickness=0,height=390);self.live.pack(fill='both',expand=True)
+        self.live.create_text(280,180,text='ゲームに接続していません',fill='white',tags='image')
+        self.live.bind('<Configure>',lambda event:self.draw_frame(force=True))
+        self.live_info=tk.StringVar(value='画面の記録は実機実行時のみ。架空ゲームは使用しません。')
+        ttk.Label(left,textvariable=self.live_info).pack(fill='x')
+        ttk.Label(left,text='観測 → 行動 → 結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
+        logbox=ttk.Frame(left);logbox.pack(fill='both',expand=True)
+        self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
+        logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
+        panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={}
+        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合']:
+            group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
+            button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
+            body=tk.Text(group,height=4,wrap='word',state='disabled',relief='flat');body.pack(fill='x')
+            self.panels[title]=body;self.panel_bodies[title]=body
+            if self.ui_state.get('collapsed',{}).get(title): body.pack_forget()
         self.vars={}
-        for row,(label,key) in enumerate([('ゲームのタイトル（一部・固有の文字列）','window_title'),('API 形式（ollama / openai）','provider'),('ローカル API URL','endpoint'),('画像対応モデル名','model'),('許可キー（カンマ区切り）','allowed_keys'),('最大手数','max_steps')]):
-            ttk.Label(run,text=label).grid(row=row,column=0,sticky='w')
-            val=getattr(self.cfg,key); val=','.join(val) if isinstance(val,list) else str(val)
-            self.vars[key]=tk.StringVar(value=val)
-            if key=='provider': w=ttk.Combobox(run,textvariable=self.vars[key],values=['ollama','openai'],state='readonly')
+        for row,(label,key) in enumerate([('ゲームのタイトル（一部・固有の文字列）','window_title'),('API形式（ollama / openai）','provider'),('ローカルAPI URL','endpoint'),('画像対応モデル名','model'),('許可キー（カンマ区切り）','allowed_keys'),('手数上限（0 = 上限なし）','max_steps'),('OCR（auto = 導入済みV5 → V4 → Windows）','ocr_engine')]):
+            ttk.Label(config,text=label).grid(row=row,column=0,sticky='w')
+            value=getattr(self.cfg,key);value=','.join(value) if isinstance(value,list) else str(value)
+            self.vars[key]=tk.StringVar(value=value)
+            if key=='provider':widget=ttk.Combobox(config,textvariable=self.vars[key],values=['ollama','openai'],state='readonly')
+            elif key=='ocr_engine':widget=ttk.Combobox(config,textvariable=self.vars[key],values=['auto','windows.media.ocr','ocr-paddle-v5','ocr-paddle-ja'],state='readonly')
             elif key=='window_title':
-                self.window_choice=ttk.Combobox(run,textvariable=self.vars[key],postcommand=self.refresh_windows)
-                w=self.window_choice
-            else: w=ttk.Entry(run,textvariable=self.vars[key])
-            w.grid(row=row,column=1,sticky='ew',pady=3)
-        run.columnconfigure(1,weight=1)
-        ttk.Label(run,text='最終目標（初期設定済み。小目標は LLM が自動設定・更新）').grid(row=6,column=0,columnspan=2,sticky='w')
-        self.goal=tk.Text(run,height=3,wrap='word'); self.goal.insert('1.0',self.cfg.goal); self.goal.grid(row=7,column=0,columnspan=2,sticky='ew')
-        ttk.Label(run,text='攻略知識・キーの意味・優先事項（テキストで注入。セーブ削除・購入等は実行禁止）').grid(row=8,column=0,columnspan=2,sticky='w')
-        self.knowledge=tk.Text(run,height=7,wrap='word'); self.knowledge.insert('1.0',self.cfg.knowledge)
-        self.knowledge.grid(row=9,column=0,columnspan=2,sticky='ew')
-        ttk.Button(run,text='知識ファイルを読み込む…',command=self.load_knowledge).grid(row=10,column=0,sticky='w')
-        ttk.Button(run,text='保存した記憶・進捗を表示',command=self.show_memory).grid(row=10,column=1,sticky='w')
-        controls=ttk.Frame(run); controls.grid(row=11,column=0,columnspan=2,sticky='ew',pady=8)
-        self.dry=tk.BooleanVar(value=False)
-        ttk.Checkbutton(controls,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
-        self.start_button=ttk.Button(controls,text='保存して自動攻略を開始',command=self.start); self.start_button.pack(side='left',padx=8)
-        ttk.Button(controls,text='停止 / F8',command=self.stop.set).pack(side='left')
-        ttk.Label(run,text='開始時に対象ゲームを自動で前面にします。F8で停止。ゲーム以外を前面にすると停止します。').grid(row=12,column=0,columnspan=2,sticky='w')
-        self.status=tk.StringVar(value='待機中'); ttk.Label(run,textvariable=self.status).grid(row=13,column=0,columnspan=2,sticky='w')
-        self.log=tk.Text(run,height=14,wrap='word',state='disabled'); self.log.grid(row=14,column=0,columnspan=2,sticky='nsew'); run.rowconfigure(14,weight=1)
-        self.setup(setup)
-        root.protocol('WM_DELETE_WINDOW',self.close); root.after(100,self.poll)
+                self.window_choice=ttk.Combobox(config,textvariable=self.vars[key],postcommand=self.refresh_windows);widget=self.window_choice
+            else:widget=ttk.Entry(config,textvariable=self.vars[key])
+            widget.grid(row=row,column=1,sticky='ew',pady=3)
+        config.columnconfigure(1,weight=1)
+        ttk.Label(config,text='最終目標（小目標・成功条件はLLMが観測から設定）').grid(row=7,column=0,columnspan=2,sticky='w',pady=(8,0))
+        self.goal=tk.Text(config,height=4,wrap='word');self.goal.insert('1.0',self.cfg.goal);self.goal.grid(row=8,column=0,columnspan=2,sticky='ew')
+        ttk.Label(config,text='攻略知識・キーの意味・優先事項（編集は任意）').grid(row=9,column=0,columnspan=2,sticky='w',pady=(8,0))
+        self.knowledge=tk.Text(config,height=10,wrap='word');self.knowledge.insert('1.0',self.cfg.knowledge);self.knowledge.grid(row=10,column=0,columnspan=2,sticky='nsew');config.rowconfigure(10,weight=1)
+        ttk.Button(config,text='知識ファイルを読み込む…',command=self.load_knowledge).grid(row=11,column=0,sticky='w',pady=8)
+        ttk.Button(config,text='保存した記憶・進捗を表示',command=self.show_memory).grid(row=11,column=1,sticky='w')
+        setup=self.scroll_frame(self.setup_tab);self.setup(setup);self.setup_ocr(setup)
+        self.set_panel('バックエンド状態','ゲーム未接続\n取得: PrintWindow / 入力: WindowMessage（背面分離）\nLLM: '+self.cfg.model+'\nDB: '+str(DATA))
+        self.set_panel('目的',self.cfg.goal+'\n小目標: 未設定')
+        self.set_panel('候補と評価','LLMの信頼度・危険度・許可キーを表示します。\n未生成の候補点数は表示しません。')
+        self.set_panel('系列のパターン','保存済み経験から状態・操作の反復を集計します。診断は含めません。')
+        reports=sorted((DATA/'exports').glob('*.zip'),key=lambda p:p.stat().st_mtime,reverse=True)
+        if reports:self.latest_zip=reports[0]
+        self.preview=threading.Thread(target=self.preview_loop,daemon=True);self.preview.start()
+        root.protocol('WM_DELETE_WINDOW',self.close);root.after(100,self.poll)
+
+    def scroll_frame(self,parent):
+        canvas=tk.Canvas(parent,highlightthickness=0);scroll=ttk.Scrollbar(parent,orient='vertical',command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set);scroll.pack(side='right',fill='y');canvas.pack(side='left',fill='both',expand=True)
+        frame=ttk.Frame(canvas,padding=6);window=canvas.create_window((0,0),window=frame,anchor='nw')
+        frame.bind('<Configure>',lambda event:canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>',lambda event:canvas.itemconfigure(window,width=event.width))
+        return frame
+
+    def set_panel(self,title,value):
+        body=self.panels[title];body.configure(state='normal');body.delete('1.0','end')
+        body.insert('1.0',value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,indent=2));body.configure(state='disabled')
+
+    def save_ui(self):
+        self.ui_state.update(duration=self.duration.get(),compat=self.compat.get())
+        DATA.mkdir(parents=True,exist_ok=True);temporary=DATA/'ui-settings.json.tmp'
+        temporary.write_text(json.dumps(self.ui_state,ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'ui-settings.json')
+
+    def toggle_panel(self,title):
+        body=self.panel_bodies[title];collapsed=bool(body.winfo_manager())
+        if collapsed:body.pack_forget()
+        else:body.pack(fill='x')
+        self.ui_state.setdefault('collapsed',{})[title]=collapsed
+        try:self.save_ui()
+        except OSError as error:self.status.set('表示設定の保存に失敗: '+str(error))
+
+    def preview_loop(self):
+        while not self.preview_done.wait(.4):
+            backend=self.backend
+            if backend is None:continue
+            try:self.frame_slot=(backend.capture(),time.time())
+            except Exception as error:self.frame_slot=(None,str(error))
+
+    def draw_frame(self,force=False):
+        frame=self.frame_slot
+        if not frame or (frame is self.shown_frame and not force):return
+        self.shown_frame=frame;self.live.delete('image')
+        if frame[0] is None:
+            self.live.create_text(20,20,anchor='nw',text=frame[1],fill='white',tags='image');return
+        from PIL import Image,ImageTk
+        import io
+        image=Image.open(io.BytesIO(frame[0]));width,height=image.size
+        image.thumbnail((max(1,self.live.winfo_width()),max(1,self.live.winfo_height())))
+        self.live_photo=ImageTk.PhotoImage(image)
+        self.live.create_image(self.live.winfo_width()/2,self.live.winfo_height()/2,image=self.live_photo,tags='image')
+        self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
+
+    def connect(self):
+        if self.busy():return
+        title=self.vars['window_title'].get().strip()
+        def work():
+            from .windows import WindowsGame
+            backend=WindowsGame(title);backend.capture();self.queue.put(('connected',(backend,title)))
+        self.launch(work)
+
+    def pause(self):
+        if self.control and self.busy():
+            paused=self.control.toggle_pause();self.pause_button.configure(text='▶ 再開' if paused else '⏸ 一時停止')
+            self.status.set('一時停止中（送信予定の推論は破棄し、再開時に再観測）' if paused else '再開しました')
+
+    def emergency(self):
+        self.stop.set()
+        self.status.set('緊急停止を要求しました。')
+
+    def open_ocr(self):
+        from .ocr_ui import OCRTestWindow
+        OCRTestWindow(self.root,self.backend,DATA)
+
+    def setup_ocr(self,parent):
+        from .ocr_components import MODELS
+        box=ttk.LabelFrame(parent,text='元ソース互換のOCR追加部品（任意）',padding=8);box.pack(fill='x',pady=10)
+        ttk.Label(box,text='Windows内蔵OCRは追加DL不要。V5/V4を選ぶと、UIがRapidOCR 3.4.0・ONNX Runtime CPUとモデルを取得します。\nランタイム約100〜200MB（環境依存）、モデルは下記容量。モデルは元ソースの実測SHA-256と照合します。',wraplength=1000).pack(anchor='w')
+        self.ocr_choice=tk.StringVar(value='ocr-paddle-v5')
+        for model in MODELS:
+            amount=sum(f['size_bytes'] for f in model['files'])/1024/1024
+            ttk.Radiobutton(box,text=f"{model['display_name']} / {amount:.1f} MiB / Apache-2.0",variable=self.ocr_choice,value=model['id']).pack(anchor='w')
+        ttk.Label(box,text='RapidOCR: Apache-2.0 / ONNX Runtime: MIT / 推論補助ライブラリは各パッケージの利用条件',wraplength=1000).pack(anchor='w')
+        self.ocr_license=tk.BooleanVar(value=False)
+        ttk.Checkbutton(box,text='選択部品の利用条件を確認し、導入する',variable=self.ocr_license).pack(anchor='w')
+        buttons=ttk.Frame(box);buttons.pack(fill='x')
+        ttk.Button(buttons,text='ライセンス・取得元',command=lambda:webbrowser.open('https://github.com/RapidAI/RapidOCR')).pack(side='left')
+        ttk.Button(buttons,text='選択OCRを自動導入',command=self.install_ocr).pack(side='left',padx=8)
+        ttk.Button(buttons,text='導入済みモデルの完全検査',command=self.verify_ocr).pack(side='left')
+
+    def install_ocr(self):
+        if not self.ocr_license.get():self.status.set('OCR部品の利用条件を確認してチェックしてください。');return
+        model=self.ocr_choice.get()
+        def work():
+            from .ocr_components import install
+            install(model,self.stop,lambda value:self.queue.put(('progress',value)),DATA)
+        self.launch(work)
+
+    def verify_ocr(self):
+        def work():
+            from .ocr_components import MODELS,installed
+            result={model['id']:('検査済み・利用可' if installed(model,DATA) else '未導入または検査不合格') for model in MODELS}
+            self.queue.put(('progress',json.dumps(result,ensure_ascii=False)))
+        self.launch(work)
+
+    def make_probe(self):
+        self.probe_keys=0;self.probe=tk.Toplevel(self.root);self.probe.title('入力分離の確認（診断中）');self.probe.geometry('460x150')
+        ttk.Label(self.probe,text='ゲームを背面に保ったまま既知操作を検証しています。\nこのウィンドウへのキー混入とフォーカス移動も検査します。\n診断の経験はLLMの学習には入りません。',padding=12).pack()
+        self.probe.bind('<KeyPress>',lambda event:setattr(self,'probe_keys',self.probe_keys+1))
+        self.probe.protocol('WM_DELETE_WINDOW',self.stop.set);self.probe.lift();self.probe.focus_force();self.root.update_idletasks()
+
+    def export(self):
+        if self.busy():self.status.set('実行終了時に自動生成します。停止後に最新ZIPを開けます。');return
+        def work():
+            from .diagnostics import export_diagnostics
+            path=DATA/'exports'/f'diagnostics-{time.time_ns()}.zip';export_diagnostics(DATA,path);self.queue.put(('exported',path))
+        self.launch(work)
+
+    def open_report(self):
+        if not self.latest_zip or not self.latest_zip.exists():self.status.set('実行終了後にZIPを自動生成します。手動出力も可能です。');return
+        if os.name=='nt':
+            import subprocess
+            subprocess.Popen(['explorer.exe','/select,',str(self.latest_zip)])
+        else:self.status.set(str(self.latest_zip))
+
+    def copy_report(self):
+        if not self.latest_zip or not self.latest_zip.exists():self.status.set('提出用ZIPがまだありません。');return
+        try:
+            if os.name=='nt':
+                from .clipboard import copy_file
+                copy_file(self.latest_zip)
+            else:self.root.clipboard_clear();self.root.clipboard_append(str(self.latest_zip))
+            self.status.set('ZIPをコピーしました。提出先の添付欄・ファイル欄に貼り付けてください。自動送信はしません。')
+        except Exception as error:messagebox.showerror('コピー失敗',str(error))
+
     def show_memory(self):
         try:
             memory=MemoryStore(DATA/'memory.sqlite',self.settings())
@@ -124,38 +295,84 @@ class Application:
         self.stop.clear(); self.start_button.configure(state='disabled')
         def task():
             try: fn()
-            except Exception as e: self.queue.put(('error',str(e)))
+            except Exception as e:
+                self.queue.put(('error',str(e)))
+                try:
+                    DATA.mkdir(parents=True,exist_ok=True)
+                    with (DATA/'application.log').open('a',encoding='utf-8') as log:
+                        import traceback
+                        log.write(time.strftime('%Y-%m-%d %H:%M:%S')+'\n'+traceback.format_exc()+'\n')
+                    from .diagnostics import export_diagnostics
+                    archive=DATA/'exports'/f'error-{time.time_ns()}.zip'
+                    export_diagnostics(DATA,archive);self.queue.put(('exported',archive))
+                except Exception as export_error:self.queue.put(('export_error',str(export_error)))
             finally: self.queue.put(('done',None))
         self.worker=threading.Thread(target=task,daemon=True); self.worker.start()
     def start(self):
         if self.busy(): return
         try:
-            cfg=self.settings(); DATA.mkdir(parents=True,exist_ok=True)
-            temporary=DATA/'settings.json.tmp'
-            temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8')
-            temporary.replace(DATA/'settings.json')
-            self.cfg=cfg
-        except Exception as e: messagebox.showerror('設定エラー',str(e)); return
-        dry=self.dry.get()
+            cfg=self.settings();DATA.mkdir(parents=True,exist_ok=True)
+            temporary=DATA/'settings.json.tmp';temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'settings.json')
+            self.cfg=cfg;self.save_ui()
+            seconds={'なし':0,'10分':600,'20分':1200,'30分':1800,'60分':3600}[self.duration.get()]
+        except Exception as error:messagebox.showerror('設定エラー',str(error));return
+        dry=self.dry.get();separation=self.separation.get();compat=self.compat.get() and not dry
+        if separation and dry:self.status.set('分離試験では既知操作を送信します。観察のみとの同時指定はできません。');return
+        if separation or compat:self.make_probe()
+        from .session import SessionControl
+        self.stop.clear();self.control=SessionControl(self.stop,0 if separation else seconds)
+        control=self.control;self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
         def work():
             from .windows import WindowsGame
-            backend=WindowsGame(cfg.window_title)
-            monitor_done=threading.Event()
-            def monitor():
-                while not monitor_done.wait(.03):
-                    if backend.emergency(): self.stop.set()
-            watch=threading.Thread(target=monitor,daemon=True); watch.start()
+            from .recording import FrameRecorder,RecordedBackend
+            from .diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
+            session=str(time.time_ns());summary={'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':''}
+            recorder=None;backend=None;monitor_done=threading.Event();memory=None
             try:
-                backend.activate()
-                path=DATA/'runs'/f'{time.time_ns()}.jsonl'
+                backend=self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
+                backend.capture();self.queue.put(('connected',(backend,cfg.window_title)))
+                def monitor():
+                    while not monitor_done.wait(.03):
+                        if backend.emergency():self.stop.set()
+                threading.Thread(target=monitor,daemon=True).start()
+                recorder=FrameRecorder(DATA/'recordings'/session);recorded=RecordedBackend(backend,recorder)
+                recorded.record_frame(backend.capture(),'session_start')
+                if separation or compat:
+                    store=DiagnosticStore(DATA/'diagnostics.sqlite')
+                    try:
+                        passed=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control,lambda:self.probe_keys).run(separation)
+                    finally:store.close();self.queue.put(('close_probe',None))
+                    if not passed:summary.update(status='stopped',reason='診断を中断しました。');return
+                    if separation:summary.update(status='diagnostic_passed',reason='10分間の分離試験を完了');return
+                if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
+                agent=Controller(cfg,recorded,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),self.stop,memory,control)
+                self.queue.put(('status','ローカルLLMが実ゲーム画面を判断しています。初回推論は数分かかる場合があります。'))
+                agent.run(dry)
+                summary.update(status='verified_complete' if agent.completed else 'stopped',reason='別観測で目標達成を確認' if agent.completed else control.reason or ('停止要求' if self.stop.is_set() else 'ループ終了・手数上限または安全条件'))
+                self.queue.put(('memory',memory.context()))
+                cumulative=memory.db.execute('SELECT COUNT(*) FROM experiences WHERE profile=?',(memory.profile,)).fetchone()[0]
+                self.queue.put(('cumulative',cumulative))
+            except Exception as error:
+                summary.update(status='error',reason=str(error));raise
+            finally:
+                monitor_done.set();control.close()
+                if memory:memory.close()
                 try:
-                    agent=Controller(cfg,backend,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),path,self.stop,memory)
-                    self.queue.put(('status','ローカルLLMで画面を判断しています。CPUの初回推論は数分かかる場合があります。'))
-                    agent.run(dry)
-                    if agent.completed: self.queue.put(('status','目標達成を別の観測で確認しました。'))
-                finally: memory.close()
-            finally: monitor_done.set(); backend.release_all()
+                    if backend:
+                        backend.release_all()
+                        if recorder:
+                            try:recorder.record(backend.capture(),'session_end')
+                            except Exception as error:summary['final_capture_error']=str(error)
+                except Exception as error:summary['release_error']=str(error)
+                if recorder:summary['recording']=recorder.close()
+                summary['ended']=time.time()
+                folder=DATA/'sessions';folder.mkdir(parents=True,exist_ok=True)
+                (folder/(session+'.json')).write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
+                self.queue.put(('session',summary));self.queue.put(('close_probe',None))
+                try:
+                    archive=DATA/'exports'/('diagnostics-'+session+'.zip');export_diagnostics(DATA,archive);self.queue.put(('exported',archive))
+                except Exception as error:self.queue.put(('export_error',str(error)))
         self.launch(work)
     def install(self):
         if messagebox.askyesno('Pillow の導入','PyPI から Pillow を取得し、現在の Python に導入します。続行しますか？'):
@@ -167,26 +384,71 @@ class Application:
             ok=pull_model(endpoint,name,lambda x:self.queue.put(('progress',json.dumps(x,ensure_ascii=False))),self.stop)
             if ok: self.queue.put(('model',name))
         self.launch(work)
+    def append_log(self,value):
+        self.log.configure(state='normal');self.log.insert('end',json.dumps(value,ensure_ascii=False)+'\n')
+        if int(self.log.index('end-1c').split('.')[0])>2500:self.log.delete('1.0','500.0')
+        self.log.see('end');self.log.configure(state='disabled')
+
+    def update_decision(self,value):
+        event=value.get('event');self.append_log(value)
+        if event=='diagnostic' or event=='diagnostic_summary':self.set_panel('結果',value);return
+        if event=='result':
+            self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
+            self.set_panel('結果',{key:value.get(key) for key in ('step','executed','changed','turn_kind','duration_ms','raw_change','masked_activity')})
+            return
+        if value.get('status')=='retry':self.run_counts['retries']+=1
+        if 'scene' not in value:
+            self.set_panel('現在状態',value);return
+        self.run_counts['decisions']+=1;self.last_row=value
+        self.status.set(f"{value.get('scene','')} / {value.get('subgoal','')}")
+        self.set_panel('現在状態',value.get('scene','')+'\n'+value.get('observation',''))
+        self.set_panel('目的',{'overall_goal':self.cfg.goal,'autonomous_goal':value.get('autonomous_goal',{'objective':value.get('subgoal'),'success_condition':value.get('goal_success')}),'progress':value.get('progress',[])})
+        self.set_panel('候補と評価',{'confidence':value.get('confidence'),'risk':value.get('risk'),'allowed_keys':self.cfg.allowed_keys,'note':'LLMの報告値。代替候補の点数は生成していません。'})
+        self.set_panel('選択行動と理由',{'keys':value.get('keys'),'hold_ms':value.get('hold_ms'),'reason':value.get('reason')})
+        self.set_panel('仮説',value.get('memory_updates',[]));self.set_panel('新発見',value.get('progress',[]))
+        self.set_panel('修正履歴',value.get('knowledge_revisions',{}));self.set_panel('OCR・攻略知識の照合',{'ocr':value.get('ocr',{}),'knowledge_assessments':value.get('knowledge_assessments',[]),'note':'OCRと出典の照合は仮説。ゲーム内効果の実証とは区別します。'})
+
     def poll(self):
         try:
-            while True:
+            for _ in range(100):
                 kind,value=self.queue.get_nowait()
-                if kind=='error': self.status.set('エラーで停止'); messagebox.showerror('処理停止',value)
-                elif kind=='done': self.start_button.configure(state='normal')
-                elif kind=='status': self.status.set(value)
-                elif kind=='progress': self.progress.set(value)
-                elif kind=='model': self.vars['model'].set(value); self.vars['provider'].set('ollama'); self.progress.set('モデルの取得が完了しました。')
-                elif kind=='decision':
-                    self.status.set(f"{value.get('scene',value.get('status',''))} / {value.get('subgoal',value.get('reason',''))}")
-                    self.log.configure(state='normal'); self.log.insert('end',json.dumps(value,ensure_ascii=False)+'\n'); self.log.see('end'); self.log.configure(state='disabled')
-        except queue.Empty: pass
+                if kind=='error':self.status.set('エラーで停止: '+value);self.append_log({'event':'error','reason':value})
+                elif kind=='done':
+                    self.control=None
+                    self.start_button.configure(state='normal');self.pause_button.configure(text='⏸ 一時停止')
+                elif kind=='status':self.status.set(value)
+                elif kind=='progress':self.progress.set(value)
+                elif kind=='model':self.vars['model'].set(value);self.vars['provider'].set('ollama');self.progress.set('モデルの取得が完了しました。')
+                elif kind=='decision':self.update_decision(value)
+                elif kind=='connected':
+                    self.backend,self.connection_title=value;self.badges.set('接続済み / 背面分離 / OCR: '+self.cfg.ocr_engine)
+                    self.set_panel('バックエンド状態',{'window':self.connection_title,'capture':'PrintWindow','input':'WindowMessage / isolated','model':self.cfg.model,'endpoint':self.cfg.endpoint,'ocr':self.cfg.ocr_engine,'data':str(DATA)})
+                    self.status.set('ゲームに接続しました。ライブ画面を取得しています。')
+                elif kind=='close_probe':
+                    if self.probe:self.probe.destroy();self.probe=None
+                elif kind=='exported':self.latest_zip=Path(value);self.status.set('提出用ZIPを自動生成しました。「提出用ZIPをコピー」で添付できます。');self.append_log({'event':'diagnostic_export','path':str(value)})
+                elif kind=='export_error':self.status.set('診断ZIPの作成に失敗: '+value);self.append_log({'event':'export_error','reason':value})
+                elif kind=='session':self.set_panel('現在状態',value);self.status.set(value['status']+' / '+value['reason'])
+                elif kind=='memory':
+                    self.set_panel('仮説',value.get('provisional_claims',[]));self.set_panel('系列のパターン',value.get('known_transitions',[]))
+                elif kind=='cumulative':self.set_panel('累積統計',{'saved_experiences':value,'note':'この目標・知識・ゲーム設定の経験。診断を除く。'})
+        except queue.Empty:pass
+        try:self.draw_frame()
+        except Exception as error:self.live_info.set('ライブ表示エラー: '+str(error))
+        elapsed=int(time.time()-self.run_started) if self.run_started else 0
+        self.set_panel('今回統計',{**self.run_counts,'elapsed_seconds':elapsed,'paused':bool(self.control and self.control.paused.is_set())})
         self.root.after(100,self.poll)
+
     def close(self):
         self.stop.set()
         if self.busy():
-            self.status.set('停止中。進行中の API 要求が終了してから閉じます。')
-            self.root.after(200,self.close)
-        else: self.root.destroy()
+            self.status.set('停止中。記録と診断ZIPを保存してから閉じます。');self.root.after(200,self.close)
+        else:
+            self.preview_done.set()
+            if self.control:self.control.close()
+            try:self.save_ui()
+            except OSError:pass
+            self.root.destroy()
 
 def main():
     if os.name=='nt':

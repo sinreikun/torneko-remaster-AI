@@ -7,6 +7,7 @@ import urllib.request
 import urllib.error
 import socket
 import time
+import itertools
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -64,16 +65,18 @@ class Settings:
     window_title: str = 'トルネコ'
     timeout: float = 600
     recovery_attempts: int = 3
+    ocr_engine: str = 'auto'
 
     def validate(self):
         u = urlsplit(self.endpoint)
         if u.scheme not in ('http','https') or u.hostname not in ('localhost','127.0.0.1','::1') or u.username or u.password or u.query or u.fragment:
             raise ValueError('LLM の接続先は認証情報を含まない localhost の HTTP(S) URL を指定してください。')
+        if self.ocr_engine not in ('auto','windows.media.ocr','ocr-paddle-v5','ocr-paddle-ja'): raise ValueError('OCRエンジンが不正です。')
         if self.provider not in ('ollama','openai'): raise ValueError('未対応の API 形式')
         if not isinstance(self.model,str) or len(self.model)>256 or not isinstance(self.goal,str) or len(self.goal)>2000 or not self.model.strip() or not self.goal.strip(): raise ValueError('モデル名と目標が必要です。')
         if not self.window_title.strip(): raise ValueError('対象ウィンドウ名が必要です。')
         if not isinstance(self.allowed_keys,list) or any(not isinstance(k,str) for k in self.allowed_keys) or not self.allowed_keys or not set(self.allowed_keys) <= KEYS: raise ValueError('許可キーが不正です。')
-        if type(self.max_steps) is not int or not 1 <= self.max_steps <= 100000: raise ValueError('手数上限が不正です。')
+        if type(self.max_steps) is not int or not 0 <= self.max_steps <= 100000: raise ValueError('手数上限が不正です。')
         if type(self.max_hold_ms) is not int or type(self.max_wait_ms) is not int or not 1 <= self.max_hold_ms <= 1000 or not 0 <= self.max_wait_ms <= 10000: raise ValueError('操作時間の上限が不正です。')
         if not 0 <= self.min_confidence <= 1 or not 1 <= self.timeout <= 600: raise ValueError('信頼度またはタイムアウトが不正です。')
         if type(self.recovery_attempts) is not int or not 0 <= self.recovery_attempts <= 5: raise ValueError("再試行上限が不正です。")
@@ -209,7 +212,7 @@ def ocr_heading_scene(lines):
 
 class LocalLLM:
     def __init__(self, cfg: Settings):
-        self.cfg=cfg.validate();self.context={};self.ocr=ScreenOCR();self.knowledge_engine=KnowledgeEngine();self.observation_state={}
+        self.cfg=cfg.validate();self.context={};self.ocr=ScreenOCR(cfg.ocr_engine);self.knowledge_engine=KnowledgeEngine();self.observation_state={}
     def take_state(self): return self.observation_state
     def set_context(self,context): self.context=context
     def _request(self,png,system,prompt,schema=None):
@@ -331,19 +334,23 @@ not optional actions after success. If any required action remains, achieved MUS
         return value
 
 class Controller:
-    def __init__(self, cfg, backend, llm, emit, journal: Path, stop=None, memory=None):
+    def __init__(self, cfg, backend, llm, emit, journal: Path, stop=None, memory=None, control=None):
         self.cfg=cfg.validate(); self.backend=backend; self.llm=llm; self.emit=emit
         self.journal=journal; self.stop=stop if stop is not None else threading.Event()
         self.memory=memory
+        self.control=control
         self.history=memory.history() if memory else []
         self.completed=False; self.feedback={}
     def run(self, dry_run=False):
         self.journal.parent.mkdir(parents=True,exist_ok=True)
         repeats=0; previous=None; uncertain=0; stale=0; errors=0; stagnant=0; verification_failures=0
         try:
-            for step in range(self.cfg.max_steps):
+            for step in (range(self.cfg.max_steps) if self.cfg.max_steps else itertools.count()):
                 if self.stop.is_set(): break
+                if self.control and not self.control.checkpoint(): break
+                revision=self.control.revision if self.control else 0
                 image=self.backend.capture()
+                if hasattr(self.backend,'record_frame'): self.backend.record_frame(image,'observation')
                 import hashlib
                 fingerprint=hashlib.sha256(image).digest()
                 repeats=repeats+1 if fingerprint==previous else 0; previous=fingerprint
@@ -361,6 +368,12 @@ class Controller:
                     if self.stop.wait(min(errors,3)): break
                     continue
                 if self.stop.is_set(): break
+                if self.control and revision!=self.control.revision:
+                    # A pending inference belongs to the pre-pause screen.
+                    # Discard it and reobserve after resume instead of sending it.
+                    if not self.control.checkpoint(): break
+                    self._write({'event':'not_executed','reason':'paused_during_inference','step':step+1})
+                    continue
                 row={'step':step+1,**decision.__dict__,**(self.llm.take_state() if hasattr(self.llm,'take_state') else {}),'dry_run':dry_run,'executed':False}
                 self.emit(row)
                 # Persist the proposed action before allowing side effects.
@@ -382,6 +395,9 @@ class Controller:
                         self._write({'event':'verification_error','reason':str(error)})
                         continue
                     if self.stop.is_set(): break
+                    if self.control and revision!=self.control.revision:
+                        if not self.control.checkpoint(): break
+                        continue
                     self._write({'event':'verification',**evidence})
                     if evidence.get('achieved'):
                         self.completed=True
@@ -404,12 +420,17 @@ class Controller:
                     continue
                 uncertain=0
                 if stagnant>=8: raise RuntimeError('再計画しても操作による画面変化が確認できません。')
+                if self.control and revision!=self.control.revision:
+                    if not self.control.checkpoint(): break
+                    self._write({'event':'not_executed','reason':'paused_before_input','step':step+1})
+                    continue
                 if not dry_run and decision.keys:
-                    self.backend.act(decision.keys,decision.hold_ms,self.stop)
+                    self.backend.act(decision.keys,decision.hold_ms,self.control or self.stop)
                     row['executed']=True
                     self._write({'event':'sent',**row})
                 if row['executed'] and hasattr(self.backend,'observe_turn'):
-                    observation=self.backend.observe_turn(image,decision.scene,decision.wait_ms,self.stop)
+                    observation=self.backend.observe_turn(image,decision.scene,decision.wait_ms,self.control or self.stop)
+                    if hasattr(self.backend,'record_frame'): self.backend.record_frame(observation.image,'result')
                     row.update(changed=observation.changed,turn_kind=observation.kind,raw_change=observation.raw_change,
                         masked_activity=observation.masked_activity,duration_ms=observation.duration_ms)
                 else:
@@ -419,6 +440,7 @@ class Controller:
                         row['changed']=self.backend.changed(image,after) if hasattr(self.backend,'changed') else image!=after
                 if row['executed']: stagnant=0 if row.get('changed') else stagnant+1
                 self._write({'event':'result',**row})
+                self.emit({'event':'result',**row})
                 if self.memory: self.memory.remember(row,decision)
                 self.history.append(row); self.history=self.history[-12:]
             else: self.emit({'status':'limit','reason':'手数上限に達しました。'})
