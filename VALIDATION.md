@@ -4,7 +4,7 @@
 
 - コミット `245067f` の [Windows run 39180270430](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39180270430) で単体・配布テスト段階が成功。追加した実Windows OCR試験も成功し、生成した画像から `TITLE` と `ENTER` を読み取った。実ゲームの日本語OCR精度を示す試験ではない。統合試験全体の結果とは区別する。
 
-- Linux: 58テスト中54成功、Windows専用4件をスキップ。`tools/test.py` が件数とログを保存。
+- Linux: 59テスト中55成功、Windows専用4件をスキップ。`tools/test.py` が件数とログを保存。
 - Windows: コミット `80ac434` の42テストが全件成功、スキップなし。日本語・アポストロフィ入り一時パスからのexe起動、Tk本体UI初期化、NumLock両状態でのテンキー入力も含む。
 - Windowsの証拠: [run 39177823509](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39177823509)、`ci-evidence/run-39177823509` の `unit-tests.json`。この実行全体は後続変更のため中止しており、統合試験の成功を示すものではない。
 - WindowsでPython、Pillow、Ollama、qwen2.5vl:3bの実導入と二度目の再利用を実行し、実モデルへの画像送信まで到達。
@@ -13,11 +13,19 @@
 - LinuxでWindows x64 GUI exeをクロスビルド。埋込ZIPの整合性・自前ソースとの一致・依存バイナリ除外・サイズを検査。
 - PowerShellは構文解析に加え、Windows標準PowerShell上での展開・UI起動を検査。
 
+- コミット `aea95c5` の [run 39180562934](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39180562934) では58テスト全件成功・スキップ0件。`ci-evidence/run-39180562934/unit-tests.json` を取得して確認。この実行全体は導入時の公開API 403で失敗しており、統合成功ではない。
+
 ## ダウンロード経路の確認
 
 [run 39178524809](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39178524809) で、Windows上のexe起動、本体を含む42テスト、展開・セットアップUI検査、および次の8項目のダウンロード試験が成功したことを確認。
 
 HTTPS、SHA-256、途中状態からの再開/安全な再取得、ネットワーク不要のキャッシュ再利用、破損拒否、キャンセル、容量不足、誤った発行元の拒否。容量不足は空き容量を返すOS境界への故障注入で試験する。
+
+## 統合試験で検出した不具合と修正
+
+- `39178524809`: タイトル画面のまま完了と宣言する実モデルの誤判断を検出。完了と未実行キーの併記を拒否し、目標を伏せた別の画像観測と文字根拠で検証するよう修正。
+- `39179340682`: 完了検証が成立せず、TITLE開始の試験が上限で失敗。成功と扱っていない。検証の引用を独立観測の文字列に生成時から制約し、拒否理由・実際の状態・テスト画像・JSONL末尾を自動保存するよう改善。完了確認にもWindows標準OCRを渡す。達成済み状態を先に試し、検証単体の不具合を早期に検出する。
+- `39180562934`: 公開GitHub APIの403によりOllama導入が失敗。公式リリースHTMLの同一配布物・一意のSHA-256へ切り替える経路と、API拒否を注入する9番目のダウンロード試験を追加。TLS・発行元・ハッシュの確認は省略しない。
 
 ## 最終確認中
 - 初回/二度目の自動導入、画像対応能力の確認。
