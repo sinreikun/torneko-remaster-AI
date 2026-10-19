@@ -16,11 +16,22 @@
 
 - 実アプリUIを実際に起動し、13パネル、OCR画面、折りたたみ設定、手数0、診断ZIP出力を確認。エラー経路ではZIPが1個だけ生成され、例外ログと実行サマリーが含まれることを確認。ゲームは生成・実行していない。
 
-## Windows上の自動確認
+## Windows上の自動確認：成功
 
-最新版のActionsで、実EXE起動、実アプリUI、ダウンロードの故障注入、Python・Pillow・Ollama・画像モデルの初回/再導入、OCRの追加部品、診断ZIPのファイルコピーを確認します。OCR部品の確認に使うのは単純な文字画像であり、ゲーム画面やデモゲームは生成しません。画面出力の対象は実際の本アプリUIです。
+[Windows run 39186618568](https://github.com/sinreikun/torneko-remaster-AI/actions/runs/39186618568)、検証したソースは `d8f13ed`。機械可読の証拠は `ci-evidence/run-39186618568` に保存し、Git経由で取得して確認しました。
 
-実行ごとの結果は `ci-evidence/run-<run番号>` のunit-tests.json、download-tests.json、integration-report.jsonとログで確認します。成功確認前にWindows全体の成功とは扱いません。
+- 単体・配布テスト：80件全件成功、失敗・エラー・スキップ0件。
+- 実EXEの日本語・特殊文字パス起動、PowerShell構文、セットアップUI：成功。
+- ダウンロード障害の9項目：全件成功。再開、ハッシュ、破損、中止、容量不足、誤発行元、API403から公式SHA-256への切替を含む。
+- Python 3.13・Pillow・Ollama・qwen2.5vl:3b：初回の実導入と二度目の再利用、画像モデルの能力確認に成功。
+- 本物の本ツールUI：初期化と日本語表示・配置を確認。ゲームへの入力は送信していない。
+- 診断ZIP：生成と、実Windows APIによるファイルのクリップボードコピーに成功。
+- PP-OCRv5 / 日本語PP-OCRv4：ランタイムとモデルを実取得し、元ソースのサイズ・SHA-256を検査。両方とも文字画像の `COMPONENT CHECK 12345` を正しく認識した。実ゲームの日本語精度を示す検査ではない。
+- `integration-report.json`：`success: true`、`synthetic_game_used: false`、`real_game_test: required`。
+
+検証中に見つかったテスト用DB接続の未解放と、Windows検証ログの日本語エンコード失敗は修正して再確認済みです。OCR追加導入はGUI用pythonwからもログを保存できるよう、同じ環境のpython.exeをバックグラウンドで使います。
+
+画面出力の対象は実際の本アプリUIです。OCR部品の確認に使ったものは単純な文字画像であり、ゲーム画面やデモゲームは生成・使用していません。過去の架空ゲーム試験は今回の成功根拠に含めません。
 
 ## 実ゲームが不可欠な残項目
 
