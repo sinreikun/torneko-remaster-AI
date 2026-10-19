@@ -1,4 +1,4 @@
-"""Windows foreground capture/input. Never inject into an unfocused window."""
+"""Capture and address the selected Windows window without stealing focus."""
 import ctypes as C
 from ctypes import wintypes as W
 import io
@@ -15,6 +15,11 @@ class INPUTUNION(C.Union):
 class INPUT(C.Structure):
     _fields_=[('type',W.DWORD),('data',INPUTUNION)]
 
+class GUITHREADINFO(C.Structure):
+    _fields_=[('cbSize',W.DWORD),('flags',W.DWORD),('hwndActive',W.HWND),
+              ('hwndFocus',W.HWND),('hwndCapture',W.HWND),('hwndMenuOwner',W.HWND),
+              ('hwndMoveSize',W.HWND),('hwndCaret',W.HWND),('rcCaret',W.RECT)]
+
 class WindowsGame:
     def __init__(self, title):
         if sys.platform != 'win32': raise RuntimeError('ゲーム画面の取得・操作には Windows が必要です。')
@@ -22,11 +27,18 @@ class WindowsGame:
         self.grab=ImageGrab.grab
         self.u=C.WinDLL('user32',use_last_error=True)
         self.u.GetForegroundWindow.restype=W.HWND
+        self.u.PostMessageW.argtypes=[W.HWND,W.UINT,W.WPARAM,W.LPARAM]
+        self.u.PostMessageW.restype=W.BOOL
+        self.u.GetGUIThreadInfo.argtypes=[W.DWORD,C.POINTER(GUITHREADINFO)]
+        self.u.GetGUIThreadInfo.restype=W.BOOL
+        self.u.GetWindow.argtypes=[W.HWND,W.UINT]; self.u.GetWindow.restype=W.HWND
+        self.u.IsChild.argtypes=[W.HWND,W.HWND]; self.u.IsChild.restype=W.BOOL
         self.u.IsWindow.argtypes=[W.HWND]; self.u.IsWindow.restype=W.BOOL
         self.u.IsIconic.argtypes=[W.HWND]; self.u.IsIconic.restype=W.BOOL
         self.u.GetWindowTextLengthW.argtypes=[W.HWND]
         self.u.GetWindowTextW.argtypes=[W.HWND,W.LPWSTR,C.c_int]
         self.u.GetClassNameW.argtypes=[W.HWND,W.LPWSTR,C.c_int]
+        self.u.GetWindowRect.argtypes=[W.HWND,C.POINTER(W.RECT)]
         self.u.GetClientRect.argtypes=[W.HWND,C.POINTER(W.RECT)]
         self.u.ClientToScreen.argtypes=[W.HWND,C.POINTER(W.POINT)]
         self.u.GetAsyncKeyState.argtypes=[C.c_int]; self.u.GetAsyncKeyState.restype=C.c_short
@@ -39,7 +51,7 @@ class WindowsGame:
 
         try: self.u.SetProcessDPIAware()
         except AttributeError: pass
-        self.hwnd=None; self.title=title.casefold(); self.held=set()
+        self.hwnd=None; self.title=title.casefold(); self.held=set(); self.input_target=None
         self._find()
         self.u.GetWindowThreadProcessId(self.hwnd,C.byref(self.process_id))
     def _text(self,h):
@@ -84,17 +96,26 @@ class WindowsGame:
     def ready(self):
         if not self.u.IsWindow(self.hwnd): raise RuntimeError('ゲームウィンドウが閉じられました。')
         if self.u.IsIconic(self.hwnd): raise RuntimeError('ゲームが最小化されています。')
-        if self.u.GetForegroundWindow()!=self.hwnd: raise RuntimeError('ゲームが前面でないため停止しました。ゲームを前面にして再開してください。')
         if self.u.GetAsyncKeyState(0x77)&0x8000: raise RuntimeError('F8 による緊急停止')
         if any(self.u.GetAsyncKeyState(v)&0x8000 for v in (0x10,0x11,0x12,0x5b,0x5c)):
             raise RuntimeError('修飾キーが押されているため停止しました。')
     def capture(self):
         self.ready()
-        r=W.RECT(); p=W.POINT(0,0)
-        if not self.u.GetClientRect(self.hwnd,C.byref(r)) or not self.u.ClientToScreen(self.hwnd,C.byref(p)):
+        r=W.RECT()
+        if not self.u.GetClientRect(self.hwnd,C.byref(r)):
             raise RuntimeError('クライアント領域の取得に失敗しました。')
         if r.right<32 or r.bottom<32: raise RuntimeError('ゲーム領域が小さすぎます。')
-        img=self.grab(bbox=(p.x,p.y,p.x+r.right,p.y+r.bottom),all_screens=True)
+        # Pillow's window capture uses PrintWindow(PW_RENDERFULLCONTENT), not
+        # desktop pixels: the tool or another window may cover the game.
+        try:
+            img=self.grab(window=self.hwnd)
+        except Exception as error:
+            raise RuntimeError('背面のゲーム画面を取得できません。ウィンドウモードを確認してください。') from error
+        outer=W.RECT(); origin=W.POINT(0,0)
+        if not self.u.GetWindowRect(self.hwnd,C.byref(outer)) or not self.u.ClientToScreen(self.hwnd,C.byref(origin)):
+            raise RuntimeError('ゲーム画面の位置を取得できません。')
+        left=origin.x-outer.left; top=origin.y-outer.top
+        img=img.crop((left,top,left+r.right,top+r.bottom))
         self.ready()
         img.thumbnail((1280,960))
         out=io.BytesIO(); img.save(out,format='PNG'); return out.getvalue()
@@ -111,17 +132,34 @@ class WindowsGame:
         if not hasattr(self,'observer'): self.observer=TurnObserver()
         return self.observer.observe(self.capture,baseline,scene,stop,wait_ms)
     def activate(self):
-        self.u.ShowWindow(self.hwnd,9)
-        self.u.SetForegroundWindow(self.hwnd)
+        # Kept for callers; SW_SHOWNOACTIVATE restores a minimized target without
+        # bringing it above the operator UI or taking the user's keyboard focus.
+        if self.u.IsIconic(self.hwnd): self.u.ShowWindow(self.hwnd,4)
         self.ready()
+    def _input_window(self):
+        info=GUITHREADINFO(); info.cbSize=C.sizeof(info)
+        thread=self.u.GetWindowThreadProcessId(self.hwnd,None)
+        if self.u.GetGUIThreadInfo(thread,C.byref(info)):
+            if info.hwndFocus and self.u.IsChild(self.hwnd,info.hwndFocus):
+                return info.hwndFocus
+        # Tk wraps its input-bearing client in a top-level decoration HWND.
+        # It is also used by our native background-input regression fixture.
+        name=C.create_unicode_buffer(256)
+        self.u.GetClassNameW(self.hwnd,name,256)
+        if name.value=='TkTopLevel':
+            child=self.u.GetWindow(self.hwnd,5)  # GW_CHILD
+            if child: return child
+        return self.hwnd
     def _send(self,vk,up=False):
         scan=self.u.MapVirtualKeyW(vk,0)
         if not scan: raise RuntimeError('キーのスキャンコードを取得できません。')
-        numpad=0x60<=vk<=0x69
-        flags=(0 if numpad else 0x0008) | (0x0002 if up else 0) | (0x0001 if vk in (0x25,0x26,0x27,0x28) else 0)
-        event=INPUT(type=1,data=INPUTUNION(ki=KEYBDINPUT(vk if numpad else 0,scan,flags,0,0)))
-        if self.u.SendInput(1,C.byref(event),C.sizeof(INPUT))!=1:
-            raise RuntimeError('Windows がキー入力を受け付けませんでした。')
+        # Address only this HWND, including key-up after a focus change. Global
+        # SendInput would otherwise send gameplay keys to the foreground app.
+        flags=1 | (scan<<16) | ((1<<24) if vk in (0x25,0x26,0x27,0x28) else 0)
+        if up: flags |= (1<<30) | (1<<31)
+        target=self.input_target or self.hwnd
+        if not self.u.PostMessageW(target,0x101 if up else 0x100,vk,flags):
+            raise RuntimeError('対象ゲームへのキー送信に失敗しました。ゲームとツールの実行権限を揃えてください。')
     def _vk(self,k):
         named={'up':0x26,'down':0x28,'left':0x25,'right':0x27,'enter':0x0d,'space':0x20,'escape':0x1b,'tab':0x09}
         if k in named: return named[k]
@@ -129,6 +167,7 @@ class WindowsGame:
         return ord(k.upper())
     def act(self,keys,ms,stop):
         self.ready()
+        self.input_target=self._input_window()
         try:
             for k in keys:
                 self.ready()
@@ -145,6 +184,7 @@ class WindowsGame:
         for v in list(self.held):
             try: self._send(v,True); self.held.discard(v)
             except RuntimeError as error: errors.append(error)
+        if not self.held: self.input_target=None
         if errors: raise errors[0]
     def emergency(self): return bool(self.u.GetAsyncKeyState(0x77)&0x8000)
 

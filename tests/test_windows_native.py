@@ -33,6 +33,34 @@ class WindowsAutomationTests(unittest.TestCase):
             for token in root.tk.call('after','info'): root.after_cancel(token)
             root.destroy()
 
+    def test_background_capture_and_input_do_not_steal_focus(self):
+        import ctypes,io,threading,tkinter as tk,uuid
+        from PIL import Image
+        from autoplayer.windows import WindowsGame
+        root=tk.Tk();title='Background fixture '+uuid.uuid4().hex
+        root.title(title);root.geometry('500x300+80+80');root.configure(bg='#145c28')
+        received=[];other=[]
+        root.bind('<KeyPress>',lambda event:received.append(event.keycode))
+        cover=tk.Toplevel(root);cover.title('Cover fixture');cover.geometry('500x300+80+80')
+        cover.configure(bg='#b02020');cover.bind('<KeyPress>',lambda event:other.append(event.keycode))
+        try:
+            root.update();root.focus_force();root.update()
+            backend=WindowsGame(title)
+            cover.lift();cover.focus_force();root.update()
+            foreground=backend.u.GetForegroundWindow()
+            self.assertNotEqual(foreground,backend.hwnd)
+            backend.activate()
+            self.assertEqual(backend.u.GetForegroundWindow(),foreground)
+            image=Image.open(io.BytesIO(backend.capture()))
+            r,g,b=image.getpixel((image.width//2,image.height//2))
+            self.assertGreater(g,r*2)
+            backend.act(['d'],40,threading.Event());root.update()
+            self.assertIn(ord('D'),received)
+            self.assertEqual(other,[])
+            self.assertEqual(backend.u.GetForegroundWindow(),foreground)
+        finally:
+            root.destroy()
+
     def test_numpad_input_is_independent_of_numlock(self):
         import ctypes,threading,tkinter as tk,uuid
         from autoplayer.windows import WindowsGame,INPUT,INPUTUNION,KEYBDINPUT
