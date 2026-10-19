@@ -38,6 +38,25 @@ def fast_policy_ready(state,stable,anchor,floor,objective,count,blocked,stagnant
         and not blocked and stagnant<2 and not reassess)
 
 
+def compact_profile_prompt(prompt):
+    """Keep optional retrieved context bounded; preserve current evidence and controls."""
+    result=dict(prompt)
+    result['recent_history']=result.get('recent_history',[])[-3:]
+    memory=dict(result.get('memory',{}))
+    for key,limit in (('provisional_claims',3),('known_transitions',2),('plan',3),('reported_progress',3)):
+        if key in memory:memory[key]=memory[key][:limit]
+    result['memory']=memory
+    result['retrieved_experiences']=[{**row,'ocr_quotes':[q[:100] for q in row.get('ocr_quotes',[])[:5]]}
+                                    for row in result.get('retrieved_experiences',[])[:1]]
+    references=dict(result.get('public_references',{}))
+    references['sources']=[{**source,'excerpt':source.get('excerpt','')[:350]} for source in references.get('sources',[])[:2]]
+    result['public_references']=references
+    if result.get('method_selection'):
+        result['method_selection']={k:v for k,v in result['method_selection'].items()
+                                    if k in ('method','genre_guidance','instruction','last_outcome')}
+    return result
+
+
 # Keep obsolete display-related prose out of planning context.
 import re
 REFERENCES=re.compile(r'ミニマップ|地図|マップ|minimap|\bmap\b|青い(?:物体|図形|表示|箱|四角|領域|ブロック)|黄色.{0,12}(?:四角|円形|マーカー)|赤い点|blue[_ ](?:object|box|shape|display)|yellow[_ ](?:square|circle)|red[_ ]dot',re.I)

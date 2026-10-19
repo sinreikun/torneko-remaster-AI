@@ -104,6 +104,12 @@ def export_diagnostics(data,destination,detailed=False):
                     if name=='memory.sqlite' and target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='improvement_events'").fetchone():
                         entry['recent_improvement_events']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_events ORDER BY id DESC LIMIT 30')]
                         entry['improvement_state']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_state LIMIT 20')]
+                    if name=='memory.sqlite':
+                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations'):
+                            if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
+                                cursor=target.execute('SELECT * FROM '+table+' LIMIT 40')
+                                labels=[column[0] for column in cursor.description]
+                                entry[table]=[dict(zip(labels,row)) for row in cursor]
                     report['databases'][name]=entry
                 except (sqlite3.Error,OSError,TimeoutError) as error:
                     report['databases'][name]={'status':'failed','reason':str(error)}
@@ -119,6 +125,8 @@ def export_diagnostics(data,destination,detailed=False):
                         report['databases'][name]['reason']='軽量ZIPの上限によりDB本体は省略。ローカルの元DBを保持。'
                         report['omitted'].append(name)
             candidates=[data/'settings.json',data/'ui-settings.json',data/'components.json']
+            candidates+=sorted((data/'profiles').glob('*.json'))
+            candidates+=sorted((data/'research').glob('*.json'))
             candidates+=sorted((data/'runs').glob('*.jsonl'),key=lambda p:p.stat().st_mtime,reverse=True)[:(20 if detailed else 3)]
             candidates+=sorted(data.glob('*.log'))
             candidates+=sorted((data/'ocr-tests').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:10]

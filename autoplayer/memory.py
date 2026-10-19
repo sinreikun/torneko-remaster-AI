@@ -8,7 +8,7 @@ from pathlib import Path
 class MemoryStore:
     def __init__(self,path,settings):
         Path(path).parent.mkdir(parents=True,exist_ok=True)
-        signature=json.dumps([settings.window_title,settings.allowed_keys,settings.goal,settings.knowledge],ensure_ascii=False)
+        signature=json.dumps([settings.profile_id,sorted(settings.allowed_keys),sorted(settings.key_bindings.items())] if settings.profile_id else [settings.window_title,settings.allowed_keys,settings.goal,settings.knowledge],ensure_ascii=False)
         self.profile=hashlib.sha256(signature.encode()).hexdigest()
         self.last_row=None;self.settings=settings
         try:
@@ -68,4 +68,27 @@ class MemoryStore:
         return {'policy_learning':learning,**{k:knowledge_state[k] for k in ('autonomous_goal','knowledge_revisions','knowledge_catalog_sha256') if k in knowledge_state},'known_transitions':[dict(origin=r[0],keys=json.loads(r[1]),destination=r[2],count=r[3],attribution='observed_association_not_causal') for r in transitions], 'plan':json.loads(plan[0]) if plan else [],'reported_progress':json.loads(plan[1]) if plan else [],
                 'provisional_claims':[dict(zip(('key','value','confidence','visual_evidence'),r)) for r in claims],
                 'unconfirmed_input_responses':ineffective,'note':'Claims and progress are model reports, not verified facts. Recheck against the current screen.'}
+    def recall(self,native,goal):
+        """Retrieve observations, not old model captions, for the current screen."""
+        import re
+        def terms(text):
+            text=re.sub(r'\s+','',text.casefold())
+            return set(text) | set(text[i:i+2] for i in range(max(0,len(text)-1)))
+        query=terms(' '.join(l.get('text','') for l in native.get('lines',[])))
+        if not query:return []
+        candidates=[]
+        for (raw,) in self.db.execute('SELECT row FROM experiences WHERE profile=? ORDER BY id DESC LIMIT 256',(self.profile,)):
+            row=json.loads(raw)
+            if row.get('dry_run') or row.get('learning') is False:continue
+            observed=row.get('ocr',{})
+            quotes=[l.get('text','')[:160] for l in observed.get('lines',[])[:12]]
+            overlap=len(query & terms(' '.join(quotes)))
+            if not overlap:continue
+            candidates.append((overlap,{'ocr_quotes':quotes,'keys':row.get('observed_keys',[]),
+                'hold_ms':row.get('hold_ms'),'executed':row.get('executed',False),'changed':row.get('changed'),
+                'attribution':row.get('transition_attribution','unverified'),
+                'proposed_goal':row.get('autonomous_goal'),'goal_status':'unverified_model_proposal'}))
+        candidates.sort(key=lambda item:item[0],reverse=True)
+        return [r for _,r in candidates[:3]]
+
     def close(self): self.db.close()

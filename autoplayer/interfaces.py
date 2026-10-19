@@ -1,0 +1,40 @@
+"""Small, evidence-only interface rules. Ambiguous OCR falls back to observation."""
+import re
+import unicodedata
+
+
+def choice_action(native, bindings, allowed):
+    if native.get('status') != 'ok':
+        return None
+    lines = native.get('lines', [])
+    text = unicodedata.normalize('NFKC', '\n'.join(l.get('text','') for l in lines))
+    if re.search(r'削除|初期化|購入|課金|終了|delete|purchase|quit|reset\s+save', text, re.I):
+        return None
+    confirm = next((k for k,v in bindings.items() if re.search(r'決定|confirm',v,re.I) and k in allowed), None)
+    if not confirm:
+        return None
+    options = []
+    for line in lines:
+        label = re.sub(r'\s+', '', unicodedata.normalize('NFKC',line.get('text','')))
+        # Exact option labels only; quoted words in dialogue are not options.
+        match = re.fullmatch(r'([▶►▷>→]?)\s*(はい|いいえ|Yes|No)',label,re.I)
+        if not match:
+            continue
+        boxes = [w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
+        position = (min(b[0] for b in boxes),min(b[1] for b in boxes)) if boxes else None
+        options.append({'yes':match[2].casefold() in ('はい','yes'),'selected':bool(match[1]),'position':position})
+    selected = [o for o in options if o['selected']]
+    if len(selected)!=1:
+        return None
+    if selected[0]['yes']:
+        return {'key':confirm,'reason':'OCRの独立した選択肢行でカーソル付きの「はい」を確認。決定を1回送信。'}
+    yes = [o for o in options if o['yes']]
+    current = selected[0]['position']
+    if len(yes)!=1 or not yes[0]['position'] or not current:
+        return None
+    dx,dy = (yes[0]['position'][i]-current[i] for i in (0,1))
+    if not dx and not dy:
+        return None
+    direction = ('右' if dx>0 else '左') if abs(dx)>abs(dy) else ('下' if dy>0 else '上')
+    key = next((k for k,v in bindings.items() if (v.startswith(direction) or v.lower() in {'上':'up','下':'down','左':'left','右':'right'}[direction]) and k in allowed),None)
+    return {'key':key,'reason':'選択肢行の配置から「はい」へ'+direction+'入力。決定は次の画面で選択を確認してから行う。'} if key else None

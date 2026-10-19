@@ -47,7 +47,9 @@ class WindowCapture:
             if not previous or previous==C.c_void_p(-1).value:raise RuntimeError('キャプチャ画像を選択できません。')
             # PW_CLIENTONLY | PW_RENDERFULLCONTENT. PrintWindow requests the
             # TARGET's rendering, unlike ImageGrab(window=...) / GetDC BitBlt.
-            if not self.u.PrintWindow(hwnd,dc,3):raise RuntimeError('ゲームの背面描画を取得できません。デスクトップ画像への代用は行いません。')
+            if not self.u.PrintWindow(hwnd,dc,3):
+                from .background import BackgroundUnavailable
+                raise BackgroundUnavailable('ゲームの背面描画を取得できないため対象外です。デスクトップ画像への代用や前面化は行いません。')
             self.g.GdiFlush()
             return Image.frombytes('RGB',(width,height),C.string_at(pixels,width*height*4),'raw','BGRX')
         finally:

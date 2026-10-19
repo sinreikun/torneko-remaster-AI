@@ -23,13 +23,18 @@ class Application:
         self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
         self.run_started=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0};self.last_row={}
         self.cfg=Settings();self.ui_state={}
+        from .profiles import ProfileStore
+        self.profiles=ProfileStore(DATA/'profiles');self.selected_target=None
         if (DATA/'settings.json').exists():
             try: self.cfg=Settings(**json.loads((DATA/'settings.json').read_text(encoding='utf-8'))).validate()
             except Exception as error: messagebox.showwarning('設定',f'設定を読み込めません。既定値で開始します。\n{error}')
         if (DATA/'ui-settings.json').exists():
             try: self.ui_state=json.loads((DATA/'ui-settings.json').read_text(encoding='utf-8'))
             except (OSError,ValueError): pass
-        if not self.cfg.knowledge:
+        from .controls import is_torneko
+        saved=self.profiles.load(self.cfg.profile_id) if self.cfg.profile_id else None
+        if saved:self.selected_target=dict(saved['target'])
+        if not self.cfg.knowledge and is_torneko(self.cfg.window_title):
             default=Path(__file__).resolve().parent.parent/'knowledge/torneko.md'
             if default.exists(): self.cfg.knowledge=default.read_text(encoding='utf-8')
         from .placement import WindowPlacement
@@ -39,6 +44,7 @@ class Application:
         self.badges=tk.StringVar(value='未接続 / WindowMessage・背面対応 / 診断と学習を分離')
         ttk.Label(header,textvariable=self.badges).pack(side='left',padx=16)
         toolbar=ttk.Frame(root,padding=(8,0));toolbar.pack(fill='x')
+        ttk.Button(toolbar,text='起動中のゲームを選択',command=self.choose_target).pack(side='left',padx=4)
         ttk.Button(toolbar,text='ゲームに接続',command=self.connect).pack(side='left')
         self.start_button=ttk.Button(toolbar,text='▶ 攻略開始',command=self.start);self.start_button.pack(side='left',padx=4)
         self.pause_button=ttk.Button(toolbar,text='⏸ 一時停止',command=self.pause);self.pause_button.pack(side='left')
@@ -78,7 +84,7 @@ class Application:
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={}
-        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','自己改善','キー配置・ミニマップ']:
+        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','自己改善','ゲームの推定','手法の選択・学習','背景適合性','キー配置・ミニマップ']:
             group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
             button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
             body=tk.Text(group,height=4,wrap='word',state='disabled',relief='flat');body.pack(fill='x')
@@ -102,13 +108,30 @@ class Application:
         self.knowledge=tk.Text(config,height=10,wrap='word');self.knowledge.insert('1.0',self.cfg.knowledge);self.knowledge.grid(row=10,column=0,columnspan=2,sticky='nsew');config.rowconfigure(10,weight=1)
         ttk.Button(config,text='知識ファイルを読み込む…',command=self.load_knowledge).grid(row=11,column=0,sticky='w',pady=8)
         ttk.Button(config,text='保存した記憶・進捗を表示',command=self.show_memory).grid(row=11,column=1,sticky='w')
+        profile_line=ttk.Frame(config);profile_line.grid(row=12,column=0,columnspan=2,sticky='ew',pady=5)
+        ttk.Label(profile_line,text='ゲーム別プロファイル').pack(side='left')
+        self.profile_choice=ttk.Combobox(profile_line,state='readonly',width=42,postcommand=self.refresh_profiles)
+        self.profile_choice.pack(side='left',padx=6);self.profile_choice.bind('<<ComboboxSelected>>',self.load_profile)
+        ttk.Button(profile_line,text='このプロファイルを保存',command=self.save_profile).pack(side='left')
+        ttk.Label(config,text='キー配置（1行に w=前進 / num1=決定 など。入力すると許可キーもこの一覧に合わせます）').grid(row=13,column=0,columnspan=2,sticky='w')
+        self.bindings=tk.Text(config,height=5,wrap='word');self.bindings.grid(row=14,column=0,columnspan=2,sticky='ew')
+        self.bindings.insert('1.0','\n'.join(k+'='+v for k,v in self.cfg.key_bindings.items()))
+        flags=ttk.Frame(config);flags.grid(row=15,column=0,columnspan=2,sticky='ew')
+        self.resilient=tk.BooleanVar(value=self.cfg.resilient);self.adaptive=tk.BooleanVar(value=self.cfg.adaptive_timing)
+        ttk.Checkbutton(flags,text='対象終了時の再起動・再観測を継続',variable=self.resilient).pack(side='left')
+        ttk.Checkbutton(flags,text='入力時間を観測に基づき調整',variable=self.adaptive).pack(side='left',padx=8)
+        compute=ttk.Frame(config);compute.grid(row=16,column=0,columnspan=2,sticky='ew',pady=4)
+        ttk.Label(compute,text='推論資源（shared=GPU設定を維持 / cpu_only=GPUを使わない）').pack(side='left')
+        self.vars['compute_mode']=tk.StringVar(value=self.cfg.compute_mode)
+        ttk.Combobox(compute,textvariable=self.vars['compute_mode'],values=['shared','cpu_only'],state='readonly',width=12).pack(side='left',padx=8)
+        self.refresh_profiles()
         setup=self.scroll_frame(self.setup_tab);self.setup(setup);self.setup_ocr(setup)
         self.set_panel('バックエンド状態','ゲーム未接続\n取得: PrintWindow / 入力: WindowMessage（背面分離）\nLLM: '+self.cfg.model+'\nDB: '+str(DATA))
         self.set_panel('目的',self.cfg.goal+'\n小目標: 未設定')
         from .controls import REFERENCE
-        self.set_panel('キー配置・ミニマップ',REFERENCE)
+        self.set_panel('キー配置・ミニマップ',REFERENCE if is_torneko(self.cfg.window_title) else self.cfg.key_bindings or 'キー配置一覧を入力してください。')
         self.set_panel('自己改善','停滞時にLLMが仮説を提案し、最大4入力・8判断で検証します。効果不明・悪化なら撤回。採用も24判断限定です。')
-        self.set_panel('行動学習','実際に送信した単独キーと前後の地図・HUD観測から、状態別の行動価値を保存・更新します。LLMの重みの再訓練ではありません。')
+        self.set_panel('行動学習','ゲーム別に観測・小目標・操作結果を保存。入力時間は確認済み移動キーの観測関連から調整します。トルネコは地図/HUD方策も併用。LLM本体の再訓練ではありません。')
         self.set_panel('候補と評価','LLMの信頼度・危険度・許可キーを表示します。\n未生成の候補点数は表示しません。')
         self.set_panel('系列のパターン','保存済み経験から状態・操作の反復を集計します。診断は含めません。')
         reports=sorted((DATA/'exports').glob('*.zip'),key=lambda p:p.stat().st_mtime,reverse=True)
@@ -189,10 +212,86 @@ class Application:
     def connect(self):
         if self.busy():return
         title=self.vars['window_title'].get().strip()
+        target=dict(self.selected_target) if self.selected_target else None
         def work():
             from .windows import WindowsGame
-            backend=WindowsGame(title);backend.capture();self.queue.put(('connected',(backend,title)))
+            backend=self.open_target(title,target);backend.capture();self.queue.put(('connected',(backend,title)))
         self.launch(work)
+
+    @staticmethod
+    def open_target(title,target=None):
+        from .windows import WindowsGame,window_targets
+        if target:
+            candidates=window_targets()
+            exact=[w for w in candidates if w['hwnd']==target.get('hwnd') and w['pid']==target.get('pid')
+                   and w.get('executable')==target.get('executable')]
+            if not exact:
+                exact=[w for w in candidates if target.get('executable') and w['executable'].casefold()==target['executable'].casefold()
+                       and w['class_name']==target.get('class_name')]
+            if len(exact)!=1:
+                from .recovery import TargetUnavailable
+                raise TargetUnavailable('対象が閉じているか複数あります。対象の再接続を待ちます。')
+            return WindowsGame(exact[0]['title'],hwnd=exact[0]['hwnd'])
+        return WindowsGame(title)
+
+    def apply_profile(self,cfg,target):
+        self.cfg=cfg;self.selected_target=dict(target);self.backend=None;self.connection_title=None
+        for key,var in self.vars.items():
+            value=getattr(cfg,key);var.set(','.join(value) if isinstance(value,list) else str(value))
+        for widget,value in ((self.goal,cfg.goal),(self.knowledge,cfg.knowledge),(self.bindings,'\n'.join(k+'='+v for k,v in cfg.key_bindings.items()))):
+            widget.delete('1.0','end');widget.insert('1.0',value)
+        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing)
+        from .controls import REFERENCE,is_torneko
+        self.set_panel('キー配置・ミニマップ',REFERENCE if is_torneko(cfg.window_title) else cfg.key_bindings or 'キー配置一覧を入力してください。')
+        self.set_panel('目的',cfg.goal);self.status.set('選択: '+target['title']+' / キー配置は接続設定で編集できます。')
+
+    def refresh_profiles(self):
+        self.profile_values=self.profiles.all()
+        self.profile_choice.configure(values=[p['name']+' ['+p['id'][:8]+']' for p in self.profile_values])
+        if self.cfg.profile_id:
+            for i,p in enumerate(self.profile_values):
+                if p['id']==self.cfg.profile_id:self.profile_choice.current(i);break
+
+    def load_profile(self,event=None):
+        if self.busy():return
+        index=self.profile_choice.current()
+        if index<0:return
+        try:
+            value=self.profile_values[index];self.apply_profile(Settings(**value['settings']).validate(),value['target'])
+        except Exception as error:messagebox.showerror('プロファイル',str(error))
+
+    def save_profile(self):
+        if self.busy():return
+        try:
+            cfg=self.settings();target=self.selected_target or {'title':cfg.window_title}
+            self.profiles.save(target,cfg);self.cfg=cfg;self.refresh_profiles()
+            self.status.set('プロファイルを保存しました: '+target['title'])
+        except Exception as error:messagebox.showerror('プロファイル保存',str(error))
+
+    def choose_target(self):
+        if self.busy():return
+        from .windows import window_targets
+        dialog=tk.Toplevel(self.root);dialog.title('起動中のゲームを選択');dialog.geometry('1000x420')
+        tree=ttk.Treeview(dialog,columns=('title','pid','executable'),show='headings',selectmode='browse')
+        for key,label,width in (('title','ウィンドウ',380),('pid','PID',80),('executable','プログラム',480)):
+            tree.heading(key,text=label);tree.column(key,width=width)
+        tree.pack(fill='both',expand=True,padx=8,pady=8);targets=[]
+        def refresh():
+            targets[:]=window_targets();tree.delete(*tree.get_children())
+            for i,t in enumerate(targets):tree.insert('', 'end',iid=str(i),values=(t['title'],t['pid'],t['executable'] or '取得不可（自動再起動不可）'))
+        def select(event=None):
+            selected=tree.selection()
+            if not selected:return
+            try:
+                target=targets[int(selected[0])]
+                if self.selected_target:self.profiles.save(self.selected_target,self.settings())
+                cfg=self.profiles.select(target,self.cfg);self.profiles.save(target,cfg)
+                self.apply_profile(cfg,target);self.refresh_profiles();dialog.destroy();self.connect()
+            except Exception as error:messagebox.showerror('ゲーム選択',str(error),parent=dialog)
+        buttons=ttk.Frame(dialog);buttons.pack(fill='x',padx=8,pady=8)
+        ttk.Button(buttons,text='一覧更新',command=refresh).pack(side='left')
+        ttk.Button(buttons,text='選択して接続',command=select).pack(side='right')
+        tree.bind('<Double-1>',select);refresh()
 
     def pause(self):
         if self.control and self.busy():
@@ -311,6 +410,12 @@ class Application:
         for key,var in self.vars.items():
             val=var.get().strip()
             v[key]=[x.strip().lower() for x in val.split(',') if x.strip()] if key=='allowed_keys' else int(val) if key=='max_steps' else float(val) if key=='timeout' else val
+        if self.selected_target and v['window_title']!=self.selected_target['title']:
+            raise ValueError('ゲームの変更は「起動中のゲームを選択」またはプロファイル一覧から行ってください。')
+        from .profiles import parse_bindings
+        bindings=parse_bindings(self.bindings.get('1.0','end'))
+        if bindings:v['allowed_keys']=list(bindings)
+        v.update(key_bindings=bindings,resilient=self.resilient.get(),adaptive_timing=self.adaptive.get())
         v.update(goal=self.goal.get('1.0','end').strip(),knowledge=self.knowledge.get('1.0','end').strip())
         if len(v['knowledge'])>50000: raise ValueError('知識は 50,000 文字以内にしてください。')
         return Settings(**v).validate()
@@ -338,9 +443,11 @@ class Application:
         try:
             cfg=self.settings();DATA.mkdir(parents=True,exist_ok=True)
             temporary=DATA/'settings.json.tmp';temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'settings.json')
+            if self.selected_target:self.profiles.save(self.selected_target,cfg)
             self.cfg=cfg;self.save_ui()
             seconds={'なし':0,'10分':600,'20分':1200,'30分':1800,'60分':3600}[self.duration.get()]
         except Exception as error:messagebox.showerror('設定エラー',str(error));return
+        selected_target=dict(self.selected_target) if self.selected_target else None
         dry=self.dry.get();separation=self.separation.get();compat=self.compat.get() and not dry
         # Separation now uses only neutral OS probes and observation.
         # State-independent diagnostics never steal focus or send gameplay keys.
@@ -355,36 +462,113 @@ class Application:
             session=str(time.time_ns());summary={'app_version':__version__,'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
             recorder=None;backend=None;monitor_done=threading.Event();memory=None;diagnostic_store=None;exploration_run=None
             try:
-                backend=self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
-                backend.capture();self.queue.put(('connected',(backend,cfg.window_title)))
-                summary['connection']={'hwnd':int(backend.hwnd),'process_id':backend.process_id.value,
-                    'window_title':backend._text(backend.hwnd),'capture':'PrintWindow','input':'window_message'}
+                from .recovery import TargetRecovery,TargetUnavailable,ObservationRetry
+                from .background import BackgroundUnavailable
+                from .windows import emergency_stop_requested
                 def monitor():
                     while not monitor_done.wait(.03):
-                        if backend.emergency():self.stop.set()
+                        if emergency_stop_requested():self.stop.set()
                 threading.Thread(target=monitor,daemon=True).start()
+                def recovery_event(row):
+                    self.queue.put(('decision',row));self.queue.put(('status',row.get('reason') or ('復旧: '+row.get('status',''))))
+                    folder=DATA/'runs';folder.mkdir(parents=True,exist_ok=True)
+                    with (folder/(session+'.jsonl')).open('a',encoding='utf-8') as stream:
+                        stream.write(json.dumps(row,ensure_ascii=False)+'\n')
+                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and cfg.resilient and not dry and not separation else None
+                def reconnect(target):
+                    while control.checkpoint():
+                        try:
+                            value=self.open_target(cfg.window_title,target) if target else self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
+                            value.capture()
+                            if recovery:recovery.target.update(pid=value.process_id.value,hwnd=int(value.hwnd))
+                            return value
+                        except TargetUnavailable:
+                            if not recovery:raise
+                            target=recovery.recover(control)
+                            if not target:return None
+                    return None
+                backend=reconnect(selected_target)
+                if backend is None:summary.update(status='stopped',reason='復旧待機を停止');return
+                self.queue.put(('connected',(backend,cfg.window_title)))
+                summary['connection']={'hwnd':int(backend.hwnd),'process_id':backend.process_id.value,
+                    'window_title':backend._text(backend.hwnd),'capture':'PrintWindow','input':'window_message'}
                 recorder=FrameRecorder(DATA/'recordings'/session);recorded=RecordedBackend(backend,recorder)
-                recorded.record_frame(backend.capture(),'session_start')
+                try:recorded.record_frame(backend.capture(),'session_start')
+                except TargetUnavailable:
+                    backend=reconnect(selected_target)
+                    if backend is None:summary.update(status='stopped',reason='復旧待機を停止');return
+                    recorded=RecordedBackend(backend,recorder)
                 if separation or compat:
-                    store=DiagnosticStore(DATA/'diagnostics.sqlite')
-                    try:
-                        runner=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control)
-                        passed=runner.run(separation)
-                    finally:store.close();self.queue.put(('close_probe',None))
+                    passed=False
+                    while control.checkpoint():
+                        store=DiagnosticStore(DATA/'diagnostics.sqlite')
+                        try:
+                            runner=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control)
+                            passed=runner.run(separation);break
+                        except TargetUnavailable:
+                            if not recovery:raise
+                            target=recovery.recover(control)
+                            if not target:break
+                            backend=reconnect(target)
+                            if backend is None:break
+                            recorded=RecordedBackend(backend,recorder);self.queue.put(('connected',(backend,cfg.window_title)))
+                        finally:store.close();self.queue.put(('close_probe',None))
                     if not passed:summary.update(status='stopped',reason='診断を中断しました。');return
                     if separation:summary.update(status='diagnostic_completed',reason='10分間のOS経路・無入力観測を完了。ゲーム反応・キー分離は未検証。');return
                 if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
                 diagnostic_store=DiagnosticStore(DATA/'diagnostics.sqlite');exploration_run=diagnostic_store.start('exploration_statistics')
-                agent=Controller(cfg,recorded,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
-                self.queue.put(('status','ローカルLLMが実ゲーム画面を判断しています。初回推論は数分かかる場合があります。'))
-                agent.run(dry)
-                summary.update(status='verified_complete' if agent.completed else 'stopped',reason='別観測で目標達成を確認' if agent.completed else control.reason or ('停止要求' if self.stop.is_set() else 'ループ終了・手数上限または安全条件'))
+                from dataclasses import replace
+                from .research import public_references,reference_context
+                self.queue.put(('status','公開資料の候補を検索します。画像や操作履歴は送信しません。'))
+                references=public_references(cfg.window_title,cfg.profile_id,DATA/'research',control)
+                recovery_event({'event':'public_reference_lookup','status':references['status'],
+                    'sources':[{k:s[k] for k in ('title','url','applicability')} for s in references.get('sources',[])],
+                    'learning':False})
+                total_steps=0;retry=0;agent=None
+                def agent_event(row):
+                    nonlocal total_steps,retry
+                    if row.get('event')=='result':retry=0
+                    if row.get('step') and row.get('event')!='result':total_steps+=1
+                    self.queue.put(('decision',row))
+                self.queue.put(('status','現在の画面から目標と操作を判断します。未知の状況は未確認として記録します。'))
+                while control.checkpoint() and (not cfg.max_steps or total_steps<cfg.max_steps):
+                    runtime_cfg=replace(cfg,max_steps=max(1,cfg.max_steps-total_steps) if cfg.max_steps else 0)
+                    # New controller/LLM after an interruption: never reuse pending input,
+                    # neutral baseline, motion masks, or an old goal-completion verdict.
+                    memory.last_row=None
+                    if hasattr(backend,'observer'):del backend.observer
+                    try:
+                        llm=LocalLLM(runtime_cfg);llm.public_references=reference_context(references)
+                        agent=Controller(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
+                        agent.run(dry);break
+                    except TargetUnavailable:
+                        if not recovery:raise
+                        target=recovery.recover(control)
+                        if not target:break
+                        backend=reconnect(target)
+                        if backend is None:break
+                        recorded=RecordedBackend(backend,recorder)
+                        self.queue.put(('connected',(backend,cfg.window_title)))
+                        summary['reconnections']=summary.get('reconnections',0)+1
+                    except BackgroundUnavailable:raise
+                    except Exception as error:
+                        if self.stop.is_set():break
+                        if not cfg.resilient or dry:raise
+                        retry+=1
+                        recovery_event({'event':'observation_recovery' if isinstance(error,ObservationRetry) else 'system_recovery',
+                            'reason':str(error),'attempt':retry,'learning':False,
+                            'note':'キーを送らず待機。ゲーム終了の根拠がなければ再起動しません。'})
+                        # Finite work per attempt, interruptible exponential backoff.
+                        control.wait(min(30,5*2**min(retry-1,3)))
+                completed=bool(agent and agent.completed)
+                summary.update(status='verified_complete' if completed else 'stopped',reason='別観測で目標達成を確認' if completed else control.reason or ('停止要求' if self.stop.is_set() else 'ループ終了・手数上限または安全条件'))
                 self.queue.put(('memory',memory.context()))
                 cumulative=memory.db.execute('SELECT COUNT(*) FROM experiences WHERE profile=?',(memory.profile,)).fetchone()[0]
                 self.queue.put(('cumulative',cumulative))
             except Exception as error:
-                summary.update(status='error',reason=str(error));self.queue.put(('error',str(error)))
+                from .background import BackgroundUnavailable
+                summary.update(status='unsupported_background' if isinstance(error,BackgroundUnavailable) else 'error',reason=str(error));self.queue.put(('error',str(error)))
                 DATA.mkdir(parents=True,exist_ok=True)
                 with (DATA/'application.log').open('a',encoding='utf-8') as log:
                     import traceback
@@ -427,6 +611,10 @@ class Application:
 
     def update_decision(self,value):
         event=value.get('event');self.append_log(value)
+        if value.get('method_selection'):
+            self.set_panel('ゲームの推定',value['method_selection'].get('game_hypothesis',{}))
+            self.set_panel('手法の選択・学習',value.get('method_context') or value['method_selection'])
+        if value.get('background_compatibility'):self.set_panel('背景適合性',value['background_compatibility'])
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='result':
