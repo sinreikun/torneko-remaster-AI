@@ -432,7 +432,7 @@ class Application:
             self.set_panel('現在状態',value);return
         self.run_counts['decisions']+=1;self.last_row=value
         self.status.set(f"{value.get('scene','')} / {value.get('subgoal','')}")
-        self.set_panel('現在状態',value.get('scene','')+'\n'+value.get('observation',''))
+        self.set_panel('現在状態',{'独立した画面観察（モデル報告・未検証）':value.get('scene_observation',{}),'計画時の場面判断':value.get('scene',''),'計画時の観察':value.get('observation','')})
         self.set_panel('目的',{'overall_goal':self.cfg.goal,'autonomous_goal':value.get('autonomous_goal',{'objective':value.get('subgoal'),'success_condition':value.get('goal_success')}),'progress':value.get('progress',[])})
         self.set_panel('候補と評価',{'confidence':value.get('confidence'),'risk':value.get('risk'),'allowed_keys':self.cfg.allowed_keys,'note':'LLMの報告値。代替候補の点数は生成していません。'})
         self.set_panel('選択行動と理由',{'keys':value.get('keys'),'hold_ms':value.get('hold_ms'),'reason':value.get('reason')})

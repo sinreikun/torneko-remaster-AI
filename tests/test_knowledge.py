@@ -7,11 +7,14 @@ from unittest.mock import patch
 from autoplayer.core import LocalLLM,Settings,parse_decision
 from autoplayer.knowledge import KnowledgeEngine
 from autoplayer.ocr import ScreenOCR
-from test_agent import change
+from test_agent import change,OBSERVED
 
 def ocr(text):return {'status':'ok','frame_sha256':'frame1','lines':[{'text':text}],'confidence':None}
 
 class KnowledgeTests(unittest.TestCase):
+    def setUp(self):
+        observer=patch.object(LocalLLM,'observe_scene',return_value=OBSERVED)
+        observer.start();self.addCleanup(observer.stop)
     def test_original_rule_not_confirmed_for_remaster(self):
         context=KnowledgeEngine().reconcile(ocr('ちょっとステキなリマスター 幸せの箱 HP 3/30'))
         rule=next(f for f in context['facts'] if f['id']=='main-goal')

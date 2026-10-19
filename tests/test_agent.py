@@ -9,6 +9,7 @@ from autoplayer.core import Settings,LocalLLM,Controller,parse_decision
 from autoplayer.components import pull_model
 
 VALID={'scene':'title','observation':'開始画面が見える','subgoal':'ゲームを開始する','goal_success':'開始後のプレイ画面が見える','reason':'開始操作を選ぶ','confidence':.95,'status':'continue','action':{'keys':['enter'],'hold_ms':80,'wait_ms':0}}
+OBSERVED={'scene_type':'title','description':'開始画面の文字が見える','visible_text':[],'player_position':'不明','open_routes':[],'obstacles':[],'hazards':[],'confidence':.8}
 class Backend:
     def __init__(self): self.actions=[];self.releases=0
     def capture(self): return b'fake-test-frame'
@@ -114,7 +115,10 @@ class APITests(unittest.TestCase):
                 cls.requests.append((self.path,body))
                 self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
                 if self.path=='/api/pull': self.wfile.write(b'{"status":"success"}\n');return
-                value={'message':{'content':json.dumps(VALID)}} if self.path=='/api/chat' else {'choices':[{'message':{'content':json.dumps(VALID)}}]}
+                content=body['messages'][1]['content']
+                prompt=json.loads(content if isinstance(content,str) else content[0]['text'])
+                result=OBSERVED if prompt.get('task')=='scene_observation' else VALID
+                value={'message':{'content':json.dumps(result)}} if self.path=='/api/chat' else {'choices':[{'message':{'content':json.dumps(result)}}]}
                 self.wfile.write(json.dumps(value).encode())
         cls.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
         cls.thread=threading.Thread(target=cls.server.serve_forever,daemon=True);cls.thread.start()

@@ -5,12 +5,12 @@ import tempfile
 import threading
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock,patch
 from autoplayer.core import Controller,Settings,SYSTEM,JAPANESE_OUTPUT
 from autoplayer.memory import MemoryStore
 from autoplayer.windows import WindowsGame
 from autoplayer.diagnostics import export_diagnostics
-from test_agent import Backend,Script,change
+from test_agent import Backend,Script,change,OBSERVED
 
 class NeutralObservationTests(unittest.TestCase):
     def run_steps(self,decisions,backend=None):
@@ -117,6 +117,10 @@ class JapaneseResponseTests(unittest.TestCase):
         llm._request.assert_not_called()
 
 class Diagnostic4404RegressionTests(unittest.TestCase):
+    def setUp(self):
+        from autoplayer.core import LocalLLM
+        observer=patch.object(LocalLLM,'observe_scene',return_value=OBSERVED)
+        observer.start();self.addCleanup(observer.stop)
     def test_placeholder_answer_is_observation_only_and_not_learning(self):
         from autoplayer.core import LocalLLM
         llm=LocalLLM(Settings(window_title='Other game'))
@@ -160,3 +164,31 @@ class Diagnostic4404RegressionTests(unittest.TestCase):
                 Controller(settings,backend,llm,lambda row:None,Path(folder)/'run.jsonl',memory=memory).run()
                 self.assertEqual(backend.actions,[]);self.assertEqual(memory.history(),[])
             finally:memory.close()
+
+class SceneObservationSeparationTests(unittest.TestCase):
+    def test_scene_observer_has_no_goal_or_past_captions(self):
+        from autoplayer.core import LocalLLM
+        llm=LocalLLM(Settings(window_title='Other game',goal='非公開の目標'))
+        observation={**OBSERVED,'scene_type':'gameplay','description':'通路とキャラクターが見える','open_routes':['右側に通路が見える']}
+        llm.ocr.read=Mock(return_value={'status':'ok','lines':[{'text':'HP 15/15'}]})
+        llm._request=Mock(side_effect=[json.dumps(observation),json.dumps(change())])
+        llm.set_context({'provisional_claims':[{'value':'過去のロビー説明'}]})
+        llm.decide(b'captured-image',[{'observation':'過去のロビー説明','subgoal':'以前の目標'}],False)
+        first,second=llm._request.call_args_list
+        observer_prompt=first.args[2];planner_prompt=second.args[2]
+        self.assertNotIn('非公開の目標',json.dumps(observer_prompt,ensure_ascii=False))
+        self.assertNotIn('過去のロビー説明',json.dumps(observer_prompt,ensure_ascii=False))
+        self.assertNotIn('goal',observer_prompt);self.assertNotIn('source_knowledge',observer_prompt)
+        self.assertEqual(planner_prompt['scene_observation']['open_routes'],['右側に通路が見える'])
+        self.assertEqual(llm.take_state()['scene_observation']['status'],'model_observation_unverified')
+        self.assertEqual(first.args[0],second.args[0])
+    def test_failed_observation_does_not_fall_back_to_old_plan(self):
+        from autoplayer.core import LocalLLM
+        llm=LocalLLM(Settings(window_title='Other game'))
+        llm.ocr.read=Mock(return_value={'status':'unavailable','lines':[]})
+        llm._request=Mock(return_value='{}')
+        decision=llm.decide(b'captured-image',[{'keys':['enter'],'observation':'以前の開始画面'}],False)
+        self.assertEqual(decision.keys,[]);self.assertEqual(decision.status,'continue')
+        self.assertEqual(llm._request.call_count,1)
+        self.assertFalse(llm.take_state()['learning'])
+        self.assertEqual(llm.take_state()['scene_observation']['status'],'unavailable')
