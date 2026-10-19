@@ -257,30 +257,10 @@ class LocalLLM:
     def set_context(self,context): self.context=context
     def _request(self,png,system,prompt,schema=None):
         from .performance import vision_image
-        from .vision_privacy import OverlayExclusion,model_data,clean_text,ocr_without_regions
-        privacy={};prepared=png
-        if is_torneko(self.cfg.window_title):
-            if not hasattr(self,'overlay_exclusion'):self.overlay_exclusion=OverlayExclusion()
-            if png is not None:
-                floor_ocr=prompt.get('_native_ocr') or prompt.get('independent_ocr') or {}
-                import re
-                floor_seen=bool(self.context.get('_floor_observed')) or any(re.search(r'\d[ \t]*階',line.get('text','')) for line in floor_ocr.get('lines',[]))
-                prepared,privacy=self.overlay_exclusion.prepare(png,self.context.get('minimap_observation'),required=floor_seen)
-            if png is not None:self.last_vision_privacy=privacy
-            elif 'scene_observation' in prompt:privacy=getattr(self,'last_vision_privacy',{})
-            native_for_prompt=prompt.get('_native_ocr')
-            if native_for_prompt:
-                from .performance import ocr_context
-                safe_ocr=ocr_context(ocr_without_regions(native_for_prompt,(privacy or getattr(self,'last_vision_privacy',{})).get('hidden_regions',[])))
-                prompt=dict(prompt)
-                if 'independent_ocr' in prompt:prompt['independent_ocr']=safe_ocr
-                if prompt.get('source_knowledge'):
-                    prompt['source_knowledge']={**prompt['source_knowledge'],'ocr':safe_ocr}
-            prompt=model_data(prompt);system=clean_text(system)
-            if privacy:prompt['visible_input_regions']=privacy
+        from .performance import model_data,clean_text
+        if is_torneko(self.cfg.window_title):prompt=model_data(prompt);system=clean_text(system)
         prompt={k:v for k,v in prompt.items() if not k.startswith('_')}
-        cfg=self.cfg;sent_image=vision_image(prepared)
-        if sent_image is not None:self.last_vision_input=sent_image
+        cfg=self.cfg;sent_image=vision_image(png)
         encoded=base64.b64encode(sent_image).decode() if sent_image is not None else None
         # Some Ollama grammar failures arrive as HTTP 200 with an empty model/content.
         # Retry once with generic JSON, then retain that format for this client.
@@ -309,7 +289,7 @@ class LocalLLM:
             metrics={'task':prompt.get('task','decision' if 'goal' in prompt else 'text_or_verification'),
                 'elapsed_ms':round((time.monotonic()-started)*1000),
                 'image_sha256':hashlib.sha256(png).hexdigest() if png is not None else None,
-                'num_ctx':8192 if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','input_exclusion':privacy,'source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),
+                'num_ctx':8192 if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),
                 **{key:result[key] for key in ('model','load_duration','prompt_eval_count','prompt_eval_duration','eval_count','eval_duration','total_duration','done_reason') if key in result}}
             self.request_metrics=(getattr(self,'request_metrics',[])+[metrics])[-8:]
             raw=(result.get('message') or {}).get('content','') if cfg.provider=='ollama' else result['choices'][0]['message']['content']
@@ -536,12 +516,45 @@ class Controller:
         self.diagnostic_sink=diagnostic_sink
         self.history=memory.history() if memory else []
         self.completed=False; self.feedback={}
-        self.policy=None;self.improvement=None
+        self.policy=None;self.improvement=None;self.map_visibility_attempted=False
         if memory and is_torneko(cfg.window_title):
             from .policy import ExperiencePolicy
             self.policy=ExperiencePolicy(memory,cfg)
             from .improvement import ImprovementSupervisor
             self.improvement=ImprovementSupervisor(self.policy)
+    def hide_map(self,image,state):
+        """Use the user-confirmed game menu once, only for a detected overlay."""
+        if (not image.startswith(b'\x89PNG\r\n\x1a\n') or self.map_visibility_attempted or not state['metrics'].get('floor') or state.get('menu_evidence')
+                or state['minimap'].get('status')!='observed' or not hasattr(self.llm,'ocr')
+                or not all(k in self.cfg.allowed_keys for k in ('num0','d','num1','num2'))):return image
+        self.map_visibility_attempted=True;control=self.control or self.stop
+        def text(png):
+            native=self.llm.ocr.read(png)
+            self._write({'event':'display_setting_ocr','ocr':native,'learning':False})
+            return '\n'.join(l.get('text','') for l in native.get('lines',[]))
+        def send(key):
+            if control.is_set():return False
+            self._write({'event':'display_setting_input','keys':[key],'learning':False})
+            receipt=self.backend.act([key],min(80,self.cfg.max_hold_ms),control)
+            self._write({'event':'display_setting_receipt','keys':[key],'receipt':receipt,'learning':False})
+            return not control.wait(.2)
+        if not send('num0'):return self.backend.capture()
+        menu=self.backend.capture()
+        # Do not send Right/Confirm into the world when opening the menu failed.
+        menu_text=text(menu)
+        if 'マップ' not in menu_text:
+            self._write({'event':'display_setting_unconfirmed','reason':'マップ項目を確認できず右・決定を保留','learning':False})
+            if any(w in menu_text for w in ('メニュー','どうぐ','持ち物','装備')):send('num2')
+            return self.backend.capture()
+        if not send('d') or not send('num1'):return self.backend.capture()
+        after=self.backend.capture()
+        if 'マップ' in text(after):
+            if not send('num2'):return self.backend.capture()
+            after=self.backend.capture()
+        self._write({'event':'display_setting_finished','requested':'map_off','learning':False,
+            'note':'表示中と検出したため確認済み手順を1回実行。ゲーム側の設定値は未読取。'})
+        return after
+
     def map_sample(self,image,state,phase,baseline=False):
         # A currently read floor permits the user-confirmed display request. Never
         # make Num7 response a startup/backend compatibility requirement.
@@ -578,6 +591,11 @@ class Controller:
                 image=self.backend.capture()
                 neutral=None
                 state_before_neutral=self.policy.observe(image,self.llm.ocr.read(image) if hasattr(self.llm,'ocr') else None) if self.policy else None
+                if self.policy and not dry_run:
+                    configured=self.hide_map(image,state_before_neutral)
+                    if configured!=image:
+                        image=configured
+                        state_before_neutral=self.policy.observe(image,self.llm.ocr.read(image) if hasattr(self.llm,'ocr') else None)
                 if hasattr(self.backend,'observe_turn'):
                     neutral=self.backend.observe_turn(image,'neutral_observation',0,self.control or self.stop)
                     image=neutral.image
@@ -649,8 +667,6 @@ class Controller:
                 if self.policy and policy_state:
                     llm_proposal=dict(decision.__dict__)
                     decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None)
-                if not fast and getattr(self.llm,'last_vision_input',None) is not None and hasattr(self.backend,'record_frame'):
-                    self.backend.record_frame(self.llm.last_vision_input,'llm_input')
                 decision_finished=time.monotonic()
                 state_report=({'ocr':native,'scene_observation':{'status':'not_requested','reason':'新しい地図/HUDと中立観測による限定的な方策実行'},'inference_metrics':[],
                     'decision_policy':{'source':'bounded_policy_continuation','steps_since_llm':fast_count}} if fast else (self.llm.take_state() if hasattr(self.llm,'take_state') else {}))

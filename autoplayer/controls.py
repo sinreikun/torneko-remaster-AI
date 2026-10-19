@@ -17,3 +17,5 @@ def is_torneko(title):return any(word in title.casefold() for word in ('トル�
 
 # User-confirmed display modifier; not a turn/progress or compatibility test.
 REFERENCE["minimap"]["hold_num7"]="num7を押している間はミニマップとHUDのみ表示。専用観測後は必ず離して通常画面へ戻す。"
+
+REFERENCE["minimap"]["menu_toggle"]="通常メニュー初期位置からnum0→右(d)→num1で表示オン/オフを切替。オンと検出した時だけ1回実行し、マップ項目が残る場合はnum2で閉じる。"

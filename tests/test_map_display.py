@@ -111,20 +111,3 @@ class MapArchiveTests(unittest.TestCase):
                 self.assertEqual(len([n for n in z.namelist() if n.endswith('.png')]),4)
                 self.assertIn('map_observation',manifest['map_image_evidence'])
                 self.assertIn('map_result',manifest['map_image_evidence'])
-
-    def test_diagnostics_includes_the_exact_image_sent_to_the_model(self):
-        import tempfile,json,zipfile
-        from pathlib import Path
-        from autoplayer.diagnostics import export_diagnostics
-        with tempfile.TemporaryDirectory() as folder:
-            data=Path(folder);frames=data/'recordings'/'session';frames.mkdir(parents=True)
-            phases=['observation','result','map_observation','map_result','llm_input'];records=[]
-            for i,phase in enumerate(phases):
-                name=str(i)+'.png';(frames/name).write_bytes(b'archive-contract')
-                records.append({'file':name,'phase':phase})
-            (frames/'frames.jsonl').write_text('\n'.join(json.dumps(r) for r in records))
-            target=data/'out.zip';export_diagnostics(data,target)
-            with zipfile.ZipFile(target) as z:
-                report=json.loads(z.read('manifest.json'))
-                self.assertIn(report['llm_image_evidence'],z.namelist())
-                self.assertEqual(len([n for n in z.namelist() if n.endswith('.png')]),5)
