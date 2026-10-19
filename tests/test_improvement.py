@@ -146,6 +146,30 @@ class ImprovementTests(unittest.TestCase):
             self.assertTrue(summary['recent_improvement_events'])
             self.assertTrue(summary['improvement_state'])
 
+    def test_missing_floor_does_not_mean_scene_transition(self):
+        self.start()
+        missing=self.row(7);missing['policy_state']['metrics'].pop('floor')
+        self.audit.consume(missing)
+        self.assertIsNotNone(self.audit.active)
+        self.assertEqual(self.audit.active['floor'],[1])
+        self.audit.consume(self.row(8))
+        self.assertIsNotNone(self.audit.active)
+        different=self.row(9);different['policy_state']['metrics']['floor']['values']=[2]
+        self.assertEqual(self.audit.consume(different)['status'],'reverted')
+    def test_incomplete_spatial_evidence_only_allows_reassessment(self):
+        for i in range(6):
+            self.audit.begin_step();row=self.row(i+1);row['policy_state']['eligible']=False
+            self.audit.consume(row)
+        self.assertTrue(self.audit.due())
+        self.llm.review_strategy.return_value=self.proposal('explore_untried')
+        self.assertEqual(self.audit.review(self.llm)['status'],'review_rejected')
+        self.assertIsNone(self.audit.active)
+    def test_review_respects_user_minimap_legend(self):
+        self.seed();self.llm.review_strategy.return_value={**self.proposal(),'hypothesis':'青い物体の影響を評価するため操作する'}
+        self.assertIn('ミニマップ',self.audit.evidence()['user_control_reference']['minimap']['note'])
+        self.assertEqual(self.audit.review(self.llm)['status'],'review_rejected')
+        self.assertIn('ミニマップ',self.audit.evidence()['previous_rejection'])
+
     def test_review_api_is_text_only_and_requests_japanese(self):
         llm=LocalLLM(self.cfg);llm._request=Mock(return_value=json.dumps(self.proposal(),ensure_ascii=False))
         self.assertEqual(llm.review_strategy({'observations':[]}),self.proposal())

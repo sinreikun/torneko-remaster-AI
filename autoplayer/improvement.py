@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 import time
+from .controls import REFERENCE
 
 STRATEGIES=('explore_untried','avoid_cycle','reassess')
 SIGNALS=('coverage','floor','food_gain','enemy_reduction')
@@ -15,7 +16,7 @@ REVIEW_SCHEMA={'type':'object','additionalProperties':False,'properties':{
 class ImprovementSupervisor:
     def __init__(self,policy):
         self.policy=policy;self.db=policy.db;self.profile=policy.profile
-        self.recent=[];self.tick=0;self.next_review=6;self.calls=0;self.active=None;self.adopted=None
+        self.recent=[];self.tick=0;self.next_review=6;self.calls=0;self.active=None;self.adopted=None;self.last_rejection=None
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS improvement_events(id INTEGER PRIMARY KEY,profile TEXT,created REAL,data TEXT);
         CREATE INDEX IF NOT EXISTS improvement_profile ON improvement_events(profile,id);
@@ -56,8 +57,8 @@ class ImprovementSupervisor:
             and all(r['progress']==0 for r in rows) and (sum(r['comparable'] for r in rows)>=2 or sum(r['observable'] for r in rows)>=2)
             and len(self.evidence()['unavailable_strategies'])<len(STRATEGIES))
     def evidence(self):
-        return {'task':'self_improvement_review','overall_goal':self.policy.settings.goal,'trigger':'直近6結果で独立した進捗信号がない。故障や失敗の確定ではない。',
-            'observations':self.recent[-6:],'unavailable_strategies':list(dict.fromkeys(self.attempts.get(self.signature(),[])+(['explore_untried','avoid_cycle'] if sum(r['comparable'] for r in self.recent[-6:])<2 else []))),
+        return {'task':'self_improvement_review','overall_goal':self.policy.settings.goal,'user_control_reference':REFERENCE,'previous_rejection':self.last_rejection,'trigger':'直近6結果で独立した進捗信号がない。故障や失敗の確定ではない。',
+            'observations':self.recent[-6:],'unavailable_strategies':list(dict.fromkeys(self.attempts.get(self.signature(),[])+(['explore_untried','avoid_cycle'] if sum(r['spatial_ready'] for r in self.recent[-6:])<2 else []))),
             'strategies':{'explore_untried':'安全条件を満たす移動候補の未試行加点を一時的に増やす',
                 'avoid_cycle':'同じ観測状態で直近に実行した移動候補の優先度を一時的に下げる',
                 'reassess':'現在画像・OCRを読み直す観点を仮説として攻略LLMに提示する。観察事実の上書きは禁止'},
@@ -72,6 +73,7 @@ class ImprovementSupervisor:
             if proposal['strategy'] not in STRATEGIES or proposal['expected_signal'] not in SIGNALS:raise ValueError('許可されない調整です。')
             text=proposal['hypothesis']
             if not isinstance(text,str) or not 4<=len(text)<=600 or not re.search('[ぁ-んァ-ヶ一-龥]',text):raise ValueError('日本語の有限な仮説が必要です。')
+            if any(word in text for word in ('青い物体','青い図形')):raise ValueError('青い表示はユーザー指定のミニマップです。物体への操作や影響を仮説の前提にできません。')
             steps=proposal['evidence_steps'];available={r['step'] for r in evidence['observations']}
             if not isinstance(steps,list) or not 1<=len(steps)<=6 or any(type(s) is not int or s not in available for s in steps):raise ValueError('履歴に存在する根拠が必要です。')
             if proposal['strategy'] in evidence['unavailable_strategies']:raise ValueError('現在の証拠では許可されない、または再試行済みの調整です。')
@@ -80,12 +82,13 @@ class ImprovementSupervisor:
             tried.append(proposal['strategy'])
             # Keep the persistent rejection ledger bounded.
             if len(self.attempts)>128:self.attempts.pop(next(iter(self.attempts)))
-            self.active={'proposal':proposal,'signature':signature,'floor':self.recent[-1]['floor'],
+            self.active={'proposal':proposal,'signature':signature,'floor':next((r['floor'] for r in reversed(self.recent[-6:]) if r['floor']),None),
                 'elapsed':0,'samples':0,'score':0.,'baseline':sum(r['progress'] for r in self.recent[-6:])/6,
                 'avoid':[[r['state'],r['keys'][0]] for r in self.recent[-6:] if len(r['keys'])==1]}
             metrics=getattr(llm,'request_metrics',None)
             result=self.event('trial_started',trial=self.active,evidence=evidence,inference_metrics=metrics[-1:] if isinstance(metrics,list) else [])
         except (ValueError,KeyError,TypeError,RuntimeError,OSError) as error:
+            self.last_rejection=str(error)[:600]
             result=self.event('review_rejected',reason=str(error)[:600],evidence=evidence)
         self.save();return result
     def context(self):
@@ -116,7 +119,7 @@ class ImprovementSupervisor:
         damage=bool(hp0 and hp1 and hp0[1]==hp1[1] and hp1[0]<hp0[0])
         record={'step':row['step'],'state':before.get('id'),'floor':before.get('metrics',{}).get('floor',{}).get('values'),
             'cell':before.get('minimap',{}).get('player_cell'),'keys':row.get('observed_keys',[]),
-            'comparable':bool(comparable),'observable':bool(before.get('observable')),'progress':progress,'signals':net,'hp_loss':damage,
+            'comparable':bool(comparable),'spatial_ready':bool(before.get('eligible') and comparable),'observable':bool(before.get('observable')),'progress':progress,'signals':net,'hp_loss':damage,
             'map_status':before.get('minimap',{}).get('status'),'menu_evidence':before.get('menu_evidence'),
             'hud':{k:v.get('values') for k,v in before.get('metrics',{}).items() if isinstance(v,dict)},
             'model_reports_unverified':{'scene':(row.get('scene_observation') or {}).get('scene_type'),
@@ -126,7 +129,9 @@ class ImprovementSupervisor:
         self.recent=(self.recent+[record])[-12:]
         result=None
         current=self.active or self.adopted
-        if current and record['floor']!=current['floor']:
+        if current and not current['floor'] and record['floor']:
+            current['floor']=record['floor']
+        if current and record['floor'] and current['floor'] and record['floor']!=current['floor']:
             if self.active:result=self.finish(False,'検証前の場面条件が変わったため撤回。')
             else:self.adopted=None;result=self.event('expired',reason='適用階層が変わりました。')
         elif current and damage:

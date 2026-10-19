@@ -19,9 +19,17 @@ class WindowsOCR:
             try:
                 with tempfile.TemporaryDirectory(prefix='gamepilot-ocr-') as folder:
                     path=Path(folder)/'frame.png';path.write_bytes(png)
+                    # A separate top strip prevents scene textures from changing
+                    # the reading orientation/segmentation of the HUD. Same pixels,
+                    # no inferred labels or numbers; retain the full-frame OCR too.
+                    import io
+                    from PIL import Image
+                    hud=Path(folder)/'top.png'
+                    with Image.open(io.BytesIO(png)) as image:
+                        image.crop((0,0,image.width,max(1,round(image.height*.15)))).save(hud)
                     script=Path(__file__).with_name('ocr.ps1')
                     # Paths are arguments, never interpolated PowerShell code.
-                    result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(script),'-ImagePath',str(path)],capture_output=True,timeout=25,creationflags=subprocess.CREATE_NO_WINDOW)
+                    result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(script),'-ImagePath',str(path),'-HudImagePath',str(hud)],capture_output=True,timeout=25,creationflags=subprocess.CREATE_NO_WINDOW)
                     if result.returncode: raise RuntimeError(result.stderr.decode('utf-8','replace')[:700])
                     value=json.loads(result.stdout.decode('utf-8-sig'))
                     lines=value.get('lines',[])

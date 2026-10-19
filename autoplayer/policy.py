@@ -12,7 +12,7 @@ from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .minimap import read_minimap
 
-VERSION=2
+VERSION=3
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
