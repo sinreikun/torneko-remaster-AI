@@ -1,0 +1,593 @@
+{
+  "fixture": "synthetic visible Windows game",
+  "model": "qwen2.5vl:3b",
+  "scenarios": [
+    {
+      "start": "VICTORY",
+      "passed": true,
+      "decisions": 3
+    }
+  ],
+  "actual_state": "VICTORY",
+  "last_trace": [
+    {
+      "event": "decision",
+      "step": 1,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'ENTER' to continue.",
+      "subgoal": "Press 'ENTER' to continue.",
+      "reason": "The message is clear and instructive, indicating the next step in the game.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "enter"
+      ],
+      "hold_ms": 100,
+      "wait_ms": 1000,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press enter",
+          "value": "The player needs to press the 'ENTER' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 1,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'ENTER' to continue.",
+      "subgoal": "Press 'ENTER' to continue.",
+      "reason": "The message is clear and instructive, indicating the next step in the game.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "enter"
+      ],
+      "hold_ms": 100,
+      "wait_ms": 1000,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press enter",
+          "value": "The player needs to press the 'ENTER' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 1,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'ENTER' to continue.",
+      "subgoal": "Press 'ENTER' to continue.",
+      "reason": "The message is clear and instructive, indicating the next step in the game.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "enter"
+      ],
+      "hold_ms": 100,
+      "wait_ms": 1000,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press enter",
+          "value": "The player needs to press the 'ENTER' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.08072916666666667,
+      "masked_activity": 0.0,
+      "duration_ms": 1021
+    },
+    {
+      "event": "decision",
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'D' to continue.",
+      "subgoal": "Press 'D' to continue.",
+      "reason": "The screen clearly instructs the player to press 'D' to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "d"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'D' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'D' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press d",
+          "value": "The player needs to press the 'D' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'D' to continue.",
+      "subgoal": "Press 'D' to continue.",
+      "reason": "The screen clearly instructs the player to press 'D' to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "d"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'D' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'D' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press d",
+          "value": "The player needs to press the 'D' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'D' to continue.",
+      "subgoal": "Press 'D' to continue.",
+      "reason": "The screen clearly instructs the player to press 'D' to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "d"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'D' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'D' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press d",
+          "value": "The player needs to press the 'D' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.03515625,
+      "masked_activity": 0.0,
+      "duration_ms": 863
+    },
+    {
+      "event": "decision",
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'Z' to continue.",
+      "subgoal": "Press 'Z' to continue.",
+      "reason": "The screen clearly indicates the next action needed to progress.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'Z' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'Z' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press z",
+          "value": "The player needs to press the 'Z' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'Z' to continue.",
+      "subgoal": "Press 'Z' to continue.",
+      "reason": "The screen clearly indicates the next action needed to progress.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'Z' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'Z' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press z",
+          "value": "The player needs to press the 'Z' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'Z' to continue.",
+      "subgoal": "Press 'Z' to continue.",
+      "reason": "The screen clearly indicates the next action needed to progress.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'Z' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'Z' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press z",
+          "value": "The player needs to press the 'Z' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.08854166666666667,
+      "masked_activity": 0.0,
+      "duration_ms": 866
+    },
+    {
+      "event": "decision",
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'SPACE' to continue.",
+      "subgoal": "Press 'SPACE' to continue.",
+      "reason": "The screen clearly indicates the action needed to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "space"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'SPACE' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'SPACE' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press space",
+          "value": "The player needs to press the 'SPACE' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'SPACE' to continue.",
+      "subgoal": "Press 'SPACE' to continue.",
+      "reason": "The screen clearly indicates the action needed to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "space"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'SPACE' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'SPACE' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press space",
+          "value": "The player needs to press the 'SPACE' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'SPACE' to continue.",
+      "subgoal": "Press 'SPACE' to continue.",
+      "reason": "The screen clearly indicates the action needed to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "space"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'SPACE' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'SPACE' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press space",
+          "value": "The player needs to press the 'SPACE' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.984375,
+      "masked_activity": 0.0,
+      "duration_ms": 846
+    },
+    {
+      "event": "retry",
+      "attempt": 1,
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key."
+    },
+    {
+      "event": "retry",
+      "attempt": 2,
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key."
+    },
+    {
+      "event": "retry",
+      "attempt": 3,
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key."
+    }
+  ],
+  "passed": false,
+  "error": "Traceback (most recent call last):\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-4B46706EE4CA\\autoplayer\\selftest.py\", line 84, in work\n    agent.run()\n    ~~~~~~~~~^^\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-4B46706EE4CA\\autoplayer\\core.py\", line 341, in run\n    decision=self.llm.decide(image,self.history,repeats>=3 or stagnant>=3)\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-4B46706EE4CA\\autoplayer\\core.py\", line 256, in decide\n    decision=parse_decision(self._request(png,SYSTEM,prompt,schema),cfg)\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-4B46706EE4CA\\autoplayer\\core.py\", line 120, in parse_decision\n    if v['status']=='complete' and keys: raise ValueError('Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key.')\n                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key.\n",
+  "last_observations": [
+    {
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'D' to continue.",
+      "subgoal": "Press 'D' to continue.",
+      "reason": "The screen clearly instructs the player to press 'D' to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "d"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'D' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'D' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press d",
+          "value": "The player needs to press the 'D' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.03515625,
+      "masked_activity": 0.0,
+      "duration_ms": 863
+    },
+    {
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'Z' to continue.",
+      "subgoal": "Press 'Z' to continue.",
+      "reason": "The screen clearly indicates the next action needed to progress.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'Z' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'Z' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press z",
+          "value": "The player needs to press the 'Z' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.08854166666666667,
+      "masked_activity": 0.0,
+      "duration_ms": 866
+    },
+    {
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen displays a message prompting the player to press 'SPACE' to continue.",
+      "subgoal": "Press 'SPACE' to continue.",
+      "reason": "The screen clearly indicates the action needed to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "space"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "press 'SPACE' to continue"
+      ],
+      "progress": [
+        "The player needs to press the 'SPACE' key to continue."
+      ],
+      "memory_updates": [
+        {
+          "key": "press space",
+          "value": "The player needs to press the 'SPACE' key to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.984375,
+      "masked_activity": 0.0,
+      "duration_ms": 846
+    },
+    {
+      "status": "retry",
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key.",
+      "attempt": 1
+    },
+    {
+      "status": "retry",
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key.",
+      "attempt": 2
+    },
+    {
+      "status": "retry",
+      "reason": "Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key.",
+      "attempt": 3
+    }
+  ]
+}
