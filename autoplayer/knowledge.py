@@ -35,7 +35,7 @@ class KnowledgeEngine:
         metrics={}
         # Japanese OCR splits a displayed number into words ("1 5 / 1 5").
         # Join horizontal digit spacing only; never join unrelated OCR lines.
-        patterns={'hp':r'HP[ \t]*[:：]?[ \t]*(\d(?:[ \t]*\d){0,3})[ \t]*/[ \t]*(\d(?:[ \t]*\d){0,3})',
+        patterns={'hp':r'HP(?:[iIt|])?[ \t:：、・*]*(\d(?:[ \t]*\d){0,3})[ \t]*/[ \t]*(\d(?:[ \t]*\d){0,3})',
             'floor':r'(\d(?:[ \t]*\d){0,2})[ \t]*(?:階|F\b)',
             'fullness':r'(?:満[ \t]*腹[ \t]*度|fullness)[ \t]*[:：]?[ \t]*(\d(?:[ \t]*\d){0,2})[ \t]*%'}
         for label,pattern in patterns.items():

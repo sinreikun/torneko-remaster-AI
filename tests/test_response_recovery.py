@@ -67,3 +67,37 @@ class PixelGeometryTests(unittest.TestCase):
         patch={(0,0),(0,1),(1,0),(1,1)}
         self.assertEqual(quantized_shape(patch,0,0,6),[(0,0)])
         self.assertEqual(quantized_shape(patch|{(6,0)},0,0,6),[(0,0)])
+
+class DecisionRepairTests(unittest.TestCase):
+    def test_invalid_status_gets_one_explicit_correction_not_silent_conversion(self):
+        from test_agent import OBSERVED
+        client=LocalLLM(Settings());client.ocr.read=Mock(return_value={'status':'unavailable','lines':[]})
+        client.observe_scene=Mock(return_value=OBSERVED)
+        client._request=Mock(side_effect=[json.dumps(change(status='unknown')),json.dumps(change())])
+        result=client.decide(b'frame',[],False)
+        self.assertEqual(result.status,'continue');self.assertEqual(client._request.call_count,2)
+        repair=client._request.call_args_list[1].args[2]
+        self.assertEqual(repair['protocol_error'],'invalid status')
+        self.assertEqual(repair['task'],'decision_protocol_repair')
+    def test_invalid_correction_is_not_executed_or_retried_forever(self):
+        from test_agent import OBSERVED
+        client=LocalLLM(Settings());client.ocr.read=Mock(return_value={'status':'unavailable','lines':[]})
+        client.observe_scene=Mock(return_value=OBSERVED)
+        client._request=Mock(return_value=json.dumps(change(status='model_proposed')))
+        with self.assertRaisesRegex(ValueError,'invalid status'):client.decide(b'frame',[],False)
+        self.assertEqual(client._request.call_count,2)
+
+class HudLabelTests(unittest.TestCase):
+    def test_observed_hp_label_noise_does_not_change_numeric_evidence(self):
+        from autoplayer.knowledge import KnowledgeEngine
+        for raw in ('HPi 1 5 / 1 5','HPi 、 1 5 / 1 5','HPi ・ 、 1 5 / 1 5','HPt*1 5 / 1 5'):
+            with self.subTest(raw=raw):
+                result=KnowledgeEngine().reconcile({'status':'ok','lines':[{'text':raw}]})['metrics']['hp']
+                self.assertEqual(result['values'],[15,15]);self.assertEqual(result['quote'],raw)
+        for raw in ('HP -1 5 / 1 5','HP 15 / ー ぎ 鉙','HPi 16 / 15','HPi 1\n5 / 15','HPitem15/15'):
+            self.assertNotIn('hp',KnowledgeEngine().reconcile({'status':'ok','lines':[{'text':raw}]})['metrics'])
+    def test_blue_box_approach_and_impact_claims_are_not_adopted(self):
+        from autoplayer.core import parse_decision,response_quality_issue
+        for text in ('青い箱に近づく','青い箱が障害物なので動かす','青い物体の上の黄色い円形の影響を評価する'):
+            decision=parse_decision(json.dumps(change(subgoal=text)),Settings())
+            self.assertTrue(response_quality_issue(decision,minimap_reference=True))

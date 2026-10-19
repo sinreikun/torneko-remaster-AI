@@ -175,7 +175,9 @@ def response_quality_issue(decision,instruction_texts=(),minimap_reference=False
     import re,unicodedata
     def compact(text):return re.sub(r'\s+','',unicodedata.normalize('NFKC',text)).strip(' 。.！!')
     instructions=[compact(text) for text in instruction_texts if isinstance(text,str)]
-    if minimap_reference and re.search(r'(?:青い(?:物体|図形|表示)|ミニマップ)(?:へ|に|を)(?:近づ|近付|向か|到達|触|攻撃|話しかけ)',compact(decision.subgoal+' '+decision.reason)):
+    if minimap_reference and re.search(r'青い(?:物体|図形|箱).{0,70}(?:動か|影響|アイテム)',compact(decision.subgoal+' '+decision.reason)):
+        return 'ユーザーの凡例では青い表示はミニマップです。物体の操作やアイテムの影響を未確認の前提にしないでください。'
+    if minimap_reference and re.search(r'(?:青い(?:物体|図形|表示|箱)|ミニマップ)(?:へ|に|を)(?:近づ|近付|向か|到達|触|攻撃|話しかけ)',compact(decision.subgoal+' '+decision.reason)):
         return 'ユーザーの凡例ではミニマップは近づく対象物ではありません。'
     for key in ('observation','subgoal','reason','goal_success'):
         text=compact(getattr(decision,key))
@@ -374,7 +376,16 @@ class LocalLLM:
             prompt['allowed_keys']=[key for key in cfg.allowed_keys if [key] in choices]
             prompt['recovery_action_choices']=choices
             prompt['instruction']+=' 再送保留中のキーは選べません。現在の通路・障害物・表示を見直し、recovery_action_choicesから単独の安全な操作か無入力観測を選んでください。'
-        decision=parse_decision(self._request(None,SYSTEM+' この呼出は現在画像の観察役の報告とOCRを読む計画役です。画像は再送していません。報告は未検証で、不明な経路や危険は補完せず必要なら無入力観測を選んでください。',prompt,schema),cfg)
+        planner_system=SYSTEM+' この呼出は現在画像の観察役の報告とOCRを読む計画役です。画像は再送していません。報告は未検証で、不明な経路や危険は補完せず必要なら無入力観測を選んでください。'
+        raw=self._request(None,planner_system,prompt,schema)
+        try:decision=parse_decision(raw,cfg)
+        except ValueError as error:
+            # The same deterministic request reproduced the same invalid status.
+            # Ask once with explicit protocol feedback; never guess a valid action.
+            if self.request_metrics:self.request_metrics[-1]['decision_protocol_issue']=str(error)
+            repair={**prompt,'task':'decision_protocol_repair','protocol_error':str(error),
+                'protocol_instruction':'前の応答は採用せず入力していません。statusは全体目標の状態でcontinue/complete/blockedのいずれかだけです。場面不明はscene=unknown、攻略継続はstatus=continueです。小目標の検証状態をstatusへ入れないでください。許可キーと安全条件を守り、Schemaに一致する応答全体を新しく返してください。'}
+            decision=parse_decision(self._request(None,planner_system,repair,schema),cfg)
         self.language_fallback=False
         decision=self.localize_decision(decision)
         issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')),minimap_reference=is_torneko(cfg.window_title))
@@ -554,6 +565,7 @@ class Controller:
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=fast_policy_ready(policy_state,policy_stable,fast_anchor,fast_floor,fast_objective,fast_count,blocked,stagnant,reassess) and not dry_run
+                anchor_available=bool(fast_anchor)
                 decision_started=time.monotonic()
                 try:
                     if fast:
@@ -586,7 +598,7 @@ class Controller:
                 state_report=({'ocr':native,'scene_observation':{'status':'not_requested','reason':'新しい地図/HUDと中立観測による限定的な方策実行'},'inference_metrics':[],
                     'decision_policy':{'source':'bounded_policy_continuation','steps_since_llm':fast_count}} if fast else (self.llm.take_state() if hasattr(self.llm,'take_state') else {}))
                 row={'step':step+1,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
-                    'performance':{'llm_requested':not fast,'policy_steps_since_llm':fast_count,'max_policy_steps':3,'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
+                    'performance':{'llm_requested':not fast,'policy_steps_since_llm':fast_count,'max_policy_steps':3,'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if fast:llm_proposal=None
                 unavailable_observations=unavailable_observations+1 if row.get('scene_observation',{}).get('status')=='unavailable' else 0
                 if unavailable_observations>=3+self.cfg.recovery_attempts:
