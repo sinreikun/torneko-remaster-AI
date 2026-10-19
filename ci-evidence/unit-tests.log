@@ -1,0 +1,659 @@
+test_context_size_is_stable_and_actual_inference_metadata_is_recorded (test_agent.APITests.test_context_size_is_stable_and_actual_inference_metadata_is_recorded) ... ok
+test_download_contract (test_agent.APITests.test_download_contract) ... ok
+test_ollama_contract (test_agent.APITests.test_ollama_contract) ... ok
+test_openai_contract (test_agent.APITests.test_openai_contract) ... ok
+test_text_only_verifier_does_not_send_a_fake_image (test_agent.APITests.test_text_only_verifier_does_not_send_a_fake_image) ... ok
+test_unregistered_download (test_agent.APITests.test_unregistered_download) ... ok
+test_blocked_never_inputs (test_agent.LoopTests.test_blocked_never_inputs) ... ERROR
+test_cancel_during_inference (test_agent.LoopTests.test_cancel_during_inference) ... ok
+test_dry_run (test_agent.LoopTests.test_dry_run) ... ERROR
+test_invalid_response_releases (test_agent.LoopTests.test_invalid_response_releases) ... ok
+test_journal_failure_prevents_input (test_agent.LoopTests.test_journal_failure_prevents_input) ... ok
+test_low_confidence (test_agent.LoopTests.test_low_confidence) ... ok
+test_scene_sequence (test_agent.LoopTests.test_scene_sequence) ... ERROR
+test_stale_screen (test_agent.LoopTests.test_stale_screen) ... ERROR
+test_step_limit (test_agent.LoopTests.test_step_limit) ... ERROR
+test_stopped_before_request (test_agent.LoopTests.test_stopped_before_request) ... ok
+test_bad_keys (test_agent.ProtocolTests.test_bad_keys) ... ok
+test_decision (test_agent.ProtocolTests.test_decision) ... ok
+test_duration_limits (test_agent.ProtocolTests.test_duration_limits) ... ok
+test_endpoints (test_agent.ProtocolTests.test_endpoints) ... ok
+test_invalid_settings (test_agent.ProtocolTests.test_invalid_settings) ... ok
+test_invalid_shape (test_agent.ProtocolTests.test_invalid_shape) ... ok
+test_failed_key_up_retains_target_for_retry (test_background_routing.BackgroundRoutingTests.test_failed_key_up_retains_target_for_retry) ... ok
+test_key_up_uses_original_window_and_scan_flags (test_background_routing.BackgroundRoutingTests.test_key_up_uses_original_window_and_scan_flags) ... ok
+test_background_measurement_is_independent_of_model_or_goal (test_completion.CompletionTests.test_background_measurement_is_independent_of_model_or_goal) ... ok
+test_goal_agnostic_observation_then_grounded_completion (test_completion.CompletionTests.test_goal_agnostic_observation_then_grounded_completion) ... ok
+test_native_ocr_is_independent_of_goal_and_keeps_heading_sizes (test_completion.CompletionTests.test_native_ocr_is_independent_of_goal_and_keeps_heading_sizes) ... ok
+test_non_victory_goal_can_be_achieved_at_title (test_completion.CompletionTests.test_non_victory_goal_can_be_achieved_at_title) ... ok
+test_ocr_title_heading_overrules_victory_footer_and_bad_category (test_completion.CompletionTests.test_ocr_title_heading_overrules_victory_footer_and_bad_category) ... ok
+test_ocr_victory_heading_reconciles_a_wrong_gameplay_category (test_completion.CompletionTests.test_ocr_victory_heading_reconciles_a_wrong_gameplay_category) ... ok
+test_pending_key_cannot_be_complete (test_completion.CompletionTests.test_pending_key_cannot_be_complete) ... ok
+test_placeholder_evidence_cannot_finish (test_completion.CompletionTests.test_placeholder_evidence_cannot_finish) ... ok
+test_remaining_actions_prevent_completion (test_completion.CompletionTests.test_remaining_actions_prevent_completion) ... ok
+test_title_with_goal_footer_is_not_victory (test_completion.CompletionTests.test_title_with_goal_footer_is_not_victory) ... ok
+test_unknown_scene_never_proves_completion (test_completion.CompletionTests.test_unknown_scene_never_proves_completion) ... ok
+test_cancel_is_not_success (test_console_integration.DiagnosticsTests.test_cancel_is_not_success) ... ok
+test_natural_change_is_not_an_input_success_condition (test_console_integration.DiagnosticsTests.test_natural_change_is_not_an_input_success_condition) ... ok
+test_os_rejection_is_a_system_failure (test_console_integration.DiagnosticsTests.test_os_rejection_is_a_system_failure) ... ok
+test_ten_minute_monitor_has_no_state_or_key_requirement (test_console_integration.DiagnosticsTests.test_ten_minute_monitor_has_no_state_or_key_requirement) ... ok
+test_unknown_unchanging_state_completes_without_game_keys (test_console_integration.DiagnosticsTests.test_unknown_unchanging_state_completes_without_game_keys) ... ok
+test_insecure_redirect_is_rejected_before_following (test_console_integration.OCRComponentTests.test_insecure_redirect_is_rejected_before_following) ... ok
+test_model_tamper_is_rejected (test_console_integration.OCRComponentTests.test_model_tamper_is_rejected) ... ok
+test_original_manifest_hashes_have_complete_sizes_and_unique_ids (test_console_integration.OCRComponentTests.test_original_manifest_hashes_have_complete_sizes_and_unique_ids) ... ok
+test_corrupt_database_does_not_prevent_log_submission (test_console_integration.ReportTests.test_corrupt_database_does_not_prevent_log_submission) ... ok
+test_missing_checks_are_not_success (test_console_integration.ReportTests.test_missing_checks_are_not_success) ... ok
+test_online_backup_includes_wal_and_actual_recording (test_console_integration.ReportTests.test_online_backup_includes_wal_and_actual_recording) ... ok
+test_recorder_caps_storage_and_keeps_frame_hashes (test_console_integration.ReportTests.test_recorder_caps_storage_and_keeps_frame_hashes) ... ok
+test_expired_duration_stops_without_another_input (test_console_integration.RunControlTests.test_expired_duration_stops_without_another_input) ... ok
+test_pause_wakes_action_wait_and_resume_unblocks_checkpoint (test_console_integration.RunControlTests.test_pause_wakes_action_wait_and_resume_unblocks_checkpoint) ... ok
+test_stop_unblocks_pause (test_console_integration.RunControlTests.test_stop_unblocks_pause) ... ok
+test_zero_step_limit_is_supported (test_console_integration.RunControlTests.test_zero_step_limit_is_supported) ... ok
+test_embedded_payload (test_distribution.DistributionTests.test_embedded_payload) ... ok
+test_windows_bootstrap_if_built (test_distribution.DistributionTests.test_windows_bootstrap_if_built) ... ok
+test_enemy_and_unknown_neighbor_are_not_known_frontiers (test_exploration.RouteTests.test_enemy_and_unknown_neighbor_are_not_known_frontiers) ... ok
+test_floor_and_scale_changes_reset_routes (test_exploration.RouteTests.test_floor_and_scale_changes_reset_routes) ... ok
+test_large_map_loss_resets_but_marker_shape_change_keeps_visits (test_exploration.RouteTests.test_large_map_loss_resets_but_marker_shape_change_keeps_visits) ... ok
+test_natural_motion_wrong_direction_and_jump_do_not_create_routes (test_exploration.RouteTests.test_natural_motion_wrong_direction_and_jump_do_not_create_routes) ... ok
+test_no_inferred_reverse_edge_and_no_failed_move_as_wall (test_exploration.RouteTests.test_no_inferred_reverse_edge_and_no_failed_move_as_wall) ... ok
+test_routes_over_observed_edges_to_remaining_probe (test_exploration.RouteTests.test_routes_over_observed_edges_to_remaining_probe) ... ok
+test_controller_calls_reviewer_applies_trial_and_exports_evidence (test_improvement.ImprovementTests.test_controller_calls_reviewer_applies_trial_and_exports_evidence) ... ERROR
+test_damage_revokes_trial_and_adopted_adjustment (test_improvement.ImprovementTests.test_damage_revokes_trial_and_adopted_adjustment) ... ok
+test_declared_signal_only_temporary_adoption_and_expiry (test_improvement.ImprovementTests.test_declared_signal_only_temporary_adoption_and_expiry) ... ok
+test_different_signal_does_not_validate_the_hypothesis (test_improvement.ImprovementTests.test_different_signal_does_not_validate_the_hypothesis) ... ok
+test_floor_change_disables_adjustment (test_improvement.ImprovementTests.test_floor_change_disables_adjustment) ... ok
+test_incomplete_spatial_evidence_only_allows_reassessment (test_improvement.ImprovementTests.test_incomplete_spatial_evidence_only_allows_reassessment) ... ok
+test_interrupted_trial_is_not_promoted_and_profile_isolated (test_improvement.ImprovementTests.test_interrupted_trial_is_not_promoted_and_profile_isolated) ... ok
+test_missing_floor_does_not_mean_scene_transition (test_improvement.ImprovementTests.test_missing_floor_does_not_mean_scene_transition) ... ok
+test_missing_results_timeout_instead_of_infinite_review (test_improvement.ImprovementTests.test_missing_results_timeout_instead_of_infinite_review) ... ok
+test_neutral_observations_only_allow_reassessment (test_improvement.ImprovementTests.test_neutral_observations_only_allow_reassessment) ... ok
+test_no_same_strategy_for_same_stall_after_restart (test_improvement.ImprovementTests.test_no_same_strategy_for_same_stall_after_restart) ... ok
+test_priority_adjustment_never_bypasses_hazard_or_blocked_keys (test_improvement.ImprovementTests.test_priority_adjustment_never_bypasses_hazard_or_blocked_keys) ... ok
+test_progress_prevents_unnecessary_review (test_improvement.ImprovementTests.test_progress_prevents_unnecessary_review) ... ok
+test_review_api_is_text_only_and_requests_japanese (test_improvement.ImprovementTests.test_review_api_is_text_only_and_requests_japanese) ... ok
+test_review_respects_user_minimap_legend (test_improvement.ImprovementTests.test_review_respects_user_minimap_legend) ... ok
+test_trial_reverts_if_only_movement_and_screen_change (test_improvement.ImprovementTests.test_trial_reverts_if_only_movement_and_screen_change) ... ok
+test_unsent_diagnostic_dry_and_unapplied_actions_cannot_validate (test_improvement.ImprovementTests.test_unsent_diagnostic_dry_and_unapplied_actions_cannot_validate) ... ok
+test_untrusted_or_fabricated_proposal_and_call_budget (test_improvement.ImprovementTests.test_untrusted_or_fabricated_proposal_and_call_budget) ... ok
+test_future_hp_is_not_saved_as_current_progress_or_claim (test_knowledge.Diagnostic5345KnowledgeTests.test_future_hp_is_not_saved_as_current_progress_or_claim) ... ok
+test_spaced_hp_keeps_exact_quote_and_reviews_satisfied_goal (test_knowledge.Diagnostic5345KnowledgeTests.test_spaced_hp_keeps_exact_quote_and_reviews_satisfied_goal) ... ok
+test_split_numbers_do_not_cross_lines_and_conflicts_stay_ambiguous (test_knowledge.Diagnostic5345KnowledgeTests.test_split_numbers_do_not_cross_lines_and_conflicts_stay_ambiguous) ... ok
+test_actual_ocr_windows (test_knowledge.KnowledgeTests.test_actual_ocr_windows) ... ok
+test_ambiguous_or_impossible_ocr_not_current_statistics (test_knowledge.KnowledgeTests.test_ambiguous_or_impossible_ocr_not_current_statistics) ... ok
+test_corrections_require_exact_current_ocr (test_knowledge.KnowledgeTests.test_corrections_require_exact_current_ocr) ... ok
+test_japanese_ocr_word_spaces_match_without_rewriting_quotes (test_knowledge.KnowledgeTests.test_japanese_ocr_word_spaces_match_without_rewriting_quotes) ... ok
+test_llm_receives_sources_and_ocr_and_sets_goal (test_knowledge.KnowledgeTests.test_llm_receives_sources_and_ocr_and_sets_goal) ... ok
+test_original_rule_not_confirmed_for_remaster (test_knowledge.KnowledgeTests.test_original_rule_not_confirmed_for_remaster) ... ok
+test_other_game_does_not_receive_torneko_rules (test_knowledge.KnowledgeTests.test_other_game_does_not_receive_torneko_rules) ... ok
+test_unavailable_ocr_does_not_invent_text (test_knowledge.KnowledgeTests.test_unavailable_ocr_does_not_invent_text) ... ok
+test_unpaired_display_images_are_exported_and_marked_unpaired (test_map_display.MapArchiveTests.test_unpaired_display_images_are_exported_and_marked_unpaired) ... ok
+test_capture_failure_releases_key (test_map_display.MapDisplayKeyTests.test_capture_failure_releases_key) ... ok
+test_images_are_captured_while_held_and_key_released_before_return (test_map_display.MapDisplayKeyTests.test_images_are_captured_while_held_and_key_released_before_return) ... ok
+test_pause_or_stop_releases_key_without_taking_a_stale_sample (test_map_display.MapDisplayKeyTests.test_pause_or_stop_releases_key_without_taking_a_stale_sample) ... ok
+test_stopped_before_keydown_sends_nothing (test_map_display.MapDisplayKeyTests.test_stopped_before_keydown_sends_nothing) ... ok
+test_controller_records_display_receipts_separately_from_gameplay (test_map_display.MapDisplayPolicyTests.test_controller_records_display_receipts_separately_from_gameplay) ... ERROR
+test_missing_floor_and_menu_do_not_trigger_a_display_input (test_map_display.MapDisplayPolicyTests.test_missing_floor_and_menu_do_not_trigger_a_display_input) ... ERROR
+test_normal_and_held_display_are_not_compared_as_progress (test_map_display.MapDisplayPolicyTests.test_normal_and_held_display_are_not_compared_as_progress) ... ERROR
+test_already_closed_menu_does_not_send_world_dash (test_map_setting.MapSettingTests.test_already_closed_menu_does_not_send_world_dash) ... ok
+test_confirmed_sequence_once_and_cancel_only_when_menu_remains (test_map_setting.MapSettingTests.test_confirmed_sequence_once_and_cancel_only_when_menu_remains) ... ERROR
+test_missing_menu_confirmation_never_sends_right_and_confirm (test_map_setting.MapSettingTests.test_missing_menu_confirmation_never_sends_right_and_confirm) ... ok
+test_no_detected_overlay_does_not_turn_display_back_on (test_map_setting.MapSettingTests.test_no_detected_overlay_does_not_turn_display_back_on) ... ok
+test_pause_stops_remaining_sequence (test_map_setting.MapSettingTests.test_pause_stops_remaining_sequence) ... ok
+test_control_loop_resumes_history (test_memory_recovery.DurableMemoryTests.test_control_loop_resumes_history) ... ok
+test_corrupt_memory_is_preserved_and_rebuilt (test_memory_recovery.DurableMemoryTests.test_corrupt_memory_is_preserved_and_rebuilt) ... ok
+test_dry_run_does_not_teach_action_claims (test_memory_recovery.DurableMemoryTests.test_dry_run_does_not_teach_action_claims) ... ok
+test_goal_and_knowledge_isolation (test_memory_recovery.DurableMemoryTests.test_goal_and_knowledge_isolation) ... ok
+test_reopen_and_correct_claim (test_memory_recovery.DurableMemoryTests.test_reopen_and_correct_claim) ... ok
+test_transition_graph_does_not_join_separate_runs (test_memory_recovery.DurableMemoryTests.test_transition_graph_does_not_join_separate_runs) ... ok
+test_destructive_risk_never_sends (test_memory_recovery.RecoveryTests.test_destructive_risk_never_sends) ... ok
+test_invalid_json_recovers_without_input (test_memory_recovery.RecoveryTests.test_invalid_json_recovers_without_input) ... ok
+test_key_name_aliases_still_respect_allowlist (test_memory_recovery.RecoveryTests.test_key_name_aliases_still_respect_allowlist) ... ok
+test_loading_wait_is_not_stagnation (test_memory_recovery.RecoveryTests.test_loading_wait_is_not_stagnation) ... ok
+test_memory_protocol_bounds (test_memory_recovery.RecoveryTests.test_memory_protocol_bounds) ... ok
+test_no_verifier_cannot_finish (test_memory_recovery.RecoveryTests.test_no_verifier_cannot_finish) ... ok
+test_repeated_invalid_json_stops (test_memory_recovery.RecoveryTests.test_repeated_invalid_json_stops) ... ok
+test_unverified_completion_does_not_finish (test_memory_recovery.RecoveryTests.test_unverified_completion_does_not_finish) ... ok
+test_animation_mask_is_local_and_bounded (test_memory_recovery.TurnTests.test_animation_mask_is_local_and_bounded) ... ok
+test_black_loading_is_valid_observation (test_memory_recovery.TurnTests.test_black_loading_is_valid_observation) ... ok
+test_settles_after_visible_response (test_memory_recovery.TurnTests.test_settles_after_visible_response) ... ok
+test_controller_replans_after_three_policy_steps_and_uses_fresh_state (test_performance.PerformanceTests.test_controller_replans_after_three_policy_steps_and_uses_fresh_state) ... ERROR
+test_fast_path_requires_current_safe_observations_and_periodic_model (test_performance.PerformanceTests.test_fast_path_requires_current_safe_observations_and_periodic_model) ... ok
+test_knowledge_keeps_source_identity_and_uncertainty_without_duplicate_ocr (test_performance.PerformanceTests.test_knowledge_keeps_source_identity_and_uncertainty_without_duplicate_ocr) ... ok
+test_prompt_drops_ocr_geometry_and_duplicate_passes_only (test_performance.PerformanceTests.test_prompt_drops_ocr_geometry_and_duplicate_passes_only) ... ok
+test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report (test_performance.PerformanceTests.test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report) ... ERROR
+test_corrupt_saved_bounds_are_ignored (test_placement.PlacementTests.test_corrupt_saved_bounds_are_ignored) ... ok
+test_negative_monitor_coordinates_are_preserved (test_placement.PlacementTests.test_negative_monitor_coordinates_are_preserved) ... ok
+test_position_is_preserved_on_existing_monitor (test_placement.PlacementTests.test_position_is_preserved_on_existing_monitor) ... ok
+test_removed_monitor_returns_to_visible_primary (test_placement.PlacementTests.test_removed_monitor_returns_to_visible_primary) ... ok
+test_minimap_cannot_be_an_approach_destination (test_policy.ConfirmedControlsTests.test_minimap_cannot_be_an_approach_destination) ... ok
+test_old_enter_space_settings_migrate_without_sending_them (test_policy.ConfirmedControlsTests.test_old_enter_space_settings_migrate_without_sending_them) ... ok
+test_wrong_allowlist_is_still_rejected (test_policy.ConfirmedControlsTests.test_wrong_allowlist_is_still_rejected) ... ok
+test_archive_keeps_matching_observation_and_result_and_policy_summary (test_policy.DiagnosticLearningArchiveTests.test_archive_keeps_matching_observation_and_result_and_policy_summary) ... ok
+test_changed_overall_goal_isolates_policy (test_policy.PolicyTests.test_changed_overall_goal_isolates_policy) ... ok
+test_changed_shape_hash_does_not_reward_returning_to_session_location (test_policy.PolicyTests.test_changed_shape_hash_does_not_reward_returning_to_session_location) ... ok
+test_controller_executes_the_ranked_action_and_logs_actual_learning (test_policy.PolicyTests.test_controller_executes_the_ranked_action_and_logs_actual_learning) ... ERROR
+test_damage_penalty_and_no_full_hp_or_regeneration_reward (test_policy.PolicyTests.test_damage_penalty_and_no_full_hp_or_regeneration_reward) ... ok
+test_floor_transition_does_not_require_the_old_map_to_remain_visible (test_policy.PolicyTests.test_floor_transition_does_not_require_the_old_map_to_remain_visible) ... ok
+test_food_gain_is_a_separate_observed_progress_signal (test_policy.PolicyTests.test_food_gain_is_a_separate_observed_progress_signal) ... ok
+test_goal_probabilities_only_use_completed_verified_episodes (test_policy.PolicyTests.test_goal_probabilities_only_use_completed_verified_episodes) ... ok
+test_natural_movement_does_not_get_input_progress_credit (test_policy.PolicyTests.test_natural_movement_does_not_get_input_progress_credit) ... ok
+test_negative_experience_changes_executed_priority_and_survives_restart (test_policy.PolicyTests.test_negative_experience_changes_executed_priority_and_survives_restart) ... ok
+test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train (test_policy.PolicyTests.test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train) ... ok
+test_return_trip_does_not_learn_a_profitable_loop (test_policy.PolicyTests.test_return_trip_does_not_learn_a_profitable_loop) ... ok
+test_unavailable_map_and_enemy_directions_are_not_autonomously_walked (test_policy.PolicyTests.test_unavailable_map_and_enemy_directions_are_not_autonomously_walked) ... ok
+test_natural_activity_is_not_a_positive_response (test_profiles_recovery.DurationTests.test_natural_activity_is_not_a_positive_response) ... ok
+test_only_actual_accepted_comparable_inputs_train_and_do_not_claim_success (test_profiles_recovery.DurationTests.test_only_actual_accepted_comparable_inputs_train_and_do_not_claim_success) ... ok
+test_explicit_selected_yes_confirms_without_model (test_profiles_recovery.InterfaceTests.test_explicit_selected_yes_confirms_without_model) ... ok
+test_frame_linked_choice_bypasses_model_but_stale_ocr_does_not (test_profiles_recovery.InterfaceTests.test_frame_linked_choice_bypasses_model_but_stale_ocr_does_not) ... ok
+test_unmarked_or_destructive_or_body_text_is_not_a_choice (test_profiles_recovery.InterfaceTests.test_unmarked_or_destructive_or_body_text_is_not_a_choice) ... ok
+test_unselected_yes_moves_then_requires_another_observation (test_profiles_recovery.InterfaceTests.test_unselected_yes_moves_then_requires_another_observation) ... ok
+test_bindings_reject_executable_or_shortcut_keys (test_profiles_recovery.ProfileTests.test_bindings_reject_executable_or_shortcut_keys) ... ok
+test_different_games_in_a_shared_host_have_separate_profiles (test_profiles_recovery.ProfileTests.test_different_games_in_a_shared_host_have_separate_profiles) ... ok
+test_other_game_does_not_inherit_torneko_knowledge_or_controls (test_profiles_recovery.ProfileTests.test_other_game_does_not_inherit_torneko_knowledge_or_controls) ... ok
+test_profile_memory_survives_goal_and_title_edits_but_isolates_controls (test_profiles_recovery.ProfileTests.test_profile_memory_survives_goal_and_title_edits_but_isolates_controls) ... ok
+test_title_pid_and_handle_changes_do_not_change_game_identity (test_profiles_recovery.ProfileTests.test_title_pid_and_handle_changes_do_not_change_game_identity) ... ok
+test_closed_process_launches_once_then_attaches_new_handle_without_replay (test_profiles_recovery.RecoveryTests.test_closed_process_launches_once_then_attaches_new_handle_without_replay) ... ok
+test_closed_window_key_release_does_not_send_to_another_process (test_profiles_recovery.RecoveryTests.test_closed_window_key_release_does_not_send_to_another_process) ... ok
+test_does_not_take_over_another_instance_with_same_executable (test_profiles_recovery.RecoveryTests.test_does_not_take_over_another_instance_with_same_executable) ... ok
+test_duplicate_titles_use_explicit_handle_and_never_guess_another_instance (test_profiles_recovery.RecoveryTests.test_duplicate_titles_use_explicit_handle_and_never_guess_another_instance) ... ok
+test_existing_process_is_not_relaunched_and_stop_interrupts_wait (test_profiles_recovery.RecoveryTests.test_existing_process_is_not_relaunched_and_stop_interrupts_wait) ... ok
+test_multiple_matches_and_unknown_executable_never_launch (test_profiles_recovery.RecoveryTests.test_multiple_matches_and_unknown_executable_never_launch) ... ok
+test_pause_and_stop_prevent_launch (test_profiles_recovery.RecoveryTests.test_pause_and_stop_prevent_launch) ... ok
+test_stop_arriving_during_process_scan_prevents_launch (test_profiles_recovery.RecoveryTests.test_stop_arriving_during_process_scan_prevents_launch) ... ok
+test_invalid_correction_is_not_executed_or_retried_forever (test_response_recovery.DecisionRepairTests.test_invalid_correction_is_not_executed_or_retried_forever) ... ok
+test_invalid_status_gets_one_explicit_correction_not_silent_conversion (test_response_recovery.DecisionRepairTests.test_invalid_status_gets_one_explicit_correction_not_silent_conversion) ... ok
+test_blue_box_approach_and_impact_claims_are_not_adopted (test_response_recovery.HudLabelTests.test_blue_box_approach_and_impact_claims_are_not_adopted) ... ok
+test_observed_hp_label_noise_does_not_change_numeric_evidence (test_response_recovery.HudLabelTests.test_observed_hp_label_noise_does_not_change_numeric_evidence) ... ok
+test_only_small_gaps_are_joined_and_markers_keep_strict_components (test_response_recovery.PixelGeometryTests.test_only_small_gaps_are_joined_and_markers_keep_strict_components) ... ok
+test_unsupported_edge_pixels_do_not_change_shape (test_response_recovery.PixelGeometryTests.test_unsupported_edge_pixels_do_not_change_shape) ... ok
+test_empty_schema_response_retries_once_and_retains_generic_json (test_response_recovery.ResponseRecoveryTests.test_empty_schema_response_retries_once_and_retains_generic_json) ... ok
+test_no_infinite_retry_for_invalid_generic_response (test_response_recovery.ResponseRecoveryTests.test_no_infinite_retry_for_invalid_generic_response) ... ok
+test_unavailable_observer_has_a_bounded_no_input_recovery (test_response_recovery.ResponseRecoveryTests.test_unavailable_observer_has_a_bounded_no_input_recovery) ... ERROR
+test_valid_json_still_requires_existing_action_validation (test_response_recovery.ResponseRecoveryTests.test_valid_json_still_requires_existing_action_validation) ... ok
+test_valid_unknown_scene_is_not_a_service_failure (test_response_recovery.ResponseRecoveryTests.test_valid_unknown_scene_is_not_a_service_failure) ... ok
+test_only_the_owned_ocr_process_is_killed_on_cancel (test_responsiveness.CancellationTests.test_only_the_owned_ocr_process_is_killed_on_cancel) ... ok
+test_stop_discards_a_late_result (test_responsiveness.CancellationTests.test_stop_discards_a_late_result) ... ok
+test_stop_interrupts_waiting_for_http_headers (test_responsiveness.CancellationTests.test_stop_interrupts_waiting_for_http_headers) ... ok
+test_cancellation_interrupts_capture_and_releases_its_lock (test_responsiveness.CaptureIsolationTests.test_cancellation_interrupts_capture_and_releases_its_lock) ... ok
+test_completed_capture_preserves_its_payload (test_responsiveness.CaptureIsolationTests.test_completed_capture_preserves_its_payload) ... ok
+test_native_capture_timeout_terminates_only_the_capture_child (test_responsiveness.CaptureIsolationTests.test_native_capture_timeout_terminates_only_the_capture_child) ... ok
+test_callback_error_is_logged_and_requests_stop (test_responsiveness.UIResponsivenessTests.test_callback_error_is_logged_and_requests_stop) ... ok
+test_finished_worker_releases_preview_cancellation (test_responsiveness.UIResponsivenessTests.test_finished_worker_releases_preview_cancellation) ... ok
+test_importing_entrypoint_for_a_child_does_not_start_tk (test_responsiveness.UIResponsivenessTests.test_importing_entrypoint_for_a_child_does_not_start_tk) ... ok
+test_large_and_recursive_data_have_bounded_presentation (test_responsiveness.UIResponsivenessTests.test_large_and_recursive_data_have_bounded_presentation) ... ok
+test_poll_reschedules_itself_after_a_display_error (test_responsiveness.UIResponsivenessTests.test_poll_reschedules_itself_after_a_display_error) ... ok
+test_window_close_does_not_wait_forever_for_a_worker (test_responsiveness.UIResponsivenessTests.test_window_close_does_not_wait_forever_for_a_worker) ... ok
+test_compact_report_keeps_full_local_data_and_limits_attachment (test_state_independence.CompactReportTests.test_compact_report_keeps_full_local_data_and_limits_attachment) ... ok
+test_low_quality_results_never_enter_game_memory (test_state_independence.Diagnostic4404RegressionTests.test_low_quality_results_never_enter_game_memory) ... ok
+test_placeholder_answer_is_observation_only_and_not_learning (test_state_independence.Diagnostic4404RegressionTests.test_placeholder_answer_is_observation_only_and_not_learning) ... ok
+test_recovery_schema_excludes_held_key_and_suspends_old_claims (test_state_independence.Diagnostic4404RegressionTests.test_recovery_schema_excludes_held_key_and_suspends_old_claims) ... ok
+test_instruction_copy_is_not_a_gameplay_goal (test_state_independence.Diagnostic7577RegressionTests.test_instruction_copy_is_not_a_gameplay_goal) ... ok
+test_observation_metadata_is_not_a_scene_choice (test_state_independence.Diagnostic7577RegressionTests.test_observation_metadata_is_not_a_scene_choice) ... ok
+test_failed_translation_becomes_neutral_observation (test_state_independence.JapaneseResponseTests.test_failed_translation_becomes_neutral_observation) ... ok
+test_response_with_japanese_prose_needs_no_translation (test_state_independence.JapaneseResponseTests.test_response_with_japanese_prose_needs_no_translation) ... ok
+test_translation_cannot_change_keys_or_evidence (test_state_independence.JapaneseResponseTests.test_translation_cannot_change_keys_or_evidence) ... ok
+test_diagnostics_cannot_be_inserted_into_game_memory (test_state_independence.NeutralObservationTests.test_diagnostics_cannot_be_inserted_into_game_memory) ... ok
+test_held_action_has_bounded_cooldown_without_stopping (test_state_independence.NeutralObservationTests.test_held_action_has_bounded_cooldown_without_stopping) ... ERROR
+test_low_confidence_wait_is_neutral_not_stalled_or_failure (test_state_independence.NeutralObservationTests.test_low_confidence_wait_is_neutral_not_stalled_or_failure) ... ERROR
+test_model_human_fields_are_requested_in_japanese (test_state_independence.NeutralObservationTests.test_model_human_fields_are_requested_in_japanese) ... ok
+test_natural_observation_and_input_response_are_separate (test_state_independence.NeutralObservationTests.test_natural_observation_and_input_response_are_separate) ... ERROR
+test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure (test_state_independence.NeutralObservationTests.test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure) ... ERROR
+test_tiny_animation_does_not_release_held_actions (test_state_independence.NeutralObservationTests.test_tiny_animation_does_not_release_held_actions) ... ERROR
+test_probe_is_wm_null_not_a_game_key (test_state_independence.OSProbeTests.test_probe_is_wm_null_not_a_game_key) ... ok
+test_rejected_os_submission_raises_without_game_response_test (test_state_independence.OSProbeTests.test_rejected_os_submission_raises_without_game_response_test) ... ok
+test_large_ollama_error_log_keeps_latest_lines_and_records_truncation (test_state_independence.RuntimeReportTailTests.test_large_ollama_error_log_keeps_latest_lines_and_records_truncation) ... ok
+test_failed_observation_does_not_fall_back_to_old_plan (test_state_independence.SceneObservationSeparationTests.test_failed_observation_does_not_fall_back_to_old_plan) ... ok
+test_scene_observer_has_no_goal_or_past_captions (test_state_independence.SceneObservationSeparationTests.test_scene_observer_has_no_goal_or_past_captions) ... ok
+test_another_window_of_the_same_game_process_is_not_background (test_strategies.BackgroundContractTests.test_another_window_of_the_same_game_process_is_not_background) ... ok
+test_os_acceptance_is_not_proof_of_a_background_response (test_strategies.BackgroundContractTests.test_os_acceptance_is_not_proof_of_a_background_response) ... ok
+test_rejected_window_message_never_calls_a_global_input_fallback (test_strategies.BackgroundContractTests.test_rejected_window_message_never_calls_a_global_input_fallback) ... ok
+test_already_present_text_and_animation_are_not_progress (test_strategies.FrozenCriterionTests.test_already_present_text_and_animation_are_not_progress) ... ok
+test_invalid_rule_does_not_become_an_executable_expression (test_strategies.FrozenCriterionTests.test_invalid_rule_does_not_become_an_executable_expression) ... ok
+test_missing_ocr_is_not_disappearance_or_failure (test_strategies.FrozenCriterionTests.test_missing_ocr_is_not_disappearance_or_failure) ... ok
+test_controller_credits_only_frame_linked_criteria_above_neutral_activity (test_strategies.MethodTests.test_controller_credits_only_frame_linked_criteria_above_neutral_activity) ... ok
+test_dry_run_and_censored_results_do_not_train (test_strategies.MethodTests.test_dry_run_and_censored_results_do_not_train) ... ok
+test_no_progress_switches_methods_without_treating_it_as_backend_failure (test_strategies.MethodTests.test_no_progress_switches_methods_without_treating_it_as_backend_failure) ... ok
+test_scene_contradiction_never_executes_a_menu_action (test_strategies.MethodTests.test_scene_contradiction_never_executes_a_menu_action) ... ok
+test_trials_and_unverified_genre_persist_and_are_game_specific (test_strategies.MethodTests.test_trials_and_unverified_genre_persist_and_are_game_specific) ... ok
+test_visual_replanning_passes_current_image_and_retains_output_limits (test_strategies.MethodTests.test_visual_replanning_passes_current_image_and_retains_output_limits) ... ok
+test_bounded_public_candidates_cache_without_sending_game_frames (test_strategies.ReferenceTests.test_bounded_public_candidates_cache_without_sending_game_frames) ... ok
+test_network_failure_or_stop_does_not_require_user_intervention (test_strategies.ReferenceTests.test_network_failure_or_stop_does_not_require_user_intervention) ... ok
+test_failed_print_releases_handles_without_falling_back (test_window_capture.NativeCaptureTests.test_failed_print_releases_handles_without_falling_back) ... ok
+test_hung_target_never_allocates_capture_resources (test_window_capture.NativeCaptureTests.test_hung_target_never_allocates_capture_resources) ... ok
+test_prints_exact_client_without_desktop_pixels_or_border_crop (test_window_capture.NativeCaptureTests.test_prints_exact_client_without_desktop_pixels_or_border_crop) ... ok
+test_exe_with_unicode_and_quoted_temp_path (test_windows_native.NativeStartupTests.test_exe_with_unicode_and_quoted_temp_path) ... ok
+test_application_ui_initializes_without_manual_setup (test_windows_native.WindowsAutomationTests.test_application_ui_initializes_without_manual_setup) ... ok
+test_isolated_capture_of_the_actual_application (test_windows_native.WindowsAutomationTests.test_isolated_capture_of_the_actual_application) ... ok
+test_real_application_capture_is_not_the_covering_ocr_window (test_windows_native.WindowsAutomationTests.test_real_application_capture_is_not_the_covering_ocr_window) ... ok
+test_real_application_restores_saved_window_bounds (test_windows_native.WindowsAutomationTests.test_real_application_restores_saved_window_bounds) ... ok
+
+======================================================================
+ERROR: test_blocked_never_inputs (test_agent.LoopTests.test_blocked_never_inputs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 73, in test_blocked_never_inputs
+    b,_,_,rows=self.run_loop([change(status='blocked')]);self.assertEqual(b.actions,[])
+               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 60, in run_loop
+    rows=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
+                                 ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_dry_run (test_agent.LoopTests.test_dry_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 70, in test_dry_run
+    b,_,_,rows=self.run_loop([VALID,change(status='complete')],True)
+               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 60, in run_loop
+    rows=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
+                                 ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_scene_sequence (test_agent.LoopTests.test_scene_sequence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 65, in test_scene_sequence
+    b,l,o,rows=self.run_loop(values,backend=backend)
+               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 60, in run_loop
+    rows=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
+                                 ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 142: character maps to <undefined>
+
+======================================================================
+ERROR: test_stale_screen (test_agent.LoopTests.test_stale_screen)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 90, in test_stale_screen
+    self.run_loop([VALID]*5,backend=b,steps=5)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 60, in run_loop
+    rows=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
+                                 ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_step_limit (test_agent.LoopTests.test_step_limit)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 97, in test_step_limit
+    b,_,out,_=self.run_loop([VALID],steps=1)
+              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_agent.py", line 60, in run_loop
+    rows=[json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
+                                 ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_controller_calls_reviewer_applies_trial_and_exports_evidence (test_improvement.ImprovementTests.test_controller_calls_reviewer_applies_trial_and_exports_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_improvement.py", line 137, in test_controller_calls_reviewer_applies_trial_and_exports_evidence
+    rows=[json.loads(line) for line in agent.journal.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 102: character maps to <undefined>
+
+======================================================================
+ERROR: test_controller_records_display_receipts_separately_from_gameplay (test_map_display.MapDisplayPolicyTests.test_controller_records_display_receipts_separately_from_gameplay)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 625, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tmp3wxqq5_f\\memory.sqlite'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_map_display.py", line 75, in test_controller_records_display_receipts_separately_from_gameplay
+    with tempfile.TemporaryDirectory() as folder:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 952, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 956, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 936, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 790, in rmtree
+    return _rmtree_unsafe(path, onexc)
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 629, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 911, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tmp3wxqq5_f\\memory.sqlite'
+
+======================================================================
+ERROR: test_missing_floor_and_menu_do_not_trigger_a_display_input (test_map_display.MapDisplayPolicyTests.test_missing_floor_and_menu_do_not_trigger_a_display_input)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 625, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tmpx7lr2ezt\\memory.sqlite'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_map_display.py", line 57, in test_missing_floor_and_menu_do_not_trigger_a_display_input
+    with tempfile.TemporaryDirectory() as folder:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 952, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 956, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 936, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 790, in rmtree
+    return _rmtree_unsafe(path, onexc)
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 629, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 911, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tmpx7lr2ezt\\memory.sqlite'
+
+======================================================================
+ERROR: test_normal_and_held_display_are_not_compared_as_progress (test_map_display.MapDisplayPolicyTests.test_normal_and_held_display_are_not_compared_as_progress)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 625, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tmpy119xbtq\\memory.sqlite'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_map_display.py", line 42, in test_normal_and_held_display_are_not_compared_as_progress
+    with tempfile.TemporaryDirectory() as folder:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 952, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 956, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 936, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 790, in rmtree
+    return _rmtree_unsafe(path, onexc)
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\shutil.py", line 629, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\tempfile.py", line 911, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tmpy119xbtq\\memory.sqlite'
+
+======================================================================
+ERROR: test_confirmed_sequence_once_and_cancel_only_when_menu_remains (test_map_setting.MapSettingTests.test_confirmed_sequence_once_and_cancel_only_when_menu_remains)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_map_setting.py", line 24, in test_confirmed_sequence_once_and_cancel_only_when_menu_remains
+    self.assertTrue(all(not json.loads(line)['learning'] for line in agent.journal.read_text().splitlines()))
+                                                                     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 268: character maps to <undefined>
+
+======================================================================
+ERROR: test_controller_replans_after_three_policy_steps_and_uses_fresh_state (test_performance.PerformanceTests.test_controller_replans_after_three_policy_steps_and_uses_fresh_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_performance.py", line 43, in test_controller_replans_after_three_policy_steps_and_uses_fresh_state
+    self.run_bounded_controller(False)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_performance.py", line 63, in run_bounded_controller
+    results=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
+                                    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report (test_performance.PerformanceTests.test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_performance.py", line 45, in test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report
+    self.run_bounded_controller(True)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_performance.py", line 63, in run_bounded_controller
+    results=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
+                                    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_controller_executes_the_ranked_action_and_logs_actual_learning (test_policy.PolicyTests.test_controller_executes_the_ranked_action_and_logs_actual_learning)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_policy.py", line 142, in test_controller_executes_the_ranked_action_and_logs_actual_learning
+    rows=[json.loads(line) for line in agent.journal.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_unavailable_observer_has_a_bounded_no_input_recovery (test_response_recovery.ResponseRecoveryTests.test_unavailable_observer_has_a_bounded_no_input_recovery)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_response_recovery.py", line 49, in test_unavailable_observer_has_a_bounded_no_input_recovery
+    rows=[json.loads(line) for line in controller.journal.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_held_action_has_bounded_cooldown_without_stopping (test_state_independence.NeutralObservationTests.test_held_action_has_bounded_cooldown_without_stopping)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 40, in test_held_action_has_bounded_cooldown_without_stopping
+    backend,script,rows,stats=self.run_steps([change() for _ in range(16)])
+                              ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 22, in run_steps
+    rows=[json.loads(line) for line in path.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_low_confidence_wait_is_neutral_not_stalled_or_failure (test_state_independence.NeutralObservationTests.test_low_confidence_wait_is_neutral_not_stalled_or_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 45, in test_low_confidence_wait_is_neutral_not_stalled_or_failure
+    backend,script,rows,stats=self.run_steps([value]*10)
+                              ~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 22, in run_steps
+    rows=[json.loads(line) for line in path.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_natural_observation_and_input_response_are_separate (test_state_independence.NeutralObservationTests.test_natural_observation_and_input_response_are_separate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 52, in test_natural_observation_and_input_response_are_separate
+    backend,script,rows,stats=self.run_steps([change()],backend)
+                              ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 22, in run_steps
+    rows=[json.loads(line) for line in path.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure (test_state_independence.NeutralObservationTests.test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 25, in test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure
+    backend,script,rows,stats=self.run_steps([change() for _ in range(12)])
+                              ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 22, in run_steps
+    rows=[json.loads(line) for line in path.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+======================================================================
+ERROR: test_tiny_animation_does_not_release_held_actions (test_state_independence.NeutralObservationTests.test_tiny_animation_does_not_release_held_actions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 35, in test_tiny_animation_does_not_release_held_actions
+    backend,script,rows,stats=self.run_steps([change() for _ in range(8)],backend)
+                              ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\a\torneko-remaster-AI\torneko-remaster-AI\tests\test_state_independence.py", line 22, in run_steps
+    rows=[json.loads(line) for line in path.read_text().splitlines()]
+                                       ~~~~~~~~~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_local.py", line 546, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\pathlib\_abc.py", line 633, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "C:\hostedtoolcache\windows\Python\3.13.16\x64\Lib\encodings\cp1252.py", line 23, in decode
+    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 105: character maps to <undefined>
+
+----------------------------------------------------------------------
+Ran 228 tests in 33.405s
+
+FAILED (errors=19)
