@@ -515,6 +515,28 @@ class Controller:
             self.policy=ExperiencePolicy(memory,cfg)
             from .improvement import ImprovementSupervisor
             self.improvement=ImprovementSupervisor(self.policy)
+    def map_sample(self,image,state,phase,baseline=False):
+        # Only supplement a currently observed dungeon map and floor. Never
+        # make Num7 response a startup/backend compatibility requirement.
+        if not (self.policy and 'num7' in self.cfg.allowed_keys and state['minimap'].get('status')=='observed'
+                and state['metrics'].get('floor') and not state.get('menu_evidence')
+                and hasattr(self.backend,'capture_map_display')):return None
+        self._write({'event':'map_observation_requested','phase':phase,'keys':['num7'],'learning':False})
+        sample=self.backend.capture_map_display(self.control or self.stop,baseline=baseline)
+        metadata={k:v for k,v in sample.items() if k not in ('image','baseline_image','restored_image')}
+        self._write({'event':'map_observation','phase':phase,**metadata,'learning':False})
+        if sample.get('status')!='captured':return None
+        if hasattr(self.backend,'record_frame'):self.backend.record_frame(sample['image'],phase)
+        def read(png,role):
+            native=self.llm.ocr.read(png) if hasattr(self.llm,'ocr') else None
+            result=self.policy.observe(png,native,map_display=True);result['observation_mode']='num7_held'
+            self._write({'event':'map_reading','phase':phase,'role':role,'frame_sha256':result.get('frame_sha256'),'ocr':native,'learning':False})
+            return result
+        current=read(sample['image'],'current')
+        first=read(sample['baseline_image'],'held_baseline') if baseline else None
+        if baseline and hasattr(self.backend,'record_frame'):self.backend.record_frame(sample['baseline_image'],'map_baseline')
+        return current,first,sample.get('restored_image')
+
     def run(self, dry_run=False):
         self.journal.parent.mkdir(parents=True,exist_ok=True)
         repeats=0; previous=None; uncertain=0; stale=0; errors=0; stagnant=0; verification_failures=0; unavailable_observations=0
@@ -547,6 +569,12 @@ class Controller:
                 if self.policy:
                     native=self.llm.ocr.read(image) if hasattr(self.llm,'ocr') else None
                     policy_state=self.policy.observe(image,native)
+                    map_sample=self.map_sample(image,policy_state,'map_observation',baseline=True) if not dry_run else None
+                    if map_sample:
+                        policy_state,state_before_neutral,restored=map_sample
+                        if restored is not None:
+                            image=restored
+                            if hasattr(self.backend,'record_frame'):self.backend.record_frame(image,'observation')
                     first=state_before_neutral['minimap'];last=policy_state['minimap']
                     policy_stable=bool(neutral is not None and first.get('status')=='observed' and last.get('status')=='observed' and first.get('player_cell')==last.get('player_cell') and first.get('shape')==last.get('shape'))
                 if self.improvement and not dry_run:
@@ -606,7 +634,7 @@ class Controller:
                     raise RuntimeError('LLMの画面観察応答を回復できないため停止しました。ゲーム入力Backendの故障判定ではありません。')
                 if self.improvement:row['self_improvement']=self.improvement.context()
                 if self.policy:
-                    row.update(policy_choice=policy_choice,llm_proposal=llm_proposal,policy_state=policy_state)
+                    row.update(policy_choice=policy_choice,llm_proposal=llm_proposal,policy_state=policy_state,policy_baseline_kind='held_map_display_not_keyless' if policy_state.get('observation_mode')=='num7_held' else 'neutral_observation')
                     if policy_choice.get('source')=='learned_policy':
                         row['model_report_learning']=not fast and row.get('learning') is not False
                         row['learning']=True # Adopted pixel/HUD policy outcome, not the rejected model report.
@@ -709,6 +737,8 @@ class Controller:
                     after_image=observation.image if hasattr(self.backend,'observe_turn') else after
                     after_native=self.llm.ocr.read(after_image) if hasattr(self.llm,'ocr') else None
                     after_state=self.policy.observe(after_image,after_native)
+                    map_after=self.map_sample(after_image,after_state,'map_result') if not dry_run else None
+                    if map_after:after_state=map_after[0]
                     row['policy_learning']=self.policy.learn(policy_state,after_state,row,state_before_neutral)
                     row['policy_after']=after_state
                     hp0=policy_state['metrics'].get('hp',{}).get('values');hp1=after_state['metrics'].get('hp',{}).get('values')

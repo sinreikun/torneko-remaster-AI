@@ -32,10 +32,10 @@ class ExperiencePolicy:
         CREATE INDEX IF NOT EXISTS policy_events_profile ON policy_events(profile,id);
         CREATE TABLE IF NOT EXISTS policy_visits(profile TEXT,location TEXT,count INTEGER NOT NULL,PRIMARY KEY(profile,location));
         ''')
-    def observe(self,png,native=None):
+    def observe(self,png,native=None,map_display=False):
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native=None
-        minimap=read_minimap(png);metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
+        minimap=read_minimap(png,isolated=map_display);metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
         text='\n'.join(line.get('text','') for line in (native or {}).get('lines',[]))
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
         menu=any(token in text for token in ('メニュー','持ち物','どうぐ','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
@@ -53,6 +53,7 @@ class ExperiencePolicy:
         if not eligible:objective='interface'
         payload={'floor':floor,'hp_band':int(4*hp[0]/hp[1]) if hp else None,'food_band':food[0]//20 if food else None,'map_shape':minimap.get('shape'),
             'player_cell':minimap.get('player_cell'),'neighbors':minimap.get('neighbors'),'enemies':minimap.get('enemies'),'menu_evidence':menu}
+        if map_display:payload['observation_mode']='num7_held'
         if not eligible:payload.update(visual=visual,text_key=text_key)
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
@@ -147,7 +148,10 @@ class ExperiencePolicy:
             return {'status':'not_trained','reason':'未送信・無入力・中断・診断・送信受付未確認は入力の成功経験にしません。'}
         keys=row.get('observed_keys',[])
         if len(keys)!=1 or keys[0] not in ACTIONS:return {'status':'not_trained','reason':'この方策は単独の確認済みキーを対象にします。'}
+        if keys==['num7']:return {'status':'not_trained','reason':'地図表示は補助観測であり、攻略の成功経験に加算しません。'}
         if not before.get('observable') or not after.get('observable'):return {'status':'censored','reason':'比較可能な画像とOCRを取得できません。成功にも失敗にも加算しません。'}
+        if before.get('observation_mode','normal')!=after.get('observation_mode','normal'):
+            return {'status':'censored','reason':'通常画面と専用地図表示の切替は入力成果として比較しません。'}
         action=keys[0];observed=self.signals(before,after)
         natural=self.signals(neutral_before,before) if neutral_before else {k:0. for k in observed}
         net={k:max(0.,v-natural[k]) for k,v in observed.items()}
@@ -168,7 +172,7 @@ class ExperiencePolicy:
         next_q=max(0.,max((v['q'] for k,v in self.values(after).items() if k in MOVES and k in self.settings.allowed_keys),default=0.))
         new_q=current+.25*(reward+.85*next_q-current)
         event={'status':'trained','state':before['id'],'next_state':after['id'],'objective':before['objective'],'keys':keys,
-            'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'net_signals':net,
+            'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'baseline_kind':row.get('policy_baseline_kind','neutral_observation'),'net_signals':net,
             'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}
         with self.db:

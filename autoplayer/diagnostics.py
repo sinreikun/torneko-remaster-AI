@@ -133,12 +133,17 @@ def export_diagnostics(data,destination,detailed=False):
                 if not detailed:
                     manifest=recordings[0]/'frames.jsonl'
                     if manifest.is_file():
-                        latest={};pending=None
+                        latest={};pending=None;map_images={};pending_map=None
                         with manifest.open(encoding='utf-8') as stream:
                             for line in stream:
                                 try:frame=json.loads(line)
                                 except ValueError:continue
                                 name=frame.get('file');phase=frame.get('phase')
+                                if phase in ('map_observation','map_result') and isinstance(name,str) and Path(name).name==name and name.endswith('.png'):
+                                    map_path=recordings[0]/name
+                                    if phase=='map_observation':pending_map=map_path if map_path.is_file() else None
+                                    elif map_path.is_file() and pending_map:
+                                        map_images={'map_observation':pending_map,'map_result':map_path};pending_map=None
                                 if phase in ('observation','result') and isinstance(name,str) and Path(name).name==name and name.endswith('.png'):
                                     path=recordings[0]/name
                                     if phase=='observation':pending=path if path.is_file() else None
@@ -149,8 +154,10 @@ def export_diagnostics(data,destination,detailed=False):
                         elif pending:
                             latest={'observation':pending};report['image_evidence']={'mode':'observation_only','observation':pending.relative_to(data).as_posix()}
                         selected=list(dict.fromkeys(latest[phase] for phase in ('observation','result') if phase in latest))
+                    if manifest.is_file() and map_images:
+                        selected+=list(map_images.values());report['map_image_evidence']={phase:path.relative_to(data).as_posix() for phase,path in map_images.items()}
                     selected+=(p for p in images if p not in selected)
-                candidates+=metadata+(images if detailed else selected[:2])
+                candidates+=metadata+(images if detailed else selected[:4] if report.get('map_image_evidence') else selected[:2])
             candidates+=sorted((data/'sessions').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:20]
             for path in candidates:
                 if not path.is_file(): continue

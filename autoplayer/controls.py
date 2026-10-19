@@ -14,3 +14,6 @@ REFERENCE={'revision':REVISION,'source':'ユーザーが提示した現在のキ
         'note':'青い表示全体はミニマップという表示であり、近づく対象物ではない。未知領域は壁か未探索か未確定。'}}
 
 def is_torneko(title):return any(word in title.casefold() for word in ('トルネコ','torneko'))
+
+# User-confirmed display modifier; not a turn/progress or compatibility test.
+REFERENCE["minimap"]["hold_num7"]="num7を押している間はミニマップとHUDのみ表示。専用観測後は必ず離して通常画面へ戻す。"

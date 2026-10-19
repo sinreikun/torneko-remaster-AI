@@ -178,6 +178,25 @@ class WindowsGame:
                 if stop.wait(min(.01,max(0,end-time.monotonic()))): break
         finally: receipts.extend(self.release_all())
         return {'os_submission':'accepted' if receipts else 'not_attempted','events':receipts,'game_processing':'unverified'}
+    def capture_map_display(self,stop,baseline=False):
+        """Capture while Num7 is held; release before OCR, planning or movement."""
+        from .controls import is_torneko
+        if not is_torneko(self.title):raise ValueError('地図表示観測は確認済みのトルネコ操作だけです。')
+        with self.capture_lock:
+            if stop.is_set():return {'status':'cancelled','learning':False}
+            self.ready();self.input_target=self._input_window();events=[];first=None;image=None
+            try:
+                vk=self._vk('num7');self.held.add(vk);events.append(self._send(vk))
+                if not stop.wait(.18):
+                    first=self.capture()
+                    if not baseline or not stop.wait(.12):image=self.capture() if baseline else first
+            finally:events.extend(self.release_all())
+            if image is None:return {'status':'cancelled','events':events,'learning':False}
+            stop.wait(.18)
+            restored=self.capture() if not stop.is_set() else None
+            return {'status':'captured','image':image,'baseline_image':first,'restored_image':restored,
+                'events':events,'learning':False,'kind':'held_map_display_not_keyless','game_processing':'unverified'}
+
     def release_all(self):
         errors=[];receipts=[]
         for v in list(self.held):

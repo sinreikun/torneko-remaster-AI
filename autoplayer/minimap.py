@@ -28,7 +28,7 @@ def quantized_shape(region,left,top,tile):
     return sorted(cell for cell,count in cells.items() if count>=minimum)
 
 @lru_cache(maxsize=6)
-def read_minimap(png):
+def read_minimap(png,isolated=False):
     if not png.startswith(b'\x89PNG\r\n\x1a\n'):return {'status':'unavailable','reason':'PNG画像を取得できていません。'}
     from PIL import Image
     try:
@@ -39,7 +39,7 @@ def read_minimap(png):
     for y in range(height):
         for x in range(width):
             r,g,b=image.getpixel((x,y))
-            if 60<=r<=205 and g>105 and g-r>=18 and b-g>=8:blue.add((x,y))
+            if (60<=r<=205 and g>105 and g-r>=18 and b-g>=8) or (isolated and b>70 and b>r*1.4 and b>g*1.08):blue.add((x,y))
             if r>90 and g>95 and b<min(r,g)*.55 and abs(r-g)<60:yellow.add((x,y))
             if r>145 and r>g*1.6 and r>b*1.5:red.add((x,y))
     candidates=[];yellow_parts=components(yellow)
