@@ -1,0 +1,13 @@
+﻿{
+    "checks":  [
+                   "HTTPS download and SHA-256",
+                   "Interrupted transfer resumes or safely restarts",
+                   "Verified cache works without network",
+                   "Wrong checksum rejected after bounded retries",
+                   "Cancellation stops transfer",
+                   "Plain HTTP rejected",
+                   "Insufficient disk space prevents file creation",
+                   "Unsigned or wrong-publisher installer rejected"
+               ],
+    "passed":  true
+}

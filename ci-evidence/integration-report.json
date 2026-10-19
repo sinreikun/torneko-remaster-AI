@@ -1,0 +1,138 @@
+{
+  "fixture": "synthetic visible Windows game",
+  "model": "qwen2.5vl:3b",
+  "scenarios": [],
+  "passed": false,
+  "error": "Traceback (most recent call last):\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-79B6A1EFAD86\\autoplayer\\selftest.py\", line 70, in work\n    if not agent.completed: raise AssertionError(f'Completion not verified from {SCENES[start][0]}')\n                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Completion not verified from TITLE\n",
+  "last_observations": [
+    {
+      "step": 8,
+      "scene": "Automated Game Fixture",
+      "observation": "VICTORY screen showing GOAL ACHIEVED.",
+      "subgoal": "Victory is the only goal.",
+      "reason": "Victory screen is displayed.",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "Previous screen",
+          "value": "Automated Game Fixture screen with SPACE prompt",
+          "confidence": 0.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "step": 9,
+      "scene": "Automated Game Fixture",
+      "observation": "VICTORY screen showing GOAL ACHIEVED.",
+      "subgoal": "Victory is the only goal.",
+      "reason": "Victory screen is displayed.",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "Victory achieved in an automated game fixture.",
+          "value": "Victory screen is displayed.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "step": 10,
+      "scene": "Automated Game Fixture",
+      "observation": "VICTORY screen showing GOAL ACHIEVED.",
+      "subgoal": "Victory is the only goal.",
+      "reason": "Victory screen confirms goal achievement.",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "Victory achieved in an automated game fixture.",
+          "value": "Victory screen confirms goal achievement.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "step": 11,
+      "scene": "Automated Game Fixture",
+      "observation": "VICTORY screen showing GOAL ACHIEVED.",
+      "subgoal": "Victory is the only goal.",
+      "reason": "Victory screen confirms goal achievement.",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "Victory achieved in an automated game fixture.",
+          "value": "Victory screen confirms goal achievement.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "step": 12,
+      "scene": "Automated Game Fixture",
+      "observation": "VICTORY screen showing GOAL ACHIEVED.",
+      "subgoal": "Victory is the only goal.",
+      "reason": "Victory screen confirms goal achievement.",
+      "confidence": 1.0,
+      "status": "complete",
+      "keys": [],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "Victory achieved in an automated game fixture.",
+          "value": "Victory screen confirms goal achievement.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "status": "limit",
+      "reason": "\u624b\u6570\u4e0a\u9650\u306b\u9054\u3057\u307e\u3057\u305f\u3002"
+    }
+  ]
+}
