@@ -40,6 +40,10 @@ class PerformanceTests(unittest.TestCase):
             else:values[0]['objective']='survive';values[4]='survive'
             self.assertFalse(fast_policy_ready(*values))
     def test_controller_replans_after_three_policy_steps_and_uses_fresh_state(self):
+        self.run_bounded_controller(False)
+    def test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report(self):
+        self.run_bounded_controller(True)
+    def run_bounded_controller(self,dedicated):
         class ReceiptBackend(Backend):
             def act(self,keys,ms,stop):
                 super().act(keys,ms,stop)
@@ -49,15 +53,16 @@ class PerformanceTests(unittest.TestCase):
         backend.observe_turn=Mock(side_effect=observation)
         script=Script([change(scene='gameplay',action={'keys':[],'hold_ms':1,'wait_ms':0})]*2)
         script.ocr=SimpleNamespace(read=Mock(return_value={'status':'ok','lines':[]}))
-        script.take_state=lambda:{'scene_observation':{'status':'model_observation_unverified'}}
+        script.take_state=lambda:{'scene_observation':{'status':'model_observation_unverified'},**({'learning':False} if dedicated else {})}
         with tempfile.TemporaryDirectory() as tmp:
             cfg=Settings(max_steps=5);store=MemoryStore(Path(tmp)/'memory.sqlite',cfg)
             try:
                 agent=Controller(cfg,backend,script,lambda r:None,Path(tmp)/'run.jsonl',memory=store)
-                agent.policy.observe=Mock(side_effect=lambda *args:state())
+                agent.policy.observe=Mock(side_effect=lambda *args:{**state(),**({'observation_mode':'num7_held'} if dedicated else {})})
                 agent.run()
                 results=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
             finally:store.close()
+        if dedicated:self.assertTrue(all(not r['model_report_learning'] for r in results))
         self.assertEqual(len(script.calls),2);self.assertEqual(len(backend.actions),5)
         self.assertEqual([r['performance']['llm_requested'] for r in results],[True,False,False,False,True])
         self.assertGreater(len({tuple(r['observed_keys']) for r in results[:4]}),1)

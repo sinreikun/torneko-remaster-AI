@@ -47,7 +47,7 @@ class MapDisplayPolicyTests(unittest.TestCase):
             before['observation_mode']='num7_held'
             result=policy.learn(before,after,receipt_row(policy_baseline_kind='held_map_display_not_keyless'),before)
             self.assertEqual(result['status'],'trained');self.assertEqual(result['baseline_kind'],'held_map_display_not_keyless')
-    def test_missing_map_does_not_trigger_a_display_input(self):
+    def test_missing_floor_and_menu_do_not_trigger_a_display_input(self):
         import tempfile
         from pathlib import Path
         from autoplayer.core import Controller,Settings
@@ -58,7 +58,7 @@ class MapDisplayPolicyTests(unittest.TestCase):
             store=MemoryStore(Path(folder)/'memory.sqlite',Settings());self.addCleanup(store.close)
             backend=Backend();backend.capture_map_display=Mock()
             agent=Controller(Settings(),backend,Script([]),lambda row:None,Path(folder)/'run',memory=store)
-            unknown=state();unknown['minimap']={'status':'unavailable'}
+            unknown=state();unknown['minimap']={'status':'unavailable'};unknown['metrics']={}
             self.assertIsNone(agent.map_sample(b'frame',unknown,'map_observation'))
             menu=state();menu['menu_evidence']=True
             self.assertIsNone(agent.map_sample(b'frame',menu,'map_observation'))
@@ -80,7 +80,8 @@ class MapDisplayPolicyTests(unittest.TestCase):
             llm=Script([]);llm.ocr=SimpleNamespace(read=Mock(return_value={'status':'ok','lines':[]}))
             agent=Controller(Settings(),backend,llm,lambda row:None,Path(folder)/'run',memory=store)
             agent.policy.observe=Mock(side_effect=[state(),state()])
-            current,baseline,restored=agent.map_sample(b'normal',state(),'map_observation',baseline=True)
+            normal=state();normal['minimap']={'status':'unavailable'}
+            current,baseline,restored=agent.map_sample(b'normal',normal,'map_observation',baseline=True)
             self.assertEqual(current['observation_mode'],'num7_held');self.assertEqual(baseline['observation_mode'],'num7_held')
             self.assertEqual(restored,b'restored')
             self.assertTrue(all(call.kwargs['map_display'] for call in agent.policy.observe.call_args_list))
@@ -89,3 +90,24 @@ class MapDisplayPolicyTests(unittest.TestCase):
             self.assertEqual(rows[0]['event'],'map_observation_requested')
             self.assertEqual(len([r for r in rows if r['event']=='map_reading']),2)
             self.assertNotIn('image',row);self.assertEqual(backend.actions,[])
+
+class MapArchiveTests(unittest.TestCase):
+    def test_unpaired_display_images_are_exported_and_marked_unpaired(self):
+        import tempfile,json,zipfile
+        from pathlib import Path
+        from autoplayer.diagnostics import export_diagnostics
+        with tempfile.TemporaryDirectory() as folder:
+            data=Path(folder);frames=data/'recordings'/'session';frames.mkdir(parents=True)
+            phases=['observation','result','map_result','map_observation']
+            records=[]
+            for i,phase in enumerate(phases):
+                name=str(i)+'.png';(frames/name).write_bytes(b'archive-file-contract')
+                records.append({'file':name,'phase':phase})
+            (frames/'frames.jsonl').write_text('\n'.join(json.dumps(r) for r in records))
+            target=data/'out.zip';export_diagnostics(data,target)
+            with zipfile.ZipFile(target) as z:
+                manifest=json.loads(z.read('manifest.json'))
+                self.assertEqual(manifest['map_image_pair_status'],'unpaired')
+                self.assertEqual(len([n for n in z.namelist() if n.endswith('.png')]),4)
+                self.assertIn('map_observation',manifest['map_image_evidence'])
+                self.assertIn('map_result',manifest['map_image_evidence'])

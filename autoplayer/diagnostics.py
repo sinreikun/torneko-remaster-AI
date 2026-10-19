@@ -133,7 +133,7 @@ def export_diagnostics(data,destination,detailed=False):
                 if not detailed:
                     manifest=recordings[0]/'frames.jsonl'
                     if manifest.is_file():
-                        latest={};pending=None;map_images={};pending_map=None
+                        latest={};pending=None;map_images={};pending_map=None;unpaired_map={}
                         with manifest.open(encoding='utf-8') as stream:
                             for line in stream:
                                 try:frame=json.loads(line)
@@ -141,6 +141,7 @@ def export_diagnostics(data,destination,detailed=False):
                                 name=frame.get('file');phase=frame.get('phase')
                                 if phase in ('map_observation','map_result') and isinstance(name,str) and Path(name).name==name and name.endswith('.png'):
                                     map_path=recordings[0]/name
+                                    if map_path.is_file():unpaired_map[phase]=map_path
                                     if phase=='map_observation':pending_map=map_path if map_path.is_file() else None
                                     elif map_path.is_file() and pending_map:
                                         map_images={'map_observation':pending_map,'map_result':map_path};pending_map=None
@@ -154,6 +155,9 @@ def export_diagnostics(data,destination,detailed=False):
                         elif pending:
                             latest={'observation':pending};report['image_evidence']={'mode':'observation_only','observation':pending.relative_to(data).as_posix()}
                         selected=list(dict.fromkeys(latest[phase] for phase in ('observation','result') if phase in latest))
+                    if manifest.is_file() and not map_images and unpaired_map:
+                        map_images=unpaired_map;report['map_image_pair_status']='unpaired'
+                    elif manifest.is_file() and map_images:report['map_image_pair_status']='complete'
                     if manifest.is_file() and map_images:
                         selected+=list(map_images.values());report['map_image_evidence']={phase:path.relative_to(data).as_posix() for phase,path in map_images.items()}
                     selected+=(p for p in images if p not in selected)

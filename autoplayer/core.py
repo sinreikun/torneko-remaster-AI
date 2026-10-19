@@ -516,9 +516,9 @@ class Controller:
             from .improvement import ImprovementSupervisor
             self.improvement=ImprovementSupervisor(self.policy)
     def map_sample(self,image,state,phase,baseline=False):
-        # Only supplement a currently observed dungeon map and floor. Never
+        # A currently read floor permits the user-confirmed display request. Never
         # make Num7 response a startup/backend compatibility requirement.
-        if not (self.policy and 'num7' in self.cfg.allowed_keys and state['minimap'].get('status')=='observed'
+        if not (self.policy and 'num7' in self.cfg.allowed_keys
                 and state['metrics'].get('floor') and not state.get('menu_evidence')
                 and hasattr(self.backend,'capture_map_display')):return None
         self._write({'event':'map_observation_requested','phase':phase,'keys':['num7'],'learning':False})
@@ -752,7 +752,7 @@ class Controller:
                 self.emit({'event':'result',**row})
                 if fast and ((row.get('policy_learning') or {}).get('status')!='trained' or policy_damage):
                     fast_anchor=None
-                if not fast and row.get('executed') and (row.get('policy_choice') or {}).get('source')=='learned_policy' and row.get('model_report_learning') is not False and row.get('turn_kind')!='aborted' and (row.get('policy_learning') or {}).get('status')=='trained' and not policy_damage and after_state['eligible']:
+                if not fast and row.get('executed') and (row.get('policy_choice') or {}).get('source')=='learned_policy' and (row.get('model_report_learning') is not False or policy_state.get('observation_mode')=='num7_held') and row.get('turn_kind')!='aborted' and (row.get('policy_learning') or {}).get('status')=='trained' and not policy_damage and after_state['eligible']:
                     fast_anchor=decision;fast_floor=policy_state['metrics'].get('floor',{}).get('values');fast_objective=policy_state['objective']
                 if self.memory and row.get('learning') is not False: self.memory.remember(row,decision)
                 self.history.append(row); self.history=self.history[-12:]
