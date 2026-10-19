@@ -197,7 +197,8 @@ class SceneObservationSeparationTests(unittest.TestCase):
         self.assertEqual(planner_prompt['scene_observation']['open_routes'],['右側に通路が見える'])
         self.assertNotIn('status',planner_prompt['scene_observation'])
         self.assertEqual(llm.take_state()['scene_observation']['status'],'model_observation_unverified')
-        self.assertEqual(first.args[0],second.args[0])
+        self.assertEqual(first.args[0],b'captured-image')
+        self.assertIsNone(second.args[0])
     def test_failed_observation_does_not_fall_back_to_old_plan(self):
         from autoplayer.core import LocalLLM
         llm=LocalLLM(Settings(window_title='Other game'))

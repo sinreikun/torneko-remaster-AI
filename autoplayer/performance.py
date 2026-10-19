@@ -1,0 +1,36 @@
+"""Bound inference payloads; retain full images/OCR in local evidence."""
+import io
+
+
+def vision_image(png):
+    if png is None or not png.startswith(b'\x89PNG\r\n\x1a\n'):return png
+    from PIL import Image
+    try:
+        with Image.open(io.BytesIO(png)) as source:
+            if max(source.size)<=768:return png
+            image=source.convert('RGB');image.thumbnail((768,768),Image.Resampling.LANCZOS)
+            out=io.BytesIO();image.save(out,format='PNG');return out.getvalue()
+    except (OSError,ValueError):return png
+
+
+def ocr_context(native):
+    return {**{k:native[k] for k in ('status','engine','frame_sha256','language') if k in native},
+        'lines':[{'text':line.get('text','')[:120]} for line in native.get('lines',[])[:20]],
+        'note':'OCR原文の抜粋。座標と全画面/上部の重複読取はローカル記録に保持。'}
+
+
+def knowledge_context(value):
+    if not value:return None
+    selected=value['facts'][:6];ids={s for f in selected for s in f.get('sources',[])}
+    return {k:value[k] for k in ('catalog_sha256','edition','metrics','goal_review','active_goal') if k in value}|{
+        'ocr':ocr_context(value.get('ocr',{})),
+        'facts':[{k:f[k] for k in ('id','summary','editions','sources','applicability','verification') if k in f} for f in selected],
+        'sources':[{k:s[k] for k in ('id','url') if k in s} for s in value['sources'] if s['id'] in ids],
+        'rules':'出典とOCRは未検証の参考。版違いは仮説。用語の一致で効果や達成を確定しない。全体目標を変更しない。'}
+
+
+def fast_policy_ready(state,stable,anchor,floor,objective,count,blocked,stagnant,reassess):
+    return bool(anchor and count<3 and stable and state and state['eligible']
+        and state['metrics'].get('floor',{}).get('values')==floor and state['objective']==objective
+        and state['objective']!='survive' and not state['minimap'].get('enemies')
+        and not blocked and stagnant<2 and not reassess)

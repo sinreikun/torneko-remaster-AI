@@ -435,7 +435,7 @@ class Application:
                 self.set_panel('行動学習',{'selection':value.get('policy_choice'),'update':value.get('policy_learning')})
                 self.set_panel('候補と評価',value['policy_choice'].get('context',{}))
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
-            self.set_panel('結果',{key:value.get(key) for key in ('step','action_kind','observed_keys','input_receipt','neutral_before','executed','changed','transition_attribution','turn_kind','duration_ms','raw_change','masked_activity')})
+            self.set_panel('結果',{key:value.get(key) for key in ('step','action_kind','observed_keys','input_receipt','neutral_before','executed','changed','transition_attribution','turn_kind','duration_ms','raw_change','masked_activity','performance')})
             return
         if value.get('status')=='retry':self.run_counts['retries']+=1
         if 'scene' not in value:

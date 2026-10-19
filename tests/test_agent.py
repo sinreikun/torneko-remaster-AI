@@ -129,7 +129,9 @@ class APITests(unittest.TestCase):
         cfg=Settings(endpoint=self.url,goal='勝利する',knowledge='W moves up')
         d=LocalLLM(cfg).decide(b'png',[],False)
         path,body=self.requests[-1];self.assertEqual(path,'/api/chat');self.assertEqual(d.scene,'title')
-        self.assertEqual(body['messages'][1]['images'],['cG5n'])
+        self.assertNotIn('images',body['messages'][1])
+        observer_body=self.requests[-2][1]
+        self.assertEqual(observer_body['messages'][1]['images'],['cG5n'])
         branches=body['format']['oneOf']
         for branch in branches:
             self.assertEqual(branch['properties']['action']['properties']['keys']['items']['enum'],cfg.allowed_keys)
@@ -140,7 +142,8 @@ class APITests(unittest.TestCase):
         for url in (self.url,self.url+'/v1'):
             LocalLLM(Settings(endpoint=url,provider='openai')).decide(b'png',[],True)
             path,body=self.requests[-1];self.assertEqual(path,'/v1/chat/completions')
-            self.assertTrue(body['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/png;base64,'))
+            self.assertEqual(len(body['messages'][1]['content']),1)
+            self.assertTrue(self.requests[-2][1]['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/png;base64,'))
     def test_context_size_is_stable_and_actual_inference_metadata_is_recorded(self):
         import hashlib
         llm=LocalLLM(Settings(endpoint=self.url))
