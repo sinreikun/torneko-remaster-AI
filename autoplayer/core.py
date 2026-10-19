@@ -163,7 +163,16 @@ RESPONSE_LABELS=frozenset(('現在の画面で確認できる事実','次に達�
 def response_placeholder(value):
     return isinstance(value,str) and (not value.strip() or value.strip().rstrip('。.') in RESPONSE_LABELS or value.strip() in RESPONSE_LABELS)
 
-def response_quality_issue(decision):
+def response_quality_issue(decision,instruction_texts=()):
+    if decision.scene in ('model_observation_unverified','model_proposed','unavailable','completed'):
+        return '検証・記録の状態ラベルをゲーム場面として返しています。'
+    import re,unicodedata
+    def compact(text):return re.sub(r'\s+','',unicodedata.normalize('NFKC',text)).strip(' 。.！!')
+    instructions=[compact(text) for text in instruction_texts if isinstance(text,str)]
+    for key in ('observation','subgoal','reason','goal_success'):
+        text=compact(getattr(decision,key))
+        if len(text)>=12 and any(text in instruction for instruction in instructions):
+            return '判断内容の代わりに指示文をコピーした応答を検出しました。'
     if any(response_placeholder(getattr(decision,key)) for key in ('observation','subgoal','reason')):
         return '内容のない説明欄・例文のコピーを検出しました。'
     if decision.goal_success and response_placeholder(decision.goal_success):
@@ -176,6 +185,7 @@ def _decision_object_schema(cfg):
         'required':['scene','observation','subgoal','reason','confidence','status','action'],
         'properties':{
             **{key:text for key in ('scene','observation','subgoal','reason','state_key','goal_success')},
+            'scene':{'type':'string','enum':['title','loading','menu','dialog','gameplay','defeat','victory','unknown']},
             'goal_evidence':{'type':'array','items':text,'maxItems':8},
             'knowledge_assessments':{'type':'array','maxItems':4,'items':{'type':'object','additionalProperties':False,'required':['fact_id','verdict','quote','reason'],'properties':{'fact_id':text,'quote':text,'reason':text,'verdict':{'type':'string','enum':['supported','contradicted','uncertain']}}}},
             'confidence':{'type':'number','minimum':0,'maximum':1},
@@ -232,7 +242,7 @@ def ocr_heading_scene(lines):
 
 class LocalLLM:
     def __init__(self, cfg: Settings):
-        self.cfg=cfg.validate();self.context={};self.ocr=ScreenOCR(cfg.ocr_engine);self.knowledge_engine=KnowledgeEngine();self.observation_state={}
+        self.cfg=cfg.validate();self.context={};self.ocr=ScreenOCR(cfg.ocr_engine);self.knowledge_engine=KnowledgeEngine();self.observation_state={};self.request_metrics=[]
     def take_state(self): return self.observation_state
     def set_context(self,context): self.context=context
     def _request(self,png,system,prompt,schema=None):
@@ -241,7 +251,7 @@ class LocalLLM:
             path='/api/chat'
             body={'model':cfg.model,'stream':False,'format':schema or 'json','keep_alive':'10m','messages':[
                 {'role':'system','content':system},{'role':'user','content':json.dumps(prompt,ensure_ascii=False),**({'images':[encoded]} if encoded else {})}],
-                'options':{'temperature':0,'num_predict':1600,'num_ctx':16384 if len(json.dumps(prompt,ensure_ascii=False).encode())>10000 else 8192}}
+                'options':{'temperature':0,'num_predict':1600,'num_ctx':16384}}
         else:
             path='/chat/completions' if cfg.endpoint.rstrip('/').endswith('/v1') else '/v1/chat/completions'
             body={'model':cfg.model,'temperature':0,'max_tokens':1600,'messages':[
@@ -250,11 +260,20 @@ class LocalLLM:
                     *([{'type':'image_url','image_url':{'url':'data:image/png;base64,'+encoded}}] if encoded else [])]}]}
         request=urllib.request.Request(cfg.endpoint.rstrip('/')+path,json.dumps(body).encode(),{'Content-Type':'application/json'})
         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        started=time.monotonic()
         with opener.open(request,timeout=cfg.timeout) as response:
             data=response.read(2_000_001)
             if len(data)>2_000_000: raise ValueError('LLM response too large')
             result=json.loads(data)
         if result.get('error'): raise RuntimeError(str(result['error']))
+        # Keep actual server timing, not an estimate derived from screen changes.
+        import hashlib
+        metrics={'task':prompt.get('task','decision' if 'goal' in prompt else 'text_or_verification'),
+            'elapsed_ms':round((time.monotonic()-started)*1000),
+            'image_sha256':hashlib.sha256(png).hexdigest() if png is not None else None,
+            'num_ctx':16384 if cfg.provider=='ollama' else None,
+            **{key:result[key] for key in ('model','load_duration','prompt_eval_count','prompt_eval_duration','eval_count','eval_duration','total_duration','done_reason') if key in result}}
+        self.request_metrics=(getattr(self,'request_metrics',[])+[metrics])[-8:]
         raw=result['message']['content'] if cfg.provider=='ollama' else result['choices'][0]['message']['content']
         # A complete code fence is presentation only; do not extract executable snippets from arbitrary prose.
         raw=raw.strip()
@@ -273,6 +292,7 @@ class LocalLLM:
         return {**value,'status':'model_observation_unverified'}
 
     def decide(self,png,history,stalled):
+        self.request_metrics=[]
         cfg=self.cfg
         # Keep inference bounded on small local models. Store full records on disk.
         compact=[]
@@ -296,7 +316,7 @@ class LocalLLM:
         try:scene_observation=self.observe_scene(png,native)
         except (ValueError,KeyError,urllib.error.URLError,TimeoutError,socket.timeout) as error:
             self.needs_regrounding=True
-            self.observation_state={'model_response_issue':'独立した画面観察を取得できませんでした。','scene_observation':{'status':'unavailable','reason':str(error)},'ocr':native,'learning':False}
+            self.observation_state={'model_response_issue':'独立した画面観察を取得できませんでした。','scene_observation':{'status':'unavailable','reason':str(error)},'ocr':native,'learning':False,'inference_metrics':list(self.request_metrics)}
             return Decision('unknown','画面観察の応答を確認できませんでした。','画面を再観測する','過去の場面説明を代用せず、この手ではキーを送信しません。',0.0,'continue',[],1,800,goal_success='現在の画面の具体的な観察を取得する。')
         # This catalog is game-specific: do not inject it into other game profiles or CI fixtures.
         applicable=any(x in (cfg.window_title+' '+cfg.knowledge).casefold() for x in ('トルネコ','torneko'))
@@ -305,7 +325,7 @@ class LocalLLM:
             if context.get('knowledge_catalog_sha256')==self.knowledge_engine.digest:
                 self.knowledge_engine.revisions.update(context.get('knowledge_revisions',{}))
             knowledge_context=self.knowledge_engine.reconcile(native,context.get('autonomous_goal'))
-        prompt={'scene_observation':scene_observation,'source_knowledge':knowledge_context,'goal':cfg.goal,'knowledge':select_knowledge(cfg.knowledge,cfg.goal+' '+str(compact[-1:])),'allowed_keys':cfg.allowed_keys,
+        prompt={'scene_observation':{k:v for k,v in scene_observation.items() if k!='status'},'source_knowledge':knowledge_context,'goal':cfg.goal,'knowledge':select_knowledge(cfg.knowledge,cfg.goal+' '+str(compact[-1:])),'allowed_keys':cfg.allowed_keys,
             'limits':{'hold_ms':[1,cfg.max_hold_ms],'wait_ms':[0,cfg.max_wait_ms]},
             'recent_history':compact,'memory':context,'stalled':stalled,
             'instruction':'今の画像とOCRを新しく読み直し、履歴の説明をそのまま繰り返さないでください。行き詰まったら別の安全な仮説・操作か無入力観測へ切り替えてください。無反応だけではBackend異常と判断できません。説明は必ず日本語。',
@@ -329,17 +349,18 @@ class LocalLLM:
         decision=parse_decision(self._request(png,SYSTEM,prompt,schema),cfg)
         self.language_fallback=False
         decision=self.localize_decision(decision)
-        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision)
+        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')))
         self.needs_regrounding=bool(issue)
         if issue:
             self.observation_state={'model_response_issue':issue,'learning':False,
-                'ocr':native,'scene_observation':scene_observation}
+                'ocr':native,'scene_observation':scene_observation,'inference_metrics':list(self.request_metrics)}
             return Decision('unknown','説明の具体性を確認できませんでした。','現在の画面を読み直す',issue+' この手ではキーを送信しません。',0.0,'continue',[],1,800,
                 goal_success='現在の画像に基づく具体的な観察と行動候補を取得する。')
         if applicable and not decision.goal_success.strip(): raise ValueError('Set a specific visible success condition for your autonomous subgoal.')
         self.observation_state=self.knowledge_engine.accept(decision,knowledge_context) if knowledge_context else {}
+        self.observation_state['inference_metrics']=list(self.request_metrics)
         self.observation_state['scene_observation']=scene_observation
-        self.observation_state['decision_policy']={'fresh_assessment':reground,'recovery_action_choices':prompt.get('recovery_action_choices')}
+        self.observation_state['decision_policy']={'fresh_assessment':reground,'recovery_action_choices':prompt.get('recovery_action_choices'),'observer_confidence':scene_observation.get('confidence'),'planner_confidence':decision.confidence,'goal_review':(knowledge_context or {}).get('goal_review')}
         return decision
     def localize_decision(self,decision):
         """Translate prose only; the translation response cannot change an action."""

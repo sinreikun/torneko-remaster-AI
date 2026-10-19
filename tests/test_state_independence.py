@@ -90,6 +90,21 @@ class CompactReportTests(unittest.TestCase):
             with zipfile.ZipFile(path) as z:self.assertEqual(len([n for n in z.namelist() if n.endswith('.png')]),2)
             self.assertEqual(report['bundle_mode'],'compact')
 
+class RuntimeReportTailTests(unittest.TestCase):
+    def test_large_ollama_error_log_keeps_latest_lines_and_records_truncation(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);data=root/'data';data.mkdir()
+            log=root/'ollama.stderr.log';log.write_bytes(b'old line\n'*300000+b'recent runtime warning\n')
+            with patch.dict('os.environ',{'GAMEPILOT_DATA_DIR':str(data)}):
+                report=export_diagnostics(data,root/'report.zip')
+            with zipfile.ZipFile(root/'report.zip') as archive:
+                tail=archive.read('runtime/ollama.stderr.log')
+                self.assertTrue(tail.endswith(b'recent runtime warning\n'))
+                self.assertLessEqual(len(tail),2*1024*1024)
+            self.assertEqual(log.stat().st_size,2700023)
+            self.assertTrue(any(item['file']=='runtime/ollama.stderr.log' for item in report['truncated']))
+
 class JapaneseResponseTests(unittest.TestCase):
     def test_translation_cannot_change_keys_or_evidence(self):
         from autoplayer.core import LocalLLM,parse_decision
@@ -180,6 +195,7 @@ class SceneObservationSeparationTests(unittest.TestCase):
         self.assertNotIn('過去のロビー説明',json.dumps(observer_prompt,ensure_ascii=False))
         self.assertNotIn('goal',observer_prompt);self.assertNotIn('source_knowledge',observer_prompt)
         self.assertEqual(planner_prompt['scene_observation']['open_routes'],['右側に通路が見える'])
+        self.assertNotIn('status',planner_prompt['scene_observation'])
         self.assertEqual(llm.take_state()['scene_observation']['status'],'model_observation_unverified')
         self.assertEqual(first.args[0],second.args[0])
     def test_failed_observation_does_not_fall_back_to_old_plan(self):
@@ -192,3 +208,20 @@ class SceneObservationSeparationTests(unittest.TestCase):
         self.assertEqual(llm._request.call_count,1)
         self.assertFalse(llm.take_state()['learning'])
         self.assertEqual(llm.take_state()['scene_observation']['status'],'unavailable')
+
+class Diagnostic7577RegressionTests(unittest.TestCase):
+    def test_instruction_copy_is_not_a_gameplay_goal(self):
+        from autoplayer.core import parse_decision,response_quality_issue
+        instruction='次の具体的な到達点と可視の達成条件を設定してください。'
+        decision=parse_decision(json.dumps(change(subgoal=instruction)),Settings())
+        self.assertIn('コピー',response_quality_issue(decision,('全体目標へつながる'+instruction,)))
+        good=parse_decision(json.dumps(change(subgoal='右側に見える通路の入口まで移動する')),Settings())
+        self.assertEqual(response_quality_issue(good,(instruction,)),'')
+    def test_observation_metadata_is_not_a_scene_choice(self):
+        from autoplayer.core import parse_decision,response_quality_issue,decision_schema
+        decision=parse_decision(json.dumps(change(scene='model_observation_unverified')),Settings())
+        self.assertIn('状態ラベル',response_quality_issue(decision))
+        for branch in decision_schema(Settings())['oneOf']:
+            choices=branch['properties']['scene']['enum']
+            self.assertNotIn('model_observation_unverified',choices)
+            self.assertIn('unknown',choices);self.assertIn('gameplay',choices)

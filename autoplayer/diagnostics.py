@@ -153,8 +153,17 @@ def export_diagnostics(data,destination,detailed=False):
             if os.environ.get('GAMEPILOT_DATA_DIR') and data.name=='data':
                 for name in ('bootstrap.json','setup-trace.log','install.stdout.log','install.stderr.log','ollama.stdout.log','ollama.stderr.log','setup-error.log'):
                     path=data.parent/name
-                    if path.is_file() and path.stat().st_size<=min(max(0,remaining),(10 if detailed else 2)*1024*1024):
-                        archive.write(path,'runtime/'+name);remaining-=path.stat().st_size;report['files'].append('runtime/'+name)
+                    if not path.is_file():continue
+                    relative='runtime/'+name;size=path.stat().st_size
+                    limit=min(max(0,remaining),(10 if detailed else 2)*1024*1024)
+                    if size<=limit:
+                        archive.write(path,relative);remaining-=size;report['files'].append(relative)
+                    elif path.suffix=='.log' and limit>=1024:
+                        with path.open('rb') as source:
+                            source.seek(-limit,2);source.readline();tail=source.read(limit)
+                        archive.writestr(relative,tail);remaining-=len(tail);report['files'].append(relative)
+                        report.setdefault('truncated',[]).append({'file':relative,'original_bytes':size,'included_tail_bytes':len(tail)})
+                    else:report['omitted'].append(relative)
             archive.writestr('health.txt','\n'.join(health))
             archive.writestr('manifest.json',json.dumps(report,ensure_ascii=False,indent=2))
         if not detailed and temporary.stat().st_size>28*1024*1024:raise RuntimeError('軽量診断ZIPの上限を超えました。元データは保持しています。')

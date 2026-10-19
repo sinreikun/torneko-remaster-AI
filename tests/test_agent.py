@@ -141,6 +141,17 @@ class APITests(unittest.TestCase):
             LocalLLM(Settings(endpoint=url,provider='openai')).decide(b'png',[],True)
             path,body=self.requests[-1];self.assertEqual(path,'/v1/chat/completions')
             self.assertTrue(body['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/png;base64,'))
+    def test_context_size_is_stable_and_actual_inference_metadata_is_recorded(self):
+        import hashlib
+        llm=LocalLLM(Settings(endpoint=self.url))
+        llm._request(b'png','日本語',{'task':'scene_observation'})
+        first=self.requests[-1][1]['options']['num_ctx']
+        llm._request(b'png','日本語',{'goal':'目標','context':'x'*15000})
+        self.assertEqual(first,self.requests[-1][1]['options']['num_ctx'])
+        self.assertEqual(len(llm.request_metrics),2)
+        self.assertEqual(llm.request_metrics[0]['image_sha256'],hashlib.sha256(b'png').hexdigest())
+        self.assertGreaterEqual(llm.request_metrics[0]['elapsed_ms'],0)
+        self.assertEqual(llm.request_metrics[0]['task'],'scene_observation')
     def test_text_only_verifier_does_not_send_a_fake_image(self):
         for provider in ('ollama','openai'):
             LocalLLM(Settings(endpoint=self.url,provider=provider))._request(None,'Verify facts',{'observations':['TITLE']})
