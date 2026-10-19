@@ -48,3 +48,28 @@ class TurnObserver:
             if len(learned)/len(initial)<=.12: self.masks[scene]=learned
         raw=self.bits(initial,current)
         return TurnObservation(image,kind,any(bit and i not in mask for i,bit in enumerate(raw)),sum(raw)/len(raw),sum(raw[i] for i in mask)/max(1,len(mask)),int((clock()-start)*1000))
+
+
+def image_color_facts(png):
+    """Small measured pixel facts, independent of model captions and goals."""
+    if not png.startswith(b'\x89PNG\r\n\x1a\n'): return None
+    from PIL import Image
+    import io,colorsys
+    with Image.open(io.BytesIO(png)) as original:
+        image=original.convert('RGB').resize((64,64)).quantize(colors=8)
+    count,index=max(image.getcolors(),key=lambda value:value[0])
+    rgb=image.getpalette()[index*3:index*3+3]
+    hue,saturation,value=colorsys.rgb_to_hsv(*(channel/255 for channel in rgb))
+    if value<.12: color='black'
+    elif saturation<.15: color='white' if value>.85 else 'gray'
+    elif hue<.06 or hue>=.94: color='red'
+    elif hue<.15: color='orange'
+    elif hue<.20: color='yellow'
+    elif hue<.46: color='green'
+    elif hue<.55: color='cyan'
+    elif hue<.75: color='blue'
+    elif hue<.90: color='purple'
+    else: color='pink'
+    return {'dominant_rgb':rgb,'dominant_color':color,'fraction':round(count/4096,3),
+        'description':f'Dominant pixel color: {color}; RGB {rgb}.',
+        'note':'A pixel measurement is not proof of scene type or goal completion.'}

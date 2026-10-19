@@ -38,6 +38,33 @@ class CompletionTests(unittest.TestCase):
         self.assertTrue(verifier.verify_completion(b'frame')['achieved'])
         self.assertEqual(verifier.calls[0][2]['independent_ocr']['lines'][0]['max_word_height'],60)
         self.assertNotIn('goal',verifier.calls[0][2])
+    def test_ocr_victory_heading_reconciles_a_wrong_gameplay_category(self):
+        facts={'scene_type':'gameplay','visible_text':['VICTORY','GOAL ACHIEVED'],'description':'Green victory screen.'}
+        answer={'achieved':True,'confidence':.99,'evidence':['VICTORY','GOAL ACHIEVED'],'reason':'Entire goal visibly done.','remaining_actions':[]}
+        verifier=FakeVerifier(facts,answer)
+        verifier.ocr.read=lambda image:{'status':'ok','language':'en-US','lines':[
+            {'text':'VICTORY','words':[{'box':[10,20,200,60]}]},
+            {'text':'GOAL ACHIEVED','words':[{'box':[10,100,200,38]}]}]}
+        value=verifier.verify_completion(b'frame')
+        self.assertTrue(value['achieved'])
+        self.assertEqual(value['visual_facts']['classification_conflict']['model_category'],'gameplay')
+    def test_ocr_title_heading_overrules_victory_footer_and_bad_category(self):
+        facts={'scene_type':'victory','visible_text':['TITLE','Victory is the only goal.'],'description':'A blue title screen.'}
+        verifier=FakeVerifier(facts)
+        verifier.ocr.read=lambda image:{'status':'ok','language':'en-US','lines':[
+            {'text':'TITLE','words':[{'box':[10,20,200,60]}]},
+            {'text':'Victory is the only goal.','words':[{'box':[10,100,200,24]}]}]}
+        self.assertFalse(verifier.verify_completion(b'frame')['achieved'])
+        self.assertEqual(len(verifier.calls),1)
+    def test_background_measurement_is_independent_of_model_or_goal(self):
+        from PIL import Image
+        from autoplayer.observation import image_color_facts
+        import io
+        for rgb,color in [((21,90,50),'green'),((23,32,51),'blue')]:
+            image=Image.new('RGB',(100,100),rgb);buffer=io.BytesIO();image.save(buffer,format='PNG')
+            value=image_color_facts(buffer.getvalue())
+            self.assertEqual(value['dominant_color'],color)
+            self.assertEqual(value['dominant_rgb'],list(rgb))
     def test_placeholder_evidence_cannot_finish(self):
         facts={'scene_type':'victory','visible_text':['VICTORY'],'description':'Green end screen.'}
         answer={'achieved':True,'confidence':1.,'evidence':['visible evidence'],'reason':'Some next step is correct.','remaining_actions':[]}

@@ -181,6 +181,21 @@ VISUAL_SCHEMA={'type':'object','additionalProperties':False,'required':['scene_t
     'properties':{'scene_type':{'type':'string','enum':['title','loading','menu','dialog','gameplay','defeat','victory','unknown']},
         'visible_text':{'type':'array','items':{'type':'string'},'maxItems':20},'description':{'type':'string'}}}
 
+def ocr_heading_scene(lines):
+    """A strong heading is additional evidence, never an entire-goal verdict."""
+    import re,unicodedata
+    largest=max((line.get('max_word_height',0) for line in lines),default=0)
+    if largest<=0: return None
+    labels={'victory':'victory','youwin':'victory','gameclear':'victory','ゲームクリア':'victory',
+        'title':'title','タイトル':'title','menu':'menu','メニュー':'menu','loading':'loading',
+        'gameover':'defeat','defeat':'defeat','敗北':'defeat'}
+    found=set()
+    for line in lines:
+        if line.get('max_word_height',0)<largest*.8: continue
+        text=re.sub(r'[\s!！.。:：_-]+','',unicodedata.normalize('NFKC',line['text']).casefold())
+        if text in labels: found.add(labels[text])
+    return next(iter(found)) if len(found)==1 else None
+
 class LocalLLM:
     def __init__(self, cfg: Settings):
         self.cfg=cfg.validate();self.context={};self.ocr=ScreenOCR();self.knowledge_engine=KnowledgeEngine();self.observation_state={}
@@ -251,7 +266,10 @@ class LocalLLM:
             for line in native.get('lines',[])[:40]:
                 heights=[word.get('box',[0,0,0,0])[3] for word in line.get('words',[]) if isinstance(word,dict) and isinstance(word.get('box'),list) and len(word['box'])==4]
                 native_lines.append({'text':line['text'][:800],'max_word_height':max(heights,default=0)})
+        from .observation import image_color_facts
+        measured=image_color_facts(png)
         observation_prompt={'task':'Report current visible facts only. Never infer that a key was pressed.'}
+        if measured: observation_prompt['image_measurements']=measured
         if native_lines:
             observation_prompt['independent_ocr']={'language':native.get('language'),'lines':native_lines,
                 'note':'OCR is fallible. Use it with the image. Large text may be the main heading; small footer instructions do not establish the scene. Report the CURRENT scene, including victory when a victory heading is visibly displayed.'}
@@ -261,10 +279,19 @@ class LocalLLM:
         if not isinstance(texts,list) or len(texts)>20 or any(not isinstance(s,str) or len(s)>1000 for s in texts): raise ValueError('invalid visible text')
         if not isinstance(facts.get('description'),str) or len(facts['description'])>4000: raise ValueError('invalid visual description')
         if native_lines: facts['independent_ocr']=observation_prompt['independent_ocr']
+        if measured: facts['image_measurements']=measured
         import re
         victory_goal=bool(re.search(r'\bvictory\b|\bwin the game\b|\bbeat the game\b|ゲーム.*クリア|全クリ',self.cfg.goal,re.I))
-        if facts['scene_type']=='unknown' or (victory_goal and facts['scene_type'] in {'title','loading','menu','gameplay','defeat'}):
-            return {'achieved':False,'confidence':0,'evidence':texts,'reason':'Observed scene does not demonstrate the requested completed game.','visual_facts':facts}
+        heading=ocr_heading_scene(native_lines)
+        negative={'title','loading','menu','defeat'}
+        category_rejects=facts['scene_type']=='unknown' or (victory_goal and facts['scene_type'] in negative|{'gameplay'})
+        if victory_goal and heading in negative:
+            return {'achieved':False,'confidence':0,'evidence':texts,'reason':'Independent OCR main heading shows an unfinished scene.','visual_facts':facts}
+        if category_rejects:
+            if heading!='victory':
+                return {'achieved':False,'confidence':0,'evidence':texts,'reason':'Observed scene does not demonstrate the requested completed game.','visual_facts':facts}
+            facts['classification_conflict']={'model_category':facts['scene_type'],'independent_ocr_heading':heading,
+                'instruction':'The category conflicts with the independently read main heading. Judge the entire goal from actual text and image description; a category alone is not proof either way.'}
         system='''Verify if the user can STOP NOW because the ENTIRE goal is ALREADY accomplished.
 Use only independent observations. Instructions to press a key are NOT evidence the key was pressed.
 Progress TOWARD a goal is NOT its achievement. Goal win a game + title saying Press Start => false.
@@ -276,7 +303,7 @@ not optional actions after success. If any required action remains, achieved MUS
         # Constrain quotes to actual independently reported text at generation time.
         import copy
         schema=copy.deepcopy(VERIFY_SCHEMA)
-        permitted=list(dict.fromkeys(x for x in texts+[facts['description']]+[line['text'] for line in native_lines] if x.strip()))
+        permitted=list(dict.fromkeys(x for x in texts+[facts['description']]+[line['text'] for line in native_lines]+([measured['description']] if measured else []) if x.strip()))
         if not permitted: return {'achieved':False,'confidence':0,'evidence':[],'reason':'No independent visible evidence.','visual_facts':facts}
         schema['properties']['evidence']['items']['enum']=permitted
         value=json.loads(self._request(None,system,{'goal':self.cfg.goal,'observations':facts},schema))
@@ -285,7 +312,7 @@ not optional actions after success. If any required action remains, achieved MUS
         if not isinstance(evidence,list) or len(evidence)>12 or any(not isinstance(x,str) or len(x)>1000 for x in evidence): raise ValueError('invalid completion evidence')
         if not isinstance(remaining,list) or len(remaining)>8 or any(not isinstance(x,str) or len(x)>600 for x in remaining): raise ValueError('invalid remaining actions')
         if not isinstance(value.get('reason'),str) or len(value['reason'])>4000: raise ValueError('invalid verification reason')
-        observed='\n'.join(texts+[facts['description']]+[line['text'] for line in native_lines]).casefold()
+        observed='\n'.join(texts+[facts['description']]+[line['text'] for line in native_lines]+([measured['description']] if measured else [])).casefold()
         literal=bool(evidence) and all(quote.strip() and quote.casefold() in observed for quote in evidence)
         value['achieved']=value['achieved'] and value['confidence']>=.8 and literal and not remaining
         value['visual_facts']=facts
