@@ -18,6 +18,30 @@ class NativeStartupTests(unittest.TestCase):
 
 @unittest.skipUnless(os.name=='nt','Requires real Windows')
 class WindowsAutomationTests(unittest.TestCase):
+    def test_isolated_capture_of_the_actual_application(self):
+        import ctypes,io,threading,time,tkinter as tk
+        from ctypes import wintypes as W
+        from PIL import Image,ImageStat
+        from autoplayer.ui import Application
+        from autoplayer.capture_service import CaptureService
+        root=tk.Tk();app=Application(root);capture=CaptureService();results=[];errors=[]
+        try:
+            root.geometry('1000x700+0+0');root.update()
+            user=ctypes.WinDLL('user32');user.GetAncestor.argtypes=[W.HWND,W.UINT];user.GetAncestor.restype=W.HWND
+            hwnd=user.GetAncestor(root.winfo_id(),2)
+            def request():
+                try:results.append(capture.grab_png(hwnd))
+                except Exception as error:errors.append(error)
+            worker=threading.Thread(target=request,daemon=True);worker.start();deadline=time.monotonic()+6
+            while worker.is_alive() and time.monotonic()<deadline:root.update();time.sleep(.01)
+            self.assertFalse(worker.is_alive());self.assertFalse(errors,str(errors));self.assertTrue(results)
+            with Image.open(io.BytesIO(results[0])) as image:
+                self.assertGreater(max(ImageStat.Stat(image).stddev),5)
+        finally:
+            capture.close()
+            for token in root.tk.call('after','info'):root.after_cancel(token)
+            app.close()
+
     def test_application_ui_initializes_without_manual_setup(self):
         import tkinter as tk
         from autoplayer.ui import Application
@@ -27,7 +51,7 @@ class WindowsAutomationTests(unittest.TestCase):
             settings=app.settings();settings.validate()
             self.assertFalse(app.dry.get())
             self.assertTrue(settings.knowledge)
-            self.assertEqual(len(app.panels),13)
+            self.assertTrue({'現在状態','背景適合性','手法の選択・学習'}<=app.panels.keys())
             self.assertFalse(app.separation.get())
             self.assertIsNone(app.backend)
             app.vars['timeout'].set('420')

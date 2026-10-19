@@ -13,8 +13,8 @@ class GUITHREADINFO(C.Structure):
 class WindowsGame:
     def __init__(self, title, hwnd=None):
         if sys.platform != 'win32': raise RuntimeError('ゲーム画面の取得・操作には Windows が必要です。')
-        from .window_capture import WindowCapture
-        self.window_capture=WindowCapture()
+        from .capture_service import CaptureService
+        self.window_capture=CaptureService()
         self.u=C.WinDLL('user32',use_last_error=True)
         self.u.GetForegroundWindow.restype=W.HWND
         self.u.PostMessageW.argtypes=[W.HWND,W.UINT,W.WPARAM,W.LPARAM]
@@ -103,10 +103,9 @@ class WindowsGame:
             return image
     def _capture(self):
         self.ready()
-        img=self.window_capture.grab(self.hwnd)
+        png=self.window_capture.grab_png(self.hwnd)
         self.ready()
-        img.thumbnail((1280,960))
-        out=io.BytesIO(); img.save(out,format='PNG'); return out.getvalue()
+        return png
     @staticmethod
     def difference(before_png,after_png):
         from PIL import Image, ImageChops, ImageStat

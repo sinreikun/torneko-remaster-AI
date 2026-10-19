@@ -294,10 +294,13 @@ class LocalLLM:
                         *([{'type':'image_url','image_url':{'url':'data:image/png;base64,'+encoded}}] if encoded else [])]}]}
             request=urllib.request.Request(cfg.endpoint.rstrip('/')+path,json.dumps(body).encode(),{'Content-Type':'application/json'})
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}));started=time.monotonic()
-            with opener.open(request,timeout=cfg.timeout) as response:
-                data=response.read(2_000_001)
-                if len(data)>2_000_000:raise ValueError('LLM response too large')
-                result=json.loads(data)
+            if getattr(self,'cancel',None) is not None:
+                from .cancellation import request_bytes
+                data=request_bytes(request,cfg.timeout,self.cancel)
+            else:
+                with opener.open(request,timeout=cfg.timeout) as response:data=response.read(2_000_001)
+            if len(data)>2_000_000:raise ValueError('LLM response too large')
+            result=json.loads(data)
             if result.get('error'):raise ValueError('LLM server error: '+str(result['error'])[:600])
             import hashlib
             metrics={'task':prompt.get('task','decision' if 'goal' in prompt else 'text_or_verification'),
@@ -576,6 +579,8 @@ class Controller:
         self.journal=journal; self.stop=stop if stop is not None else threading.Event()
         self.memory=memory
         self.control=control
+        llm.cancel=control or self.stop
+        if hasattr(llm,'ocr'):llm.ocr.cancel=control or self.stop
         self.diagnostic_sink=diagnostic_sink
         self.history=memory.history() if memory else []
         if memory and cfg.profile_id:

@@ -15,6 +15,8 @@ class WindowCapture:
     def __init__(self):
         if sys.platform!='win32':raise RuntimeError('Windows is required')
         self.u=C.WinDLL('user32',use_last_error=True);self.g=C.WinDLL('gdi32',use_last_error=True)
+        try:self.u.SetProcessDPIAware()
+        except AttributeError:pass
         self.u.GetClientRect.argtypes=[W.HWND,C.POINTER(W.RECT)];self.u.GetClientRect.restype=W.BOOL
         self.u.GetDC.argtypes=[W.HWND];self.u.GetDC.restype=W.HDC
         self.u.ReleaseDC.argtypes=[W.HWND,W.HDC]

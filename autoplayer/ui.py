@@ -18,7 +18,8 @@ DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.pa
 class Application:
     def __init__(self,root):
         self.root=root;self.configure_theme();root.title('ローカルLLM ゲーム攻略ツール — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
-        self.queue=queue.Queue();self.stop=threading.Event();self.worker=None
+        self.queue=queue.Queue();self.stop=threading.Event();self.worker=None;self.closing_at=None;self.watchdog_file=None;self.watchdog_at=0
+        root.report_callback_exception=self.callback_error
         self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
         self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
         self.run_started=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0};self.last_row={}
@@ -48,7 +49,7 @@ class Application:
         ttk.Button(toolbar,text='ゲームに接続',command=self.connect).pack(side='left')
         self.start_button=ttk.Button(toolbar,text='▶ 攻略開始',command=self.start);self.start_button.pack(side='left',padx=4)
         self.pause_button=ttk.Button(toolbar,text='⏸ 一時停止',command=self.pause);self.pause_button.pack(side='left')
-        ttk.Button(toolbar,text='■ 停止',command=self.stop.set).pack(side='left',padx=4)
+        ttk.Button(toolbar,text='■ 停止',command=self.request_stop).pack(side='left',padx=4)
         ttk.Button(toolbar,text='緊急停止 (F8 / Ctrl+Shift+F9)',command=self.emergency).pack(side='left')
         tools_bar=ttk.Frame(root,padding=(8,4));tools_bar.pack(fill='x')
         ttk.Button(tools_bar,text='OCRテスト',command=self.open_ocr).pack(side='left',padx=4)
@@ -177,7 +178,8 @@ class Application:
 
     def set_panel(self,title,value):
         body=self.panels[title];body.configure(state='normal');body.delete('1.0','end')
-        body.insert('1.0',value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,indent=2));body.configure(state='disabled')
+        from .presentation import display_json
+        body.insert('1.0',value[:10000] if isinstance(value,str) else display_json(value));body.configure(state='disabled')
 
     def save_ui(self):
         self.placement.track()
@@ -198,7 +200,9 @@ class Application:
             backend=self.backend
             if backend is None:continue
             try:self.frame_slot=(backend.capture(),time.time())
-            except Exception as error:self.frame_slot=(None,str(error))
+            except Exception as error:
+                from .cancellation import OperationCancelled
+                if not isinstance(error,OperationCancelled):self.frame_slot=(None,str(error))
 
     def draw_frame(self,force=False):
         frame=self.frame_slot
@@ -220,7 +224,7 @@ class Application:
         target=dict(self.selected_target) if self.selected_target else None
         def work():
             from .windows import WindowsGame
-            backend=self.open_target(title,target);backend.capture();self.queue.put(('connected',(backend,title)))
+            backend=self.open_target(title,target);backend.window_capture.cancel=self.stop;backend.capture();self.queue.put(('connected',(backend,title)))
         self.launch(work)
 
     @staticmethod
@@ -304,6 +308,9 @@ class Application:
         if self.control and self.busy():
             paused=self.control.toggle_pause();self.pause_button.configure(text='▶ 再開' if paused else '⏸ 一時停止')
             self.status.set('一時停止中（送信予定の推論は破棄し、再開時に再観測）' if paused else '再開しました')
+
+    def request_stop(self):
+        self.stop.set();self.status.set('停止要求を受け付けました。待機中の処理を中断しています。')
 
     def emergency(self):
         self.stop.set()
@@ -431,7 +438,10 @@ class Application:
         if self.busy(): messagebox.showinfo('処理中','現在の処理が終了するまでお待ちください。'); return
         self.stop.clear(); self.start_button.configure(state='disabled')
         def task():
+            from .cancellation import OperationCancelled
             try: fn()
+            except OperationCancelled:
+                self.queue.put(('status','処理を中断しました。'))
             except Exception as e:
                 self.queue.put(('error',str(e)))
                 try:
@@ -460,7 +470,7 @@ class Application:
         # State-independent diagnostics never steal focus or send gameplay keys.
         from .session import SessionControl
         self.stop.clear();self.control=SessionControl(self.stop,0 if separation else seconds)
-        control=self.control;self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
+        control=self.control;self.status.set('攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
         def work():
             from .windows import WindowsGame
             from .recording import FrameRecorder,RecordedBackend
@@ -471,6 +481,8 @@ class Application:
             try:
                 from .recovery import TargetRecovery,TargetUnavailable,ObservationRetry
                 from .background import BackgroundUnavailable
+                from .capture_service import CaptureTimeout
+                from .cancellation import OperationCancelled
                 from .windows import emergency_stop_requested
                 def monitor():
                     while not monitor_done.wait(.03):
@@ -486,6 +498,7 @@ class Application:
                     while control.checkpoint():
                         try:
                             value=self.open_target(cfg.window_title,target) if target else self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
+                            value.window_capture.cancel=control.stop
                             value.capture()
                             if recovery:recovery.target.update(pid=value.process_id.value,hwnd=int(value.hwnd))
                             return value
@@ -493,6 +506,10 @@ class Application:
                             if not recovery:raise
                             target=recovery.recover(control)
                             if not target:return None
+                        except CaptureTimeout as error:
+                            if not cfg.resilient:raise
+                            recovery_event({'event':'capture_timeout','reason':str(error),'learning':False,'status':'retrying'})
+                            control.wait(2)
                     return None
                 backend=reconnect(selected_target)
                 if backend is None:summary.update(status='stopped',reason='復旧待機を停止');return
@@ -559,6 +576,9 @@ class Application:
                         self.queue.put(('connected',(backend,cfg.window_title)))
                         summary['reconnections']=summary.get('reconnections',0)+1
                     except BackgroundUnavailable:raise
+                    except OperationCancelled:
+                        if not control.checkpoint():break
+                        continue
                     except Exception as error:
                         if self.stop.is_set():break
                         if not cfg.resilient or dry:raise
@@ -575,7 +595,9 @@ class Application:
                 self.queue.put(('cumulative',cumulative))
             except Exception as error:
                 from .background import BackgroundUnavailable
-                summary.update(status='unsupported_background' if isinstance(error,BackgroundUnavailable) else 'error',reason=str(error));self.queue.put(('error',str(error)))
+                from .cancellation import OperationCancelled
+                summary.update(status='stopped' if isinstance(error,OperationCancelled) else 'unsupported_background' if isinstance(error,BackgroundUnavailable) else 'error',reason=str(error))
+                if not isinstance(error,OperationCancelled):self.queue.put(('error',str(error)))
                 DATA.mkdir(parents=True,exist_ok=True)
                 with (DATA/'application.log').open('a',encoding='utf-8') as log:
                     import traceback
@@ -612,8 +634,9 @@ class Application:
             if ok: self.queue.put(('model',name))
         self.launch(work)
     def append_log(self,value):
-        self.log.configure(state='normal');self.log.insert('end',json.dumps(value,ensure_ascii=False)+'\n')
-        if int(self.log.index('end-1c').split('.')[0])>2500:self.log.delete('1.0','500.0')
+        from .presentation import display_json
+        self.log.configure(state='normal');self.log.insert('end',display_json(value,6000).replace('\n',' ')+'\n')
+        if int(self.log.index('end-1c').split('.')[0])>250:self.log.delete('1.0','50.0')
         self.log.see('end');self.log.configure(state='disabled')
 
     def update_decision(self,value):
@@ -644,20 +667,60 @@ class Application:
         self.set_panel('仮説',value.get('memory_updates',[]));self.set_panel('新発見',value.get('progress',[]))
         self.set_panel('修正履歴',value.get('knowledge_revisions',{}));self.set_panel('OCR・攻略知識の照合',{'ocr':value.get('ocr',{}),'knowledge_assessments':value.get('knowledge_assessments',[]),'note':'OCRと出典の照合は仮説。ゲーム内効果の実証とは区別します。'})
 
-    def poll(self):
+    def arm_watchdog(self):
+        now=time.monotonic()
+        if now-self.watchdog_at<5:return
         try:
-            for _ in range(100):
+            import faulthandler
+            if self.watchdog_file is None:
+                DATA.mkdir(parents=True,exist_ok=True)
+                self.watchdog_file=(DATA/'hang-traces.log').open('a',encoding='utf-8')
+            faulthandler.dump_traceback_later(20,file=self.watchdog_file)
+            self.watchdog_at=now
+        except (OSError,RuntimeError):pass
+
+    def callback_error(self,kind,error,traceback_object):
+        import traceback
+        detail=''.join(traceback.format_exception(kind,error,traceback_object))
+        self.stop.set()
+        try:
+            DATA.mkdir(parents=True,exist_ok=True)
+            with (DATA/'ui-errors.log').open('a',encoding='utf-8') as stream:
+                stream.write(time.strftime('%Y-%m-%d %H:%M:%S')+'\n'+detail+'\n')
+        except OSError:pass
+        try:self.status.set('表示処理のエラーを記録し攻略を停止しました。UIの更新は継続します。')
+        except Exception:pass
+
+    def poll(self):
+        try:self.poll_once()
+        except Exception:
+            import sys
+            self.callback_error(*sys.exc_info())
+        finally:
+            self.arm_watchdog()
+            try:self.root.after(100,self.poll)
+            except tk.TclError:pass
+
+    def poll_once(self):
+        try:
+            deadline=time.monotonic()+.03
+            for _ in range(20):
+                if time.monotonic()>deadline:break
                 kind,value=self.queue.get_nowait()
                 if kind=='error':self.status.set('エラーで停止: '+value);self.set_panel('現在状態',{'status':'error','reason':value});self.append_log({'event':'error','reason':value})
                 elif kind=='done':
                     self.control=None
+                    if self.backend is not None and self.closing_at is None:self.backend.window_capture.cancel=None
                     self.start_button.configure(state='normal');self.pause_button.configure(text='⏸ 一時停止')
                 elif kind=='status':self.status.set(value)
                 elif kind=='progress':self.progress.set(value)
                 elif kind=='model':self.vars['model'].set(value);self.vars['provider'].set('ollama');self.progress.set('モデルの取得が完了しました。')
                 elif kind=='decision':self.update_decision(value)
                 elif kind=='connected':
-                    self.backend,self.connection_title=value;self.badges.set('接続済み / 背面分離 / OCR: '+self.cfg.ocr_engine)
+                    previous=self.backend
+                    self.backend,self.connection_title=value
+                    if previous is not None and previous is not self.backend:self.close_capture(previous)
+                    self.badges.set('接続済み / 背面分離 / OCR: '+self.cfg.ocr_engine)
                     self.set_panel('バックエンド状態',{'window':self.connection_title,'capture':'PrintWindow','input':'WindowMessage / ウィンドウ宛て（ゲーム受理とは別）','model':self.cfg.model,'endpoint':self.cfg.endpoint,'ocr':self.cfg.ocr_engine,'data':str(DATA)})
                     self.status.set('ゲームに接続しました。ライブ画面を取得しています。')
                 elif kind=='close_probe':
@@ -672,19 +735,33 @@ class Application:
         try:self.draw_frame()
         except Exception as error:self.live_info.set('ライブ表示エラー: '+str(error))
         elapsed=int(time.time()-self.run_started) if self.run_started else 0
-        self.set_panel('今回統計',{**self.run_counts,'elapsed_seconds':elapsed,'paused':bool(self.control and self.control.paused.is_set())})
-        self.root.after(100,self.poll)
+        self.set_panel('今回統計',{**self.run_counts,'elapsed_seconds':elapsed,'worker_alive':self.busy(),'stop_requested':self.stop.is_set(),'paused':bool(self.control and self.control.paused.is_set())})
+
+    @staticmethod
+    def close_capture(backend):
+        capture=getattr(backend,'window_capture',None)
+        if capture and hasattr(capture,'close'):threading.Thread(target=capture.close,daemon=True).start()
 
     def close(self):
-        self.stop.set()
+        self.stop.set();self.preview_done.set()
+        if self.closing_at is None:self.closing_at=time.monotonic()
+        if self.busy() and time.monotonic()-self.closing_at<5:
+            self.status.set('停止中。記録を保存しています（終了待ちは最大5秒）。');self.root.after(200,self.close)
+            return
         if self.busy():
-            self.status.set('停止中。記録と診断ZIPを保存してから閉じます。');self.root.after(200,self.close)
-        else:
-            self.preview_done.set()
-            if self.control:self.control.close()
-            try:self.save_ui()
+            try:
+                DATA.mkdir(parents=True,exist_ok=True)
+                with (DATA/'ui-errors.log').open('a',encoding='utf-8') as stream:
+                    stream.write('終了待ち5秒超過。ゲームは終了せずUIを閉じます。診断ZIP未完の場合も元ログを保持。\n')
             except OSError:pass
-            self.root.destroy()
+        if self.control:self.control.close()
+        if self.watchdog_file:
+            import faulthandler
+            faulthandler.cancel_dump_traceback_later();self.watchdog_file.close();self.watchdog_file=None
+        if self.backend:self.close_capture(self.backend)
+        try:self.save_ui()
+        except (OSError,tk.TclError):pass
+        self.root.destroy()
 
 def main():
     if os.name=='nt':

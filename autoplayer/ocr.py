@@ -29,7 +29,8 @@ class WindowsOCR:
                         image.crop((0,0,image.width,max(1,round(image.height*.15)))).save(hud)
                     script=Path(__file__).with_name('ocr.ps1')
                     # Paths are arguments, never interpolated PowerShell code.
-                    result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(script),'-ImagePath',str(path),'-HudImagePath',str(hud)],capture_output=True,timeout=25,creationflags=subprocess.CREATE_NO_WINDOW)
+                    from .cancellation import run_process
+                    result=run_process(['powershell.exe','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(script),'-ImagePath',str(path),'-HudImagePath',str(hud)],timeout=25,cancel=getattr(self,'cancel',None),creationflags=subprocess.CREATE_NO_WINDOW)
                     if result.returncode: raise RuntimeError(result.stderr.decode('utf-8','replace')[:700])
                     value=json.loads(result.stdout.decode('utf-8-sig'))
                     lines=value.get('lines',[])
@@ -55,8 +56,12 @@ class ScreenOCR:
             else:
                 from .paddle_ocr import PaddleOCR
                 self.readers[engine]=PaddleOCR(engine)
+        self.readers[engine].cancel=getattr(self,'cancel',None)
         return self.readers[engine].read(png)
     def read(self,png):
+        from .cancellation import call_interruptible
+        return call_interruptible(lambda:self._read(png),getattr(self,'cancel',None))
+    def _read(self,png):
         digest=hashlib.sha256(png).hexdigest()
         if digest==self.last_hash: return dict(self.last)
         failures=[]
