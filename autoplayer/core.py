@@ -62,7 +62,7 @@ class Settings:
     max_wait_ms: int = 5000
     min_confidence: float = .55
     window_title: str = 'トルネコ'
-    timeout: float = 180
+    timeout: float = 600
     recovery_attempts: int = 3
 
     def validate(self):

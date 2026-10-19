@@ -27,6 +27,8 @@ class WindowsAutomationTests(unittest.TestCase):
             settings=app.settings();settings.validate()
             self.assertFalse(app.dry.get())
             self.assertTrue(settings.knowledge)
+            app.vars['timeout'].set('420')
+            self.assertEqual(app.settings().timeout,420)
         finally:
             for token in root.tk.call('after','info'): root.after_cancel(token)
             root.destroy()

@@ -81,6 +81,10 @@ class Application:
             self.window_choice.configure(values=visible_windows())
     def setup(self,parent):
         ttk.Label(parent,text='本体には外部ランタイムやモデルを同梱しません。起動用exeが必要な部品の取得と導入を自動で進めます。',wraplength=900).pack(anchor='w')
+        timing=ttk.Frame(parent);timing.pack(fill='x',pady=6)
+        ttk.Label(timing,text='1回の推論の待機上限（秒・1〜600。知識付きCPU推論は数分かかります）').pack(side='left')
+        self.vars['timeout']=tk.StringVar(value=str(self.cfg.timeout))
+        ttk.Entry(timing,textvariable=self.vars['timeout'],width=7).pack(side='left',padx=8)
         managed = bool(os.environ.get('GAMEPILOT_DATA_DIR'))
         if managed:
             ttk.Label(parent,text='Python・画面取得部品・Ollama は起動用exeが自動で導入・検証します。\nランタイムを変更する場合は本体を閉じ、同じexeを再実行してください。',wraplength=850).pack(anchor='w',pady=10)
@@ -110,7 +114,7 @@ class Application:
         v=asdict(self.cfg)
         for key,var in self.vars.items():
             val=var.get().strip()
-            v[key]=[x.strip().lower() for x in val.split(',') if x.strip()] if key=='allowed_keys' else int(val) if key=='max_steps' else val
+            v[key]=[x.strip().lower() for x in val.split(',') if x.strip()] if key=='allowed_keys' else int(val) if key=='max_steps' else float(val) if key=='timeout' else val
         v.update(goal=self.goal.get('1.0','end').strip(),knowledge=self.knowledge.get('1.0','end').strip())
         if len(v['knowledge'])>50000: raise ValueError('知識は 50,000 文字以内にしてください。')
         return Settings(**v).validate()
