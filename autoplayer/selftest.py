@@ -54,7 +54,7 @@ def main():
         try:
             with tempfile.TemporaryDirectory(prefix='gamepilot-real-') as temp:
                 base=Path(temp)
-                for start in (0,2,4):
+                for start in (4,0,2):
                     ui(lambda start=start:(state.update(index=start),render()))
                     time.sleep(.5)
                     cfg=Settings(endpoint=args.endpoint,model=args.model,window_title=title,
@@ -62,6 +62,21 @@ def main():
                         knowledge='Follow the on-screen key instruction exactly. ENTER means enter, D means d, Z means z, SPACE means space. Never exit.',
                         allowed_keys=['enter','d','z','space'],max_steps=12,max_wait_ms=5000,timeout=300)
                     backend=WindowsGame(title);backend.activate()
+                    # Preserve ONLY this synthetic fixture's pixels for unattended diagnosis.
+                    capture=backend.capture;capture_count=[0]
+                    def capture_with_evidence():
+                        png=capture();capture_count[0]+=1
+                        evidence=Path(args.output).parent
+                        evidence.mkdir(parents=True,exist_ok=True)
+                        if capture_count[0]==1: (evidence/f'fixture-{start}-first.png').write_bytes(png)
+                        (evidence/f'fixture-{start}-last.png').write_bytes(png)
+                        if capture_count[0]==1:
+                            from PIL import Image,ImageStat
+                            import io
+                            if max(ImageStat.Stat(Image.open(io.BytesIO(png))).stddev)<1:
+                                raise AssertionError('Captured synthetic fixture has no visible text contrast')
+                        return png
+                    backend.capture=capture_with_evidence
                     memory=MemoryStore(base/f'memory-{start}.sqlite',cfg)
                     observations=[]
                     try:

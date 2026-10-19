@@ -81,6 +81,7 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP/GamePilotDownloads/download-tests.json" ci-evidence/ -ErrorAction SilentlyContinue
           $folder = "$env:RUNNER_TEMP/GamePilotIntegration"
           if (Test-Path "$folder/integration-report.json") { Copy-Item "$folder/integration-report.json" ci-evidence/ }
+          Copy-Item "$folder/fixture-*.png" ci-evidence/ -ErrorAction SilentlyContinue
           Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 120 | Set-Content (Join-Path ci-evidence $_.Name) }
           git add ci-evidence
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Record unattended Windows integration evidence"
@@ -94,6 +95,7 @@ jobs:
           path: |
             ${{ runner.temp }}/GamePilotIntegration/integration-report.json
             ${{ runner.temp }}/GamePilotIntegration/*.log
+            ${{ runner.temp }}/GamePilotIntegration/fixture-*.png
       - uses: actions/upload-artifact@v4
         with:
           name: LocalGamePilot-Windows-x64

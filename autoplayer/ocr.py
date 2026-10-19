@@ -13,7 +13,8 @@ class ScreenOCR:
         digest=hashlib.sha256(png).hexdigest()
         if digest==self.last_hash: return dict(self.last)
         record={'frame_sha256':digest,'captured_at':time.time(),'status':'unavailable','engine':'windows.media.ocr','lines':[],'confidence':None}
-        if os.name!='nt': record['reason']='Windows OCR is available on Windows only'
+        if not png.startswith(b'\x89PNG\r\n\x1a\n'): record['reason']='OCR requires a PNG capture'
+        elif os.name!='nt': record['reason']='Windows OCR is available on Windows only'
         else:
             try:
                 with tempfile.TemporaryDirectory(prefix='gamepilot-ocr-') as folder:

@@ -30,6 +30,14 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(verifier.calls[1][2]['observations'],facts)
         self.assertEqual(verifier.calls[1][3]['properties']['evidence']['items']['enum'],['VICTORY','GOAL ACHIEVED','Green victory screen.'])
         self.assertNotIn('enum',VERIFY_SCHEMA['properties']['evidence']['items'])
+    def test_native_ocr_is_independent_of_goal_and_keeps_heading_sizes(self):
+        facts={'scene_type':'victory','visible_text':['VICTORY'],'description':'Green victory screen.'}
+        answer={'achieved':True,'confidence':.99,'evidence':['GOAL ACHIEVED'],'reason':'Exact current words.','remaining_actions':[]}
+        verifier=FakeVerifier(facts,answer)
+        verifier.ocr.read=lambda image:{'status':'ok','language':'en-US','lines':[{'text':'GOAL ACHIEVED','words':[{'box':[10,20,200,60]}]}]}
+        self.assertTrue(verifier.verify_completion(b'frame')['achieved'])
+        self.assertEqual(verifier.calls[0][2]['independent_ocr']['lines'][0]['max_word_height'],60)
+        self.assertNotIn('goal',verifier.calls[0][2])
     def test_placeholder_evidence_cannot_finish(self):
         facts={'scene_type':'victory','visible_text':['VICTORY'],'description':'Green end screen.'}
         answer={'achieved':True,'confidence':1.,'evidence':['visible evidence'],'reason':'Some next step is correct.','remaining_actions':[]}
