@@ -1,0 +1,288 @@
+{
+  "fixture": "own synthetic dungeon HUD, not the target game",
+  "passed": true,
+  "frame_sha256": "3358f7bb1ff41e684b23e5cde10868527e1b57b38ff39ae96ab5650de0af28e2",
+  "decision": {
+    "scene": "Synthetic Dungeon HUD",
+    "observation": "SYNTHETIC DUNGEON HUD",
+    "subgoal": "Choose a safe next objective.",
+    "reason": "The HUD indicates the player is on Floor 3 with low HP and fullness. No victory or ending is displayed, suggesting the player needs to advance to a safe location.",
+    "confidence": 0.0,
+    "status": "continue",
+    "keys": [
+      "w",
+      "a"
+    ],
+    "hold_ms": 80,
+    "wait_ms": 800,
+    "plan": [
+      "Move to a safe location on Floor 3"
+    ],
+    "progress": [],
+    "memory_updates": [
+      {
+        "key": "hunger",
+        "value": "low",
+        "confidence": 0.0
+      }
+    ],
+    "risk": "normal",
+    "state_key": "",
+    "goal_success": "no victory or ending is displayed",
+    "goal_evidence": [],
+    "knowledge_assessments": []
+  },
+  "state": {
+    "autonomous_goal": {
+      "objective": "Choose a safe next objective.",
+      "success_condition": "no victory or ending is displayed",
+      "reason": "The HUD indicates the player is on Floor 3 with low HP and fullness. No victory or ending is displayed, suggesting the player needs to advance to a safe location.",
+      "evidence": [],
+      "scene": "Synthetic Dungeon HUD",
+      "frame_sha256": "3358f7bb1ff41e684b23e5cde10868527e1b57b38ff39ae96ab5650de0af28e2",
+      "status": "model_proposed",
+      "confidence": 0.0
+    },
+    "knowledge_revisions": {},
+    "knowledge_catalog_sha256": "bc26dea9cc40a27e281358aa871abaf118f229281ecc28ca068c07732f9e79d2",
+    "ocr": {
+      "frame_sha256": "3358f7bb1ff41e684b23e5cde10868527e1b57b38ff39ae96ab5650de0af28e2",
+      "captured_at": 1792371581.109361,
+      "status": "ok",
+      "engine": "windows.media.ocr",
+      "lines": [
+        {
+          "text": "SYNTHETIC DUNGEON HUD",
+          "words": [
+            {
+              "text": "SYNTHETIC",
+              "box": [
+                37,
+                44,
+                268,
+                35
+              ]
+            },
+            {
+              "text": "DUNGEON",
+              "box": [
+                323,
+                44,
+                239,
+                35
+              ]
+            },
+            {
+              "text": "HUD",
+              "box": [
+                583,
+                44,
+                98,
+                35
+              ]
+            }
+          ]
+        },
+        {
+          "text": "HP 3/30",
+          "words": [
+            {
+              "text": "HP",
+              "box": [
+                38,
+                157,
+                46,
+                26
+              ]
+            },
+            {
+              "text": "3/30",
+              "box": [
+                96,
+                157,
+                68,
+                26
+              ]
+            }
+          ]
+        },
+        {
+          "text": "Fullness 5%",
+          "words": [
+            {
+              "text": "Fullness",
+              "box": [
+                38,
+                232,
+                130,
+                26
+              ]
+            },
+            {
+              "text": "5%",
+              "box": [
+                180,
+                232,
+                49,
+                26
+              ]
+            }
+          ]
+        },
+        {
+          "text": "Floor 3",
+          "words": [
+            {
+              "text": "Floor",
+              "box": [
+                38,
+                307,
+                80,
+                26
+              ]
+            },
+            {
+              "text": "3",
+              "box": [
+                128,
+                307,
+                18,
+                26
+              ]
+            }
+          ]
+        },
+        {
+          "text": "No victory or ending is displayed.",
+          "words": [
+            {
+              "text": "No",
+              "box": [
+                37,
+                407,
+                43,
+                26
+              ]
+            },
+            {
+              "text": "victory",
+              "box": [
+                91,
+                407,
+                104,
+                33
+              ]
+            },
+            {
+              "text": "or",
+              "box": [
+                206,
+                414,
+                32,
+                19
+              ]
+            },
+            {
+              "text": "ending",
+              "box": [
+                248,
+                407,
+                105,
+                33
+              ]
+            },
+            {
+              "text": "is",
+              "box": [
+                367,
+                407,
+                23,
+                26
+              ]
+            },
+            {
+              "text": "displayed.",
+              "box": [
+                402,
+                407,
+                158,
+                33
+              ]
+            }
+          ]
+        },
+        {
+          "text": "Choose a safe next objective.",
+          "words": [
+            {
+              "text": "Choose",
+              "box": [
+                37,
+                507,
+                121,
+                26
+              ]
+            },
+            {
+              "text": "a",
+              "box": [
+                170,
+                514,
+                18,
+                19
+              ]
+            },
+            {
+              "text": "safe",
+              "box": [
+                200,
+                507,
+                66,
+                26
+              ]
+            },
+            {
+              "text": "next",
+              "box": [
+                279,
+                508,
+                66,
+                25
+              ]
+            },
+            {
+              "text": "objective.",
+              "box": [
+                356,
+                507,
+                148,
+                33
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "language": "en-US"
+    }
+  },
+  "metrics": {
+    "hp": {
+      "values": [
+        3,
+        30
+      ],
+      "quote": "HP 3/30",
+      "unverified_ocr": true
+    },
+    "fullness": {
+      "values": [
+        5
+      ],
+      "quote": "Fullness 5%",
+      "unverified_ocr": true
+    }
+  },
+  "source_count": 5,
+  "fact_count": 25
+}
