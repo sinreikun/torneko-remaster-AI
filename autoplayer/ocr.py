@@ -6,12 +6,14 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
+import copy
+from collections import OrderedDict
 
 class WindowsOCR:
     def __init__(self): self.last_hash=None; self.last=None
     def read(self,png):
         digest=hashlib.sha256(png).hexdigest()
-        if digest==self.last_hash: return dict(self.last)
+        if digest==self.last_hash and self.last.get('status')=='ok': return copy.deepcopy(self.last)
         record={'frame_sha256':digest,'captured_at':time.time(),'status':'unavailable','engine':'windows.media.ocr','lines':[],'confidence':None}
         if not png.startswith(b'\x89PNG\r\n\x1a\n'): record['reason']='OCR requires a PNG capture'
         elif os.name!='nt': record['reason']='Windows OCR is available on Windows only'
@@ -46,7 +48,7 @@ class ScreenOCR:
     """Auto chooses installed V5, V4, then Windows; failures stay visible."""
     def __init__(self,engine='auto'):
         if engine not in ('auto','windows.media.ocr','ocr-paddle-v5','ocr-paddle-ja'): raise ValueError('Unknown OCR engine')
-        self.selected=engine;self.readers={};self.last_hash=None;self.last=None
+        self.selected=engine;self.readers={};self.last_hash=None;self.last=None;self.cache=OrderedDict()
     def engines(self):
         from .ocr_components import MODELS,installed
         return [model['id'] for model in MODELS if installed(model)]+['windows.media.ocr']
@@ -63,12 +65,19 @@ class ScreenOCR:
         return call_interruptible(lambda:self._read(png),getattr(self,'cancel',None))
     def _read(self,png):
         digest=hashlib.sha256(png).hexdigest()
-        if digest==self.last_hash: return dict(self.last)
+        engines=tuple(self.engines() if self.selected=='auto' else [self.selected])
+        cache_key=(engines,digest)
+        if cache_key in self.cache:
+            self.cache.move_to_end(cache_key)
+            return {**copy.deepcopy(self.cache[cache_key]),'cache_hit':True}
         failures=[]
-        for engine in (self.engines() if self.selected=='auto' else [self.selected]):
+        for engine in engines:
             value=self.read_engine(png,engine)
             if value['status']=='ok': break
             failures.append({'engine':engine,'reason':value.get('reason','unavailable')})
         if failures: value={**value,'fallback_failures':failures}
         self.last_hash=digest;self.last=value
-        return dict(value)
+        if value['status']=='ok':
+            self.cache[cache_key]=copy.deepcopy(value)
+            while len(self.cache)>16:self.cache.popitem(last=False)
+        return copy.deepcopy(value)

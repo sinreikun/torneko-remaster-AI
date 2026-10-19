@@ -77,6 +77,20 @@ class PolicyTests(unittest.TestCase):
         result=self.policy.learn(b,changed,receipt_row('a'),b)
         self.assertEqual(result['novelty_weight'],0)
         self.assertLess(result['reward'],0)
+    def test_new_scoring_namespace_keeps_old_data_but_does_not_select_it(self):
+        with patch('autoplayer.policy.VERSION',3):
+            old=ExperiencePolicy(self.store,self.cfg)
+            old.learn(state(),state(),receipt_row(),state())
+        self.assertNotEqual(old.profile,self.policy.profile)
+        self.assertEqual(self.policy.values(state()),{})
+        self.assertEqual(self.policy.db.execute('SELECT SUM(trials) FROM policy_actions WHERE profile=?',(old.profile,)).fetchone()[0],1)
+    def test_observed_route_transit_is_not_rewarded_as_new_exploration_or_heavily_penalized(self):
+        a,b=state('A'),state('B',261.7)
+        self.policy.learn(a,b,receipt_row('d'),a)
+        route={'source':'learned_policy','exploration_route':{'mode':'observed_route','distance':1,'key':'a'}}
+        result=self.policy.learn(b,a,receipt_row('a',policy_choice=route),b)
+        self.assertTrue(result['route_transit']);self.assertEqual(result['revisit_cost'],0)
+        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],4)
     def test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train(self):
         for row in (receipt_row(executed=False),receipt_row(dry_run=True),receipt_row(event='diagnostic'),
                     receipt_row(learning=False),receipt_row(learning=False,policy_choice={'source':'learned_policy'}),receipt_row(turn_kind='aborted'),receipt_row(input_receipt={'os_submission':'rejected'})):
@@ -131,12 +145,13 @@ class PolicyTests(unittest.TestCase):
             def act(self,keys,ms,stop):
                 super().act(keys,ms,stop)
                 return {'os_submission':'accepted','events':[{'message':'WM_KEYDOWN'}]}
-        backend=ReceiptBackend();backend.observe_turn=Mock(side_effect=[SimpleNamespace(image=b'current',kind='normal',changed=False,raw_change=0,masked_activity=0,duration_ms=1000),SimpleNamespace(image=b'after',kind='normal',changed=True,raw_change=.3,masked_activity=0,duration_ms=1000)])
+        backend=ReceiptBackend();backend.observe_turn=Mock(side_effect=[SimpleNamespace(image=b'current',kind='normal',changed=False,raw_change=0,masked_activity=0,duration_ms=1000),SimpleNamespace(image=b'after',kind='normal',changed=True,raw_change=.3,masked_activity=0,duration_ms=1000,last_activity_ms=100)])
         script=Script([change(scene='loading',action={'keys':[],'hold_ms':1,'wait_ms':0})])
-        script.take_state=lambda:{'learning':False,'model_response_issue':'model report invalid'}
+        script.methods=SimpleNamespace(record=Mock())
+        script.take_state=lambda:{'learning':False,'model_response_issue':'model report invalid','method_selection':{'method':'grounded_text'}}
         script.knowledge_engine=SimpleNamespace(goal=None)
         script.ocr=SimpleNamespace(read=Mock(return_value={'status':'ok','lines':[]}))
-        agent=Controller(Settings(max_steps=1),backend,script,lambda row:None,Path(self.temp.name)/'run.jsonl',memory=self.store)
+        agent=Controller(Settings(max_steps=1,adaptive_timing=True),backend,script,lambda row:None,Path(self.temp.name)/'run.jsonl',memory=self.store)
         agent.policy.observe=Mock(side_effect=[before,before,after]);agent.run()
         self.assertEqual(backend.actions[0][0],['w'])
         rows=[json.loads(line) for line in agent.journal.read_text().splitlines()]
@@ -147,6 +162,11 @@ class PolicyTests(unittest.TestCase):
         self.assertFalse(result['model_report_learning']);self.assertTrue(result['learning'])
         self.assertIn('黄色マーカー',result['observation'])
         self.assertEqual(script.knowledge_engine.goal['source'],'experience_policy')
+        script.methods.record.assert_not_called()
+        self.assertEqual(result['method_learning']['reason'],'model_action_replaced_by_map_policy')
+        self.assertEqual(result['adaptive_pacing']['wait_ms'],600)
+        self.assertEqual(result['pacing_evaluation']['status'],'stable_sample')
+        self.assertEqual(backend.observe_turn.call_args_list[1].args[2],600)
 
 class ConfirmedControlsTests(unittest.TestCase):
     def test_old_enter_space_settings_migrate_without_sending_them(self):

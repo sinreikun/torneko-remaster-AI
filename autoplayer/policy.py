@@ -13,7 +13,7 @@ from .knowledge import KnowledgeEngine
 from .minimap import read_minimap
 from .exploration import ExplorationRoutes
 
-VERSION=3
+VERSION=4
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -116,6 +116,7 @@ class ExperiencePolicy:
                 candidate['adjustment']=delta;candidate['priority']=round(candidate['priority']+delta,5)
             candidates.sort(key=lambda v:v['priority'],reverse=True)
         # Least visited actions break cold-start ties deterministically; learned Q then dominates.
+        context['ranking'].sort(key=lambda v:v['priority'],reverse=True)
         route=self.routes.suggest(state,candidates)
         selected=next((v for v in candidates if route and v['keys']==[route['key']]),candidates[0]);key=selected['keys'][0]
         reason=('地図の自位置・既知領域と、この状態で蓄積した行動価値・試行回数から優先度を選択しました。' if selected['trials'] else 'この状態では未試行の候補です。地図と安全条件を確認し、経験を蓄積するための短い移動を選択しました。')
@@ -126,7 +127,7 @@ class ExperiencePolicy:
             confidence=.8,reason=reason,subgoal='食料を探すため未確認の通路を探索する' if state['objective']=='forage' else 'ミニマップ上の未訪問位置または未確認の通路を探索する',
             goal_success='地図の自位置の移動または既知領域の増加を次の観測で確認する',
             progress=[],memory_updates=[],plan=[],goal_evidence=[],knowledge_assessments=[])
-        return chosen,{'source':'learned_policy','selected':selected,'context':context,'adjustment':adjustment,'exploration_route':route,
+        return chosen,{'source':'learned_policy','selection_basis':'exploration_route' if route else 'adjusted_td_priority','selected':selected,'context':context,'adjustment':adjustment,'exploration_route':route,
             'safety':'同じ自位置を中立観測で再確認し、メニュー文字・近傍の敵・低HPがない場合の短い移動のみ。'}
     @staticmethod
     def signals(before,after):
@@ -177,7 +178,10 @@ class ExperiencePolicy:
         visit=self.db.execute('SELECT count FROM policy_visits WHERE profile=? AND location=?',(self.profile,after['location'])).fetchone()
         revisits=max(visit[0] if visit else 0,session_revisits)
         novelty=0. if revisits else 1.
-        revisit_cost=.12*min(3,revisits) if net['position'] and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
+        route=(row.get('policy_choice') or {}).get('exploration_route') or {}
+        route_transit=bool((row.get('policy_choice') or {}).get('source')=='learned_policy' and route.get('mode')=='observed_route'
+            and route.get('distance',0)>0 and route.get('key')==action and net['position'])
+        revisit_cost=.12*min(3,revisits) if net['position'] and not route_transit and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
         reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']+(.15*net['visual']*novelty if not before['eligible'] else 0)-.04-revisit_cost
         hp0=before['metrics'].get('hp',{}).get('values');hp1=after['metrics'].get('hp',{}).get('values')
         if hp0 and hp1 and hp0[1]==hp1[1]:reward-=2*max(0.,hp0[0]-hp1[0])/hp0[1]
@@ -188,7 +192,7 @@ class ExperiencePolicy:
         new_q=current+.25*(reward+.85*next_q-current)
         event={'status':'trained','state':before['id'],'next_state':after['id'],'objective':before['objective'],'keys':keys,
             'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'baseline_kind':row.get('policy_baseline_kind','neutral_observation'),'net_signals':net,
-            'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
+            'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}
         with self.db:
             self.db.execute('INSERT INTO policy_actions(profile,state,objective,action,trials,q,positive,reward_sum) VALUES(?,?,?,?,1,?,?,?) ON CONFLICT(profile,state,objective,action) DO UPDATE SET trials=trials+1,q=excluded.q,positive=positive+excluded.positive,reward_sum=reward_sum+excluded.reward_sum',

@@ -600,6 +600,8 @@ class Controller:
         if memory and is_torneko(cfg.window_title):
             from .policy import ExperiencePolicy
             self.policy=ExperiencePolicy(memory,cfg)
+            from .pacing import AdaptivePacing
+            self.pacing=AdaptivePacing(cfg.max_wait_ms)
             from .improvement import ImprovementSupervisor
             self.improvement=ImprovementSupervisor(self.policy)
     def hide_map(self,image,state):
@@ -753,6 +755,7 @@ class Controller:
                     llm_proposal=dict(decision.__dict__)
                     decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None)
                 timing_trial=self.duration_learner.choose(decision) if self.duration_learner and not dry_run else None
+                pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run else None
                 decision_finished=time.monotonic()
                 state_report=({'ocr':native,'scene_observation':{'status':'not_requested','reason':'新しい地図/HUDと中立観測による限定的な方策実行'},'inference_metrics':[],
                     'decision_policy':{'source':'bounded_policy_continuation','steps_since_llm':fast_count}} if fast else (self.llm.take_state() if hasattr(self.llm,'take_state') else {}))
@@ -763,6 +766,7 @@ class Controller:
                 if unavailable_observations>=3+self.cfg.recovery_attempts:
                     self._write({'event':'stopped','status':'llm_unavailable','reason':'画面観察のLLM応答が連続して不正。回復試行の上限です。Backend異常ではありません。'})
                     raise self._observation_error('LLMの画面観察応答を回復できません。Backend故障ではありません。')
+                if pace_trial:row['adaptive_pacing']=pace_trial
                 if self.improvement:row['self_improvement']=self.improvement.context()
                 if self.policy:
                     row.update(policy_choice=policy_choice,llm_proposal=llm_proposal,policy_state=policy_state,policy_baseline_kind='held_map_display_not_keyless' if policy_state.get('observation_mode')=='num7_held' else 'neutral_observation')
@@ -876,6 +880,8 @@ class Controller:
                     if map_after:after_state=map_after[0]
                     row['policy_learning']=self.policy.learn(policy_state,after_state,row,state_before_neutral)
                     row['policy_after']=after_state
+                    if pace_trial and hasattr(self.backend,'observe_turn'):
+                        row['pacing_evaluation']=self.pacing.record(pace_trial,row,observation)
                     hp0=policy_state['metrics'].get('hp',{}).get('values');hp1=after_state['metrics'].get('hp',{}).get('values')
                     policy_damage=bool(hp0 and hp1 and hp0[1]==hp1[1] and hp1[0]<hp0[0])
                     if self.improvement and not dry_run:
@@ -887,7 +893,9 @@ class Controller:
                     fast_anchor=None
                 if not fast and row.get('executed') and (row.get('policy_choice') or {}).get('source')=='learned_policy' and (row.get('model_report_learning') is not False or policy_state.get('observation_mode')=='num7_held') and row.get('turn_kind')!='aborted' and (row.get('policy_learning') or {}).get('status')=='trained' and not policy_damage and after_state['eligible']:
                     fast_anchor=decision;fast_floor=policy_state['metrics'].get('floor',{}).get('values');fast_objective=policy_state['objective']
-                if getattr(self.llm,'methods',None) and row.get('method_selection'):
+                if getattr(self.llm,'methods',None) and row.get('method_selection') and (row.get('policy_choice') or {}).get('source')=='learned_policy':
+                    row['method_learning']={'signal':None,'eligible':False,'reason':'model_action_replaced_by_map_policy','game_success_verified':False}
+                elif getattr(self.llm,'methods',None) and row.get('method_selection'):
                     from .strategies import progress_signal
                     after_image=observation.image if hasattr(self.backend,'observe_turn') else after
                     after_ocr=after_native if self.policy and policy_state else self.llm.ocr.read(after_image) if hasattr(self.llm,'ocr') else {}

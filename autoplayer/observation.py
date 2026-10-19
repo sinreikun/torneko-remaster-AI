@@ -11,6 +11,7 @@ class TurnObservation:
     raw_change: float
     masked_activity: float
     duration_ms: int
+    last_activity_ms: int | None = None
 
 class TurnObserver:
     def __init__(self): self.motion={};self.masks={}
@@ -47,7 +48,8 @@ class TurnObserver:
             learned={i for i,n in counts.items() if n>=2}
             if len(learned)/len(initial)<=.12: self.masks[scene]=learned
         raw=self.bits(initial,current)
-        return TurnObservation(image,kind,any(bit and i not in mask for i,bit in enumerate(raw)),sum(raw)/len(raw),sum(raw[i] for i in mask)/max(1,len(mask)),int((clock()-start)*1000))
+        return TurnObservation(image,kind,any(bit and i not in mask for i,bit in enumerate(raw)),sum(raw)/len(raw),sum(raw[i] for i in mask)/max(1,len(mask)),int((clock()-start)*1000),
+            max(0,int((stable_since-start)*1000)) if stable_since is not None else None)
 
 
 def image_color_facts(png):
