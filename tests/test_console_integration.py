@@ -102,3 +102,23 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(stats['written'],1);self.assertEqual(stats['capped'],1);self.assertEqual(stats['used'],4)
             lines=[json.loads(x) for x in (Path(temp)/'frames.jsonl').read_text().splitlines()]
             self.assertEqual(lines[0]['sha256'],lines[1]['sha256']);self.assertIsNone(lines[-1]['file'])
+
+
+class OCRComponentTests(unittest.TestCase):
+    def test_original_manifest_hashes_have_complete_sizes_and_unique_ids(self):
+        from autoplayer.ocr_components import MODELS
+        self.assertEqual({model['id'] for model in MODELS},{'ocr-paddle-v5','ocr-paddle-ja'})
+        for model in MODELS:
+            for spec in model['files']:
+                self.assertGreater(spec['size_bytes'],0);self.assertEqual(len(spec['sha256']),64)
+                self.assertTrue(all(url.startswith('https://') for url in spec['urls']))
+    def test_insecure_redirect_is_rejected_before_following(self):
+        from autoplayer.ocr_components import HTTPSRedirects
+        with self.assertRaises(ValueError):HTTPSRedirects().redirect_request(None,None,302,'',{},'http://invalid.test/file')
+    def test_model_tamper_is_rejected(self):
+        import hashlib
+        from autoplayer.ocr_components import valid_file
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/'file.onnx';path.write_bytes(b'good')
+            spec={'size_bytes':4,'sha256':hashlib.sha256(b'good').hexdigest()}
+            self.assertTrue(valid_file(path,spec));path.write_bytes(b'evil');self.assertFalse(valid_file(path,spec))

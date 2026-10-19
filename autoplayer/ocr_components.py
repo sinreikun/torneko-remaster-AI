@@ -19,6 +19,11 @@ def valid_file(path,spec):
 def installed(model,root=None):
     return importlib.util.find_spec('rapidocr') is not None and importlib.util.find_spec('onnxruntime') is not None and all(valid_file(directory(model,root)/f['path'],f) for f in model['files'])
 
+class HTTPSRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,request,fp,code,msg,headers,newurl):
+        if not newurl.startswith('https://'):raise ValueError('Insecure redirect')
+        return super().redirect_request(request,fp,code,msg,headers,newurl)
+
 def download_file(spec,path,stop,progress):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     if valid_file(path,spec): progress('検査済み: '+path.name);return
@@ -29,7 +34,7 @@ def download_file(spec,path,stop,progress):
     headers={'User-Agent':'LocalGamePilot-OCR-Setup'}
     if offset: headers['Range']=f'bytes={offset}-'
     request=urllib.request.Request(url,headers=headers)
-    with urllib.request.urlopen(request,timeout=45) as response:
+    with urllib.request.build_opener(HTTPSRedirects()).open(request,timeout=45) as response:
         if not response.url.startswith('https://'): raise ValueError('Insecure redirect')
         if offset and (response.status!=206 or not response.headers.get('Content-Range','').startswith(f'bytes {offset}-')): offset=0
         with part.open('ab' if offset else 'wb') as output:

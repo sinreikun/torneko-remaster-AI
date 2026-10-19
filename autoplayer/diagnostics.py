@@ -2,6 +2,9 @@
 import hashlib
 import io
 import json
+import os
+import sys
+import importlib.metadata
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -65,6 +68,10 @@ class InputDiagnostics:
                     if revision!=self.control.revision or self.control.is_set(): interrupted=True;break
                 if interrupted:
                     status='interrupted';detail='往復の途中で一時停止・停止したため未検証';break
+                if hasattr(self.backend,'record_frame'):
+                    self.backend.record_frame(idle,'diagnostic_baseline')
+                    self.backend.record_frame(frames[0],'diagnostic_changed')
+                    self.backend.record_frame(frames[1],'diagnostic_returned')
                 change=self.backend.difference(idle,frames[0]);returned=self.backend.difference(idle,frames[1])
                 isolated=self.backend.foreground()==foreground and self.leaked_keys()==leaked
                 passed=change>max(1.,noise*3) and returned<=max(3.,noise*2) and isolated
@@ -77,16 +84,18 @@ class InputDiagnostics:
                 if not passed: raise RuntimeError('既知操作の変化・復帰・前面アプリへの非干渉を確認できません。診断結果を確認してください。')
             else:
                 status='passed';detail='3往復の画面変化・復帰・入力分離を確認（攻略動作の保証ではありません）'
-            if status=='failed' and not separation and cycles==3:
-                status='passed';detail='3往復の入力互換性を確認'
             return status=='passed'
         except Exception as error:
             detail=str(error);raise
         finally:
+            release_error=None
             try: self.backend.release_all()
+            except Exception as error:
+                release_error=error;status='failed';detail+=' / キー解放失敗: '+str(error)
             finally:
                 self.store.finish(run,status,detail)
                 self.emit({'event':'diagnostic_summary','status':status,'reason':detail,'cycles':cycles,'learning':False})
+            if release_error:raise release_error
 
 
 def export_diagnostics(data,destination):
@@ -94,6 +103,10 @@ def export_diagnostics(data,destination):
     data=Path(data).resolve();destination=Path(destination).resolve();destination.parent.mkdir(parents=True,exist_ok=True)
     report={'created_at':time.time(),'databases':{},'files':[],'omitted':[],
             'note':'診断は攻略用の経験と別DBです。未実施の検査を成功とは判定しません。'}
+    report['runtime']={'python':sys.version,'platform':sys.platform,'packages':{}}
+    for name in ('Pillow','rapidocr','onnxruntime'):
+        try:report['runtime']['packages'][name]=importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:report['runtime']['packages'][name]='not_installed'
     temporary=destination.with_name(destination.name+'.part')
     try:
         with tempfile.TemporaryDirectory(prefix='gamepilot-export-') as folder,zipfile.ZipFile(temporary,'w',zipfile.ZIP_DEFLATED) as archive:
@@ -131,8 +144,17 @@ def export_diagnostics(data,destination):
             remaining=160*1024*1024
             for path in candidates:
                 if not path.is_file(): continue
-                if path.stat().st_size>min(remaining,10*1024*1024): report['omitted'].append(path.name);continue
-                remaining-=path.stat().st_size;archive.write(path,path.relative_to(data).as_posix());report['files'].append(path.relative_to(data).as_posix())
+                limit=min(remaining,10*1024*1024);relative=path.relative_to(data).as_posix()
+                if path.stat().st_size>limit:
+                    if path.suffix in ('.log','.jsonl') and limit>=1024:
+                        with path.open('rb') as source:
+                            source.seek(-limit,2);source.readline();tail=source.read(limit)
+                        archive.writestr(relative,tail);remaining-=len(tail)
+                        report['files'].append(relative)
+                        report.setdefault('truncated',[]).append({'file':relative,'original_bytes':path.stat().st_size,'included_tail_bytes':len(tail)})
+                    else:report['omitted'].append(relative)
+                    continue
+                remaining-=path.stat().st_size;archive.write(path,relative);report['files'].append(relative)
             health=['診断レポート（自動検査）']
             for name,value in report['databases'].items():
                 health.append(f"{name}: {value['status']}")
@@ -145,6 +167,11 @@ def export_diagnostics(data,destination):
                     health.append('最新実行: '+str(session.get('status'))+' / '+str(session.get('reason','')))
                 except (OSError,ValueError) as error: health.append('実行サマリー読取失敗: '+str(error))
             health.append('実ゲーム攻略完了・未実施の互換性試験・OCR精度は、この出力だけでは保証しません。')
+            if os.environ.get('GAMEPILOT_DATA_DIR') and data.name=='data':
+                for name in ('bootstrap.json','setup-trace.log','install.stdout.log','install.stderr.log','ollama.stdout.log','ollama.stderr.log','setup-error.log'):
+                    path=data.parent/name
+                    if path.is_file() and path.stat().st_size<=10*1024*1024:
+                        archive.write(path,'runtime/'+name);report['files'].append('runtime/'+name)
             archive.writestr('health.txt','\n'.join(health))
             archive.writestr('manifest.json',json.dumps(report,ensure_ascii=False,indent=2))
         temporary.replace(destination)

@@ -40,7 +40,7 @@ def main():
         if os.name=='nt':
             from .clipboard import copy_file
             import ctypes
-            copy_file(archive)
+            copy_file(archive,root.winfo_id())
             report['checks']['clipboard_file_attachment']=bool(ctypes.windll.user32.IsClipboardFormatAvailable(15))
             assert report['checks']['clipboard_file_attachment']
         if args.verify_ocr_components:

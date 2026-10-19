@@ -255,7 +255,7 @@ class Application:
         try:
             if os.name=='nt':
                 from .clipboard import copy_file
-                copy_file(self.latest_zip)
+                copy_file(self.latest_zip,self.root.winfo_id())
             else:self.root.clipboard_clear();self.root.clipboard_append(str(self.latest_zip))
             self.status.set('ZIPをコピーしました。提出先の添付欄・ファイル欄に貼り付けてください。自動送信はしません。')
         except Exception as error:messagebox.showerror('コピー失敗',str(error))
@@ -349,11 +349,13 @@ class Application:
             from .windows import WindowsGame
             from .recording import FrameRecorder,RecordedBackend
             from .diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
-            session=str(time.time_ns());summary={'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':''}
+            session=str(time.time_ns());summary={'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
             recorder=None;backend=None;monitor_done=threading.Event();memory=None
             try:
                 backend=self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
                 backend.capture();self.queue.put(('connected',(backend,cfg.window_title)))
+                summary['connection']={'hwnd':int(backend.hwnd),'process_id':backend.process_id.value,
+                    'window_title':backend._text(backend.hwnd),'capture':'PrintWindow','input':'window_message'}
                 def monitor():
                     while not monitor_done.wait(.03):
                         if backend.emergency():self.stop.set()
@@ -377,7 +379,11 @@ class Application:
                 cumulative=memory.db.execute('SELECT COUNT(*) FROM experiences WHERE profile=?',(memory.profile,)).fetchone()[0]
                 self.queue.put(('cumulative',cumulative))
             except Exception as error:
-                summary.update(status='error',reason=str(error));raise
+                summary.update(status='error',reason=str(error));self.queue.put(('error',str(error)))
+                DATA.mkdir(parents=True,exist_ok=True)
+                with (DATA/'application.log').open('a',encoding='utf-8') as log:
+                    import traceback
+                    log.write(time.strftime('%Y-%m-%d %H:%M:%S')+'\n'+traceback.format_exc()+'\n')
             finally:
                 monitor_done.set();control.close()
                 if memory:memory.close()
