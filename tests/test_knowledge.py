@@ -75,6 +75,7 @@ class Diagnostic5345KnowledgeTests(unittest.TestCase):
         self.assertEqual(context['metrics']['hp']['values'],[15,15])
         self.assertEqual(context['metrics']['hp']['quote'],'HP 1 5 / 1 5')
         self.assertEqual(context['metrics']['fullness']['values'],[93])
+        self.assertEqual(engine.reconcile(ocr('満 腹 度 : 9 3 %'))['metrics']['fullness']['values'],[93])
         self.assertTrue(context['goal_review']['hp_full'])
         self.assertIn('すでに満たされています',context['goal_review']['instruction'])
     def test_split_numbers_do_not_cross_lines_and_conflicts_stay_ambiguous(self):

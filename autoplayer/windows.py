@@ -160,6 +160,9 @@ class WindowsGame:
         if k.startswith('num'): return 0x60+int(k[3:])
         return ord(k.upper())
     def act(self,keys,ms,stop):
+        from .controls import is_torneko,KEYS
+        if is_torneko(getattr(self,'title','')) and any(key not in KEYS for key in keys):
+            raise ValueError('現在のトルネコのキー配置にない入力は送信しません。Enter・Spaceは使用しません。')
         self.ready()
         self.input_target=self._input_window()
         receipts=[]

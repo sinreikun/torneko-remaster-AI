@@ -10,7 +10,7 @@ class MemoryStore:
         Path(path).parent.mkdir(parents=True,exist_ok=True)
         signature=json.dumps([settings.window_title,settings.allowed_keys,settings.goal,settings.knowledge],ensure_ascii=False)
         self.profile=hashlib.sha256(signature.encode()).hexdigest()
-        self.last_row=None
+        self.last_row=None;self.settings=settings
         try:
             self.db=sqlite3.connect(path)
             self.db.execute('PRAGMA journal_mode=WAL')
@@ -60,7 +60,12 @@ class MemoryStore:
         ineffective=[{'scene':r.get('scene'),'keys':r.get('keys'),'observation':r.get('observation')} for r in recent if r.get('executed') and r.get('changed') is False]
         transitions=self.db.execute('SELECT origin,action,destination,count FROM transitions WHERE profile=? ORDER BY count DESC LIMIT 10',(self.profile,)).fetchall()
         knowledge_state=next((r for r in reversed(recent) if 'autonomous_goal' in r),{})
-        return {**{k:knowledge_state[k] for k in ('autonomous_goal','knowledge_revisions','knowledge_catalog_sha256') if k in knowledge_state},'known_transitions':[dict(origin=r[0],keys=json.loads(r[1]),destination=r[2],count=r[3],attribution='observed_association_not_causal') for r in transitions], 'plan':json.loads(plan[0]) if plan else [],'reported_progress':json.loads(plan[1]) if plan else [],
+        learning={}
+        if self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='policy_actions'").fetchone():
+            from .policy import profile_for
+            counts=self.db.execute('SELECT COUNT(*),COALESCE(SUM(trials),0),COALESCE(SUM(positive),0) FROM policy_actions WHERE profile=?',(profile_for(self.settings),)).fetchone()
+            learning={'state_actions':counts[0],'input_trials':counts[1],'positive_progress_observations':counts[2],'note':'永続方策の統計。診断試験を成功経験には加算しません。'}
+        return {'policy_learning':learning,**{k:knowledge_state[k] for k in ('autonomous_goal','knowledge_revisions','knowledge_catalog_sha256') if k in knowledge_state},'known_transitions':[dict(origin=r[0],keys=json.loads(r[1]),destination=r[2],count=r[3],attribution='observed_association_not_causal') for r in transitions], 'plan':json.loads(plan[0]) if plan else [],'reported_progress':json.loads(plan[1]) if plan else [],
                 'provisional_claims':[dict(zip(('key','value','confidence','visual_evidence'),r)) for r in claims],
                 'unconfirmed_input_responses':ineffective,'note':'Claims and progress are model reports, not verified facts. Recheck against the current screen.'}
     def close(self): self.db.close()

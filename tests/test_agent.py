@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from autoplayer.core import Settings,LocalLLM,Controller,parse_decision
 from autoplayer.components import pull_model
 
-VALID={'scene':'title','observation':'開始画面が見える','subgoal':'ゲームを開始する','goal_success':'開始後のプレイ画面が見える','reason':'開始操作を選ぶ','confidence':.95,'status':'continue','action':{'keys':['enter'],'hold_ms':80,'wait_ms':0}}
+VALID={'scene':'title','observation':'開始画面が見える','subgoal':'ゲームを開始する','goal_success':'開始後のプレイ画面が見える','reason':'開始操作を選ぶ','confidence':.95,'status':'continue','action':{'keys':['num1'],'hold_ms':80,'wait_ms':0}}
 OBSERVED={'scene_type':'title','description':'開始画面の文字が見える','visible_text':[],'player_position':'不明','open_routes':[],'obstacles':[],'hazards':[],'confidence':.8}
 class Backend:
     def __init__(self): self.actions=[];self.releases=0
@@ -30,7 +30,7 @@ def change(**kwargs):
     return v
 
 class ProtocolTests(unittest.TestCase):
-    def test_decision(self): self.assertEqual(parse_decision(json.dumps(VALID),Settings()).keys,['enter'])
+    def test_decision(self): self.assertEqual(parse_decision(json.dumps(VALID),Settings()).keys,['num1'])
     def test_bad_keys(self):
         for keys in (['alt','tab'],['powershell'],['enter','enter'],['enter']*3,'enter',[1]):
             with self.subTest(keys=keys),self.assertRaises(ValueError):

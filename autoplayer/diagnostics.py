@@ -98,6 +98,9 @@ def export_diagnostics(data,destination,detailed=False):
                     if name=='diagnostics.sqlite':
                         entry['runs']=[dict(zip(('id','kind','status','detail'),r)) for r in target.execute('SELECT id,kind,status,detail FROM runs ORDER BY id DESC LIMIT 20')]
                         entry['recent_cycles']=[r[0][:8192] for r in target.execute('SELECT data FROM cycles ORDER BY id DESC LIMIT 100')]
+                    if name=='memory.sqlite' and target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='policy_actions'").fetchone():
+                        entry['policy_summary']=[dict(zip(('profile','state_actions','trials','positive_progress_observations','goal_trials','goal_wins'),r)) for r in target.execute('SELECT profile,COUNT(*),SUM(trials),SUM(positive),SUM(goal_trials),SUM(goal_wins) FROM policy_actions GROUP BY profile')]
+                        entry['recent_policy_events']=[r[0][:12000] for r in target.execute('SELECT data FROM policy_events ORDER BY id DESC LIMIT 30')]
                     report['databases'][name]=entry
                 except (sqlite3.Error,OSError,TimeoutError) as error:
                     report['databases'][name]={'status':'failed','reason':str(error)}
@@ -123,7 +126,28 @@ def export_diagnostics(data,destination,detailed=False):
                 files=[p for p in recordings[0].iterdir() if p.is_file()]
                 metadata=sorted(p for p in files if p.suffix!='.png')
                 images=sorted((p for p in files if p.suffix=='.png'),key=lambda p:p.stat().st_mtime,reverse=True)
-                candidates+=metadata+(images if detailed else images[:2])
+                selected=[]
+                if not detailed:
+                    manifest=recordings[0]/'frames.jsonl'
+                    if manifest.is_file():
+                        latest={};pending=None
+                        with manifest.open(encoding='utf-8') as stream:
+                            for line in stream:
+                                try:frame=json.loads(line)
+                                except ValueError:continue
+                                name=frame.get('file');phase=frame.get('phase')
+                                if phase in ('observation','result') and isinstance(name,str) and Path(name).name==name and name.endswith('.png'):
+                                    path=recordings[0]/name
+                                    if phase=='observation':pending=path if path.is_file() else None
+                                    elif phase=='result' and path.is_file() and pending:
+                                        latest={'observation':pending,'result':path};pending=None
+                        if latest:
+                            report['image_evidence']={'mode':'latest_complete_observation_result',**{phase:path.relative_to(data).as_posix() for phase,path in latest.items()}}
+                        elif pending:
+                            latest={'observation':pending};report['image_evidence']={'mode':'observation_only','observation':pending.relative_to(data).as_posix()}
+                        selected=list(dict.fromkeys(latest[phase] for phase in ('observation','result') if phase in latest))
+                    selected+=(p for p in images if p not in selected)
+                candidates+=metadata+(images if detailed else selected[:2])
             candidates+=sorted((data/'sessions').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:20]
             for path in candidates:
                 if not path.is_file(): continue

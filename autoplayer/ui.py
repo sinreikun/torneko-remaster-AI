@@ -78,7 +78,7 @@ class Application:
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={}
-        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合']:
+        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','キー配置・ミニマップ']:
             group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
             button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
             body=tk.Text(group,height=4,wrap='word',state='disabled',relief='flat');body.pack(fill='x')
@@ -105,6 +105,9 @@ class Application:
         setup=self.scroll_frame(self.setup_tab);self.setup(setup);self.setup_ocr(setup)
         self.set_panel('バックエンド状態','ゲーム未接続\n取得: PrintWindow / 入力: WindowMessage（背面分離）\nLLM: '+self.cfg.model+'\nDB: '+str(DATA))
         self.set_panel('目的',self.cfg.goal+'\n小目標: 未設定')
+        from .controls import REFERENCE
+        self.set_panel('キー配置・ミニマップ',REFERENCE)
+        self.set_panel('行動学習','実際に送信した単独キーと前後の地図・HUD観測から、状態別の行動価値を保存・更新します。LLMの重みの再訓練ではありません。')
         self.set_panel('候補と評価','LLMの信頼度・危険度・許可キーを表示します。\n未生成の候補点数は表示しません。')
         self.set_panel('系列のパターン','保存済み経験から状態・操作の反復を集計します。診断は含めません。')
         reports=sorted((DATA/'exports').glob('*.zip'),key=lambda p:p.stat().st_mtime,reverse=True)
@@ -347,7 +350,8 @@ class Application:
             from .windows import WindowsGame
             from .recording import FrameRecorder,RecordedBackend
             from .diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
-            session=str(time.time_ns());summary={'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
+            from . import __version__
+            session=str(time.time_ns());summary={'app_version':__version__,'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
             recorder=None;backend=None;monitor_done=threading.Event();memory=None;diagnostic_store=None;exploration_run=None
             try:
                 backend=self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
@@ -424,6 +428,9 @@ class Application:
         event=value.get('event');self.append_log(value)
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event=='result':
+            if value.get('policy_choice'):
+                self.set_panel('行動学習',{'selection':value.get('policy_choice'),'update':value.get('policy_learning')})
+                self.set_panel('候補と評価',value['policy_choice'].get('context',{}))
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
             self.set_panel('結果',{key:value.get(key) for key in ('step','action_kind','observed_keys','input_receipt','neutral_before','executed','changed','transition_attribution','turn_kind','duration_ms','raw_change','masked_activity')})
             return
@@ -432,9 +439,9 @@ class Application:
             self.set_panel('現在状態',value);return
         self.run_counts['decisions']+=1;self.last_row=value
         self.status.set(f"{value.get('scene','')} / {value.get('subgoal','')}")
-        self.set_panel('現在状態',{'独立した画面観察（モデル報告・未検証）':value.get('scene_observation',{}),'計画時の場面判断':value.get('scene',''),'計画時の観察':value.get('observation','')})
+        self.set_panel('現在状態',{'独立した画面観察（モデル報告・未検証）':value.get('scene_observation',{}),'モデルの計画時の場面判断':(value.get('llm_proposal') or {}).get('scene',value.get('scene','')),'採用した場面仮説':value.get('scene',''),'採用根拠':value.get('scene_basis','model_report'),'採用した観察':value.get('observation','')})
         self.set_panel('目的',{'overall_goal':self.cfg.goal,'autonomous_goal':value.get('autonomous_goal',{'objective':value.get('subgoal'),'success_condition':value.get('goal_success')}),'progress':value.get('progress',[])})
-        self.set_panel('候補と評価',{'confidence':value.get('confidence'),'risk':value.get('risk'),'allowed_keys':self.cfg.allowed_keys,'note':'LLMの報告値。代替候補の点数は生成していません。'})
+        self.set_panel('候補と評価',{'confidence':value.get('confidence'),'risk':value.get('risk'),'allowed_keys':self.cfg.allowed_keys,'learned_policy':value.get('policy_choice'),'note':'モデルの信頼度と、経験から計算した優先度・試行数は別の指標です。'})
         self.set_panel('選択行動と理由',{'keys':value.get('keys'),'hold_ms':value.get('hold_ms'),'reason':value.get('reason')})
         self.set_panel('仮説',value.get('memory_updates',[]));self.set_panel('新発見',value.get('progress',[]))
         self.set_panel('修正履歴',value.get('knowledge_revisions',{}));self.set_panel('OCR・攻略知識の照合',{'ocr':value.get('ocr',{}),'knowledge_assessments':value.get('knowledge_assessments',[]),'note':'OCRと出典の照合は仮説。ゲーム内効果の実証とは区別します。'})

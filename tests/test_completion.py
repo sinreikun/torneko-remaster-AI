@@ -13,7 +13,7 @@ class FakeVerifier(LocalLLM):
 
 class CompletionTests(unittest.TestCase):
     def test_pending_key_cannot_be_complete(self):
-        value=change(status='complete',action={'keys':['enter'],'hold_ms':80,'wait_ms':800})
+        value=change(status='complete',action={'keys':['num1'],'hold_ms':80,'wait_ms':800})
         with self.assertRaisesRegex(ValueError,'use status continue'): parse_decision(json.dumps(value),Settings())
     def test_title_with_goal_footer_is_not_victory(self):
         facts={'scene_type':'title','visible_text':['TITLE','Press ENTER to continue','Victory is the only goal.'],'description':'Blue title screen with an instruction.'}

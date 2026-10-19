@@ -103,7 +103,7 @@ class RecoveryTests(unittest.TestCase):
     def test_key_name_aliases_still_respect_allowlist(self):
         for name,expected in [('ENTER','enter'),('Return','enter'),('SPACEBAR','space')]:
             value=change(action={'keys':[name],'hold_ms':80,'wait_ms':0})
-            self.assertEqual(parse_decision(json.dumps(value),Settings()).keys,[expected])
+            self.assertEqual(parse_decision(json.dumps(value),Settings(window_title='Other game',allowed_keys=['enter','space'])).keys,[expected])
         with self.assertRaises(ValueError):
             parse_decision(json.dumps(change(action={'keys':['ESC'],'hold_ms':80,'wait_ms':0})),Settings(allowed_keys=['enter']))
     def test_memory_protocol_bounds(self):
