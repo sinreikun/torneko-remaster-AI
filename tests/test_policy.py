@@ -34,6 +34,8 @@ class PolicyTests(unittest.TestCase):
         for _ in range(4):self.policy.learn(before,before,receipt_row('w'),before)
         moved=state('B',261.7,650)
         self.policy.learn(before,moved,receipt_row('a'),before)
+        # This assertion isolates persistent Q ranking from session route planning.
+        self.policy.routes.reset()
         proposal=parse_decision(json.dumps(change(action={'keys':['w'],'hold_ms':80,'wait_ms':0})),self.cfg)
         selected,detail=self.policy.choose(proposal,before,stable=True)
         self.assertEqual(selected.keys,['a']);self.assertEqual(detail['source'],'learned_policy')
@@ -68,6 +70,13 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(result['net_signals']['position'],0)
         self.assertLessEqual(result['reward'],0)
         self.assertEqual(result['attribution'],'observed_association_not_causal')
+    def test_changed_shape_hash_does_not_reward_returning_to_session_location(self):
+        a,b=state('A'),state('B',261.7)
+        self.policy.learn(a,b,receipt_row('d'),a)
+        changed=state('new-shape-A');changed['minimap']['shape']='marker-occlusion-changed-shape'
+        result=self.policy.learn(b,changed,receipt_row('a'),b)
+        self.assertEqual(result['novelty_weight'],0)
+        self.assertLess(result['reward'],0)
     def test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train(self):
         for row in (receipt_row(executed=False),receipt_row(dry_run=True),receipt_row(event='diagnostic'),
                     receipt_row(learning=False),receipt_row(learning=False,policy_choice={'source':'learned_policy'}),receipt_row(turn_kind='aborted'),receipt_row(input_receipt={'os_submission':'rejected'})):

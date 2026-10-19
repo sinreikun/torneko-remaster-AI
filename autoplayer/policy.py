@@ -11,6 +11,7 @@ from dataclasses import replace
 from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .minimap import read_minimap
+from .exploration import ExplorationRoutes
 
 VERSION=3
 MOVES=('w','a','s','d')
@@ -23,6 +24,7 @@ class ExperiencePolicy:
         self.db=memory.db;self.settings=settings;self.reader=KnowledgeEngine();self.visits={};self.trajectory=[]
         # Goal and control changes isolate values; editing prose does not erase learned actions.
         self.profile=profile_for(settings)
+        self.routes=ExplorationRoutes()
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS policy_actions(profile TEXT,state TEXT,objective TEXT,action TEXT,
             trials INTEGER NOT NULL DEFAULT 0,q REAL NOT NULL DEFAULT 0,positive INTEGER NOT NULL DEFAULT 0,
@@ -100,6 +102,11 @@ class ExperiencePolicy:
             return decision,{'source':'model_nonmovement','context':context}
         candidates=[v for v in context['ranking'] if v['automatic_candidate']]
         if not candidates:return replace(decision,keys=[]),{'source':'neutral_no_safe_candidate','context':context}
+        for candidate in candidates:
+            penalty=self.routes.penalty(state,candidate['keys'][0])
+            candidate['session_revisit_penalty']=penalty
+            candidate['priority']=round(candidate['priority']-penalty,5)
+        candidates.sort(key=lambda v:v['priority'],reverse=True)
         if adjustment:
             strategy=adjustment.get('strategy')
             for candidate in candidates:
@@ -109,15 +116,17 @@ class ExperiencePolicy:
                 candidate['adjustment']=delta;candidate['priority']=round(candidate['priority']+delta,5)
             candidates.sort(key=lambda v:v['priority'],reverse=True)
         # Least visited actions break cold-start ties deterministically; learned Q then dominates.
-        selected=candidates[0];key=selected['keys'][0]
+        route=self.routes.suggest(state,candidates)
+        selected=next((v for v in candidates if route and v['keys']==[route['key']]),candidates[0]);key=selected['keys'][0]
         reason=('地図の自位置・既知領域と、この状態で蓄積した行動価値・試行回数から優先度を選択しました。' if selected['trials'] else 'この状態では未試行の候補です。地図と安全条件を確認し、経験を蓄積するための短い移動を選択しました。')
         if adjustment:reason+=' 停滞の原因仮説を検証するため、許可された移動候補内で優先度を一時調整しています。'
+        if route:reason+=' 実際の移動を観測した区間から、未試行の方向が残る地点への経路を選び、1入力ずつ確認します。'
         caption=f"地図の黄色マーカーを解析座標{state['minimap']['player']}に観測。青い既知領域は{state['minimap']['known_pixels']}画素。画面内の推定値です。"
         chosen=replace(decision,scene='gameplay',observation=caption,keys=[key],hold_ms=min(80,self.settings.max_hold_ms),wait_ms=600,
             confidence=.8,reason=reason,subgoal='食料を探すため未確認の通路を探索する' if state['objective']=='forage' else 'ミニマップ上の未訪問位置または未確認の通路を探索する',
             goal_success='地図の自位置の移動または既知領域の増加を次の観測で確認する',
             progress=[],memory_updates=[],plan=[],goal_evidence=[],knowledge_assessments=[])
-        return chosen,{'source':'learned_policy','selected':selected,'context':context,'adjustment':adjustment,
+        return chosen,{'source':'learned_policy','selected':selected,'context':context,'adjustment':adjustment,'exploration_route':route,
             'safety':'同じ自位置を中立観測で再確認し、メニュー文字・近傍の敵・低HPがない場合の短い移動のみ。'}
     @staticmethod
     def signals(before,after):
@@ -155,12 +164,18 @@ class ExperiencePolicy:
         action=keys[0];observed=self.signals(before,after)
         natural=self.signals(neutral_before,before) if neutral_before else {k:0. for k in observed}
         net={k:max(0.,v-natural[k]) for k,v in observed.items()}
+        session_revisits=self.routes.visits(after)
+        # Register departure before arrival so returning with a changed map hash
+        # cannot make a previously visited screen location novel again.
+        if before.get('eligible') and after.get('eligible') and before['minimap'].get('player_cell')==after['minimap'].get('player_cell'):
+            session_revisits=max(1,session_revisits)
+        self.routes.record(before,after,action,natural)
         # Returning to an already observed location is not exploration progress.
         # Register the departure too, so A -> B -> A cannot reward both halves.
         with self.db:
             self.db.execute('INSERT OR IGNORE INTO policy_visits VALUES(?,?,1)',(self.profile,before['location']))
         visit=self.db.execute('SELECT count FROM policy_visits WHERE profile=? AND location=?',(self.profile,after['location'])).fetchone()
-        revisits=visit[0] if visit else 0
+        revisits=max(visit[0] if visit else 0,session_revisits)
         novelty=0. if revisits else 1.
         revisit_cost=.12*min(3,revisits) if net['position'] and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
         reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']+(.15*net['visual']*novelty if not before['eligible'] else 0)-.04-revisit_cost
