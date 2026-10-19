@@ -2,12 +2,16 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 import tkinter as tk
 import urllib.request
 
 
 def main():
+    for stream in (sys.stdout,sys.stderr):
+        if stream is not None and hasattr(stream,'reconfigure'):stream.reconfigure(encoding='utf-8',errors='replace')
+    os.environ['PYTHONUTF8']='1'
     parser=argparse.ArgumentParser();parser.add_argument('--endpoint',required=True);parser.add_argument('--model',required=True);parser.add_argument('--output',required=True);parser.add_argument('--verify-ocr-components',action='store_true')
     args=parser.parse_args();output=Path(args.output);output.parent.mkdir(parents=True,exist_ok=True)
     os.environ.setdefault('GAMEPILOT_DATA_DIR',str(output.parent/'data'))

@@ -55,9 +55,11 @@ def install(model_id,stop,progress,root=None):
     model=next(x for x in MODELS if x['id']==model_id)
     progress('RapidOCR / ONNX Runtime CPU を PyPI から導入中…')
     log=root/'ocr-install.log'
+    executable=Path(sys.executable)
+    if os.name=='nt' and executable.name.casefold()=='pythonw.exe':executable=executable.with_name('python.exe')
     with log.open('a',encoding='utf-8') as output:
-        process=subprocess.Popen([sys.executable,'-m','pip','install','--disable-pip-version-check','rapidocr==3.4.0','onnxruntime>=1.23,<2'],stdout=output,stderr=subprocess.STDOUT,
-            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        process=subprocess.Popen([str(executable),'-m','pip','install','--disable-pip-version-check','rapidocr==3.4.0','onnxruntime>=1.23,<2'],stdout=output,stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),env={**os.environ,'PYTHONUTF8':'1'})
         try:
             while process.poll() is None:
                 if stop.wait(.2):
