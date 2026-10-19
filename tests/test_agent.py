@@ -125,7 +125,11 @@ class APITests(unittest.TestCase):
         d=LocalLLM(cfg).decide(b'png',[],False)
         path,body=self.requests[-1];self.assertEqual(path,'/api/chat');self.assertEqual(d.scene,'title')
         self.assertEqual(body['messages'][1]['images'],['cG5n'])
-        self.assertEqual(body['format']['properties']['action']['properties']['keys']['items']['enum'],cfg.allowed_keys)
+        branches=body['format']['oneOf']
+        for branch in branches:
+            self.assertEqual(branch['properties']['action']['properties']['keys']['items']['enum'],cfg.allowed_keys)
+        complete=next(branch for branch in branches if branch['properties']['status']['enum']==['complete'])
+        self.assertEqual(complete['properties']['action']['properties']['keys']['maxItems'],0)
         prompt=json.loads(body['messages'][1]['content']);self.assertEqual(prompt['goal'],'勝利する');self.assertEqual(prompt['knowledge'],'W moves up')
     def test_openai_contract(self):
         for url in (self.url,self.url+'/v1'):

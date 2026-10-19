@@ -153,7 +153,7 @@ def select_knowledge(text,query,limit=2500):
             selected.add(index);remaining-=len(chunk)
     return '\n'.join(chunks[index] for index in sorted(selected))[:limit]
 
-def decision_schema(cfg):
+def _decision_object_schema(cfg):
     text={'type':'string'}
     return {'type':'object','additionalProperties':False,
         'required':['scene','observation','subgoal','reason','confidence','status','action'],
@@ -172,6 +172,17 @@ def decision_schema(cfg):
                 'keys':{'type':'array','maxItems':2,'items':{'type':'string','enum':cfg.allowed_keys}},
                 'hold_ms':{'type':'integer','minimum':1,'maximum':cfg.max_hold_ms},
                 'wait_ms':{'type':'integer','minimum':0,'maximum':cfg.max_wait_ms}}}}}
+
+def decision_schema(cfg):
+    # Enforce dependent fields during generation, not just after decoding.
+    # A completion claim can never carry a queued keypress.
+    import copy
+    ongoing=_decision_object_schema(cfg)
+    completed=copy.deepcopy(ongoing)
+    ongoing['properties']['status']['enum']=['continue','blocked']
+    completed['properties']['status']['enum']=['complete']
+    completed['properties']['action']['properties']['keys']['maxItems']=0
+    return {'oneOf':[ongoing,completed]}
 
 VERIFY_SCHEMA={'type':'object','additionalProperties':False,'required':['achieved','confidence','evidence','reason','remaining_actions'],
     'properties':{'achieved':{'type':'boolean'},'confidence':{'type':'number','minimum':0,'maximum':1},
@@ -252,7 +263,8 @@ class LocalLLM:
             'recent_history':compact,'memory':context,'stalled':stalled,
             'instruction':'Reassess the current image. Revise the plan if stalled. Never repeat an ineffective action indefinitely.'}
         schema=decision_schema(cfg)
-        if applicable: schema['required']+=['goal_success']
+        if applicable:
+            for branch in schema['oneOf']: branch['required']+=['goal_success']
         decision=parse_decision(self._request(png,SYSTEM,prompt,schema),cfg)
         if applicable and not decision.goal_success.strip(): raise ValueError('Set a specific visible success condition for your autonomous subgoal.')
         self.observation_state=self.knowledge_engine.accept(decision,knowledge_context) if knowledge_context else {}
