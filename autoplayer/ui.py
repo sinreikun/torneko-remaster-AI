@@ -17,7 +17,7 @@ DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.pa
 
 class Application:
     def __init__(self,root):
-        self.root=root;root.title('ローカルLLM ゲーム攻略ツール — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
+        self.root=root;self.configure_theme();root.title('ローカルLLM ゲーム攻略ツール — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
         self.queue=queue.Queue();self.stop=threading.Event();self.worker=None
         self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
         self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
@@ -109,8 +109,31 @@ class Application:
         self.preview=threading.Thread(target=self.preview_loop,daemon=True);self.preview.start()
         root.protocol('WM_DELETE_WINDOW',self.close);root.after(100,self.poll)
 
+    def configure_theme(self):
+        from tkinter import font
+        families=set(font.families(self.root))
+        family=next((name for name in ('Yu Gothic UI','Meiryo UI','Noto Sans CJK JP','Segoe UI') if name in families),'TkDefaultFont')
+        if family!='TkDefaultFont':
+            for name in ('TkDefaultFont','TkTextFont','TkMenuFont','TkHeadingFont'):
+                font.nametofont(name).configure(family=family,size=10)
+        background='#171a21';well='#232832';foreground='#e8e8ec'
+        self.root.configure(background=background)
+        self.root.option_add('*Text.background',well);self.root.option_add('*Text.foreground',foreground)
+        self.root.option_add('*Text.insertBackground',foreground);self.root.option_add('*Text.selectBackground','#285887')
+        self.root.option_add('*Text.font','TkTextFont')
+        style=ttk.Style(self.root);style.theme_use('clam')
+        style.configure('.',background=background,foreground=foreground)
+        style.configure('TButton',padding=(8,5),background='#303848',foreground=foreground)
+        style.map('TButton',background=[('active','#3d5270'),('disabled','#252a33')],foreground=[('disabled','#858b97')])
+        style.configure('TEntry',fieldbackground=well,foreground=foreground,insertcolor=foreground)
+        style.configure('TCombobox',fieldbackground=well,foreground=foreground,arrowcolor=foreground)
+        style.map('TCombobox',fieldbackground=[('readonly',well)],foreground=[('readonly',foreground)])
+        style.configure('TNotebook.Tab',padding=(12,6),background='#252a33',foreground=foreground)
+        style.map('TNotebook.Tab',background=[('selected','#3d5270')])
+        style.configure('TLabelframe',bordercolor='#3b4251');style.configure('TLabelframe.Label',foreground=foreground)
+
     def scroll_frame(self,parent):
-        canvas=tk.Canvas(parent,highlightthickness=0);scroll=ttk.Scrollbar(parent,orient='vertical',command=canvas.yview)
+        canvas=tk.Canvas(parent,highlightthickness=0,bg='#171a21');scroll=ttk.Scrollbar(parent,orient='vertical',command=canvas.yview)
         canvas.configure(yscrollcommand=scroll.set);scroll.pack(side='right',fill='y');canvas.pack(side='left',fill='both',expand=True)
         frame=ttk.Frame(canvas,padding=6);window=canvas.create_window((0,0),window=frame,anchor='nw')
         frame.bind('<Configure>',lambda event:canvas.configure(scrollregion=canvas.bbox('all')))
@@ -412,7 +435,7 @@ class Application:
         try:
             for _ in range(100):
                 kind,value=self.queue.get_nowait()
-                if kind=='error':self.status.set('エラーで停止: '+value);self.append_log({'event':'error','reason':value})
+                if kind=='error':self.status.set('エラーで停止: '+value);self.set_panel('現在状態',{'status':'error','reason':value});self.append_log({'event':'error','reason':value})
                 elif kind=='done':
                     self.control=None
                     self.start_button.configure(state='normal');self.pause_button.configure(text='⏸ 一時停止')
@@ -426,7 +449,7 @@ class Application:
                     self.status.set('ゲームに接続しました。ライブ画面を取得しています。')
                 elif kind=='close_probe':
                     if self.probe:self.probe.destroy();self.probe=None
-                elif kind=='exported':self.latest_zip=Path(value);self.status.set('提出用ZIPを自動生成しました。「提出用ZIPをコピー」で添付できます。');self.append_log({'event':'diagnostic_export','path':str(value)})
+                elif kind=='exported':self.latest_zip=Path(value);self.status.set(self.status.get().split('\n診断ZIP')[0]+'\n診断ZIPを生成しました。「提出用ZIPをコピー」で添付できます。');self.append_log({'event':'diagnostic_export','path':str(value)})
                 elif kind=='export_error':self.status.set('診断ZIPの作成に失敗: '+value);self.append_log({'event':'export_error','reason':value})
                 elif kind=='session':self.set_panel('現在状態',value);self.status.set(value['status']+' / '+value['reason'])
                 elif kind=='memory':

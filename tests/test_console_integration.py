@@ -1,5 +1,6 @@
 """Pure component checks. No demo game, live-game automation or simulated clear."""
 import io
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -51,21 +52,21 @@ class DiagnosticsTests(unittest.TestCase):
             self.assertTrue(passed);self.assertEqual(backend.act.call_count,6)
             self.assertFalse((folder/'memory.sqlite').exists())
             self.assertTrue(all(row.get('learning') is False for row in events))
-            with sqlite3.connect(folder/'diagnostics.sqlite') as db:
+            with closing(sqlite3.connect(folder/'diagnostics.sqlite')) as db:
                 self.assertEqual(db.execute('SELECT status FROM runs').fetchone()[0],'passed')
                 self.assertEqual(db.execute('SELECT COUNT(*) FROM cycles').fetchone()[0],3)
     def test_failure_to_return_is_not_passed(self):
         with tempfile.TemporaryDirectory() as temp:
             folder=Path(temp)
             with self.assertRaises(RuntimeError):self.check_run(folder,return_distance=20)
-            with sqlite3.connect(folder/'diagnostics.sqlite') as db:self.assertEqual(db.execute('SELECT status FROM runs').fetchone()[0],'failed')
+            with closing(sqlite3.connect(folder/'diagnostics.sqlite')) as db:self.assertEqual(db.execute('SELECT status FROM runs').fetchone()[0],'failed')
     def test_front_app_input_leak_is_not_passed(self):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(RuntimeError):self.check_run(Path(temp),leak=True)
     def test_wrong_process_profile_never_receives_known_keys(self):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(RuntimeError):self.check_run(Path(temp),profile=False)
-            with sqlite3.connect(Path(temp)/'diagnostics.sqlite') as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM cycles').fetchone()[0],0)
+            with closing(sqlite3.connect(Path(temp)/'diagnostics.sqlite')) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM cycles').fetchone()[0],0)
     def test_cancel_is_not_passed(self):
         with tempfile.TemporaryDirectory() as temp:
             passed,events,backend=self.check_run(Path(temp),stopped=True)
@@ -81,7 +82,7 @@ class ReportTests(unittest.TestCase):
             with zipfile.ZipFile(archive) as z:
                 z.extract('memory.sqlite',folder/'backup')
                 self.assertIn('recordings/run1/screen.png',z.namelist());self.assertIn('health.txt',z.namelist())
-            with sqlite3.connect(folder/'backup'/'memory.sqlite') as snapshot:self.assertEqual(snapshot.execute('SELECT value FROM evidence').fetchone()[0],'committed in WAL')
+            with closing(sqlite3.connect(folder/'backup'/'memory.sqlite')) as snapshot:self.assertEqual(snapshot.execute('SELECT value FROM evidence').fetchone()[0],'committed in WAL')
             self.assertEqual(report['databases']['memory.sqlite']['status'],'ok');db.close()
     def test_missing_checks_are_not_success(self):
         with tempfile.TemporaryDirectory() as temp:
