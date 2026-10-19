@@ -18,3 +18,49 @@ jobs:
           git add research-evidence
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record public source retrieval'
           git push origin HEAD
+  knowledge:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Generate own source payload
+        run: python tools/build_exe.py --payload-only
+      - name: Automatic managed installation and actual knowledge pipeline
+        timeout-minutes: 25
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
+          foreach ($module in @('Microsoft.PowerShell.Utility','Microsoft.PowerShell.Management','Microsoft.PowerShell.Archive')) { Import-Module (Join-Path (Join-Path $PSHOME 'Modules') $module) }
+          $scriptPath=(Resolve-Path build/bootstrap.ps1)
+          $tokens=$null; $errors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseFile($scriptPath,[ref]$tokens,[ref]$errors)
+          if ($errors.Count) { throw 'Installer syntax error' }
+          $assignment=$ast.Find({param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -eq '$InstallWorker'},$true)
+          . ([scriptblock]::Create($assignment.Extent.Text))
+          $base=Join-Path $env:RUNNER_TEMP 'KnowledgePipeline'
+          $app=Join-Path $base 'app'
+          $options=@{Python='3.13';Backend='managed';Model='qwen2.5vl:3b';Endpoint='http://127.0.0.1:11435'}
+          $state=@{Done=$false;Cancel=$false;Ready=$false;Error='';Message=''}
+          & $InstallWorker $base $app (Resolve-Path build/application.zip) $options $state
+          if ($state.Error -or -not $state.Ready) { throw $state.Error }
+          $python=Join-Path (Split-Path $state.Python) 'python.exe'
+          $env:PYTHONPATH=$app
+          & $python reference/knowledge_smoke.py --endpoint http://127.0.0.1:11435 --output "$base/knowledge-report.json"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Publish knowledge evidence
+        if: always()
+        shell: pwsh
+        run: |
+          git checkout --orphan "ci-evidence/knowledge-$env:GITHUB_RUN_ID"
+          git rm -r --cached . | Out-Null
+          New-Item -ItemType Directory -Path ci-evidence -Force | Out-Null
+          $folder=Join-Path $env:RUNNER_TEMP 'KnowledgePipeline'
+          Copy-Item "$folder/knowledge-report.json" ci-evidence/ -ErrorAction SilentlyContinue
+          Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 80 | Set-Content (Join-Path ci-evidence $_.Name) }
+          @{commit=$env:GITHUB_SHA;run=$env:GITHUB_RUN_ID} | ConvertTo-Json | Set-Content ci-evidence/status.json
+          git add ci-evidence
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record real OCR and local model knowledge pipeline'
+          git push origin HEAD
