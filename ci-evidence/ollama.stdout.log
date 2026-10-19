@@ -1,0 +1,20 @@
+Couldn't find 'C:\Users\runneradmin\.ollama\id_ed25519'. Generating new private key.
+Your new public key is: 
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICNRs4DPivp3jYkQ3BPC869D5QMhIhAz2KTICJwfig+8
+
+[GIN] 2026/10/19 - 00:22:25 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/19 - 00:22:25 | 200 |            0s |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 00:22:42 | 200 |   16.5552792s |       127.0.0.1 | POST     "/api/pull"
+[GIN] 2026/10/19 - 00:22:42 | 200 |     62.7032ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/19 - 00:22:44 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/19 - 00:22:44 | 200 |      4.6875ms |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/19 - 00:22:44 | 200 |      2.0947ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/19 - 00:24:02 | 200 |         1m16s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:25:14 | 200 |         1m10s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:26:29 | 200 |         1m13s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:27:47 | 200 |         1m17s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:29:03 | 200 |         1m14s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:29:16 | 200 |   12.0760673s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:29:28 | 200 |    9.9352322s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:29:43 | 200 |   11.4377156s |       127.0.0.1 | POST     "/api/chat"
