@@ -1,0 +1,120 @@
+load_hparams: n_ff:               3420
+load_hparams: n_layer:            32
+load_hparams: ffn_op:             silu
+load_hparams: projection_dim:     2048
+
+--- vision hparams ---
+load_hparams: image_size:         560
+load_hparams: patch_size:         14
+load_hparams: has_llava_proj:     0
+load_hparams: minicpmv_version:   0
+load_hparams: n_merge:            2
+load_hparams: n_wa_pattern: 8
+load_hparams: image_min_pixels:   802816 (custom value)
+load_hparams: image_max_pixels:   3211264
+
+load_hparams: model size:         3048.93 MiB
+load_hparams: metadata size:      0.33 MiB
+compat tensor transform: op=F16->F32 promote tensor=v.patch_embd.weight bytes=3010560 duration_ms=5.704 total_ops=1 total_bytes=3010560 total_ms=5.704
+compat tensor transform: op=F16->F32 promote tensor=v.patch_embd.weight.1 bytes=3010560 duration_ms=5.688 total_ops=2 total_bytes=6021120 total_ms=11.392
+get_dummy_batch: warmup with image size = 1288 x 1288
+get_dummy_batch: warmup with image size = 1288 x 1288
+reserve_compute_meta:        CPU compute buffer size =   569.70 MiB
+reserve_compute_meta: graph splits = 1, nodes = 1090
+warmup: flash attention is enabled
+srv    load_model: loaded multimodal model, 'D:\a\_temp\GamePilotIntegration\models\blobs\sha256-e9758e589d443f653821b7be9bb9092c1bf7434522b70ec6e83591b1320fdb4d'
+srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'
+spec common_specu: no implementations specified for speculative decoding
+slot   load_model: id  0 | task -1 | new slot, n_ctx = 8192
+srv    load_model: prompt cache is enabled, size limit: 8192 MiB
+srv    load_model: use `--cache-ram 0` to disable the prompt cache
+srv    load_model: for more info see https://github.com/ggml-org/llama.cpp/pull/16391
+srv    load_model: context checkpoints enabled, max = 32, min spacing = 8192
+srv          init: idle slots will be saved to prompt cache upon starting a new task
+srv          init: init: chat template, example_format: '<|im_start|>system
+You are a helpful assistant<|im_end|>
+<|im_start|>user
+Hello<|im_end|>
+<|im_start|>assistant
+Hi there<|im_end|>
+<|im_start|>user
+How are you?<|im_end|>
+<|im_start|>assistant
+'
+srv          init: init: chat template, thinking = 0
+srv          init: preserve_reasoning kwarg: not supported by template
+srv  llama_server: model loaded
+srv  llama_server: listening on http://127.0.0.1:59836
+srv  update_slots: all slots are idle
+time=2026-10-18T23:59:26.615Z level=INFO source=llama_server.go:1403 msg="llama-server started in 4.53 seconds"
+time=2026-10-18T23:59:26.616Z level=INFO source=images.go:422 msg="template selection" model=registry.ollama.ai/library/qwen2.5vl:3b selected=go_template renderer="" parser="" go_template="[completion vision]" chat_template="[completion vision]" harmony=null renderer_parser=null
+time=2026-10-18T23:59:26.616Z level=INFO source=sched.go:788 msg="loaded runners" count=1
+time=2026-10-18T23:59:26.616Z level=INFO source=llama_server.go:1336 msg="waiting for llama-server to start responding"
+time=2026-10-18T23:59:26.617Z level=INFO source=llama_server.go:1403 msg="llama-server started in 4.53 seconds"
+srv  server_strea: conv_id= (empty=1)
+slot get_availabl: id  0 | task -1 |  - skipping, slot is empty
+slot get_availabl: id  0 | task -1 | selected slot by LRU, n_tokens = 0, t_last = -1
+srv  get_availabl: updating prompt cache
+srv          load:  - looking for better prompt, base f_keep = -1.000, f_sim = 0.000
+srv        update:  - cache state: 0 prompts, 0.000 MiB (limits: 8192.000 MiB, 8192 tokens, 8589934592 est)
+srv  get_availabl: prompt cache update took 0.02 ms
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> ?min-p -> ?xtc -> temp-ext -> greedy 
+slot launch_slot_: id  0 | task -1 | sampler params: 
+	repeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000
+	dry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64
+	top_k = 40, top_p = 0.900, min_p = 0.000, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000
+	mirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900
+slot launch_slot_: id  0 | task 0 | processing task, is_child = 0
+slot   operator(): id  0 | task 0 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 1670
+slot   operator(): id  0 | task 0 | cached n_tokens = 0, memory_seq_rm [0, end)
+slot print_timing: id  0 | task 0 | prompt processing, n_tokens =    419, progress = 0.25, t =   8.48 s / 49.42 tokens per second
+slot   operator(): id  0 | task 0 | cached n_tokens = 419, memory_seq_rm [419, end)
+slot encode_mtmd_: id  0 | task 0 | encoding mtmd batch from idx = 419, n_chunks = 1
+decoding image batch 1/2, n_tokens_batch = 1024
+image decoded (batch 1/2) in 21655 ms
+decoding image batch 2/2, n_tokens_batch = 29
+image decoded (batch 2/2) in 1164 ms
+slot init_sampler: id  0 | task 0 | init sampler, took 0.09 ms, tokens: text = 617, total = 1670
+slot print_timing: id  0 | task 0 | n_gen =    100, tg =   9.20 t/s, tg_3s =   9.29 t/s
+slot print_timing: id  0 | task 0 | n_gen =    128, tg =   9.20 t/s, tg_3s =   9.21 t/s
+slot print_timing: id  0 | task 0 | n_gen =    156, tg =   9.21 t/s, tg_3s =   9.22 t/s
+slot print_timing: id  0 | task 0 | prompt eval time =   74331.68 ms /  1670 tokens (   44.51 ms per token,    22.47 tokens per second)
+slot print_timing: id  0 | task 0 |        eval time =   19416.20 ms /   179 tokens (  109.08 ms per token,     9.17 tokens per second)
+slot print_timing: id  0 | task 0 |       total time =   93747.88 ms /  1849 tokens
+slot print_timing: id  0 | task 0 |    graphs reused =        177
+slot print_timing: id  0 | task 0 |   graph reallocs =          0    /     0        (same size) / (changed size)
+slot      release: id  0 | task 0 | stop processing: n_tokens = 1848, truncated = 0
+srv  update_slots: all slots are idle
+srv  server_strea: conv_id= (empty=1)
+slot get_availabl: id  0 | task -1 |  - checking sim = 0.003 (4/1194) > 0.100
+slot get_availabl: id  0 | task -1 | selected slot by LRU, n_tokens = 1848, t_last = 98285455
+srv  get_availabl: updating prompt cache
+srv   prompt_save:  - saving prompt with length 1848, total state size = 65.012 MiB (draft: 0.000 MiB)
+srv          load:  - looking for better prompt, base f_keep = 0.002, f_sim = 0.003
+srv          load:    - prompt with length    1848, lcp =       4, f_keep = 0.002, f_sim = 0.003
+srv        update:  - cache state: 1 prompts, 65.012 MiB (limits: 8192.000 MiB, 8192 tokens, 232862 est)
+srv        update:    - prompt 000001AC062BEC90:    1848 tokens, checkpoints:  0,    65.012 MiB
+srv  get_availabl: prompt cache update took 29.43 ms
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> ?min-p -> ?xtc -> temp-ext -> greedy 
+slot launch_slot_: id  0 | task -1 | sampler params: 
+	repeat_last_n = 64, repeat_penalty = 1.000, frequency_penalty = 0.000, presence_penalty = 0.000
+	dry_multiplier = 0.000, dry_base = 1.750, dry_allowed_length = 2, dry_penalty_last_n = 64
+	top_k = 40, top_p = 0.900, min_p = 0.000, xtc_probability = 0.000, xtc_threshold = 0.100, typical_p = 1.000, top_n_sigma = -1.000, temp = 0.000
+	mirostat = 0, mirostat_lr = 0.100, mirostat_ent = 5.000, adaptive_target = -1.000, adaptive_decay = 0.900
+slot launch_slot_: id  0 | task 181 | processing task, is_child = 0
+slot   operator(): id  0 | task 181 | new prompt, n_ctx_slot = 8192, n_keep = 4, task.n_tokens = 1194
+slot   operator(): id  0 | task 181 | cached n_tokens = 4, memory_seq_rm [4, end)
+slot   operator(): id  0 | task 181 | cached n_tokens = 78, memory_seq_rm [78, end)
+slot encode_mtmd_: id  0 | task 181 | encoding mtmd batch from idx = 78, n_chunks = 1
+decoding image batch 1/2, n_tokens_batch = 1024
+image decoded (batch 1/2) in 20665 ms
+decoding image batch 2/2, n_tokens_batch = 29
+image decoded (batch 2/2) in 1069 ms
+slot init_sampler: id  0 | task 181 | init sampler, took 0.03 ms, tokens: text = 141, total = 1194
+slot print_timing: id  0 | task 181 | prompt eval time =   63428.77 ms /  1190 tokens (   53.30 ms per token,    18.76 tokens per second)
+slot print_timing: id  0 | task 181 |        eval time =    4359.75 ms /    44 tokens (  101.39 ms per token,     9.86 tokens per second)
+slot print_timing: id  0 | task 181 |       total time =   67788.51 ms /  1234 tokens
+slot print_timing: id  0 | task 181 |    graphs reused =        219
+slot print_timing: id  0 | task 181 |   graph reallocs =          0    /     0        (same size) / (changed size)
+slot      release: id  0 | task 181 | stop processing: n_tokens = 1237, truncated = 0
+srv  update_slots: all slots are idle

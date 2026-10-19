@@ -1,0 +1,14 @@
+Couldn't find 'C:\Users\runneradmin\.ollama\id_ed25519'. Generating new private key.
+Your new public key is: 
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDmqAPD/ubNAHB5c0iV1R/pyBG4hRaJVHEiufqIDz+El
+
+[GIN] 2026/10/18 - 23:59:02 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/18 - 23:59:02 | 200 |            0s |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/18 - 23:59:17 | 200 |   14.8959303s |       127.0.0.1 | POST     "/api/pull"
+[GIN] 2026/10/18 - 23:59:17 | 200 |     81.1279ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/18 - 23:59:20 | 200 |            0s |       127.0.0.1 | GET      "/api/version"
+[GIN] 2026/10/18 - 23:59:20 | 200 |      2.5863ms |       127.0.0.1 | GET      "/api/tags"
+[GIN] 2026/10/18 - 23:59:20 | 200 |      2.8256ms |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/10/19 - 00:01:00 | 200 |         1m38s |       127.0.0.1 | POST     "/api/chat"
+[GIN] 2026/10/19 - 00:02:08 | 200 |          1m7s |       127.0.0.1 | POST     "/api/chat"
