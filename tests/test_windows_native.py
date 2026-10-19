@@ -70,7 +70,7 @@ class WindowsAutomationTests(unittest.TestCase):
             try:
                 root.update();root.geometry('1000x640+0+0');root.update()
                 app.placement.track();app.save_ui()
-                saved=json.loads((Path(temp)/'ui-settings.json').read_text())
+                saved=json.loads((Path(temp)/'ui-settings.json').read_text(encoding='utf-8'))
                 expected=fit_bounds(saved['window_bounds'],app.placement.monitors())
             finally:
                 for token in root.tk.call('after','info'):root.after_cancel(token)
