@@ -45,18 +45,24 @@ class WindowPlacement:
         u=C.WinDLL('user32');u.GetAncestor.argtypes=[W.HWND,W.UINT];u.GetAncestor.restype=W.HWND
         return u,u.GetAncestor(self.root.winfo_id(),2)
     def restore(self):
+        scheduled=False
         try:
             value=fit_bounds(self.settings.get('window_bounds'),self.monitors())
             if value and self.root.state()!='withdrawn':
                 self.root.minsize(min(1000,value['width']),min(640,value['height']))
-                self.root.geometry(f"{value['width']}x{value['height']}")
-                self.root.update_idletasks()
+                self.root.geometry(f"{value['width']}x{value['height']}+{max(0,value['x'])}+{max(0,value['y'])}")
                 if os.name=='nt':
-                    from ctypes import wintypes as W
-                    u,hwnd=self.native();u.SetWindowPos.argtypes=[W.HWND,W.HWND,W.INT,W.INT,W.INT,W.INT,W.UINT]
-                    u.SetWindowPos(hwnd,None,value['x'],value['y'],0,0,0x15)
-                else:self.root.geometry(f"+{max(0,value['x'])}+{max(0,value['y'])}")
-                if self.settings.get('window_state')=='zoomed' and os.name=='nt':self.root.state('zoomed')
+                    # Tk may apply its initial WM geometry after the first idle
+                    # callback. Position once the native window has been mapped.
+                    self.root.after(80,lambda:self.finish_restore(value));scheduled=True
+        finally:
+            if not scheduled:self.restoring=False
+    def finish_restore(self,value):
+        try:
+            from ctypes import wintypes as W
+            u,hwnd=self.native();u.SetWindowPos.argtypes=[W.HWND,W.HWND,W.INT,W.INT,W.INT,W.INT,W.UINT]
+            if not u.SetWindowPos(hwnd,None,value['x'],value['y'],0,0,0x15):raise OSError('ウィンドウ位置を復元できません。')
+            if self.settings.get('window_state')=='zoomed':self.root.state('zoomed')
         finally:self.restoring=False
     def track(self,event=None):
         if self.restoring or (event is not None and event.widget is not self.root):return

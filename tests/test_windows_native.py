@@ -61,7 +61,7 @@ class WindowsAutomationTests(unittest.TestCase):
             app.close()
 
     def test_real_application_restores_saved_window_bounds(self):
-        import json,tkinter as tk
+        import json,time,tkinter as tk
         from unittest.mock import patch
         import autoplayer.ui as ui
         from autoplayer.placement import fit_bounds
@@ -77,7 +77,11 @@ class WindowsAutomationTests(unittest.TestCase):
                 app.close()
             root=tk.Tk();app=ui.Application(root)
             try:
+                deadline=time.monotonic()+2
+                while app.placement.restoring and time.monotonic()<deadline:
+                    root.update();time.sleep(.01)
                 root.update();app.placement.track()
+                self.assertFalse(app.placement.restoring)
                 actual=app.ui_state['window_bounds']
                 self.assertEqual((actual['x'],actual['y']),(expected['x'],expected['y']))
                 self.assertEqual((actual['width'],actual['height']),(expected['width'],expected['height']))
