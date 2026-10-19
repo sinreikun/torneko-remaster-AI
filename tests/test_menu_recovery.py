@@ -2,16 +2,15 @@
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
-from autoplayer.interfaces import MenuRecovery,torneko_menu_kind
+from autoplayer.interfaces import torneko_menu_kind
 from test_policy import state
 
 
 def native(*labels):return {'status':'ok','lines':[{'text':s} for s in labels]}
 
 
-class MenuRecoveryTests(unittest.TestCase):
+class MenuObservationTests(unittest.TestCase):
     def setUp(self):
-        self.guard=MenuRecovery()
         self.inventory=native('道 具','3 / 20','詳 細 表 示 切 替','新 整 理')
         self.decision=SimpleNamespace(status='continue',risk='normal',keys=[])
 
@@ -21,27 +20,6 @@ class MenuRecoveryTests(unittest.TestCase):
         self.assertIsNone(torneko_menu_kind(native('道具を使うと先へ進めます')))
         self.assertIsNone(torneko_menu_kind(native('道 具','3 / 20')))
 
-    def test_three_stalls_cancel_once_with_session_budget(self):
-        results=[self.guard.choose(self.inventory,self.decision,['num2']) for _ in range(15)]
-        actions=[r for r in results if r]
-        self.assertEqual([r['attempt'] for r in actions],[1,2])
-        self.assertTrue(all(r['key']=='num2' for r in actions))
-        self.assertIsNone(results[0]);self.assertIsNone(results[1]);self.assertIsNotNone(results[2])
-
-    def test_choices_danger_unknown_and_real_operations_do_not_trigger_cancel(self):
-        for label in ('はい','い い え','初 期 化','購 入','終 了'):
-            blocked={**self.inventory,'lines':self.inventory['lines']+[{'text':label}]}
-            for _ in range(4):self.assertIsNone(self.guard.choose(blocked,self.decision,['num2']))
-        self.decision.keys=['num1']
-        for _ in range(4):self.assertIsNone(self.guard.choose(self.inventory,self.decision,['num2']))
-        self.assertEqual(self.guard.attempts,0)
-
-    def test_missing_cancel_binding_and_interrupted_streak_do_not_send_keys(self):
-        for _ in range(4):self.assertIsNone(self.guard.choose(self.inventory,self.decision,[]))
-        self.guard.choose(self.inventory,self.decision,['num2'])
-        self.guard.choose(native('HP 15/15'),self.decision,['num2'])
-        self.assertIsNone(self.guard.choose(self.inventory,self.decision,['num2']))
-
     def test_policy_retains_menu_guard_even_with_visible_map(self):
         from autoplayer.policy import ExperiencePolicy
         policy=ExperiencePolicy.__new__(ExperiencePolicy)
@@ -50,7 +28,7 @@ class MenuRecoveryTests(unittest.TestCase):
             observed=policy.observe(b'coordinate contract',self.inventory)
         self.assertTrue(observed['menu_evidence']);self.assertFalse(observed['eligible'])
 
-    def test_controller_sends_one_cancel_after_three_neutral_menu_decisions(self):
+    def test_controller_explores_distinct_menu_inputs_instead_of_fixed_cancel(self):
         import tempfile,json
         from pathlib import Path
         from unittest.mock import Mock
@@ -74,7 +52,9 @@ class MenuRecoveryTests(unittest.TestCase):
                 agent.run()
                 rows=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
             finally:memory.close()
-        self.assertEqual([a[0] for a in backend.actions],[['num2']])
+        self.assertEqual(len(backend.actions),3)
+        self.assertEqual(len({tuple(a[0]) for a in backend.actions}),3)
+        self.assertTrue(all(a[0][0] in 'wasd' for a in backend.actions))
         self.assertEqual(rows[-1]['llm_proposal']['keys'],[])
-        self.assertEqual(rows[-1]['decision_policy']['source'],'observed_menu_recovery')
+        self.assertEqual(rows[-1]['decision_policy']['source'],'novelty_exploration')
         self.assertEqual(rows[-1]['policy_learning']['status'],'not_trained')

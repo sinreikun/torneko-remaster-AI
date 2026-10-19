@@ -55,13 +55,15 @@ class ExplorationRoutes:
         allowed={v['keys'][0] for v in candidates}
         # Search known paths for an unattempted direction. Known blue neighbors
         # precede unobserved cells; the latter may be either walls or unexplored.
-        for known in (True,False):
+        for known,unvisited in ((True,True),(False,True),(True,False),(False,False)):
             queue=deque([(start,None,0)]);seen={start}
             while queue:
                 node,first,distance=queue.popleft()
                 for candidate in candidates:
                     key=candidate['keys'][0];neighbor=self.nodes[node].get(key,{})
-                    if neighbor.get('enemy') or bool(neighbor.get('known'))!=known:continue
+                    if bool(neighbor.get('known'))!=known:continue
+                    dx,dy=DELTAS[key];destination=(node[0]+dx,node[1]+dy)
+                    if (self.arrivals[destination]==0)!=unvisited:continue
                     if self.attempts[node,key]==0:
                         return {'key':first or key,'mode':'untried_direction' if first is None else 'observed_route',
                             'target_cell':list(node),'probe_key':key,'distance':distance,

@@ -14,7 +14,7 @@ from .minimap import read_minimap
 from .exploration import ExplorationRoutes
 from .interfaces import compact_text,torneko_menu_kind
 
-VERSION=4
+VERSION=5
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -80,9 +80,10 @@ class ExperiencePolicy:
             spatial=.04 if neighbor.get('known') else 0.
             backoff=prior.get(key,{'q':0.,'trials':0})
             goal_bias=.1*((value['goal_wins']+1)/(value['goal_trials']+2)-.5) if value['goal_trials'] else 0.
-            score=value['q']+exploration+spatial+.1*backoff['q']/(n+1)+goal_bias
-            allowed=key in MOVES and state['eligible'] and not neighbor.get('enemy') and [key] not in blocked
-            ranking.append({'keys':[key],'meaning':ACTIONS[key],**value,'priority':round(score,5),'global_backoff':backoff,'verified_goal_bias':goal_bias,
+            hazard=.15 if neighbor.get('enemy') else 0.
+            score=value['q']+exploration+spatial+.1*backoff['q']/(n+1)+goal_bias-hazard
+            allowed=key in MOVES and state['eligible'] and [key] not in blocked
+            ranking.append({'keys':[key],'meaning':ACTIONS[key],**value,'priority':round(score,5),'game_hazard_cost':hazard,'global_backoff':backoff,'verified_goal_bias':goal_bias,
                 'progress_probability_estimate':round(prob,4) if n else None,'probability_samples':n,
                 'probability_posterior_stddev':round(math.sqrt(prob*(1-prob)/(n+3)),4),
                 'verified_goal_success_probability':round((value['goal_wins']+1)/(value['goal_trials']+2),4) if value['goal_trials'] else None,
@@ -95,9 +96,7 @@ class ExperiencePolicy:
         context=self.context(state,blocked)
         if not stable or decision.status!='continue' or decision.risk!='normal' or not state['eligible']:
             return decision,{'source':'model_or_neutral','context':context}
-        # Enemy indicators forbid blind movement; leave attack/escape to a guarded model plan.
-        if any(abs(x)+abs(y)<=2 for x,y in state['minimap'].get('enemies',[])) or state['objective']=='survive':
-            return decision,{'source':'model_hazard_review','context':context}
+        # Game-world danger is evaluated as a cost rather than a veto.
         # Respect a concrete non-movement operation; do not turn an attack into walking.
         if decision.keys and any(key not in MOVES for key in decision.keys):
             return decision,{'source':'model_nonmovement','context':context}
@@ -129,7 +128,7 @@ class ExperiencePolicy:
             goal_success='地図の自位置の移動または既知領域の増加を次の観測で確認する',
             progress=[],memory_updates=[],plan=[],goal_evidence=[],knowledge_assessments=[])
         return chosen,{'source':'learned_policy','selection_basis':'exploration_route' if route else 'adjusted_td_priority','selected':selected,'context':context,'adjustment':adjustment,'exploration_route':route,
-            'safety':'同じ自位置を中立観測で再確認し、メニュー文字・近傍の敵・低HPがない場合の短い移動のみ。'}
+            'safety':'自位置とメニュー不在を再確認した短い移動。ゲーム内の危険は候補から除外せず、損失と発見を評価。危険時の高速連続実行はしない。'}
     @staticmethod
     def signals(before,after):
         a,b=before.get('minimap',{}),after.get('minimap',{})

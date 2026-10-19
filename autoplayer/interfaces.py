@@ -20,21 +20,6 @@ def torneko_menu_kind(native):
     return None
 
 
-class MenuRecovery:
-    """Bounded cancellation of a positively observed Torneko menu after stalls."""
-    def __init__(self):self.kind=None;self.streak=0;self.attempts=0
-
-    def choose(self,native,decision,allowed):
-        kind=torneko_menu_kind(native)
-        if kind!=self.kind:self.kind=kind;self.streak=0
-        if not kind or 'num2' not in allowed or decision.status!='continue' or decision.risk!='normal':return None
-        if decision.keys not in ([],['num0']):self.streak=0;return None
-        self.streak+=1
-        if self.streak<3 or self.attempts>=2:return None
-        self.streak=0;self.attempts+=1
-        return {'key':'num2','kind':kind,'attempt':self.attempts,'maximum_attempts':2,
-            'reason':'複数のOCR項目からメニューを確認。同じメニューで無入力またはメニューキーが3回続いたため、キャンセルを1回送り、新しい画面を確認します。'}
-
 
 def choice_action(native, bindings, allowed):
     if native.get('status') != 'ok':

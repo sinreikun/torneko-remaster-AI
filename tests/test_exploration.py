@@ -63,10 +63,10 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(self.routes.visits(changed),0)
         self.assertFalse(self.routes.edges)
 
-    def test_enemy_and_unknown_neighbor_are_not_known_frontiers(self):
+    def test_known_frontier_is_preferred_and_enemy_does_not_remove_it(self):
         a=point(40)
         for k in 'wasd':a['minimap']['neighbors'][k]['known']=False
         a['minimap']['neighbors']['d']['known']=True
         self.assertEqual(self.routes.suggest(a,self.candidates)['key'],'d')
         a['minimap']['neighbors']['d']['enemy']=True
-        self.assertNotEqual(self.routes.suggest(a,self.candidates)['key'],'d')
+        self.assertEqual(self.routes.suggest(a,self.candidates)['key'],'d')

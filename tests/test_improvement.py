@@ -100,14 +100,15 @@ class ImprovementTests(unittest.TestCase):
         self.assertEqual(self.audit.review(self.llm)['status'],'trial_started')
         self.audit.finish(False,'不明');self.audit.tick+=12
         self.assertFalse(self.audit.due())
-    def test_priority_adjustment_never_bypasses_hazard_or_blocked_keys(self):
+    def test_priority_adjustment_keeps_game_risk_eligible_and_respects_blocked_keys(self):
         proposal=parse_decision(json.dumps(change(action={'keys':['w'],'hold_ms':80,'wait_ms':0})),self.cfg)
         adjustment={'strategy':'avoid_cycle','avoid':[['A','w']]}
         chosen,detail=self.policy.choose(proposal,state(),stable=True,adjustment=adjustment)
         self.assertNotEqual(chosen.keys,['w']);self.assertEqual(detail['adjustment'],adjustment)
         dangerous=state();dangerous['minimap']['enemies']=[(1,0)]
         chosen,detail=self.policy.choose(proposal,dangerous,stable=True,adjustment=adjustment)
-        self.assertEqual(detail['source'],'model_hazard_review')
+        self.assertEqual(detail['source'],'learned_policy')
+        self.assertTrue(chosen.keys)
         chosen,_=self.policy.choose(proposal,state(),blocked=[[k] for k in 'wasd'],stable=True,adjustment=adjustment)
         self.assertEqual(chosen.keys,[])
     def test_floor_change_disables_adjustment(self):

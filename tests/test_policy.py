@@ -90,7 +90,7 @@ class PolicyTests(unittest.TestCase):
         route={'source':'learned_policy','exploration_route':{'mode':'observed_route','distance':1,'key':'a'}}
         result=self.policy.learn(b,a,receipt_row('a',policy_choice=route),b)
         self.assertTrue(result['route_transit']);self.assertEqual(result['revisit_cost'],0)
-        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],4)
+        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],5)
     def test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train(self):
         for row in (receipt_row(executed=False),receipt_row(dry_run=True),receipt_row(event='diagnostic'),
                     receipt_row(learning=False),receipt_row(learning=False,policy_choice={'source':'learned_policy'}),receipt_row(turn_kind='aborted'),receipt_row(input_receipt={'os_submission':'rejected'})):
@@ -101,12 +101,14 @@ class PolicyTests(unittest.TestCase):
         result=self.policy.learn(before,after,receipt_row())
         self.assertLess(result['reward'],-.3)
         self.assertLessEqual(self.policy.learn(after,before,receipt_row())['reward'],0)
-    def test_unavailable_map_and_enemy_directions_are_not_autonomously_walked(self):
+    def test_unstable_and_unavailable_are_guarded_but_game_danger_is_not_a_veto(self):
         proposal=parse_decision(json.dumps(change(action={'keys':[],'hold_ms':1,'wait_ms':0})),self.cfg)
         invalid=state();invalid['eligible']=False
         self.assertEqual(self.policy.choose(proposal,invalid,stable=True)[0].keys,[])
         enemy=state();enemy['minimap']['enemies']=[(1,0)]
-        self.assertEqual(self.policy.choose(proposal,enemy,stable=True)[0].keys,[])
+        self.assertTrue(self.policy.choose(proposal,enemy,stable=True)[0].keys)
+        dangerous=state();dangerous['objective']='survive'
+        self.assertTrue(self.policy.choose(proposal,dangerous,stable=True)[0].keys)
         self.assertEqual(self.policy.choose(proposal,state(),stable=False)[0].keys,[])
         blocked=[[k] for k in 'wasd'];self.assertEqual(self.policy.choose(proposal,state(),blocked,True)[0].keys,[])
     def test_goal_probabilities_only_use_completed_verified_episodes(self):
