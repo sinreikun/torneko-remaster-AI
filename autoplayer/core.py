@@ -28,11 +28,11 @@ use status blocked and explain. status refers to the user's ENTIRE goal, NOT fin
 If a key must be pressed to progress, status MUST be continue. A start/continue instruction is not victory.
 Only mark complete when the entire goal is ALREADY achieved, with keys=[].
 Use only keys in allowed_keys and infer their meaning using knowledge and visible hints.
-Return exactly one JSON object (no markdown):
-{"scene":"...","observation":"現在の画面で確認できる事実","subgoal":"次に達成する小目標","reason":"その行動を選ぶ理由",
-"confidence":0.0,"status":"continue|complete|blocked",
-"action":{"keys":["enter"],"hold_ms":80,"wait_ms":800},
-"plan":["次の到達目標"],"progress":[],"memory_updates":[],"risk":"normal"}
+Return one JSON object matching the supplied schema, without markdown.
+All descriptive fields must contain concrete content grounded in the CURRENT image.
+Do not output field labels, instructions, sample text, or a previous observation as a substitute for looking.
+An autonomous goal must name an action or desired change and a visible condition for confirming it;
+a currently visible statistic alone does not establish that any progress occurred.
 memory_updates contains at most 8 objects {"key":"short label","value":"tentative learned fact","confidence":0.0}.
 Keep facts about observed controls, routes, inventory, hazards, and locations; correct old claims when contradicted.
 plan is at most 8 short milestones toward the user's goal. progress lists visually supported milestones.
@@ -158,6 +158,18 @@ def select_knowledge(text,query,limit=2500):
             selected.add(index);remaining-=len(chunk)
     return '\n'.join(chunks[index] for index in sorted(selected))[:limit]
 
+# Labels emitted verbatim by the model in field reports are not observations.
+RESPONSE_LABELS=frozenset(('現在の画面で確認できる事実','次に達成する小目標','次の到達目標','その行動を選ぶ理由','visible evidence','next milestone','...','…'))
+def response_placeholder(value):
+    return isinstance(value,str) and (not value.strip() or value.strip().rstrip('。.') in RESPONSE_LABELS or value.strip() in RESPONSE_LABELS)
+
+def response_quality_issue(decision):
+    if any(response_placeholder(getattr(decision,key)) for key in ('observation','subgoal','reason')):
+        return '内容のない説明欄・例文のコピーを検出しました。'
+    if decision.goal_success and response_placeholder(decision.goal_success):
+        return '達成条件に例文のコピーを検出しました。'
+    return ''
+
 def _decision_object_schema(cfg):
     text={'type':'string'}
     return {'type':'object','additionalProperties':False,
@@ -250,6 +262,12 @@ class LocalLLM:
             compact.append({key:(value[:180] if isinstance(value,str) else value)
                 for key,value in row.items() if key in ('scene','observation','subgoal','keys','executed','changed','turn_kind','action_kind','observed_keys','transition_attribution')})
         context=dict(self.context)
+        reground=stalled or getattr(self,'needs_regrounding',False) or any(response_placeholder(row.get('observation','')) or response_placeholder(row.get('subgoal','')) for row in history[-6:])
+        if reground:
+            # Retain measured diagnostics and source revisions; suspend model-authored claims.
+            self.knowledge_engine.goal=None
+            compact=[{k:v for k,v in row.items() if k in ('keys','executed','changed','action_kind','observed_keys','transition_attribution')} for row in compact]
+            context={k:v for k,v in context.items() if k in ('unresponsive_actions','neutral_observation','knowledge_catalog_sha256','knowledge_revisions')}
         if 'provisional_claims' in context:
             context['provisional_claims']=[{k:(v[:120] if isinstance(v,str) else v) for k,v in item.items()} for item in context['provisional_claims'][:6]]
         for name in ('plan','reported_progress'):
@@ -267,14 +285,35 @@ class LocalLLM:
             'limits':{'hold_ms':[1,cfg.max_hold_ms],'wait_ms':[0,cfg.max_wait_ms]},
             'recent_history':compact,'memory':context,'stalled':stalled,
             'instruction':'今の画像とOCRを新しく読み直し、履歴の説明をそのまま繰り返さないでください。行き詰まったら別の安全な仮説・操作か無入力観測へ切り替えてください。無反応だけではBackend異常と判断できません。説明は必ず日本語。',
-            'output_language':'日本語（ja-JP）'}
+            'output_language':'日本語（ja-JP）','fresh_assessment':reground}
         schema=decision_schema(cfg)
         if applicable:
             for branch in schema['oneOf']: branch['required']+=['goal_success']
+        blocked=context.get('unresponsive_actions',[])
+        if blocked:
+            # During recovery use a single allowed key or observation. Explicit
+            # enums are supported by Ollama's grammar; prompt advice alone did
+            # not prevent the field model repeatedly proposing a held action.
+            choices=[[]]+[[key] for key in cfg.allowed_keys if [key] not in blocked]
+            for branch in schema['oneOf']:
+                if branch['properties']['status']['enum']!=['complete']:
+                    branch['properties']['action']['properties']['keys']={'type':'array','enum':choices}
+            prompt['allowed_keys']=[key for key in cfg.allowed_keys if [key] in choices]
+            prompt['recovery_action_choices']=choices
+            prompt['instruction']+=' 再送保留中のキーは選べません。現在の通路・障害物・表示を見直し、recovery_action_choicesから単独の安全な操作か無入力観測を選んでください。'
         decision=parse_decision(self._request(png,SYSTEM,prompt,schema),cfg)
+        self.language_fallback=False
         decision=self.localize_decision(decision)
+        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision)
+        self.needs_regrounding=bool(issue)
+        if issue:
+            self.observation_state={'model_response_issue':issue,'learning':False,
+                'ocr':knowledge_context.get('ocr',{}) if knowledge_context else {}}
+            return Decision('unknown','説明の具体性を確認できませんでした。','現在の画面を読み直す',issue+' この手ではキーを送信しません。',0.0,'continue',[],1,800,
+                goal_success='現在の画像に基づく具体的な観察と行動候補を取得する。')
         if applicable and not decision.goal_success.strip(): raise ValueError('Set a specific visible success condition for your autonomous subgoal.')
         self.observation_state=self.knowledge_engine.accept(decision,knowledge_context) if knowledge_context else {}
+        self.observation_state['decision_policy']={'fresh_assessment':reground,'recovery_action_choices':prompt.get('recovery_action_choices')}
         return decision
     def localize_decision(self,decision):
         """Translate prose only; the translation response cannot change an action."""
@@ -306,6 +345,7 @@ class LocalLLM:
             return result
         except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError,socket.timeout):
             # A language failure is not evidence about the game or input backend.
+            self.language_fallback=True
             return Decision('unknown','日本語での観察説明を確認できませんでした。','現在の画面を再観測する','日本語応答を取得し直すため、今回はキーを送信せず観測します。',0.0,'continue',[],1,800,goal_success='現在の画面に基づく日本語の説明と小目標を取得する。')
 
     def verify_completion(self,png):
@@ -504,7 +544,7 @@ class Controller:
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
                 self._write({'event':'result',**row})
                 self.emit({'event':'result',**row})
-                if self.memory: self.memory.remember(row,decision)
+                if self.memory and row.get('learning') is not False: self.memory.remember(row,decision)
                 self.history.append(row); self.history=self.history[-12:]
             else: self.emit({'status':'limit','reason':'手数上限に達しました。'})
         finally:

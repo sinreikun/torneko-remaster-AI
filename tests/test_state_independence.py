@@ -103,3 +103,48 @@ class JapaneseResponseTests(unittest.TestCase):
         decision=parse_decision(json.dumps(change()),Settings())
         self.assertIs(llm.localize_decision(decision),decision)
         llm._request.assert_not_called()
+
+class Diagnostic4404RegressionTests(unittest.TestCase):
+    def test_placeholder_answer_is_observation_only_and_not_learning(self):
+        from autoplayer.core import LocalLLM
+        llm=LocalLLM(Settings(window_title='Other game'))
+        llm._request=Mock(return_value=json.dumps(change(observation='現在の画面で確認できる事実',subgoal='次の到達目標',reason='その行動を選ぶ理由')))
+        decision=llm.decide(b'unused-by-mocked-request',[],False)
+        self.assertEqual(decision.keys,[]);self.assertEqual(decision.status,'continue')
+        self.assertEqual(llm.take_state()['learning'],False)
+        self.assertNotIn('autonomous_goal',llm.take_state())
+        self.assertTrue(llm.needs_regrounding)
+        self.assertNotIn('現在の画面で確認できる事実',SYSTEM)
+    def test_recovery_schema_excludes_held_key_and_suspends_old_claims(self):
+        from autoplayer.core import LocalLLM
+        llm=LocalLLM(Settings(window_title='Other game'))
+        llm.set_context({'unresponsive_actions':[['s']],'autonomous_goal':{'objective':'次の到達目標'},'provisional_claims':[{'value':'old claim'}],'neutral_observation':{'raw_change':0}})
+        llm.knowledge_engine.goal={'objective':'次の到達目標'}
+        llm._request=Mock(return_value=json.dumps(change(action={'keys':['w'],'hold_ms':80,'wait_ms':0})))
+        decision=llm.decide(b'unused-by-mocked-request',[{'observation':'現在の画面で確認できる事実','subgoal':'次の到達目標','keys':['s'],'executed':True,'changed':False}],True)
+        _,_,prompt,schema=llm._request.call_args.args
+        self.assertEqual(decision.keys,['w'])
+        self.assertTrue(prompt['fresh_assessment'])
+        self.assertNotIn('provisional_claims',prompt['memory'])
+        self.assertNotIn('autonomous_goal',prompt['memory'])
+        self.assertNotIn('observation',prompt['recent_history'][0])
+        self.assertIsNone(llm.knowledge_engine.goal)
+        self.assertNotIn('s',prompt['allowed_keys'])
+        for branch in schema['oneOf']:
+            if branch['properties']['status']['enum']==['complete']:
+                self.assertEqual(branch['properties']['action']['properties']['keys']['maxItems'],0)
+            else:
+                choices=branch['properties']['action']['properties']['keys']['enum']
+                self.assertNotIn(['s'],choices);self.assertIn([],choices);self.assertIn(['w'],choices)
+    def test_low_quality_results_never_enter_game_memory(self):
+        from autoplayer.core import LocalLLM
+        with tempfile.TemporaryDirectory() as folder:
+            settings=Settings(window_title='Other game',max_steps=1)
+            memory=MemoryStore(Path(folder)/'memory.sqlite',settings)
+            try:
+                llm=LocalLLM(settings)
+                llm._request=Mock(return_value=json.dumps(change(observation='現在の画面で確認できる事実')))
+                backend=Backend()
+                Controller(settings,backend,llm,lambda row:None,Path(folder)/'run.jsonl',memory=memory).run()
+                self.assertEqual(backend.actions,[]);self.assertEqual(memory.history(),[])
+            finally:memory.close()
