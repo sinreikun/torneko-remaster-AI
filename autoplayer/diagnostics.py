@@ -35,15 +35,34 @@ class DiagnosticStore:
         self.db.execute('UPDATE runs SET ended=?,status=?,detail=? WHERE id=?',(time.time(),status,detail,run));self.db.commit()
     def close(self): self.db.close()
 
+def menu_diagnostic_evidence(ocr):
+    """The profile toggle is not a valid round-trip probe on the title menu."""
+    from .knowledge import normalize
+    if ocr.get('status')!='ok':return []
+    options=('ぼうけんをする','ぼうけんのしょをつくる','ぼうけんのしょをけす','むらのなまえをかえる','ぼうけんをやめる')
+    matched=[line['text'] for line in ocr.get('lines',[]) if any(normalize(option) in normalize(line.get('text','')) for option in options)]
+    distinct={option for option in options if any(normalize(option) in normalize(line) for line in matched)}
+    return matched if len(distinct)>=2 else []
+
 class InputDiagnostics:
-    def __init__(self,backend,store,emit,control,leaked_keys=lambda:0):
-        self.backend=backend;self.store=store;self.emit=emit;self.control=control;self.leaked_keys=leaked_keys
+    def __init__(self,backend,store,emit,control,leaked_keys=lambda:0,scene_probe=None):
+        self.backend=backend;self.store=store;self.emit=emit;self.control=control;self.leaked_keys=leaked_keys;self.scene_probe=scene_probe;self.last_status='not_run'
     def run(self,separation=False):
         kind='separation' if separation else 'compatibility'
         run=self.store.start(kind);status='failed';detail='未完了';cycles=0
         try:
             if not self.backend.matches_profile():
                 raise RuntimeError('既知操作の診断は同梱プロファイルの対象プロセス・クラスにだけ実行できます。')
+            if not separation and self.scene_probe:
+                image=self.backend.capture();ocr=self.scene_probe(image)
+                evidence=menu_diagnostic_evidence(ocr)
+                if evidence:
+                    status='not_applicable';detail='開始メニューでは既知操作の往復を検証できないため、診断を未実施として攻略判断へ進みます。'
+                    if hasattr(self.backend,'record_frame'):self.backend.record_frame(image,'diagnostic_not_applicable')
+                    row={'event':'diagnostic_skipped','status':status,'reason':detail,'ocr_evidence':evidence,
+                        'frame_sha256':hashlib.sha256(image).hexdigest(),'learning':False}
+                    self.store.cycle(run,row);self.emit(row)
+                    return False
             keys=diagnostic_keys(); started=time.monotonic()
             while separation or cycles<3:
                 if not self.control.checkpoint(): status='interrupted';detail='停止要求';break
@@ -93,6 +112,7 @@ class InputDiagnostics:
             except Exception as error:
                 release_error=error;status='failed';detail+=' / キー解放失敗: '+str(error)
             finally:
+                self.last_status=status
                 self.store.finish(run,status,detail)
                 self.emit({'event':'diagnostic_summary','status':status,'reason':detail,'cycles':cycles,'learning':False})
             if release_error:raise release_error

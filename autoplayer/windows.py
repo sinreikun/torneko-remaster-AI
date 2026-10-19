@@ -24,8 +24,8 @@ class GUITHREADINFO(C.Structure):
 class WindowsGame:
     def __init__(self, title):
         if sys.platform != 'win32': raise RuntimeError('ゲーム画面の取得・操作には Windows が必要です。')
-        from PIL import ImageGrab
-        self.grab=ImageGrab.grab
+        from .window_capture import WindowCapture
+        self.window_capture=WindowCapture()
         self.u=C.WinDLL('user32',use_last_error=True)
         self.u.GetForegroundWindow.restype=W.HWND
         self.u.PostMessageW.argtypes=[W.HWND,W.UINT,W.WPARAM,W.LPARAM]
@@ -109,21 +109,7 @@ class WindowsGame:
             return image
     def _capture(self):
         self.ready()
-        r=W.RECT()
-        if not self.u.GetClientRect(self.hwnd,C.byref(r)):
-            raise RuntimeError('クライアント領域の取得に失敗しました。')
-        if r.right<32 or r.bottom<32: raise RuntimeError('ゲーム領域が小さすぎます。')
-        # Pillow's window capture uses PrintWindow(PW_RENDERFULLCONTENT), not
-        # desktop pixels: the tool or another window may cover the game.
-        try:
-            img=self.grab(window=self.hwnd)
-        except Exception as error:
-            raise RuntimeError('背面のゲーム画面を取得できません。ウィンドウモードを確認してください。') from error
-        outer=W.RECT(); origin=W.POINT(0,0)
-        if not self.u.GetWindowRect(self.hwnd,C.byref(outer)) or not self.u.ClientToScreen(self.hwnd,C.byref(origin)):
-            raise RuntimeError('ゲーム画面の位置を取得できません。')
-        left=origin.x-outer.left; top=origin.y-outer.top
-        img=img.crop((left,top,left+r.right,top+r.bottom))
+        img=self.window_capture.grab(self.hwnd)
         self.ready()
         img.thumbnail((1280,960))
         out=io.BytesIO(); img.save(out,format='PNG'); return out.getvalue()

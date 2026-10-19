@@ -37,4 +37,27 @@ class WindowsAutomationTests(unittest.TestCase):
             if 'app' in locals():app.close()
             else:root.destroy()
 
+    def test_real_application_capture_is_not_the_covering_ocr_window(self):
+        import ctypes,io,tkinter as tk
+        from ctypes import wintypes as W
+        from PIL import ImageStat,ImageChops
+        from autoplayer.ui import Application,DATA
+        from autoplayer.ocr_ui import OCRTestWindow
+        from autoplayer.window_capture import WindowCapture
+        root=tk.Tk();app=Application(root);ocr=None
+        try:
+            root.geometry('1000x700+0+0');root.update()
+            user=ctypes.WinDLL('user32');user.GetAncestor.argtypes=[W.HWND,W.UINT];user.GetAncestor.restype=W.HWND
+            target=user.GetAncestor(root.winfo_id(),2)
+            capture=WindowCapture();before=capture.grab(target)
+            self.assertGreater(max(ImageStat.Stat(before).stddev),5,'Target capture must contain the real application UI')
+            ocr=OCRTestWindow(root,None,DATA);ocr.window.geometry('1000x700+0+0');ocr.window.lift();ocr.window.focus_force();root.update()
+            after=capture.grab(target)
+            self.assertEqual(before.size,after.size)
+            self.assertLess(max(ImageStat.Stat(ImageChops.difference(before,after)).mean),1.,'Covering OCR window must not appear in the main application capture')
+        finally:
+            if ocr:ocr.close()
+            for token in root.tk.call('after','info'):root.after_cancel(token)
+            app.close()
+
 if __name__=='__main__':unittest.main()

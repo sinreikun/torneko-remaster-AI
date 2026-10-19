@@ -365,9 +365,11 @@ class Application:
                 if separation or compat:
                     store=DiagnosticStore(DATA/'diagnostics.sqlite')
                     try:
-                        passed=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control,lambda:self.probe_keys).run(separation)
+                        from .ocr import ScreenOCR
+                        runner=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control,lambda:self.probe_keys,ScreenOCR(cfg.ocr_engine).read)
+                        passed=runner.run(separation)
                     finally:store.close();self.queue.put(('close_probe',None))
-                    if not passed:summary.update(status='stopped',reason='診断を中断しました。');return
+                    if not passed and runner.last_status!='not_applicable':summary.update(status='stopped',reason='診断を中断しました。');return
                     if separation:summary.update(status='diagnostic_passed',reason='10分間の分離試験を完了');return
                 if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
@@ -420,7 +422,7 @@ class Application:
 
     def update_decision(self,value):
         event=value.get('event');self.append_log(value)
-        if event=='diagnostic' or event=='diagnostic_summary':self.set_panel('結果',value);return
+        if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event=='result':
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
             self.set_panel('結果',{key:value.get(key) for key in ('step','executed','changed','turn_kind','duration_ms','raw_change','masked_activity')})
