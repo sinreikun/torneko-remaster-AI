@@ -69,7 +69,11 @@ def main():
                         agent.run()
                         if not agent.completed: raise AssertionError(f'Completion not verified from {SCENES[start][0]}')
                         if state['index']!=4: raise AssertionError('Agent reported completion before fixture victory')
-                    finally: memory.close()
+                    finally:
+                        memory.close()
+                        results['actual_state']=SCENES[state['index']][0]
+                        journal=base/f'run-{start}.jsonl'
+                        if journal.exists(): results['last_trace']=[json.loads(line) for line in journal.read_text(encoding='utf-8').splitlines()][-32:]
                     results['scenarios'].append({'start':SCENES[start][0],'passed':True,'decisions':len(observations)})
                     print(json.dumps(results['scenarios'][-1]),flush=True)
             results['passed']=True

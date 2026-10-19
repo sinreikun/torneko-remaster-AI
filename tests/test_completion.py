@@ -28,6 +28,8 @@ class CompletionTests(unittest.TestCase):
         self.assertTrue(verifier.verify_completion(b'frame')['achieved'])
         self.assertIsNone(verifier.calls[1][0])
         self.assertEqual(verifier.calls[1][2]['observations'],facts)
+        self.assertEqual(verifier.calls[1][3]['properties']['evidence']['items']['enum'],['VICTORY','GOAL ACHIEVED','Green victory screen.'])
+        self.assertNotIn('enum',VERIFY_SCHEMA['properties']['evidence']['items'])
     def test_placeholder_evidence_cannot_finish(self):
         facts={'scene_type':'victory','visible_text':['VICTORY'],'description':'Green end screen.'}
         answer={'achieved':True,'confidence':1.,'evidence':['visible evidence'],'reason':'Some next step is correct.','remaining_actions':[]}

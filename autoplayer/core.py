@@ -262,7 +262,13 @@ Return achieved, confidence, evidence, reason, remaining_actions.
 evidence contains exact quotes from visible_text or description proving ALREADY completed conditions.
 Never output placeholder evidence. remaining_actions lists actions STILL REQUIRED BEFORE the goal,
 not optional actions after success. If any required action remains, achieved MUST be false.'''
-        value=json.loads(self._request(None,system,{'goal':self.cfg.goal,'observations':facts},VERIFY_SCHEMA))
+        # Constrain quotes to actual independently reported text at generation time.
+        import copy
+        schema=copy.deepcopy(VERIFY_SCHEMA)
+        permitted=list(dict.fromkeys(x for x in texts+[facts['description']] if x.strip()))
+        if not permitted: return {'achieved':False,'confidence':0,'evidence':[],'reason':'No independent visible evidence.','visual_facts':facts}
+        schema['properties']['evidence']['items']['enum']=permitted
+        value=json.loads(self._request(None,system,{'goal':self.cfg.goal,'observations':facts},schema))
         if type(value.get('achieved')) is not bool or type(value.get('confidence')) not in (int,float) or not 0<=value['confidence']<=1: raise ValueError('invalid verification')
         evidence=value.get('evidence');remaining=value.get('remaining_actions')
         if not isinstance(evidence,list) or len(evidence)>12 or any(not isinstance(x,str) or len(x)>1000 for x in evidence): raise ValueError('invalid completion evidence')
@@ -335,6 +341,7 @@ class Controller:
                     verification_failures+=1
                     if verification_failures>3+self.cfg.recovery_attempts: raise RuntimeError('別の観測で目標達成を確認できないため停止しました。')
                     self.feedback={'completion_rejected':evidence,'instruction':'Goal is not verified. Reassess and continue with a revised plan.'}
+                    self.emit({'status':'completion_rejected','evidence':evidence})
                     continue
                 if decision.status=='blocked' or decision.risk=='destructive':
                     self._write({'event':'stopped','status':'blocked','reason':decision.reason}); break
