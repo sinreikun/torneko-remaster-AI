@@ -161,6 +161,11 @@ class Application:
         style.configure('TNotebook.Tab',padding=(12,6),background='#252a33',foreground=foreground)
         style.map('TNotebook.Tab',background=[('selected','#3d5270')])
         style.configure('TLabelframe',bordercolor='#3b4251');style.configure('TLabelframe.Label',foreground=foreground)
+        style.configure('GameList.Treeview',background='#f4f7fb',fieldbackground='#f4f7fb',
+                        foreground='#17212f',bordercolor='#8b9aad')
+        style.map('GameList.Treeview',background=[('selected','#1d4ed8')],foreground=[('selected','#ffffff')])
+        style.configure('GameList.Treeview.Heading',background='#d9e2ef',foreground='#17212f')
+        style.map('GameList.Treeview.Heading',background=[('active','#c7d5e8')],foreground=[('active','#17212f')])
 
     def scroll_frame(self,parent):
         canvas=tk.Canvas(parent,highlightthickness=0,bg='#171a21');scroll=ttk.Scrollbar(parent,orient='vertical',command=canvas.yview)
@@ -272,13 +277,15 @@ class Application:
         if self.busy():return
         from .windows import window_targets
         dialog=tk.Toplevel(self.root);dialog.title('起動中のゲームを選択');dialog.geometry('1000x420')
-        tree=ttk.Treeview(dialog,columns=('title','pid','executable'),show='headings',selectmode='browse')
+        tree=ttk.Treeview(dialog,columns=('title','pid','executable'),show='headings',selectmode='browse',style='GameList.Treeview')
+        tree.tag_configure('even',background='#f4f7fb',foreground='#17212f')
+        tree.tag_configure('odd',background='#e7edf5',foreground='#17212f')
         for key,label,width in (('title','ウィンドウ',380),('pid','PID',80),('executable','プログラム',480)):
             tree.heading(key,text=label);tree.column(key,width=width)
         tree.pack(fill='both',expand=True,padx=8,pady=8);targets=[]
         def refresh():
             targets[:]=window_targets();tree.delete(*tree.get_children())
-            for i,t in enumerate(targets):tree.insert('', 'end',iid=str(i),values=(t['title'],t['pid'],t['executable'] or '取得不可（自動再起動不可）'))
+            for i,t in enumerate(targets):tree.insert('', 'end',iid=str(i),tags=('odd' if i%2 else 'even',),values=(t['title'],t['pid'],t['executable'] or '取得不可（自動再起動不可）'))
         def select(event=None):
             selected=tree.selection()
             if not selected:return
