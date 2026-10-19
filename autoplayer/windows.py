@@ -153,6 +153,7 @@ class WindowsGame:
         target=self.input_target or self.hwnd
         if not self.u.PostMessageW(target,0x101 if up else 0x100,vk,flags):
             raise RuntimeError('対象ゲームへのキー送信に失敗しました。ゲームとツールの実行権限を揃えてください。')
+        return {'os_submission':'accepted','target_hwnd':int(target),'message':'WM_KEYUP' if up else 'WM_KEYDOWN','vk':vk,'game_processing':'unverified'}
     def _vk(self,k):
         named={'up':0x26,'down':0x28,'left':0x25,'right':0x27,'enter':0x0d,'space':0x20,'escape':0x1b,'tab':0x09}
         if k in named: return named[k]
@@ -161,42 +162,35 @@ class WindowsGame:
     def act(self,keys,ms,stop):
         self.ready()
         self.input_target=self._input_window()
+        receipts=[]
         try:
             for k in keys:
                 self.ready()
-                if stop.is_set(): return
-                v=self._vk(k); self.held.add(v); self._send(v)
+                if stop.is_set(): break
+                v=self._vk(k); self.held.add(v); receipts.append(self._send(v))
             import time
             end=time.monotonic()+ms/1000
             while time.monotonic()<end:
                 self.ready()
                 if stop.wait(min(.01,max(0,end-time.monotonic()))): break
-        finally: self.release_all()
+        finally: receipts.extend(self.release_all())
+        return {'os_submission':'accepted' if receipts else 'not_attempted','events':receipts,'game_processing':'unverified'}
     def release_all(self):
-        errors=[]
+        errors=[];receipts=[]
         for v in list(self.held):
-            try: self._send(v,True); self.held.discard(v)
+            try: receipts.append(self._send(v,True)); self.held.discard(v)
             except RuntimeError as error: errors.append(error)
         if not self.held: self.input_target=None
         if errors: raise errors[0]
+        return receipts
+    def probe_input(self):
+        self.ready()
+        # WM_NULL does not map to a game action. Accepted queue submission
+        # says nothing about WM_KEYDOWN acceptance or game-side processing.
+        if not self.u.PostMessageW(self.hwnd,0,0,0):raise RuntimeError('OSが対象へのメッセージ送信を拒否しました。実行権限と接続先を確認してください。')
+        return {'os_submission':'accepted','message':'WM_NULL','target_hwnd':int(self.hwnd),
+            'game_processing':'unverified','key_submission':'not_tested','no_keys_sent':True}
     def foreground(self): return self.u.GetForegroundWindow()
-    def matches_profile(self):
-        import json
-        from pathlib import Path
-        spec=json.loads((Path(__file__).resolve().parent.parent/'knowledge/profile.json').read_text(encoding='utf-8'))['window']
-        name=C.create_unicode_buffer(256)
-        self.u.GetClassNameW(self.hwnd,name,256)
-        if name.value!=spec['class_name']: return False
-        kernel=C.WinDLL('kernel32',use_last_error=True)
-        kernel.OpenProcess.argtypes=[W.DWORD,W.BOOL,W.DWORD];kernel.OpenProcess.restype=W.HANDLE
-        kernel.QueryFullProcessImageNameW.argtypes=[W.HANDLE,W.DWORD,W.LPWSTR,C.POINTER(W.DWORD)]
-        kernel.CloseHandle.argtypes=[W.HANDLE]
-        handle=kernel.OpenProcess(0x1000,False,self.process_id.value)
-        if not handle: return False
-        try:
-            path=C.create_unicode_buffer(32768);size=W.DWORD(32768)
-            return bool(kernel.QueryFullProcessImageNameW(handle,0,path,C.byref(size)) and Path(path.value).stem.casefold()==spec['process_name'].casefold())
-        finally: kernel.CloseHandle(handle)
     def emergency(self):
         pressed=lambda vk:bool(self.u.GetAsyncKeyState(vk)&0x8000)
         return pressed(0x77) or (pressed(0x11) and pressed(0x10) and pressed(0x78))

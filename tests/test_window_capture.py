@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock,patch
 from types import SimpleNamespace
 from autoplayer.window_capture import WindowCapture
-from autoplayer.diagnostics import menu_diagnostic_evidence,InputDiagnostics,DiagnosticStore
+from autoplayer.diagnostics import InputDiagnostics,DiagnosticStore
 from autoplayer.session import SessionControl
 import tempfile
 from pathlib import Path
@@ -33,20 +33,3 @@ class NativeCaptureTests(unittest.TestCase):
         capture,pixels=self.api();capture.u.IsHungAppWindow.return_value=True
         with self.assertRaises(RuntimeError):capture.grab(10)
         capture.u.GetDC.assert_not_called()
-
-class MenuPreflightTests(unittest.TestCase):
-    def record(self):return {'status':'ok','lines':[{'text':'ぼ う け ん を す る'},{'text':'ぼ う け ん の し ょ を け す'}]}
-    def test_menu_probe_is_not_applicable_not_a_success(self):
-        with tempfile.TemporaryDirectory() as directory:
-            backend=Mock();backend.matches_profile.return_value=True;backend.capture.return_value=b'actual capture'
-            store=DiagnosticStore(Path(directory)/'diagnostics.sqlite');events=[];control=SessionControl()
-            try:
-                runner=InputDiagnostics(backend,store,events.append,control,scene_probe=lambda image:self.record())
-                self.assertFalse(runner.run());self.assertEqual(runner.last_status,'not_applicable')
-                backend.act.assert_not_called()
-                self.assertEqual(store.db.execute('SELECT status FROM runs').fetchone()[0],'not_applicable')
-                self.assertTrue(all(e['learning'] is False for e in events))
-            finally:store.close();control.close()
-    def test_one_label_or_unavailable_ocr_does_not_skip_probe(self):
-        self.assertFalse(menu_diagnostic_evidence({'status':'ok','lines':[{'text':'ぼうけんをする'}]}))
-        self.assertFalse(menu_diagnostic_evidence({**self.record(),'status':'unavailable'}))

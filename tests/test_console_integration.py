@@ -12,7 +12,7 @@ from unittest.mock import Mock
 import zipfile
 from autoplayer.core import Settings
 from autoplayer.session import SessionControl
-from autoplayer.diagnostics import DiagnosticStore,InputDiagnostics,diagnostic_keys,export_diagnostics
+from autoplayer.diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
 from autoplayer.recording import FrameRecorder
 
 class RunControlTests(unittest.TestCase):
@@ -33,44 +33,39 @@ class RunControlTests(unittest.TestCase):
         self.assertEqual(Settings(max_steps=0).validate().max_steps,0)
 
 class DiagnosticsTests(unittest.TestCase):
-    def test_toggle_is_source_profile_only(self):self.assertEqual(diagnostic_keys(),['num0','num2'])
-    def check_run(self,folder,return_distance=0,leak=False,profile=True,stopped=False):
-        backend=Mock();backend.hwnd=100;backend.matches_profile.return_value=profile;backend.foreground.return_value=200
-        backend.capture.return_value=b'baseline'
-        backend.difference.side_effect=lambda a,b: 0 if b==b'baseline' else (12 if b==b'changed' else return_distance)
-        backend.observe_turn.side_effect=[Mock(image=b'changed',kind='normal',duration_ms=300,raw_change=.5),Mock(image=b'returned',kind='normal',duration_ms=300,raw_change=.1)]*3
-        store=DiagnosticStore(folder/'diagnostics.sqlite');events=[];control=SessionControl()
-        control.wait=lambda seconds:False
-        if stopped:control.stop.set()
-        samples=iter([0,1]*3 if leak else [0]*6)
-        runner=InputDiagnostics(backend,store,events.append,control,lambda:next(samples))
-        try:return runner.run(),events,backend
+    def run_probe(self,folder,changed=0,accepted=True,stop=False,separation=False):
+        backend=Mock();backend.probe_input.return_value={'os_submission':'accepted' if accepted else 'rejected','no_keys_sent':True}
+        backend.capture.return_value=b'observation';backend.difference.return_value=changed
+        store=DiagnosticStore(folder/'diagnostics.sqlite');events=[];control=SessionControl();control.wait=lambda seconds:False
+        if stop:control.stop.set()
+        times=iter([0,0,1,2,600])
+        runner=InputDiagnostics(backend,store,events.append,control,clock=lambda:next(times))
+        try:return runner.run(separation),events,backend
         finally:store.close();control.close()
-    def test_three_round_trips_write_only_diagnostic_database(self):
+    def test_unknown_unchanging_state_completes_without_game_keys(self):
         with tempfile.TemporaryDirectory() as temp:
-            folder=Path(temp);passed,events,backend=self.check_run(folder)
-            self.assertTrue(passed);self.assertEqual(backend.act.call_count,6)
+            folder=Path(temp);ok,events,backend=self.run_probe(folder)
+            self.assertTrue(ok);backend.act.assert_not_called();backend.matches_profile.assert_not_called()
             self.assertFalse((folder/'memory.sqlite').exists())
-            self.assertTrue(all(row.get('learning') is False for row in events))
-            with closing(sqlite3.connect(folder/'diagnostics.sqlite')) as db:
-                self.assertEqual(db.execute('SELECT status FROM runs').fetchone()[0],'passed')
-                self.assertEqual(db.execute('SELECT COUNT(*) FROM cycles').fetchone()[0],3)
-    def test_failure_to_return_is_not_passed(self):
+            self.assertEqual(events[-1]['status'],'completed')
+            self.assertTrue(all(e['learning'] is False for e in events))
+    def test_natural_change_is_not_an_input_success_condition(self):
         with tempfile.TemporaryDirectory() as temp:
-            folder=Path(temp)
-            with self.assertRaises(RuntimeError):self.check_run(folder,return_distance=20)
-            with closing(sqlite3.connect(folder/'diagnostics.sqlite')) as db:self.assertEqual(db.execute('SELECT status FROM runs').fetchone()[0],'failed')
-    def test_front_app_input_leak_is_not_passed(self):
+            ok,events,backend=self.run_probe(Path(temp),changed=500)
+            self.assertTrue(ok);backend.act.assert_not_called()
+            self.assertTrue(all(e.get('game_response')=='not_tested' for e in events[:-1]))
+    def test_os_rejection_is_a_system_failure(self):
         with tempfile.TemporaryDirectory() as temp:
-            with self.assertRaises(RuntimeError):self.check_run(Path(temp),leak=True)
-    def test_wrong_process_profile_never_receives_known_keys(self):
+            with self.assertRaises(RuntimeError):self.run_probe(Path(temp),accepted=False)
+    def test_cancel_is_not_success(self):
         with tempfile.TemporaryDirectory() as temp:
-            with self.assertRaises(RuntimeError):self.check_run(Path(temp),profile=False)
-            with closing(sqlite3.connect(Path(temp)/'diagnostics.sqlite')) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM cycles').fetchone()[0],0)
-    def test_cancel_is_not_passed(self):
+            ok,events,backend=self.run_probe(Path(temp),stop=True)
+            self.assertFalse(ok);backend.probe_input.assert_not_called()
+    def test_ten_minute_monitor_has_no_state_or_key_requirement(self):
         with tempfile.TemporaryDirectory() as temp:
-            passed,events,backend=self.check_run(Path(temp),stopped=True)
-            self.assertFalse(passed);backend.act.assert_not_called();self.assertEqual(events[-1]['status'],'interrupted')
+            ok,events,backend=self.run_probe(Path(temp),separation=True)
+            self.assertTrue(ok);backend.act.assert_not_called()
+            self.assertTrue(all(e.get('input_isolation')=='not_exercised_no_keys_sent' for e in events[:-1]))
 
 class ReportTests(unittest.TestCase):
     def test_online_backup_includes_wal_and_actual_recording(self):

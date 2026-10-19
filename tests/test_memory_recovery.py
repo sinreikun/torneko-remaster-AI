@@ -20,7 +20,7 @@ class DurableMemoryTests(unittest.TestCase):
             memory=MemoryStore(path,cfg)
             self.assertEqual(memory.context()['plan'],['Open route','Reach goal'])
             self.assertEqual(memory.context()['provisional_claims'][0]['value'],'opens a dialog')
-            self.assertEqual(len(memory.context()['ineffective_actions']),1)
+            self.assertEqual(len(memory.context()['unconfirmed_input_responses']),1)
             decision.memory_updates[0]['value']='moves selection'
             memory.remember({'scene':'menu'},decision);memory.close()
             memory=MemoryStore(path,cfg)

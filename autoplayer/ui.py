@@ -32,6 +32,8 @@ class Application:
         if not self.cfg.knowledge:
             default=Path(__file__).resolve().parent.parent/'knowledge/torneko.md'
             if default.exists(): self.cfg.knowledge=default.read_text(encoding='utf-8')
+        from .placement import WindowPlacement
+        self.placement=WindowPlacement(root,self.ui_state)
         header=ttk.Frame(root,padding=8);header.pack(fill='x')
         ttk.Label(header,text='ゲーム攻略くん + ローカルLLM',font=('',16,'bold')).pack(side='left')
         self.badges=tk.StringVar(value='未接続 / WindowMessage・背面対応 / 診断と学習を分離')
@@ -45,7 +47,8 @@ class Application:
         tools_bar=ttk.Frame(root,padding=(8,4));tools_bar.pack(fill='x')
         ttk.Button(tools_bar,text='OCRテスト',command=self.open_ocr).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='セットアップ',command=lambda:self.tabs.select(self.setup_tab)).pack(side='left')
-        ttk.Button(tools_bar,text='診断データを書き出す',command=self.export).pack(side='left',padx=4)
+        ttk.Button(tools_bar,text='軽量診断ZIP',command=self.export).pack(side='left',padx=4)
+        ttk.Button(tools_bar,text='詳細ZIP',command=lambda:self.export(True)).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='最新ZIPを開く',command=self.open_report).pack(side='left')
         ttk.Button(tools_bar,text='提出用ZIPをコピー',command=self.copy_report).pack(side='left',padx=4)
         options=ttk.Frame(root,padding=8);options.pack(fill='x')
@@ -54,8 +57,8 @@ class Application:
         self.duration_box=ttk.Combobox(options,textvariable=self.duration,values=['なし','10分','20分','30分','60分'],state='readonly',width=6)
         self.duration_box.pack(side='left',padx=6)
         self.separation=tk.BooleanVar(value=False);self.compat=tk.BooleanVar(value=self.ui_state.get('compat',True))
-        ttk.Checkbutton(options,text='分離試験（診断・10分）',variable=self.separation).pack(side='left')
-        ttk.Checkbutton(options,text='開始時に入力の互換性テスト',variable=self.compat).pack(side='left',padx=6)
+        ttk.Checkbutton(options,text='分離監視（無入力・10分）',variable=self.separation).pack(side='left')
+        ttk.Checkbutton(options,text='開始時にOS/Backend経路を確認',variable=self.compat).pack(side='left',padx=6)
         self.dry=tk.BooleanVar(value=False);ttk.Checkbutton(options,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
         ttk.Label(options,text='背面のまま動作 / 最小化不可 / 診断は学習に使用しません').pack(side='right')
         self.status=tk.StringVar(value='待機中 — ゲームに接続するとライブ画面を表示します。')
@@ -145,6 +148,7 @@ class Application:
         body.insert('1.0',value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,indent=2));body.configure(state='disabled')
 
     def save_ui(self):
+        self.placement.track()
         self.ui_state.update(duration=self.duration.get(),compat=self.compat.get())
         DATA.mkdir(parents=True,exist_ok=True);temporary=DATA/'ui-settings.json.tmp'
         temporary.write_text(json.dumps(self.ui_state,ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'ui-settings.json')
@@ -230,17 +234,11 @@ class Application:
             self.queue.put(('progress',json.dumps(result,ensure_ascii=False)))
         self.launch(work)
 
-    def make_probe(self):
-        self.probe_keys=0;self.probe=tk.Toplevel(self.root);self.probe.title('入力分離の確認（診断中）');self.probe.geometry('460x150')
-        ttk.Label(self.probe,text='ゲームを背面に保ったまま既知操作を検証しています。\nこのウィンドウへのキー混入とフォーカス移動も検査します。\n診断の経験はLLMの学習には入りません。',padding=12).pack()
-        self.probe.bind('<KeyPress>',lambda event:setattr(self,'probe_keys',self.probe_keys+1))
-        self.probe.protocol('WM_DELETE_WINDOW',self.stop.set);self.probe.lift();self.probe.focus_force();self.root.update_idletasks()
-
-    def export(self):
+    def export(self,detailed=False):
         if self.busy():self.status.set('実行終了時に自動生成します。停止後に最新ZIPを開けます。');return
         def work():
             from .diagnostics import export_diagnostics
-            path=DATA/'exports'/f'diagnostics-{time.time_ns()}.zip';export_diagnostics(DATA,path);self.queue.put(('exported',path))
+            path=DATA/'exports'/f"{'detailed' if detailed else 'diagnostics'}-{time.time_ns()}.zip";export_diagnostics(DATA,path,detailed);self.queue.put(('exported',path))
         self.launch(work)
 
     def open_report(self):
@@ -340,8 +338,8 @@ class Application:
             seconds={'なし':0,'10分':600,'20分':1200,'30分':1800,'60分':3600}[self.duration.get()]
         except Exception as error:messagebox.showerror('設定エラー',str(error));return
         dry=self.dry.get();separation=self.separation.get();compat=self.compat.get() and not dry
-        if separation and dry:self.status.set('分離試験では既知操作を送信します。観察のみとの同時指定はできません。');return
-        if separation or compat:self.make_probe()
+        # Separation now uses only neutral OS probes and observation.
+        # State-independent diagnostics never steal focus or send gameplay keys.
         from .session import SessionControl
         self.stop.clear();self.control=SessionControl(self.stop,0 if separation else seconds)
         control=self.control;self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
@@ -350,7 +348,7 @@ class Application:
             from .recording import FrameRecorder,RecordedBackend
             from .diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
             session=str(time.time_ns());summary={'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
-            recorder=None;backend=None;monitor_done=threading.Event();memory=None
+            recorder=None;backend=None;monitor_done=threading.Event();memory=None;diagnostic_store=None;exploration_run=None
             try:
                 backend=self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
                 backend.capture();self.queue.put(('connected',(backend,cfg.window_title)))
@@ -365,15 +363,15 @@ class Application:
                 if separation or compat:
                     store=DiagnosticStore(DATA/'diagnostics.sqlite')
                     try:
-                        from .ocr import ScreenOCR
-                        runner=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control,lambda:self.probe_keys,ScreenOCR(cfg.ocr_engine).read)
+                        runner=InputDiagnostics(recorded,store,lambda row:self.queue.put(('decision',row)),control)
                         passed=runner.run(separation)
                     finally:store.close();self.queue.put(('close_probe',None))
-                    if not passed and runner.last_status!='not_applicable':summary.update(status='stopped',reason='診断を中断しました。');return
-                    if separation:summary.update(status='diagnostic_passed',reason='10分間の分離試験を完了');return
+                    if not passed:summary.update(status='stopped',reason='診断を中断しました。');return
+                    if separation:summary.update(status='diagnostic_completed',reason='10分間のOS経路・無入力観測を完了。ゲーム反応・キー分離は未検証。');return
                 if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
-                agent=Controller(cfg,recorded,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),self.stop,memory,control)
+                diagnostic_store=DiagnosticStore(DATA/'diagnostics.sqlite');exploration_run=diagnostic_store.start('exploration_statistics')
+                agent=Controller(cfg,recorded,LocalLLM(cfg),lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                 self.queue.put(('status','ローカルLLMが実ゲーム画面を判断しています。初回推論は数分かかる場合があります。'))
                 agent.run(dry)
                 summary.update(status='verified_complete' if agent.completed else 'stopped',reason='別観測で目標達成を確認' if agent.completed else control.reason or ('停止要求' if self.stop.is_set() else 'ループ終了・手数上限または安全条件'))
@@ -388,6 +386,8 @@ class Application:
                     log.write(time.strftime('%Y-%m-%d %H:%M:%S')+'\n'+traceback.format_exc()+'\n')
             finally:
                 monitor_done.set();control.close()
+                if diagnostic_store:
+                    diagnostic_store.finish(exploration_run,summary['status'],summary.get('reason',''));diagnostic_store.close()
                 if memory:memory.close()
                 try:
                     if backend:
@@ -425,7 +425,7 @@ class Application:
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event=='result':
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
-            self.set_panel('結果',{key:value.get(key) for key in ('step','executed','changed','turn_kind','duration_ms','raw_change','masked_activity')})
+            self.set_panel('結果',{key:value.get(key) for key in ('step','action_kind','observed_keys','input_receipt','neutral_before','executed','changed','transition_attribution','turn_kind','duration_ms','raw_change','masked_activity')})
             return
         if value.get('status')=='retry':self.run_counts['retries']+=1
         if 'scene' not in value:
@@ -453,7 +453,7 @@ class Application:
                 elif kind=='decision':self.update_decision(value)
                 elif kind=='connected':
                     self.backend,self.connection_title=value;self.badges.set('接続済み / 背面分離 / OCR: '+self.cfg.ocr_engine)
-                    self.set_panel('バックエンド状態',{'window':self.connection_title,'capture':'PrintWindow','input':'WindowMessage / isolated','model':self.cfg.model,'endpoint':self.cfg.endpoint,'ocr':self.cfg.ocr_engine,'data':str(DATA)})
+                    self.set_panel('バックエンド状態',{'window':self.connection_title,'capture':'PrintWindow','input':'WindowMessage / ウィンドウ宛て（ゲーム受理とは別）','model':self.cfg.model,'endpoint':self.cfg.endpoint,'ocr':self.cfg.ocr_engine,'data':str(DATA)})
                     self.status.set('ゲームに接続しました。ライブ画面を取得しています。')
                 elif kind=='close_probe':
                     if self.probe:self.probe.destroy();self.probe=None

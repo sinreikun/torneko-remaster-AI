@@ -34,6 +34,7 @@ class MemoryStore:
         CREATE TABLE IF NOT EXISTS plans(profile TEXT PRIMARY KEY,steps TEXT NOT NULL,progress TEXT NOT NULL);
         ''')
     def remember(self,row,decision=None):
+        if row.get('learning') is False or str(row.get('event','')).startswith('diagnostic'):raise ValueError('診断記録は攻略記憶に保存できません。')
         with self.db:
             if self.last_row and row.get('scene') and self.last_row.get('scene'):
                 previous=self.last_row
@@ -59,7 +60,7 @@ class MemoryStore:
         ineffective=[{'scene':r.get('scene'),'keys':r.get('keys'),'observation':r.get('observation')} for r in recent if r.get('executed') and r.get('changed') is False]
         transitions=self.db.execute('SELECT origin,action,destination,count FROM transitions WHERE profile=? ORDER BY count DESC LIMIT 10',(self.profile,)).fetchall()
         knowledge_state=next((r for r in reversed(recent) if 'autonomous_goal' in r),{})
-        return {**{k:knowledge_state[k] for k in ('autonomous_goal','knowledge_revisions','knowledge_catalog_sha256') if k in knowledge_state},'known_transitions':[dict(origin=r[0],keys=json.loads(r[1]),destination=r[2],count=r[3]) for r in transitions], 'plan':json.loads(plan[0]) if plan else [],'reported_progress':json.loads(plan[1]) if plan else [],
+        return {**{k:knowledge_state[k] for k in ('autonomous_goal','knowledge_revisions','knowledge_catalog_sha256') if k in knowledge_state},'known_transitions':[dict(origin=r[0],keys=json.loads(r[1]),destination=r[2],count=r[3],attribution='observed_association_not_causal') for r in transitions], 'plan':json.loads(plan[0]) if plan else [],'reported_progress':json.loads(plan[1]) if plan else [],
                 'provisional_claims':[dict(zip(('key','value','confidence','visual_evidence'),r)) for r in claims],
-                'ineffective_actions':ineffective,'note':'Claims and progress are model reports, not verified facts. Recheck against the current screen.'}
+                'unconfirmed_input_responses':ineffective,'note':'Claims and progress are model reports, not verified facts. Recheck against the current screen.'}
     def close(self): self.db.close()

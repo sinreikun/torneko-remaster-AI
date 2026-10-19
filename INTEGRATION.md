@@ -1,3 +1,7 @@
+# 現行仕様について
+
+0.5.0の起動診断・分離監視・中立観測は[AUDIT.md](AUDIT.md)に従います。以下は0.4.0で統合した構成の記録です。既知キー往復・画面変化・メニュー例外は廃止済みです。
+
 # 元ソース仕様との統合（0.4.0）
 
 基準は添付された GameKouryakuKun v0.14.1 の `MainWindow.xaml`、`MainWindow.xaml.cs`、`OcrTestWindow.xaml`、`SetupWindow.xaml`、`DiagnosticStore` とプロファイルです。添付文書の旧開発方針を今回の指示として扱わず、UIと検証の仕様・実測データを再利用しています。C# / WPFを同梱するのではなく、既存の小型EXEに含むPython / Tkへ機能を統合しました。

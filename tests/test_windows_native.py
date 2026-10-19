@@ -60,4 +60,29 @@ class WindowsAutomationTests(unittest.TestCase):
             for token in root.tk.call('after','info'):root.after_cancel(token)
             app.close()
 
+    def test_real_application_restores_saved_window_bounds(self):
+        import json,tkinter as tk
+        from unittest.mock import patch
+        import autoplayer.ui as ui
+        from autoplayer.placement import fit_bounds
+        with tempfile.TemporaryDirectory() as temp,patch.object(ui,'DATA',Path(temp)):
+            root=tk.Tk();app=ui.Application(root)
+            try:
+                root.update();root.geometry('1000x640+0+0');root.update()
+                app.placement.track();app.save_ui()
+                saved=json.loads((Path(temp)/'ui-settings.json').read_text())
+                expected=fit_bounds(saved['window_bounds'],app.placement.monitors())
+            finally:
+                for token in root.tk.call('after','info'):root.after_cancel(token)
+                app.close()
+            root=tk.Tk();app=ui.Application(root)
+            try:
+                root.update();app.placement.track()
+                actual=app.ui_state['window_bounds']
+                self.assertEqual((actual['x'],actual['y']),(expected['x'],expected['y']))
+                self.assertEqual((actual['width'],actual['height']),(expected['width'],expected['height']))
+            finally:
+                for token in root.tk.call('after','info'):root.after_cancel(token)
+                app.close()
+
 if __name__=='__main__':unittest.main()

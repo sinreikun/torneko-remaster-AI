@@ -85,7 +85,7 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
     def test_stale_screen(self):
         b=Backend();b.is_current=lambda image:False
-        with self.assertRaisesRegex(RuntimeError,'画面が変わり'): self.run_loop([VALID]*5,backend=b)
+        self.run_loop([VALID]*5,backend=b,steps=5)
         self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
     def test_low_confidence(self):
         b=Backend()
