@@ -1,0 +1,1197 @@
+{
+  "fixture": "synthetic visible Windows game",
+  "model": "qwen2.5vl:3b",
+  "scenarios": [
+    {
+      "start": "VICTORY",
+      "passed": true,
+      "decisions": 2
+    },
+    {
+      "start": "TITLE",
+      "passed": true,
+      "decisions": 6
+    }
+  ],
+  "actual_state": "BATTLE",
+  "last_trace": [
+    {
+      "event": "decision",
+      "step": 1,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message indicates the next step is to press the Z key to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 1,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message indicates the next step is to press the Z key to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 1,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message indicates the next step is to press the Z key to proceed.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": true,
+      "turn_kind": "normal",
+      "raw_change": 0.08854166666666667,
+      "masked_activity": 0.0,
+      "duration_ms": 835
+    },
+    {
+      "event": "decision",
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 1,
+      "wait_ms": 250,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 1,
+      "wait_ms": 250,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 2,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 1,
+      "wait_ms": 250,
+      "plan": [],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1282
+    },
+    {
+      "event": "decision",
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 3,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1294
+    },
+    {
+      "event": "decision",
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 4,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1279
+    },
+    {
+      "event": "decision",
+      "step": 5,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 5,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 5,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1298
+    },
+    {
+      "event": "decision",
+      "step": 6,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 6,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 6,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1279
+    },
+    {
+      "event": "decision",
+      "step": 7,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 7,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 7,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1280
+    },
+    {
+      "event": "decision",
+      "step": 8,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 8,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 8,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1264
+    },
+    {
+      "event": "decision",
+      "step": 9,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    },
+    {
+      "event": "sent",
+      "step": 9,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true
+    },
+    {
+      "event": "result",
+      "step": 9,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1233
+    },
+    {
+      "event": "decision",
+      "step": 10,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue the game.",
+      "confidence": 0.9,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 100,
+      "wait_ms": 1000,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    }
+  ],
+  "passed": false,
+  "error": "Traceback (most recent call last):\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-B56CF62D90D2\\autoplayer\\selftest.py\", line 84, in work\n    agent.run()\n    ~~~~~~~~~^^\n  File \"D:\\a\\_temp\\GamePilotIntegration\\app-0.3.0-B56CF62D90D2\\autoplayer\\core.py\", line 406, in run\n    if stagnant>=8: raise RuntimeError('\u518d\u8a08\u753b\u3057\u3066\u3082\u64cd\u4f5c\u306b\u3088\u308b\u753b\u9762\u5909\u5316\u304c\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3002')\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: \u518d\u8a08\u753b\u3057\u3066\u3082\u64cd\u4f5c\u306b\u3088\u308b\u753b\u9762\u5909\u5316\u304c\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3002\n",
+  "last_observations": [
+    {
+      "step": 5,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1298
+    },
+    {
+      "step": 6,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1279
+    },
+    {
+      "step": 7,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1280
+    },
+    {
+      "step": 8,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1264
+    },
+    {
+      "step": 9,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The message requires pressing Z to continue.",
+      "confidence": 1.0,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 80,
+      "wait_ms": 800,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": true,
+      "changed": false,
+      "turn_kind": "no_change",
+      "raw_change": 0.0,
+      "masked_activity": 0.0,
+      "duration_ms": 1233
+    },
+    {
+      "step": 10,
+      "scene": "Automated Game Fixture",
+      "observation": "The screen shows a message to press Z to continue.",
+      "subgoal": "Press Z to continue.",
+      "reason": "The screen requires pressing Z to continue the game.",
+      "confidence": 0.9,
+      "status": "continue",
+      "keys": [
+        "z"
+      ],
+      "hold_ms": 100,
+      "wait_ms": 1000,
+      "plan": [
+        "next milestone"
+      ],
+      "progress": [],
+      "memory_updates": [
+        {
+          "key": "press Z to continue",
+          "value": "The message requires pressing Z to continue.",
+          "confidence": 1.0
+        }
+      ],
+      "risk": "normal",
+      "state_key": "",
+      "goal_success": "",
+      "goal_evidence": [],
+      "knowledge_assessments": [],
+      "dry_run": false,
+      "executed": false
+    }
+  ]
+}
