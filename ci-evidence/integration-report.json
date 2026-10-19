@@ -1,0 +1,69 @@
+{
+  "kind": "application_runtime",
+  "synthetic_game_used": false,
+  "real_game_test": "required",
+  "checks": {
+    "vision_model_installed": true,
+    "real_application_ui": true,
+    "no_game_input_sent": true,
+    "diagnostic_zip_created": true,
+    "clipboard_file_attachment": true,
+    "ocr_text_components": {
+      "ocr-paddle-v5": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "d7ea90fa631dffcf832db78e0360cbc2dec6926102a7a7dbb76ab6916cbc8d5d",
+        "captured_at": 1792400294.2462447,
+        "lines": [
+          {
+            "text": "COMPONENT CHECK 12345",
+            "confidence": 0.97707,
+            "words": [
+              {
+                "text": "COMPONENT CHECK 12345",
+                "box": [
+                  27.0,
+                  60.0,
+                  754.0,
+                  62.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja"
+      },
+      "ocr-paddle-ja": {
+        "engine": "ocr-paddle-ja",
+        "status": "ok",
+        "frame_sha256": "d7ea90fa631dffcf832db78e0360cbc2dec6926102a7a7dbb76ab6916cbc8d5d",
+        "captured_at": 1792400307.663478,
+        "lines": [
+          {
+            "text": "COMPONENT CHECK 12345",
+            "confidence": 0.99501,
+            "words": [
+              {
+                "text": "COMPONENT CHECK 12345",
+                "box": [
+                  36.0,
+                  73.0,
+                  736.0,
+                  42.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja"
+      }
+    },
+    "optional_ocr": {
+      "ocr-paddle-v5": true,
+      "ocr-paddle-ja": true
+    }
+  },
+  "success": true
+}
