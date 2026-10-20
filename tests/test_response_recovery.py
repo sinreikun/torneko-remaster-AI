@@ -10,6 +10,25 @@ from autoplayer.core import Settings,LocalLLM,Controller
 from test_agent import Script,Backend,change
 
 class ResponseRecoveryTests(unittest.TestCase):
+    def test_context_overflow_retries_with_history_removed_and_same_controls(self):
+        import urllib.error
+        client=LocalLLM(Settings());requests=[]
+        def open_request(request,timeout):
+            requests.append(json.loads(request.data))
+            if len(requests)==1:
+                raise urllib.error.HTTPError(request.full_url,400,'Bad Request',{},io.BytesIO(b'{"error":"input exceeds context length"}'))
+            return io.BytesIO(b'{"model":"qwen2.5vl:7b","message":{"content":"{}"}}')
+        prompt={'goal':'目標','allowed_keys':['w'],'limits':{'hold_ms':[1,80]},'planning_checks':'安全条件',
+            'scene_observation':{'description':'現在の画面'},'memory':{'old':'履歴'},'retrieved_experiences':[{'old':'履歴'}]}
+        with patch('urllib.request.build_opener',return_value=SimpleNamespace(open=open_request)):
+            client._request(None,'system',prompt,{'type':'object'})
+        sent=json.loads(requests[1]['messages'][1]['content'])
+        self.assertNotIn('retrieved_experiences',sent)
+        for key in ('goal','allowed_keys','limits','planning_checks','scene_observation'):
+            self.assertEqual(sent[key],prompt[key])
+        self.assertEqual(requests[1]['options']['num_ctx'],8192)
+        self.assertTrue(client.context_compaction)
+
     def client(self,replies):
         opened=[]
         def open_request(request,timeout):

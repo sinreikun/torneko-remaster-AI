@@ -41,7 +41,7 @@ def fast_policy_ready(state,stable,anchor,floor,objective,count,blocked,stagnant
 def compact_profile_prompt(prompt):
     """Keep optional retrieved context bounded; preserve current evidence and controls."""
     result=dict(prompt)
-    result['recent_history']=result.get('recent_history',[])[-3:]
+    result['recent_history']=result.get('recent_history',[])[-2:]
     memory=dict(result.get('memory',{}))
     for key,limit in (('provisional_claims',3),('known_transitions',2),('plan',3),('reported_progress',3)):
         if key in memory:memory[key]=memory[key][:limit]
@@ -54,6 +54,21 @@ def compact_profile_prompt(prompt):
     if result.get('method_selection'):
         result['method_selection']={k:v for k,v in result['method_selection'].items()
                                     if k in ('method','genre_guidance','instruction','last_outcome')}
+    return result
+
+
+def context_retry_prompt(prompt):
+    """Drop optional historical context, preserving current evidence and controls."""
+    result=dict(prompt)
+    for key in ('retrieved_experiences','public_references','temporal_evidence','learned_policy','self_improvement'):
+        result.pop(key,None)
+    result['recent_history']=[{k:v for k,v in row.items() if k in ('keys','observed_keys','executed','action_kind','changed')}
+        for row in result.get('recent_history',[])[-1:]]
+    memory=result.get('memory',{})
+    result['memory']={k:memory[k] for k in ('current_interface','neutral_observation') if k in memory}
+    knowledge=result.get('source_knowledge')
+    if isinstance(knowledge,dict):
+        result['source_knowledge']={k:v for k,v in knowledge.items() if k in ('metrics','ocr','active_goal','goal_review','rules','edition')}
     return result
 
 

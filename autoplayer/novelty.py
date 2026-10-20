@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import time
+import math
 from dataclasses import replace
 from .interfaces import compact_text,torneko_menu_kind
 from .controls import is_torneko
@@ -50,22 +51,39 @@ class NoveltyExplorer:
         signature=self.state(native)
         if not signature:return decision,None
         stats={r[0]:r[1:] for r in self.db.execute('SELECT action,trials,discoveries,reward,last_used FROM novelty_actions WHERE profile=? AND state=?',(self.profile,signature))}
+        transitions={r[0]:(r[1],r[2]) for r in self.db.execute('SELECT action,SUM(count),SUM(CASE WHEN destination<>state THEN count ELSE 0 END) FROM novelty_outcomes WHERE profile=? AND state=? GROUP BY action',(self.profile,signature))}
         candidates=[]
         for key in ('w','a','s','d','num0','num2'):
             if key not in self.cfg.allowed_keys or [key] in blocked:continue
             n,new,reward,last=stats.get(key,(0,0,0.,0.))
-            candidates.append({'key':key,'trials':n,'discoveries':new,'mean_reward':reward/max(1,n),'last_used':last})
+            samples,changes=transitions.get(key,(0,0))
+            mean=reward/max(1,n);change_rate=changes/max(1,samples)
+            candidates.append({'key':key,'trials':n,'discoveries':new,'mean_reward':mean,'last_used':last,
+                'transition_samples':samples,'observed_state_change_rate':change_rate,
+                'priority':mean+.3*change_rate+.1/math.sqrt(n+1)})
         if not candidates:return decision,None
-        # Untried actions always precede previously tried actions; afterwards
-        # prefer few trials, observed discovery rate, and least recent use.
-        candidates.sort(key=lambda c:(c['trials']>0,c['trials'],-c['mean_reward'],c['last_used']))
+        # Only zero-trial candidates receive absolute exploration priority.
+        # Once tried, observed effects and reward outrank balanced trial counts.
+        candidates.sort(key=lambda c:(c['trials']>0,-c['priority'],c['last_used']))
         selected=candidates[0]
-        reason='現在のOCRでメニューを確認。未経験の操作結果を優先し、この画面で試行回数の少ない許可済みキーを1回試して再観測します。'
+        reason=('現在のOCRでメニューを確認。この画面で未試行の許可済みキーを1回試して再観測します。' if selected['trials']==0 else
+            '候補はすべて試行済み。試行回数の均等化ではなく、観測された状態変化と報酬を優先して次の状態へ進む操作を選びます。')
         return replace(decision,scene='menu',keys=[selected['key']],confidence=.85,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),
             observation='現在のOCRにメニュー固有の複数項目があります。',subgoal='未経験の画面または操作結果を観測する',reason=reason,
             goal_success='操作後のメニュー項目・選択表示・場面の変化を観測する。',plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={}),{
                 'source':'novelty_exploration','state':signature,'kind':kind,'selected':selected,'candidates':candidates,
                 'note':'固定のキャンセル復帰ではなく未試行優先。無反応を故障や壁と断定しない。'}
+
+    def repeated_menu_opening(self,native,policy,decision):
+        """Do not let a repeatedly observed menu cycle override fresh map exploration."""
+        if decision.keys!=['num0'] or not policy or not policy.get('eligible') or decision.status!='continue' or decision.risk!='normal':return None
+        source=self.state(native,policy)
+        if not source:return None
+        rows=self.db.execute('SELECT destination,count FROM novelty_outcomes WHERE profile=? AND state=? AND action=?',(self.profile,source,'num0')).fetchall()
+        repeats=sum(count for _,count in rows if count>=2)
+        if repeats<2:return None
+        return {'reason':'同じ探索状態からメニューを開く遷移を2回以上観測済み。現在の安定した地図から未試行の移動を優先する。',
+            'state':source,'observed_menu_openings':repeats,'attribution':'observed_association_not_proven_cause'}
 
     def record(self,row,before_native,after_native,neutral_policy=None):
         if not row.get('executed') or row.get('dry_run') or row.get('turn_kind')=='aborted' or (row.get('input_receipt') or {}).get('os_submission')!='accepted':

@@ -274,6 +274,9 @@ class LocalLLM:
         from .performance import model_data,clean_text
         if is_torneko(self.cfg.window_title):prompt=model_data(prompt);system=clean_text(system)
         prompt={k:v for k,v in prompt.items() if not k.startswith('_')}
+        if getattr(self,'context_compaction',False):
+            from .performance import context_retry_prompt
+            prompt=context_retry_prompt(prompt)
         cfg=self.cfg;sent_image=vision_image(png)
         encoded=base64.b64encode(sent_image).decode() if sent_image is not None else None
         # Some Ollama grammar failures arrive as HTTP 200 with an empty model/content.
@@ -294,11 +297,20 @@ class LocalLLM:
                         *([{'type':'image_url','image_url':{'url':'data:image/png;base64,'+encoded}}] if encoded else [])]}]}
             request=urllib.request.Request(cfg.endpoint.rstrip('/')+path,json.dumps(body).encode(),{'Content-Type':'application/json'})
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}));started=time.monotonic()
-            if getattr(self,'cancel',None) is not None:
-                from .cancellation import request_bytes
-                data=request_bytes(request,cfg.timeout,self.cancel)
-            else:
-                with opener.open(request,timeout=cfg.timeout) as response:data=response.read(2_000_001)
+            try:
+                if getattr(self,'cancel',None) is not None:
+                    from .cancellation import request_bytes
+                    data=request_bytes(request,cfg.timeout,self.cancel)
+                else:
+                    with opener.open(request,timeout=cfg.timeout) as response:data=response.read(2_000_001)
+            except urllib.error.HTTPError as error:
+                detail=error.read(8192).decode('utf-8','replace').lower()
+                if cfg.provider=='ollama' and error.code==400 and attempt==0 and 'context' in detail and any(word in detail for word in ('exceed','too long','larger')):
+                    from .performance import context_retry_prompt
+                    self.context_compaction=True;prompt=context_retry_prompt(prompt)
+                    self.request_metrics=(getattr(self,'request_metrics',[])+[{'task':prompt.get('task','decision'),'context_retry':True,'reason':'context_limit_optional_history_removed'}])[-8:]
+                    continue
+                raise
             if len(data)>2_000_000:raise ValueError('LLM response too large')
             result=json.loads(data)
             if result.get('error'):raise ValueError('LLM server error: '+str(result['error'])[:600])
@@ -761,9 +773,14 @@ class Controller:
                     self._write({'event':'not_executed','reason':'paused_during_inference','step':step+1})
                     continue
                 policy_choice=None;llm_proposal=None;original_proposal=dict(decision.__dict__)
-                novelty_choice=None
+                novelty_choice=None;novelty_reconsideration=None
                 if self.policy and self.novelty and not dry_run:
                     decision,novelty_choice=self.novelty.choose_menu(decision,native,[list(keys) for keys,count in unresponsive_actions.items() if count>=3])
+                    if policy_stable:
+                        novelty_reconsideration=self.novelty.repeated_menu_opening(native,policy_state,decision)
+                        if novelty_reconsideration:
+                            from dataclasses import replace
+                            decision=replace(decision,keys=[],plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={})
                 if self.policy and policy_state:
                     llm_proposal=original_proposal
                     decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None)
@@ -780,6 +797,7 @@ class Controller:
                     self._write({'event':'stopped','status':'llm_unavailable','reason':'画面観察のLLM応答が連続して不正。回復試行の上限です。Backend異常ではありません。'})
                     raise self._observation_error('LLMの画面観察応答を回復できません。Backend故障ではありません。')
                 if pace_trial:row['adaptive_pacing']=pace_trial
+                if novelty_reconsideration:row['novelty_reconsideration']=novelty_reconsideration
                 if novelty_choice:
                     row['novelty_choice']=novelty_choice
                     row['decision_policy']={'source':'novelty_exploration','success_verified':False}

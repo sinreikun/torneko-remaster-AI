@@ -60,3 +60,48 @@ class NoveltyTests(unittest.TestCase):
         decision=SimpleNamespace(status='continue',risk='normal',keys=[])
         for n in (ocr('何かの説明'),ocr('道具','マップ','足元','その他','削除')):
             self.assertIsNone(self.explorer.choose_menu(decision,n)[1])
+
+    def test_tried_ineffective_actions_do_not_outrank_frequent_observed_transition(self):
+        from autoplayer.core import parse_decision
+        from test_agent import change
+        import json
+        for key in ('w','a','s','d','num0'):
+            self.explorer.record(receipt_row(key),self.menu,self.menu)
+        after=ocr('道具','マップ','足元','その他')
+        for _ in range(12):self.explorer.record(receipt_row('num2'),self.menu,after)
+        decision=parse_decision(json.dumps(change(action={'keys':[],'hold_ms':1,'wait_ms':0})),self.cfg)
+        selected,detail=self.explorer.choose_menu(decision,self.menu)
+        self.assertEqual(selected.keys,['num2'])
+        self.assertEqual(detail['selected']['trials'],12)
+        self.assertEqual(detail['selected']['observed_state_change_rate'],1)
+
+    def test_repeated_menu_opening_is_reconsidered_but_first_discovery_is_not(self):
+        decision=SimpleNamespace(keys=['num0'],status='continue',risk='normal')
+        current=state();row=receipt_row('num0',policy_state=current)
+        self.explorer.record(row,self.menu,self.menu)
+        self.assertIsNone(self.explorer.repeated_menu_opening(self.menu,current,decision))
+        self.explorer.record(row,self.menu,self.menu)
+        self.assertIsNotNone(self.explorer.repeated_menu_opening(self.menu,current,decision))
+        decision.keys=['num1']
+        self.assertIsNone(self.explorer.repeated_menu_opening(self.menu,current,decision))
+
+    def test_controller_replaces_repeated_menu_opening_with_fresh_map_exploration(self):
+        from unittest.mock import Mock
+        from autoplayer.core import Controller
+        from test_agent import Backend,Script,change
+        import json
+        class ReceiptBackend(Backend):
+            def act(self,keys,ms,stop):
+                super().act(keys,ms,stop)
+                return {'os_submission':'accepted','events':[{'message':'WM_KEYDOWN'}]}
+        backend=ReceiptBackend()
+        backend.observe_turn=Mock(return_value=SimpleNamespace(image=b'current',kind='no_change',changed=False,raw_change=0,masked_activity=0,duration_ms=1000))
+        script=Script([change(action={'keys':['num0'],'hold_ms':80,'wait_ms':0},confidence=.9)]*3)
+        script.ocr=SimpleNamespace(read=Mock(return_value=ocr('1階','HP15/15')))
+        agent=Controller(Settings(max_steps=3),backend,script,lambda _:None,Path(self.temp.name)/'run.jsonl',memory=self.memory)
+        agent.policy.observe=Mock(return_value=state());agent.run()
+        rows=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
+        self.assertEqual([a[0] for a in backend.actions[:2]],[['num0'],['num0']])
+        self.assertIn(backend.actions[-1][0][0],'wasd')
+        self.assertIn('novelty_reconsideration',rows[-1])
+        self.assertEqual(rows[-1]['llm_proposal']['keys'],['num0'])
