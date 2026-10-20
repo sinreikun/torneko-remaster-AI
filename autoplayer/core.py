@@ -726,7 +726,8 @@ class Controller:
                             image=restored
                             if hasattr(self.backend,'record_frame'):self.backend.record_frame(image,'observation')
                     first=state_before_neutral['minimap'];last=policy_state['minimap']
-                    policy_stable=bool(neutral is not None and first.get('status')=='observed' and last.get('status')=='observed' and first.get('player_cell')==last.get('player_cell') and first.get('shape')==last.get('shape'))
+                    policy_stable=bool(neutral is not None and self.policy.stable_map(first,last)
+                        and state_before_neutral['metrics'].get('floor',{}).get('values')==policy_state['metrics'].get('floor',{}).get('values'))
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
                     if hasattr(self.llm,'review_strategy'):

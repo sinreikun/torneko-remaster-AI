@@ -7,6 +7,7 @@ import math
 import time
 import io
 import re
+import copy
 from dataclasses import replace
 from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
@@ -35,6 +36,34 @@ class ExperiencePolicy:
         CREATE INDEX IF NOT EXISTS policy_events_profile ON policy_events(profile,id);
         CREATE TABLE IF NOT EXISTS policy_visits(profile TEXT,location TEXT,count INTEGER NOT NULL,PRIMARY KEY(profile,location));
         ''')
+    def track_pose(self,minimap,floor):
+        if minimap.get('status')!='observed' or not floor:return minimap
+        space=(tuple(floor),tuple(minimap.get('source_size',[])),tuple(minimap.get('analysis_size',[])),minimap['cell_size'])
+        if getattr(self,'pose_space',None)!=space:
+            self.pose_space=space;self.pose_anchors=[]
+        point=minimap['player'];radius=minimap['cell_size']*.3
+        nearest=min(self.pose_anchors,key=lambda a:math.dist(point,a[0]),default=None)
+        result=copy.deepcopy(minimap);result['raw_player_cell']=list(minimap['player_cell'])
+        if nearest and math.dist(point,nearest[0])<=radius:
+            result['player_cell']=list(nearest[1])
+        else:
+            if nearest:
+                step=tuple(round((point[i]-nearest[0][i])/minimap['cell_size']) for i in (0,1))
+                distance=math.dist(point,nearest[0])/minimap['cell_size']
+                if .65<=distance<=1.4 and sum(abs(v) for v in step)==1:
+                    result['player_cell']=[nearest[1][i]+step[i] for i in (0,1)]
+            if len(self.pose_anchors)>=2048:self.pose_anchors.clear()
+            self.pose_anchors.append((tuple(point),tuple(result['player_cell'])))
+        return result
+
+    @staticmethod
+    def stable_map(first,last):
+        if first.get('status')!='observed' or last.get('status')!='observed':return False
+        if any(first.get(k)!=last.get(k) for k in ('source_size','analysis_size','cell_size')):return False
+        tile=first['cell_size']
+        return bool(math.dist(first['player'],last['player'])<=tile*.3
+            and all(abs(first['bbox'][i]-last['bbox'][i])<=tile*.5 for i in range(4))
+            and abs(first['known_pixels']-last['known_pixels'])<=max(8,first['known_pixels']*.03))
     def observe(self,png,native=None,map_display=False):
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native=None
@@ -43,6 +72,7 @@ class ExperiencePolicy:
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
         menu=bool(torneko_menu_kind(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
         hp=metrics.get('hp',{}).get('values');floor=metrics.get('floor',{}).get('values')
+        minimap=self.track_pose(minimap,floor)
         eligible=minimap.get('status')=='observed' and bool(hp and floor) and not menu
         food=metrics.get('fullness',{}).get('values')
         objective='survive' if hp and hp[0]/hp[1]<.3 else ('forage' if food and food[0]<20 else 'explore')
@@ -98,8 +128,14 @@ class ExperiencePolicy:
             return decision,{'source':'model_or_neutral','context':context}
         # Game-world danger is evaluated as a cost rather than a veto.
         # Respect a concrete non-movement operation; do not turn an attack into walking.
+        reconsidered=None
         if decision.keys and any(key not in MOVES for key in decision.keys):
-            return decision,{'source':'model_nonmovement','context':context}
+            prior=self.values(state).get(decision.keys[0],{}) if len(decision.keys)==1 else {}
+            if (decision.scene=='gameplay' and decision.keys[0] in ('num0','num1','num2') and not state['minimap'].get('enemies')
+                    and prior.get('trials',0)>=2 and prior.get('reward_sum',0)<0):
+                reconsidered={'keys':list(decision.keys),'trials':prior['trials'],'reward_sum':prior['reward_sum'],
+                    'reason':'探索状態で過去の効果が乏しい非移動操作を再提案。別の未試行候補を選び直す。'}
+            else:return decision,{'source':'model_nonmovement','context':context}
         candidates=[v for v in context['ranking'] if v['automatic_candidate']]
         if not candidates:return replace(decision,keys=[]),{'source':'neutral_no_safe_candidate','context':context}
         for candidate in candidates:
@@ -127,7 +163,7 @@ class ExperiencePolicy:
             confidence=.8,reason=reason,subgoal='食料を探すため未確認の通路を探索する' if state['objective']=='forage' else 'ミニマップ上の未訪問位置または未確認の通路を探索する',
             goal_success='地図の自位置の移動または既知領域の増加を次の観測で確認する',
             progress=[],memory_updates=[],plan=[],goal_evidence=[],knowledge_assessments=[])
-        return chosen,{'source':'learned_policy','selection_basis':'exploration_route' if route else 'adjusted_td_priority','selected':selected,'context':context,'adjustment':adjustment,'exploration_route':route,
+        return chosen,{'source':'learned_policy','reconsidered_nonmovement':reconsidered,'selection_basis':'exploration_route' if route else 'adjusted_td_priority','selected':selected,'context':context,'adjustment':adjustment,'exploration_route':route,
             'safety':'自位置とメニュー不在を再確認した短い移動。ゲーム内の危険は候補から除外せず、損失と発見を評価。危険時の高速連続実行はしない。'}
     @staticmethod
     def signals(before,after):

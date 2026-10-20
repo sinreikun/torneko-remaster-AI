@@ -140,6 +140,33 @@ class PolicyTests(unittest.TestCase):
         self.policy.learn(state(),state(),receipt_row())
         other=ExperiencePolicy(self.store,Settings(goal='別の目標').validate())
         self.assertEqual(other.values(state()),{})
+    def test_ineffective_nonmovement_can_be_reselected_but_dialog_and_combat_are_preserved(self):
+        current=state()
+        for _ in range(2):self.policy.learn(current,current,receipt_row('num1'),current)
+        proposal=parse_decision(json.dumps(change(scene='gameplay',confidence=.5,action={'keys':['num1'],'hold_ms':80,'wait_ms':0})),self.cfg)
+        chosen,detail=self.policy.choose(proposal,current,stable=True)
+        self.assertIn(chosen.keys[0],'wasd');self.assertEqual(detail['reconsidered_nonmovement']['keys'],['num1'])
+        proposal.scene='dialog'
+        self.assertEqual(self.policy.choose(proposal,current,stable=True)[0].keys,['num1'])
+        proposal.scene='gameplay';enemy=copy.deepcopy(current);enemy['minimap']['enemies']=[(1,0)]
+        self.assertEqual(self.policy.choose(proposal,enemy,stable=True)[0].keys,['num1'])
+        self.assertEqual(self.policy.choose(proposal,current,stable=False)[0].keys,['num1'])
+    def test_marker_jitter_does_not_change_cell_but_real_movement_does(self):
+        a=copy.deepcopy(state()['minimap']);a.update(player=[191.5,128.5],player_cell=[32,21])
+        b=copy.deepcopy(a);b.update(player=[191.5,129.0],player_cell=[32,22],shape='marker-occlusion')
+        tracked_a=self.policy.track_pose(a,[1]);tracked_b=self.policy.track_pose(b,[1])
+        self.assertEqual(tracked_a['player_cell'],tracked_b['player_cell'])
+        self.assertEqual(tracked_b['raw_player_cell'],[32,22]);self.assertEqual(b['player_cell'],[32,22])
+        self.assertTrue(self.policy.stable_map(a,b))
+        moved=copy.deepcopy(b);moved.update(player=[197.0,129.0],player_cell=[33,22])
+        self.assertNotEqual(self.policy.track_pose(moved,[1])['player_cell'],tracked_a['player_cell'])
+        self.assertEqual(self.policy.track_pose(moved,[1])['player_cell'],[33,21])
+        self.assertFalse(self.policy.stable_map(a,moved))
+        self.assertEqual(self.policy.track_pose(b,[2])['player_cell'],[32,22])
+        first=copy.deepcopy(a);first.update(player=[213.,128.5],player_cell=[36,21])
+        next_cell=copy.deepcopy(first);next_cell.update(player=[218.5,128.5],player_cell=[36,21])
+        one=self.policy.track_pose(first,[3]);two=self.policy.track_pose(next_cell,[3])
+        self.assertEqual(two['player_cell'],[one['player_cell'][0]+1,one['player_cell'][1]])
     def test_controller_executes_the_ranked_action_and_logs_actual_learning(self):
         before=state();after=state('B',261.7,650)
         # Receipt and features are mocked contracts, not evidence of game acceptance.
