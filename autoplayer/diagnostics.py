@@ -1,5 +1,6 @@
 """Known-operation diagnostics are deliberately isolated from agent memory."""
 import hashlib
+import gzip
 import json
 import os
 import sys
@@ -9,6 +10,31 @@ import sqlite3
 import tempfile
 import time
 import zipfile
+
+
+def export_human_examples(db,archive,folder,limit_bytes=2*1024*1024):
+    """Small feature records, never images or the unbounded learning database."""
+    path=Path(folder)/'human-examples.jsonl.gz'
+    total=db.execute('SELECT COUNT(*) FROM human_examples').fetchone()[0]
+    included=0;raw_bytes=0
+    scores={}
+    if db.execute("SELECT 1 FROM sqlite_master WHERE name='human_example_scores'").fetchone():
+        for profile,identifier,scene,trials,reward in db.execute('SELECT * FROM human_example_scores'):
+            scores.setdefault((profile,identifier),[]).append({'scene':scene,'trials':trials,'reward_sum':reward})
+    with path.open('wb') as output,gzip.GzipFile(fileobj=output,mode='wb',mtime=0) as packed:
+        for identifier,profile,created,status,data in db.execute('SELECT id,profile,created,status,data FROM human_examples ORDER BY id DESC'):
+            row=json.loads(data)
+            item={k:row[k] for k in ('steps','reason','before_features','after_features','effect','before_sha256','after_sha256','before_capture_interval','after_capture_interval','sampling') if k in row}
+            item.update(id=identifier,profile=profile,created=created,status=status,reuse_scores=scores.get((profile,identifier),[]))
+            encoded=(json.dumps(item,ensure_ascii=False,separators=(',',':'))+'\n').encode()
+            # Bound both decompressed volume and compressed payload. Reserve enough
+            # space for the next record and gzip trailer before appending it.
+            if len(encoded)>65536 or raw_bytes+len(encoded)>8*limit_bytes or output.tell()+len(encoded)+64>limit_bytes:break
+            packed.write(encoded);packed.flush();raw_bytes+=len(encoded);included+=1
+    archive.write(path,'demonstrations/human-examples.jsonl.gz',compress_type=zipfile.ZIP_STORED)
+    return {'total':total,'included':included,'truncated':included<total,'order':'newest_first',
+        'compressed_bytes':path.stat().st_size,'limit_bytes':limit_bytes,'images_included':False,
+        'path':'demonstrations/human-examples.jsonl.gz','local_full_data_retained':True}
 
 class DiagnosticStore:
     def __init__(self,path):
@@ -105,7 +131,11 @@ def export_diagnostics(data,destination,detailed=False):
                         entry['recent_improvement_events']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_events ORDER BY id DESC LIMIT 30')]
                         entry['improvement_state']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_state LIMIT 20')]
                     if name=='memory.sqlite':
-                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','human_examples','human_reuse'):
+                        if target.execute("SELECT 1 FROM sqlite_master WHERE name='human_examples'").fetchone():
+                            entry['human_example_export']=export_human_examples(target,archive,folder)
+                            remaining-=entry['human_example_export']['compressed_bytes']
+                            entry['human_example_status_counts']=dict(target.execute('SELECT status,COUNT(*) FROM human_examples GROUP BY status'))
+                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','human_examples','human_reuse','human_example_scores'):
                             if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
                                 cursor=target.execute('SELECT * FROM '+table+' LIMIT 40')
                                 labels=[column[0] for column in cursor.description]

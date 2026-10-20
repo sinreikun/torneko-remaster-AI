@@ -360,9 +360,11 @@ class LocalLLM:
 
     def decide(self,png,history,stalled):
         self.active_method=None;self.current_demonstrations=[]
+        if getattr(self,'demonstrations',None):self.demonstrations.last_search={}
         try:
             decision=self._decide(png,history,stalled)
             if self.current_demonstrations:self.observation_state['demonstration_candidates']=self.current_demonstrations
+            if getattr(self,'demonstrations',None):self.observation_state['demonstration_search']=self.demonstrations.last_search
             return decision
         except (ValueError,KeyError,urllib.error.URLError,TimeoutError,socket.timeout) as error:
             if getattr(self,'methods',None) and self.active_method:
@@ -897,6 +899,7 @@ class Controller:
                     self._write({'event':'stopped','status':'blocked','reason':decision.reason}); break
                 if decision.keys and (decision.confidence < self.cfg.min_confidence or decision.risk=='uncertain'):
                     uncertain+=1
+                    if self.demonstrations:self.demonstrations.record_reuse({**row,'executed':False,'observed_keys':[],'not_executed_reason':'low_confidence_or_uncertain'})
                     if getattr(self.llm,'methods',None) and row.get('method_selection'):
                         self.llm.methods.record(row['method_selection'],False,row['performance']['decision_ms'],reason='low_confidence_or_uncertain')
                     self._write({'event':'not_executed','reason':'low_confidence','step':step+1})

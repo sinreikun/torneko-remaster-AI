@@ -140,3 +140,78 @@ class DemonstrationTests(unittest.TestCase):
         self.store.record_reuse({'demonstration_candidates':client.take_state()['demonstration_candidates'],'executed':False,'observed_keys':[]})
         reused=json.loads(self.memory.db.execute('SELECT data FROM human_reuse').fetchone()[0])
         self.assertFalse(reused['executed']);self.assertEqual(reused['matches_first_step'],[])
+
+class RecordingRevisionTests(unittest.TestCase):
+    setUp=DemonstrationTests.setUp
+    example=DemonstrationTests.example
+    def test_hud_identity_does_not_invent_missing_hp_and_reclassifies_legacy(self):
+        png=b'capture-contract';native=ocr(png)
+        native['lines']=[{'text':t} for t in ['HP1S','1階','Lv1','満腹度10000','0G']]
+        result=features(png,native)
+        self.assertEqual(result['kind'],'gameplay');self.assertIsNone(result['hp'])
+        old=copy.deepcopy(self.f);old.update(kind='unknown',quotes=['HP1S','1階','Lv1','満腹度10000','0G'],hp=None)
+        identifier=self.example(old)
+        with patch('autoplayer.demonstrations.features',return_value=old):found=self.store.retrieve(png,native)
+        self.assertEqual(found[0]['id'],identifier);self.assertIsNone(found[0]['current_hp'])
+        native['lines'].append({'text':'はい'})
+        self.assertEqual(features(png,native)['kind'],'choice')
+
+    def test_visual_reference_needs_same_profile_and_rejects_choice(self):
+        anchor=copy.deepcopy(self.f);anchor.update(kind='gameplay',hud=[100]*128,quotes=['1階','Lv1','満腹度99%'])
+        self.example(anchor)
+        current=copy.deepcopy(anchor);current.update(kind='unknown',tokens=[],quotes=[],hp=None)
+        with patch('autoplayer.demonstrations.features',return_value=current):
+            self.assertTrue(self.store.retrieve(b'capture',ocr()))
+            self.assertEqual(self.store.last_search['current_kind'],'gameplay')
+        current['hud']=[0]*128
+        with patch('autoplayer.demonstrations.features',return_value=current):self.assertEqual(self.store.retrieve(b'capture',ocr()),[])
+        current.update(kind='choice',hud=[100]*128)
+        with patch('autoplayer.demonstrations.features',return_value=current):self.assertEqual(self.store.retrieve(b'capture',ocr()),[])
+
+    def test_observed_bad_first_action_lowers_priority_but_unsent_does_not(self):
+        first=self.example();second=self.example()
+        with patch('autoplayer.demonstrations.features',return_value=self.f):candidates=self.store.retrieve(b'capture',ocr())
+        example=next(e for e in candidates if e['id']==second)
+        row={'demonstration_candidates':[example],'executed':True,'action_kind':'input','observed_keys':['num1'],
+             'hold_ms':example['steps'][0]['hold_ms'],'input_receipt':{'os_submission':'accepted'},'turn_kind':'stable',
+             'policy_learning':{'status':'trained','reward':-.5}}
+        for _ in range(3):self.store.record_reuse(row)
+        with patch('autoplayer.demonstrations.features',return_value=self.f):found=self.store.retrieve(b'capture',ocr())
+        self.assertEqual(found[0]['id'],first);self.assertEqual(found[1]['reuse_experience']['trials'],3)
+        row['executed']=False;self.store.record_reuse(row)
+        self.assertEqual(self.memory.db.execute('SELECT trials FROM human_example_scores').fetchone()[0],3)
+        row.update(executed=True,observed_keys=['w']);self.store.record_reuse(row)
+        self.assertEqual(self.memory.db.execute('SELECT trials FROM human_example_scores').fetchone()[0],3)
+
+    def test_slow_database_consumer_does_not_stop_input_sampler(self):
+        control=SessionControl();calls=[];gate=threading.Event()
+        def snapshot(allowed):
+            calls.append(time.monotonic())
+            if len(calls)>=12:control.stop.set()
+            return {'target_focused':False,'keys':[]}
+        backend=SimpleNamespace(capture=lambda:b'capture-contract',human_input_snapshot=snapshot)
+        runner=DemonstrationRecorder(backend,self.store,SimpleNamespace(),control,lambda _:None,Path(self.temp.name)/'run.jsonl',Mock())
+        original=runner.write
+        def slow_write(row):
+            gate.set();time.sleep(.3);original(row)
+        runner.write=slow_write
+        try:stats=runner.run()
+        finally:control.close()
+        self.assertTrue(gate.is_set());self.assertGreaterEqual(len(calls),12)
+        self.assertLess(calls[-1]-calls[0],.29)
+        self.assertIn('sample_gap_max_ms',stats);self.assertGreater(stats['sample_count'],0)
+
+    def test_bounded_export_covers_all_examples_without_images_or_large_database(self):
+        import gzip,zipfile
+        from autoplayer.diagnostics import export_diagnostics,export_human_examples
+        for _ in range(75):self.example()
+        self.memory.db.execute('CREATE TABLE bulky(data BLOB)');self.memory.db.execute('INSERT INTO bulky VALUES(zeroblob(7000000))');self.memory.db.commit()
+        archive=Path(self.temp.name)/'report.zip';report=export_diagnostics(self.temp.name,archive)
+        entry=report['databases']['memory.sqlite'];export=entry['human_example_export']
+        self.assertFalse(entry['snapshot_included']);self.assertEqual(export['included'],75);self.assertFalse(export['truncated'])
+        with zipfile.ZipFile(archive) as z:
+            lines=gzip.decompress(z.read(export['path'])).splitlines()
+        self.assertEqual(len(lines),75);self.assertEqual(json.loads(lines[0])['id'],75)
+        with zipfile.ZipFile(Path(self.temp.name)/'bounded.zip','w') as z:
+            small=export_human_examples(self.memory.db,z,self.temp.name,limit_bytes=500)
+        self.assertTrue(small['truncated']);self.assertLessEqual(small['compressed_bytes'],500)
