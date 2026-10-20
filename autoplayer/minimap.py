@@ -36,10 +36,15 @@ def read_minimap(png,isolated=False):
             source_size=source.size;image=source.convert('RGB');image.thumbnail((640,360))
     except (OSError,ValueError):return {'status':'unavailable','reason':'画像を読み取れません。'}
     width,height=image.size;blue=set();yellow=set();red=set()
+    # Green floor maps were observed in real Num7-only captures. Restrict this
+    # palette to that explicit mode with a predominantly dark background.
+    green_map=isolated and sum(max(pixel)<30 for pixel in image.getdata())>=width*height*.8
     for y in range(height):
         for x in range(width):
             r,g,b=image.getpixel((x,y))
-            if (60<=r<=205 and g>105 and g-r>=18 and b-g>=8) or (isolated and b>70 and b>r*1.4 and b>g*1.08):blue.add((x,y))
+            if ((60<=r<=205 and g>105 and g-r>=18 and b-g>=8)
+                    or (isolated and b>70 and b>r*1.4 and b>g*1.08)
+                    or (green_map and g>65 and b>20 and g>r*1.6 and g>b*1.2)):blue.add((x,y))
             if r>90 and g>95 and b<min(r,g)*.55 and abs(r-g)<60:yellow.add((x,y))
             if r>145 and r>g*1.6 and r>b*1.5:red.add((x,y))
     candidates=[];yellow_parts=components(yellow)

@@ -497,6 +497,7 @@ class LocalLLM:
         self.language_fallback=False
         decision=self.localize_decision(decision)
         issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')),minimap_reference=is_torneko(cfg.window_title))
+        if knowledge_context:issue=issue or self.knowledge_engine.decision_grounding_issue(decision,knowledge_context)
         if cfg.profile_id and decision.keys:
             observed_scene=scene_observation.get('scene_type')
             if observed_scene not in ('unknown',decision.scene) and decision.scene!='unknown':issue=issue or '現在の観察役と計画役の場面分類が食い違っています。'
