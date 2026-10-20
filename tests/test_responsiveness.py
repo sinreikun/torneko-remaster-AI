@@ -92,6 +92,21 @@ class CaptureIsolationTests(unittest.TestCase):
 
 
 class UIResponsivenessTests(unittest.TestCase):
+    def test_regular_decisions_without_event_and_retry_notifications_do_not_stop_play(self):
+        from autoplayer.core import Settings
+        app=Application.__new__(Application);app.stop=threading.Event();app.status=Mock()
+        app.append_log=Mock();app.set_panel=Mock();app.cfg=Settings()
+        app.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
+        for event in ('absent',None,23):
+            value={'scene':'unknown','subgoal':'現在の画面から進路を調べる','keys':['s']}
+            if event!='absent':value['event']=event
+            app.update_decision(value)
+        app.update_decision({'status':'retry','reason':'再観測'})
+        self.assertEqual(app.run_counts['decisions'],3);self.assertEqual(app.run_counts['retries'],1)
+        self.assertFalse(app.stop.is_set())
+        app.update_decision({'event':'human_focus','target_focused':True})
+        self.assertIn('お手本記録中',app.status.set.call_args.args[0])
+
     def test_finished_worker_releases_preview_cancellation(self):
         app=Application.__new__(Application);app.queue=queue.Queue();app.queue.put(('done',None))
         app.control=Mock();app.closing_at=None;app.backend=SimpleNamespace(window_capture=SimpleNamespace(cancel=threading.Event()))
@@ -123,9 +138,10 @@ class UIResponsivenessTests(unittest.TestCase):
     def test_callback_error_is_logged_and_requests_stop(self):
         import autoplayer.ui as ui
         with tempfile.TemporaryDirectory() as tmp,patch.object(ui,'DATA',Path(tmp)):
-            app=Application.__new__(Application);app.stop=threading.Event();app.status=Mock()
+            app=Application.__new__(Application);app.stop=threading.Event();app.status=Mock();app.control=SimpleNamespace(reason='')
             app.callback_error(ValueError,ValueError('broken display'),None)
             self.assertTrue(app.stop.is_set());self.assertIn('broken display',(Path(tmp)/'ui-errors.log').read_text(encoding='utf-8'))
+            self.assertIn('表示処理のエラー: ValueError: broken display',app.control.reason)
 
     def test_importing_entrypoint_for_a_child_does_not_start_tk(self):
         with patch('autoplayer.ui.main') as start:

@@ -610,7 +610,7 @@ class Application:
             except Exception as error:
                 from .background import BackgroundUnavailable
                 from .cancellation import OperationCancelled
-                summary.update(status='stopped' if isinstance(error,OperationCancelled) else 'unsupported_background' if isinstance(error,BackgroundUnavailable) else 'error',reason=str(error))
+                summary.update(status='stopped' if isinstance(error,OperationCancelled) else 'unsupported_background' if isinstance(error,BackgroundUnavailable) else 'error',reason=(control.reason or str(error)) if isinstance(error,OperationCancelled) else str(error))
                 if not isinstance(error,OperationCancelled):self.queue.put(('error',str(error)))
                 DATA.mkdir(parents=True,exist_ok=True)
                 with (DATA/'application.log').open('a',encoding='utf-8') as log:
@@ -659,7 +659,7 @@ class Application:
             self.set_panel('ゲームの推定',value['method_selection'].get('game_hypothesis',{}))
             self.set_panel('手法の選択・学習',value.get('method_context') or value['method_selection'])
         if value.get('background_compatibility'):self.set_panel('背景適合性',value['background_compatibility'])
-        if event.startswith('human_'):
+        if isinstance(event,str) and event.startswith('human_'):
             self.set_panel('行動学習',value)
             if not self.stop.is_set():
                 if event=='human_focus':self.status.set(value.get('reason') or ('お手本記録中：対象ゲームの操作だけを記録します。' if value['target_focused'] else 'お手本記録待機：ゲームを手動で前面にしてください。他アプリのキーは記録しません。'))
@@ -702,6 +702,8 @@ class Application:
     def callback_error(self,kind,error,traceback_object):
         import traceback
         detail=''.join(traceback.format_exception(kind,error,traceback_object))
+        control=getattr(self,'control',None)
+        if control is not None:control.reason='表示処理のエラー: '+type(error).__name__+': '+str(error)[:300]
         self.stop.set()
         try:
             DATA.mkdir(parents=True,exist_ok=True)
