@@ -5,6 +5,7 @@ followed by a fresh observation and a single attack trial, never an assumed hit.
 """
 import json
 import math
+import time
 from dataclasses import replace
 from .interfaces import result_screen
 
@@ -29,6 +30,34 @@ class CombatExperiments:
         self.db=memory.db;self.profile=memory.profile;self.cfg=cfg;self.pending=None
         self.db.execute('''CREATE TABLE IF NOT EXISTS combat_actions(profile TEXT,context TEXT,action TEXT,
             trials INTEGER,reward REAL,PRIMARY KEY(profile,context,action))''');self.db.commit()
+        self.db.execute('''CREATE TABLE IF NOT EXISTS combat_observations(id INTEGER PRIMARY KEY,
+            profile TEXT,created REAL,kind TEXT,enemy TEXT,damage INTEGER,data TEXT)''');self.db.commit()
+        self.last_messages=set()
+
+    def observe_messages(self,row,before_native,samples,extra_events=()):
+        from .battle_messages import read_messages
+        if row.get('dry_run') or not row.get('executed') or row.get('turn_kind')=='aborted' or (row.get('input_receipt') or {}).get('os_submission')!='accepted':return []
+        previous={e['quote'] for e in read_messages(before_native,(row.get('ocr') or {}).get('frame_sha256'))}|self.last_messages
+        observed={}
+        for native,digest in samples:
+            for event in read_messages(native,digest):observed.setdefault(event['quote'],event)
+        for event in extra_events:observed.setdefault(event['quote'],event)
+        self.last_messages=set(observed)
+        events=[]
+        for quote,event in observed.items():
+            event={**event,'new_message':quote not in previous,'observed_keys':row.get('observed_keys',[]),
+                'equipment':{'strength':None,'sword':None,'shield':None},
+                'note':'画面メッセージの読取り。装備条件・敵の残HP・因果は未確認。同文の継続表示は追加試行に数えない。'}
+            events.append(event)
+            if not event['new_message']:continue
+            with self.db:self.db.execute('INSERT INTO combat_observations(profile,created,kind,enemy,damage,data) VALUES(?,?,?,?,?,?)',
+                (self.profile,time.time(),event['kind'],event['enemy'],event.get('damage'),json.dumps(event,ensure_ascii=False)))
+        return events
+
+    def experience(self):
+        rows=self.db.execute('SELECT enemy,kind,COUNT(*),AVG(damage),MIN(damage),MAX(damage) FROM combat_observations WHERE profile=? GROUP BY enemy,kind ORDER BY MAX(id) DESC LIMIT 12',(self.profile,)).fetchall()
+        return {'source':'historical_battle_messages','observations':[dict(zip(('enemy','event','samples','mean_damage','min_damage','max_damage'),r)) for r in rows],
+            'note':'過去のメッセージ別の記述統計。現在の敵種・残HP・装備・勝率・命中率を確定しない。未確認の攻撃を命中や空振りとして数えない。'}
 
     def choose(self,decision,state,stable,blocked=()):
         if not (stable and state and state.get('eligible') and decision.status=='continue' and decision.risk=='normal'):
@@ -39,7 +68,7 @@ class CombatExperiments:
         cardinal=[e for e in enemies if sum(abs(v) for v in e)==1]
         if not cardinal:return decision,None  # Diagonal targeting stays with the observed model plan.
         target=sorted(cardinal)[0];direction=next(k for k,v in MOVES.items() if v==target)
-        context=json.dumps(['cardinal-contact-v1',direction,sorted(self.cfg.allowed_keys)])
+        context=json.dumps(['cardinal-contact-v2',direction,sorted(self.cfg.allowed_keys)])
         cell=list(state['minimap']['player_cell'])
         stage=None;action=None;keys=None
         if self.pending:
@@ -87,12 +116,19 @@ class CombatExperiments:
         if trial['stage']=='orient_trial' and same and remains and not damage:
             self.pending=dict(trial)
             return {'status':'awaiting_attack_trial','orientation_verified':False,'note':'向き変更の効果は未確認。次の新しい観測で同じ対象がいる場合だけ単発攻撃を試す。'}
-        if not hp0 or (not fresh and not defeated):return {'status':'censored'}
+        messages=[e for e in row.get('battle_observations',[]) if e.get('new_message')]
+        explicit_kill=any(e['kind']=='defeated_enemy' for e in messages)
+        explicit_hit=any(e['kind']=='damage_dealt' for e in messages)
+        if not fresh and not defeated and not explicit_kill and not explicit_hit:return {'status':'censored','battle_messages':messages}
         moved=fresh and not same
         disappeared=fresh and same and not remains
-        reward=.2*bool(moved)+.6*bool(disappeared)-2*damage-.02-(.8 if defeated else 0)
+        distances=[max(abs(x),abs(y)) for x,y in m.get('enemies',[])] if fresh else []
+        separation=bool(moved and distances and min(distances)>1)
+        reward=.1*separation+.6*explicit_kill+.15*explicit_hit-2*damage-.04-(.8 if defeated else 0)
         with self.db:self.db.execute('INSERT INTO combat_actions VALUES(?,?,?,1,?) ON CONFLICT(profile,context,action) DO UPDATE SET trials=trials+1,reward=reward+excluded.reward',
             (self.profile,trial['context'],trial['action'],reward))
         return {'status':'updated','stage':trial['stage'],'action':trial['action'],'reward':reward,'hp_loss_fraction':damage,
             'enemy_indicator_disappeared':bool(disappeared),'defeat_result':defeated,'attribution':'observed_association_not_proven_cause',
-            'note':'敵表示の消失は撃破・命中の確定ではない。被ダメージ・移動・表示変化を分離して比較。'}
+            'separation_observed':separation,'moved':bool(moved),'hp_comparable':bool(hp0 and hp1 and hp0[1]==hp1[1]),
+            'battle_messages':messages,'scoring_version':2,
+            'note':'移動だけ・敵表示の消失だけでは戦闘成功に加点しない。メッセージとHPと距離変化を分離。命中・撃破メッセージもOCRの未検証読取り。'}

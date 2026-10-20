@@ -359,10 +359,11 @@ class LocalLLM:
         return {**value,'status':'model_observation_unverified'}
 
     def decide(self,png,history,stalled):
-        self.active_method=None;self.current_demonstrations=[]
+        self.active_method=None;self.current_demonstrations=[];self.current_frame_evidence=None
         if getattr(self,'demonstrations',None):self.demonstrations.last_search={}
         try:
             decision=self._decide(png,history,stalled)
+            if self.current_frame_evidence:self.observation_state['current_evidence']=self.current_frame_evidence
             if self.current_demonstrations:self.observation_state['demonstration_candidates']=self.current_demonstrations
             if getattr(self,'demonstrations',None):self.observation_state['demonstration_search']=self.demonstrations.last_search
             return decision
@@ -393,6 +394,10 @@ class LocalLLM:
         context['unconfirmed_input_responses']=context.get('unconfirmed_input_responses',[])[-4:]
         context['known_transitions']=[{k:(v[:100] if isinstance(v,str) else v) for k,v in item.items()} for item in context.get('known_transitions',[])[:4]]
         native=self.ocr.read(png)
+        import hashlib
+        if native.get('frame_sha256')!=hashlib.sha256(png).hexdigest():
+            native={'status':'frame_mismatch','frame_sha256':hashlib.sha256(png).hexdigest(),'lines':[],
+                'note':'別画像のOCRを現在値として使わない。'}
         if is_torneko(cfg.window_title):
             from .interfaces import result_screen
             outcome=result_screen(native)
@@ -460,6 +465,18 @@ class LocalLLM:
             learned=self.context.get('learned_policy',{})
             prompt['learned_policy']={k:v for k,v in learned.items() if k not in ('ranking','control_reference')}
             prompt['learned_policy']['ranking']=[{k:v for k,v in row.items() if k in ('keys','trials','q','priority','progress_probability_estimate','verified_goal_success_probability','automatic_candidate','goal_trials')} for row in learned.get('ranking',[])[:12]]
+
+        from .current_evidence import historical,current
+        for key in ('recent_history','memory','retrieved_experiences','human_examples','self_improvement','method_selection'):
+            if key in prompt:prompt[key]=historical(prompt[key])
+        if prompt.get('source_knowledge') and prompt['source_knowledge'].get('active_goal'):
+            prompt['source_knowledge']['active_goal']=historical(prompt['source_knowledge']['active_goal'])
+        prompt['current_evidence']=current(png,native,self.knowledge_engine)
+        self.current_frame_evidence=prompt['current_evidence']
+        prompt['historical_context_rule']='recent_history・memory・retrieved_experiences・human_examplesは過去の経験。現在値や現在位置の根拠にしない。'
+        prompt['recent_contact_observation']=self.context.get('relative_contacts')
+        prompt['historical_battle_experience']=self.context.get('battle_experience')
+        prompt['instruction']+=' 現在画像の情報が最新です。履歴・お手本のHPや階数・装備・敵位置を現在値に転用せず、未読は不明にしてください。現在画面とOCRが食い違う場合は再観測し、過去の値で画面を否定しないでください。'
 
         from dataclasses import replace
         planner_cfg=replace(cfg,allowed_keys=[k for k in cfg.allowed_keys if k!='num7']) if is_torneko(cfg.window_title) else cfg
@@ -702,6 +719,8 @@ class Controller:
         def read(png,role):
             native=self.llm.ocr.read(png) if hasattr(self.llm,'ocr') else None
             result=self.policy.observe(png,native,map_display=True);result['observation_mode']='num7_held'
+            from .battle_messages import read_messages
+            result['battle_messages']=read_messages(native,result.get('frame_sha256'))
             self._write({'event':'map_reading','phase':phase,'role':role,'frame_sha256':result.get('frame_sha256'),'ocr':native,'learning':False})
             return result
         current=read(sample['image'],'current')
@@ -767,7 +786,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 from .performance import fast_policy_ready
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
@@ -960,6 +979,9 @@ class Controller:
                     if map_after:after_state=map_after[0]
                     row['policy_learning']=self.policy.learn(policy_state,after_state,row,state_before_neutral)
                     row['policy_after']=after_state
+                    if self.combat:
+                        import hashlib
+                        row['battle_observations']=self.combat.observe_messages(row,native,[(after_native,hashlib.sha256(after_image).hexdigest())],after_state.get('battle_messages',[]))
                     if combat_choice:row['combat_evaluation']=self.combat.record(combat_choice,row,after_native)
                     if self.novelty:
                         row['novelty_learning']=self.novelty.record(row,native,after_native,state_before_neutral)

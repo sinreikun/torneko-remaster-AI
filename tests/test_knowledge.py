@@ -44,7 +44,7 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(state['autonomous_goal']['status'],'model_proposed')
     def test_llm_receives_sources_and_ocr_and_sets_goal(self):
         cfg=Settings(window_title='トルネコ');llm=LocalLLM(cfg);calls=[]
-        llm.ocr.read=lambda image:ocr('HP 3/30 満腹度 5%')
+        llm.ocr.read=lambda image:{**ocr('HP 3/30 満腹度 5%'),'frame_sha256':__import__('hashlib').sha256(image).hexdigest()}
         value=change(subgoal='安全に回復する方法を探す',goal_success='HPが20を超え、隣接した敵がいない画面を確認する')
         def request(image,system,prompt,schema):calls.append(prompt);return json.dumps(value)
         llm._request=request;llm.decide(b'frame',[],False)

@@ -135,7 +135,7 @@ def export_diagnostics(data,destination,detailed=False):
                             entry['human_example_export']=export_human_examples(target,archive,folder)
                             remaining-=entry['human_example_export']['compressed_bytes']
                             entry['human_example_status_counts']=dict(target.execute('SELECT status,COUNT(*) FROM human_examples GROUP BY status'))
-                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','human_examples','human_reuse','human_example_scores'):
+                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','combat_observations','human_examples','human_reuse','human_example_scores'):
                             if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
                                 cursor=target.execute('SELECT * FROM '+table+' LIMIT 40')
                                 labels=[column[0] for column in cursor.description]
