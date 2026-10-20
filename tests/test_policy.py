@@ -238,3 +238,22 @@ class DiagnosticLearningArchiveTests(unittest.TestCase):
             self.assertEqual(report['databases']['memory.sqlite']['policy_summary'][0]['trials'],1)
             self.assertEqual(memory.context()['policy_learning']['input_trials'],1)
             memory.close()
+
+class HudObservationTests(unittest.TestCase):
+    setUp=PolicyTests.setUp
+    def test_already_observed_hud_does_not_keep_unknown_confirm_loop(self):
+        s=state();s['metrics']['fullness']={'values':[43]}
+        d=parse_decision(json.dumps(change(scene='unknown',confidence=.5,subgoal='現在の場所でHPと満腹度を確認し、状況を把握する',
+            goal_success='HPと満腹度を確認し、状況を把握する',action={'keys':['num1'],'hold_ms':100,'wait_ms':0})),self.cfg)
+        selected,detail=self.policy.choose(d,s,stable=True)
+        self.assertIn(selected.keys[0],'wasd');self.assertEqual(detail['reconsidered_nonmovement']['source'],'already_observed_hud')
+        self.assertEqual(d.keys,['num1'])
+        for altered in ('enemy','unstable','menu','missing_hud','dialogue'):
+            other=copy.deepcopy(s);proposal=copy.deepcopy(d);stable=True
+            if altered=='enemy':other['minimap']['enemies']=[[1,0]]
+            if altered=='unstable':stable=False
+            if altered=='menu':other['menu_evidence']=True
+            if altered=='missing_hud':other['metrics'].pop('fullness')
+            if altered=='dialogue':proposal.scene='dialogue'
+            kept,_=self.policy.choose(proposal,other,stable=stable)
+            self.assertEqual(kept.keys,['num1'],altered)

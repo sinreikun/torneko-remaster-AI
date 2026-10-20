@@ -131,7 +131,17 @@ class ExperiencePolicy:
         reconsidered=None
         if decision.keys and any(key not in MOVES for key in decision.keys):
             prior=self.values(state).get(decision.keys[0],{}) if len(decision.keys)==1 else {}
-            if (decision.scene=='gameplay' and decision.keys[0] in ('num0','num1','num2') and not state['minimap'].get('enemies')
+            goals=[compact_text(decision.subgoal),compact_text(decision.goal_success)]
+            hud_only=(decision.scene in ('gameplay','unknown') and decision.keys==['num1']
+                and not state.get('menu_evidence') and not state['minimap'].get('enemies')
+                and all(re.search(r'HP|満腹',s,re.I) and re.search(r'確認|把握|読む|観察',s) for s in goals)
+                and not re.search(r'回復|攻撃|話|会話|決定|装備|食べ|使|購入|はい|いいえ|階段|扉|道具|メニュー|拾|敵',''.join(goals))
+                and bool(state['metrics'].get('hp'))
+                and ('満腹' not in ''.join(goals) or bool(state['metrics'].get('fullness'))))
+            if hud_only:
+                reconsidered={'keys':list(decision.keys),'source':'already_observed_hud',
+                    'reason':'小目標は既に読めたHUDの確認だけで、決定入力の必要性を確認できません。現在の地図と経験から探索候補を再選択。'}
+            elif (decision.scene=='gameplay' and decision.keys[0] in ('num0','num1','num2') and not state['minimap'].get('enemies')
                     and prior.get('trials',0)>=2 and prior.get('reward_sum',0)<0):
                 reconsidered={'keys':list(decision.keys),'trials':prior['trials'],'reward_sum':prior['reward_sum'],
                     'reason':'探索状態で過去の効果が乏しい非移動操作を再提案。別の未試行候補を選び直す。'}
