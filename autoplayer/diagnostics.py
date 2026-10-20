@@ -105,7 +105,7 @@ def export_diagnostics(data,destination,detailed=False):
                         entry['recent_improvement_events']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_events ORDER BY id DESC LIMIT 30')]
                         entry['improvement_state']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_state LIMIT 20')]
                     if name=='memory.sqlite':
-                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes'):
+                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','human_examples','human_reuse'):
                             if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
                                 cursor=target.execute('SELECT * FROM '+table+' LIMIT 40')
                                 labels=[column[0] for column in cursor.description]

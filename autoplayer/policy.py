@@ -13,7 +13,7 @@ from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .minimap import read_minimap
 from .exploration import ExplorationRoutes
-from .interfaces import compact_text,torneko_menu_kind
+from .interfaces import compact_text,torneko_menu_kind,result_screen
 
 VERSION=5
 MOVES=('w','a','s','d')
@@ -70,7 +70,7 @@ class ExperiencePolicy:
         minimap=read_minimap(png,isolated=map_display);metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
         text='\n'.join(compact_text(line.get('text','')) for line in (native or {}).get('lines',[]))
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
-        menu=bool(torneko_menu_kind(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
+        menu=bool(torneko_menu_kind(native) or result_screen(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
         hp=metrics.get('hp',{}).get('values');floor=metrics.get('floor',{}).get('values')
         minimap=self.track_pose(minimap,floor)
         eligible=minimap.get('status')=='observed' and bool(hp and floor) and not menu

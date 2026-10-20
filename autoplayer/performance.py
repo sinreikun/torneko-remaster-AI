@@ -60,12 +60,14 @@ def compact_profile_prompt(prompt):
 def context_retry_prompt(prompt):
     """Drop optional historical context, preserving current evidence and controls."""
     result=dict(prompt)
+    if result.get('human_examples'):
+        result['human_examples']=[{**result['human_examples'][0],'steps':result['human_examples'][0].get('steps',[])[:2]}]
     for key in ('retrieved_experiences','public_references','temporal_evidence','learned_policy','self_improvement'):
         result.pop(key,None)
     result['recent_history']=[{k:v for k,v in row.items() if k in ('keys','observed_keys','executed','action_kind','changed')}
         for row in result.get('recent_history',[])[-1:]]
     memory=result.get('memory',{})
-    result['memory']={k:memory[k] for k in ('current_interface','neutral_observation') if k in memory}
+    result['memory']={k:memory[k] for k in ('current_interface','neutral_observation','relative_contacts') if k in memory}
     knowledge=result.get('source_knowledge')
     if isinstance(knowledge,dict):
         result['source_knowledge']={k:v for k,v in knowledge.items() if k in ('metrics','ocr','active_goal','goal_review','rules','edition')}

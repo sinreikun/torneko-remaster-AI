@@ -32,6 +32,7 @@ class WindowsGame:
         self.u.GetClientRect.argtypes=[W.HWND,C.POINTER(W.RECT)]
         self.u.ClientToScreen.argtypes=[W.HWND,C.POINTER(W.POINT)]
         self.u.GetAsyncKeyState.argtypes=[C.c_int]; self.u.GetAsyncKeyState.restype=C.c_short
+        self.u.GetKeyState.argtypes=[C.c_int];self.u.GetKeyState.restype=C.c_short
         self.u.MapVirtualKeyW.argtypes=[W.UINT,W.UINT]; self.u.MapVirtualKeyW.restype=W.UINT
         self.u.ShowWindow.argtypes=[W.HWND,C.c_int]
         self.u.GetWindowThreadProcessId.argtypes=[W.HWND,C.POINTER(W.DWORD)]
@@ -218,6 +219,19 @@ class WindowsGame:
         return {'os_submission':'accepted','message':'WM_NULL','target_hwnd':int(self.hwnd),
             'game_processing':'unverified','key_submission':'not_tested','no_keys_sent':True}
     def foreground(self): return self.u.GetForegroundWindow()
+    def human_input_snapshot(self,allowed):
+        """Read configured keys only while this exact target owns the foreground.
+        No hooks, text input, other-window key history, or injected input.
+        """
+        self.ready()
+        foreground=self.foreground()
+        if foreground!=self.hwnd and not self.u.IsChild(self.hwnd,foreground):
+            return {'target_focused':False,'keys':[]}
+        if any(key.startswith('num') for key in allowed) and not self.u.GetKeyState(0x90)&1:
+            return {'target_focused':True,'keys':[],'recording_blocked':'テンキーの記録にはNumLockをオンにしてください。オフ中の例は保存しません。'}
+        keys=[key for key in allowed if self.u.GetAsyncKeyState(self._vk(key))&0x8000]
+        if self.foreground()!=foreground:return {'target_focused':False,'keys':[]}
+        return {'target_focused':True,'keys':keys}
     def is_background(self):
         foreground=self.u.GetForegroundWindow()
         if not foreground:return None

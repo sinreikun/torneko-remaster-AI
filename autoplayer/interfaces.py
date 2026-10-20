@@ -20,6 +20,19 @@ def torneko_menu_kind(native):
     return None
 
 
+def result_screen(native):
+    if not native or native.get('status')!='ok':return None
+    labels=[compact_text(l.get('text','')) for l in native.get('lines',[])]
+    text='\n'.join(labels)
+    if re.search(r'削除|初期化|購入|課金|終了しますか|はい|いいえ',text):return None
+    if ('今回の冒険の結果' in labels and '最深階' in text and 'スコア' in text
+            and re.search(r'倒され|死亡|力尽き',text)):
+        return 'defeat_result'
+    if 'ハイスコア' in labels and sum(bool(re.fullmatch(r'\d{1,2}:',s)) for s in labels)>=3 and re.search(r'\d[\d,]*G',text,re.I):
+        return 'high_scores'
+    return None
+
+
 
 def choice_action(native, bindings, allowed):
     if native.get('status') != 'ok':

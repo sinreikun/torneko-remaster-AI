@@ -52,6 +52,7 @@ class Application:
         ttk.Button(toolbar,text='■ 停止',command=self.request_stop).pack(side='left',padx=4)
         ttk.Button(toolbar,text='緊急停止 (F8 / Ctrl+Shift+F9)',command=self.emergency).pack(side='left')
         tools_bar=ttk.Frame(root,padding=(8,4));tools_bar.pack(fill='x')
+        self.demo_button=ttk.Button(tools_bar,text='お手本記録',command=lambda:self.start(demonstration=True));self.demo_button.pack(side='left',padx=4)
         ttk.Button(tools_bar,text='OCRテスト',command=self.open_ocr).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='セットアップ',command=lambda:self.tabs.select(self.setup_tab)).pack(side='left')
         ttk.Button(tools_bar,text='軽量診断ZIP',command=self.export).pack(side='left',padx=4)
@@ -307,7 +308,8 @@ class Application:
     def pause(self):
         if self.control and self.busy():
             paused=self.control.toggle_pause();self.pause_button.configure(text='▶ 再開' if paused else '⏸ 一時停止')
-            self.status.set('一時停止中（送信予定の推論は破棄し、再開時に再観測）' if paused else '再開しました')
+            if getattr(self,'recording_human',False):self.status.set('お手本記録を一時停止。途中の操作例は保存対象から外します。' if paused else 'お手本記録を再開。キーを一度離してから操作してください。')
+            else:self.status.set('一時停止中（送信予定の推論は破棄し、再開時に再観測）' if paused else '再開しました')
 
     def request_stop(self):
         self.stop.set();self.status.set('停止要求を受け付けました。待機中の処理を中断しています。')
@@ -437,6 +439,7 @@ class Application:
     def launch(self,fn):
         if self.busy(): messagebox.showinfo('処理中','現在の処理が終了するまでお待ちください。'); return
         self.stop.clear(); self.start_button.configure(state='disabled')
+        if hasattr(self,'demo_button'):self.demo_button.configure(state='disabled')
         def task():
             from .cancellation import OperationCancelled
             try: fn()
@@ -455,8 +458,9 @@ class Application:
                 except Exception as export_error:self.queue.put(('export_error',str(export_error)))
             finally: self.queue.put(('done',None))
         self.worker=threading.Thread(target=task,daemon=True); self.worker.start()
-    def start(self):
+    def start(self,demonstration=False):
         if self.busy(): return
+        self.recording_human=demonstration
         try:
             cfg=self.settings();DATA.mkdir(parents=True,exist_ok=True)
             temporary=DATA/'settings.json.tmp';temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'settings.json')
@@ -465,18 +469,18 @@ class Application:
             seconds={'なし':0,'10分':600,'20分':1200,'30分':1800,'60分':3600}[self.duration.get()]
         except Exception as error:messagebox.showerror('設定エラー',str(error));return
         selected_target=dict(self.selected_target) if self.selected_target else None
-        dry=self.dry.get();separation=self.separation.get();compat=self.compat.get() and not dry
+        dry=self.dry.get() and not demonstration;separation=self.separation.get() and not demonstration;compat=self.compat.get() and not dry and not demonstration
         # Separation now uses only neutral OS probes and observation.
         # State-independent diagnostics never steal focus or send gameplay keys.
         from .session import SessionControl
         self.stop.clear();self.control=SessionControl(self.stop,0 if separation else seconds)
-        control=self.control;self.status.set('攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
+        control=self.control;self.status.set('お手本記録：ゲームを手動で前面にして操作してください。ツールは入力しません。停止で保存・ZIP生成。' if demonstration else '攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
         def work():
             from .windows import WindowsGame
             from .recording import FrameRecorder,RecordedBackend
             from .diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
             from . import __version__
-            session=str(time.time_ns());summary={'app_version':__version__,'id':session,'started':time.time(),'status':'running','kind':'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
+            session=str(time.time_ns());summary={'app_version':__version__,'id':session,'started':time.time(),'status':'running','kind':'demonstration' if demonstration else 'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
             recorder=None;backend=None;monitor_done=threading.Event();memory=None;diagnostic_store=None;exploration_run=None
             try:
                 from .recovery import TargetRecovery,TargetUnavailable,ObservationRetry
@@ -493,7 +497,7 @@ class Application:
                     folder=DATA/'runs';folder.mkdir(parents=True,exist_ok=True)
                     with (folder/(session+'.jsonl')).open('a',encoding='utf-8') as stream:
                         stream.write(json.dumps(row,ensure_ascii=False)+'\n')
-                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and cfg.resilient and not dry and not separation else None
+                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and cfg.resilient and not dry and not separation and not demonstration else None
                 def reconnect(target):
                     while control.checkpoint():
                         try:
@@ -541,6 +545,16 @@ class Application:
                     if separation:summary.update(status='diagnostic_completed',reason='10分間のOS経路・無入力観測を完了。ゲーム反応・キー分離は未検証。');return
                 if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
+                if demonstration:
+                    from .demonstrations import DemonstrationStore,DemonstrationRecorder
+                    from .ocr import ScreenOCR
+                    summary['connection']['input']='human_observation_only'
+                    self.queue.put(('status','お手本記録中：ゲームを手動で前面にして操作。操作の合間に少し手を離すと前後の例を保存します。停止で終了・ZIP生成。'))
+                    runner=DemonstrationRecorder(recorded,DemonstrationStore(memory,cfg),ScreenOCR(cfg.ocr_engine),control,
+                        lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),recorder)
+                    summary['demonstration']=runner.run()
+                    summary.update(status='stopped',reason=control.reason or summary['demonstration'].get('stop_reason') or 'お手本記録を停止・保存しました。')
+                    return
                 diagnostic_store=DiagnosticStore(DATA/'diagnostics.sqlite');exploration_run=diagnostic_store.start('exploration_statistics')
                 from dataclasses import replace
                 from .research import public_references,reference_context
@@ -609,7 +623,7 @@ class Application:
                 if memory:memory.close()
                 try:
                     if backend:
-                        backend.release_all()
+                        if not demonstration:backend.release_all()
                         if recorder:
                             try:recorder.record(backend.capture(),'session_end')
                             except Exception as error:summary['final_capture_error']=str(error)
@@ -645,6 +659,12 @@ class Application:
             self.set_panel('ゲームの推定',value['method_selection'].get('game_hypothesis',{}))
             self.set_panel('手法の選択・学習',value.get('method_context') or value['method_selection'])
         if value.get('background_compatibility'):self.set_panel('背景適合性',value['background_compatibility'])
+        if event.startswith('human_'):
+            self.set_panel('行動学習',value)
+            if not self.stop.is_set():
+                if event=='human_focus':self.status.set(value.get('reason') or ('お手本記録中：対象ゲームの操作だけを記録します。' if value['target_focused'] else 'お手本記録待機：ゲームを手動で前面にしてください。他アプリのキーは記録しません。'))
+                elif event=='human_example_processed':self.status.set('お手本記録中：例 #'+str(value['example_id'])+' / '+value['status']+'。停止で保存・ZIP生成。')
+            return
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='result':
@@ -710,8 +730,10 @@ class Application:
                 if kind=='error':self.status.set('エラーで停止: '+value);self.set_panel('現在状態',{'status':'error','reason':value});self.append_log({'event':'error','reason':value})
                 elif kind=='done':
                     self.control=None
+                    self.recording_human=False
                     if self.backend is not None and self.closing_at is None:self.backend.window_capture.cancel=None
                     self.start_button.configure(state='normal');self.pause_button.configure(text='⏸ 一時停止')
+                    if hasattr(self,'demo_button'):self.demo_button.configure(state='normal')
                 elif kind=='status':self.status.set(value)
                 elif kind=='progress':self.progress.set(value)
                 elif kind=='model':self.vars['model'].set(value);self.vars['provider'].set('ollama');self.progress.set('モデルの取得が完了しました。')
