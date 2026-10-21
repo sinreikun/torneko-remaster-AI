@@ -24,7 +24,7 @@ def export_human_examples(db,archive,folder,limit_bytes=2*1024*1024):
     with path.open('wb') as output,gzip.GzipFile(fileobj=output,mode='wb',mtime=0) as packed:
         for identifier,profile,created,status,data in db.execute('SELECT id,profile,created,status,data FROM human_examples ORDER BY id DESC'):
             row=json.loads(data)
-            item={k:row[k] for k in ('steps','reason','before_features','after_features','effect','before_sha256','after_sha256','before_capture_interval','after_capture_interval','sampling') if k in row}
+            item={k:row[k] for k in ('source','request_id','requested_at','keys','hold_ms','wait_ms','timing','input_receipt','steps','reason','before_features','after_features','effect','before_sha256','after_sha256','before_capture_interval','after_capture_interval','sampling') if k in row}
             item.update(id=identifier,profile=profile,created=created,status=status,reuse_scores=scores.get((profile,identifier),[]))
             encoded=(json.dumps(item,ensure_ascii=False,separators=(',',':'))+'\n').encode()
             # Bound both decompressed volume and compressed payload. Reserve enough

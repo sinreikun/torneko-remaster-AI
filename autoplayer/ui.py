@@ -53,6 +53,7 @@ class Application:
         ttk.Button(toolbar,text='緊急停止 (F8 / Ctrl+Shift+F9)',command=self.emergency).pack(side='left')
         tools_bar=ttk.Frame(root,padding=(8,4));tools_bar.pack(fill='x')
         self.demo_button=ttk.Button(tools_bar,text='お手本記録',command=lambda:self.start(demonstration=True));self.demo_button.pack(side='left',padx=4)
+        ttk.Button(tools_bar,text='コンソール操作',command=self.open_console).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='OCRテスト',command=self.open_ocr).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='セットアップ',command=lambda:self.tabs.select(self.setup_tab)).pack(side='left')
         ttk.Button(tools_bar,text='軽量診断ZIP',command=self.export).pack(side='left',padx=4)
@@ -308,7 +309,9 @@ class Application:
     def pause(self):
         if self.control and self.busy():
             paused=self.control.toggle_pause();self.pause_button.configure(text='▶ 再開' if paused else '⏸ 一時停止')
-            if getattr(self,'recording_human',False):self.status.set('お手本記録を一時停止。途中の操作例は保存対象から外します。' if paused else 'お手本記録を再開。キーを一度離してから操作してください。')
+            if getattr(self,'console_active',False):
+                self.console_status(bool(getattr(self,'console_commands',None) and self.console_commands.ready));self.status.set('コンソール操作を一時停止。未送信要求は破棄します。' if paused else 'コンソール操作を再開しました。')
+            elif getattr(self,'recording_human',False):self.status.set('お手本記録を一時停止。途中の操作例は保存対象から外します。' if paused else 'お手本記録を再開。キーを一度離してから操作してください。')
             else:self.status.set('一時停止中（送信予定の推論は破棄し、再開時に再観測）' if paused else '再開しました')
 
     def request_stop(self):
@@ -458,9 +461,52 @@ class Application:
                 except Exception as export_error:self.queue.put(('export_error',str(export_error)))
             finally: self.queue.put(('done',None))
         self.worker=threading.Thread(target=task,daemon=True); self.worker.start()
-    def start(self,demonstration=False):
+    def open_console(self):
+        if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():
+            self.console_window.lift();return
+        window=tk.Toplevel(self.root);self.console_window=window;window.title('コンソール操作・お手本記録')
+        ttk.Label(window,text='ゲームを前面にせず、このパネルから操作します。\n1操作ごとに入力前後を記録し、待機・観測・保存が終わるまで再入力できません。',padding=8).pack()
+        ttk.Button(window,text='コンソール操作を開始',command=lambda:self.start(console=True)).pack(pady=4)
+        timing=ttk.Frame(window);timing.pack(padx=8,pady=4)
+        self.console_hold=tk.IntVar(value=min(100,self.cfg.max_hold_ms));self.console_wait=tk.IntVar(value=800)
+        ttk.Label(timing,text='保持(ms)').pack(side='left');ttk.Spinbox(timing,from_=1,to=self.cfg.max_hold_ms,textvariable=self.console_hold,width=6).pack(side='left')
+        ttk.Label(timing,text='再入力までの最低待機(ms)').pack(side='left');ttk.Spinbox(timing,from_=100,to=10000,increment=100,textvariable=self.console_wait,width=7).pack(side='left')
+        keys=ttk.Frame(window);keys.pack(padx=8,pady=4);self.console_buttons=[];self.console_selected={}
+        from .controls import ACTIONS
+        for i,key in enumerate(self.cfg.allowed_keys):
+            block=ttk.Frame(keys);block.grid(row=i//3,column=i%3,padx=4,pady=3,sticky='w')
+            value=tk.BooleanVar(value=False);self.console_selected[key]=value
+            ttk.Checkbutton(block,variable=value).pack(side='left')
+            button=ttk.Button(block,text=key+' '+self.cfg.key_bindings.get(key,ACTIONS.get(key,'')),command=lambda k=key:self.console_send([k]))
+            button.pack(side='left');self.console_buttons.append(button)
+        ttk.Label(window,text='チェックしたキーは「同時押し」で送信。チェックだけでは入力しません。').pack(padx=8)
+        actions=ttk.Frame(window);actions.pack(pady=6)
+        for label,command in [('同時押しを送信',lambda:self.console_send([k for k,v in self.console_selected.items() if v.get()])),('無入力で観測',lambda:self.console_send([]))]:
+            button=ttk.Button(actions,text=label,command=command);button.pack(side='left',padx=4);self.console_buttons.append(button)
+        ttk.Button(actions,text='停止・保存',command=self.request_stop).pack(side='left')
+        self.console_label=tk.StringVar(value='コンソール操作を開始してください。');ttk.Label(window,textvariable=self.console_label,padding=8).pack()
+        window.protocol('WM_DELETE_WINDOW',self.close_console)
+        self.console_status(bool(getattr(self,'console_commands',None) and self.console_commands.ready))
+    def close_console(self):
+        if getattr(self,'console_commands',None) and not self.console_commands.closed:self.request_stop()
+        self.console_window.destroy();self.console_window=None
+    def console_status(self,ready):
+        allowed=bool(ready and not self.stop.is_set() and not (self.control and self.control.is_set()))
+        for button in getattr(self,'console_buttons',[]):
+            try:button.configure(state='normal' if allowed else 'disabled')
+            except tk.TclError:pass
+        if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():
+            self.console_label.set('入力できます。' if allowed else '準備・観測・待機中、または停止中です。')
+    def console_send(self,keys):
+        commands=getattr(self,'console_commands',None)
+        if not commands or self.stop.is_set() or (self.control and self.control.is_set()):return
+        try:
+            if commands.submit(keys,self.console_hold.get(),self.console_wait.get()):self.console_status(False)
+        except (ValueError,tk.TclError) as error:self.console_label.set(str(error))
+
+    def start(self,demonstration=False,console=False):
         if self.busy(): return
-        self.recording_human=demonstration
+        self.recording_human=demonstration or console;self.console_active=console
         try:
             cfg=self.settings();DATA.mkdir(parents=True,exist_ok=True)
             temporary=DATA/'settings.json.tmp';temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'settings.json')
@@ -468,8 +514,11 @@ class Application:
             self.cfg=cfg;self.save_ui()
             seconds={'なし':0,'10分':600,'20分':1200,'30分':1800,'60分':3600}[self.duration.get()]
         except Exception as error:messagebox.showerror('設定エラー',str(error));return
+        if console:
+            from .console_play import ConsoleCommands
+            self.console_commands=ConsoleCommands(cfg)
         selected_target=dict(self.selected_target) if self.selected_target else None
-        dry=self.dry.get() and not demonstration;separation=self.separation.get() and not demonstration;compat=self.compat.get() and not dry and not demonstration
+        dry=self.dry.get() and not (demonstration or console);separation=self.separation.get() and not (demonstration or console);compat=self.compat.get() and not dry and not (demonstration or console)
         # Separation now uses only neutral OS probes and observation.
         # State-independent diagnostics never steal focus or send gameplay keys.
         from .session import SessionControl
@@ -480,7 +529,7 @@ class Application:
             from .recording import FrameRecorder,RecordedBackend
             from .diagnostics import DiagnosticStore,InputDiagnostics,export_diagnostics
             from . import __version__
-            session=str(time.time_ns());summary={'app_version':__version__,'id':session,'started':time.time(),'status':'running','kind':'demonstration' if demonstration else 'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
+            session=str(time.time_ns());summary={'app_version':__version__,'id':session,'started':time.time(),'status':'running','kind':'human_console' if console else 'demonstration' if demonstration else 'separation' if separation else 'play','dry_run':dry,'reason':'','model':cfg.model,'goal':cfg.goal,'ocr_engine':cfg.ocr_engine}
             recorder=None;backend=None;monitor_done=threading.Event();memory=None;diagnostic_store=None;exploration_run=None
             try:
                 from .recovery import TargetRecovery,TargetUnavailable,ObservationRetry
@@ -497,7 +546,7 @@ class Application:
                     folder=DATA/'runs';folder.mkdir(parents=True,exist_ok=True)
                     with (folder/(session+'.jsonl')).open('a',encoding='utf-8') as stream:
                         stream.write(json.dumps(row,ensure_ascii=False)+'\n')
-                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and cfg.resilient and not dry and not separation and not demonstration else None
+                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and cfg.resilient and not dry and not separation and not demonstration and not console else None
                 def reconnect(target):
                     while control.checkpoint():
                         try:
@@ -545,6 +594,16 @@ class Application:
                     if separation:summary.update(status='diagnostic_completed',reason='10分間のOS経路・無入力観測を完了。ゲーム反応・キー分離は未検証。');return
                 if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
                 memory=MemoryStore(DATA/'memory.sqlite',cfg)
+                if console:
+                    from .console_play import ConsolePlayer
+                    from .demonstrations import DemonstrationStore
+                    from .ocr import ScreenOCR
+                    summary['connection']['input']='console_window_message_only'
+                    runner=ConsolePlayer(recorded,DemonstrationStore(memory,cfg),ScreenOCR(cfg.ocr_engine),control,self.console_commands,
+                        lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),recorder)
+                    summary['console']=runner.run()
+                    summary.update(status='stopped',reason=control.reason or 'コンソール操作を停止・保存しました。')
+                    return
                 if demonstration:
                     from .demonstrations import DemonstrationStore,DemonstrationRecorder
                     from .ocr import ScreenOCR
@@ -662,8 +721,11 @@ class Application:
         if value.get('background_compatibility'):self.set_panel('背景適合性',value['background_compatibility'])
         if isinstance(event,str) and event.startswith('human_'):
             self.set_panel('行動学習',value)
+            if event=='human_console_ready':
+                self.console_status(value['ready']);return
             if not self.stop.is_set():
-                if event=='human_focus':self.status.set(value.get('reason') or ('お手本記録中：対象ゲームの操作だけを記録します。' if value['target_focused'] else 'お手本記録待機：ゲームを手動で前面にしてください。他アプリのキーは記録しません。'))
+                if event=='human_console_result':self.status.set('操作結果を保存しました。待機が終わると次の操作ができます。')
+                elif event=='human_focus':self.status.set(value.get('reason') or ('お手本記録中：対象ゲームの操作だけを記録します。' if value['target_focused'] else 'お手本記録待機：ゲームを手動で前面にしてください。他アプリのキーは記録しません。'))
                 elif event=='human_example_processed':self.status.set('お手本記録中：例 #'+str(value['example_id'])+' / '+value['status']+'。停止で保存・ZIP生成。')
             return
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
@@ -733,7 +795,9 @@ class Application:
                 if kind=='error':self.status.set('エラーで停止: '+value);self.set_panel('現在状態',{'status':'error','reason':value});self.append_log({'event':'error','reason':value})
                 elif kind=='done':
                     self.control=None
-                    self.recording_human=False
+                    self.recording_human=False;self.console_active=False
+                    if getattr(self,'console_commands',None):self.console_commands.close()
+                    if hasattr(self,'console_buttons'):self.console_status(False)
                     if self.backend is not None and self.closing_at is None:self.backend.window_capture.cancel=None
                     self.start_button.configure(state='normal');self.pause_button.configure(text='⏸ 一時停止')
                     if hasattr(self,'demo_button'):self.demo_button.configure(state='normal')
