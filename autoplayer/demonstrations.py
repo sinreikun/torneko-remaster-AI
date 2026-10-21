@@ -31,11 +31,13 @@ def similarity(x,y):
 
 def observed_effect(before,after):
     hp0,hp1=before.get('hp'),after.get('hp')
+    food0,food1=before.get('fullness'),after.get('fullness')
     movement=None;p0=before.get('map_pose');p1=after.get('map_pose')
     if p0 and p1 and before.get('floor') and before.get('floor')==after.get('floor') and all(p0.get(k)==p1.get(k) for k in ('source_size','analysis_size','cell_size','shape')):
         tile=p0['cell_size'];dx=(p1['player'][0]-p0['player'][0])/tile;dy=(p1['player'][1]-p0['player'][1])/tile
         if abs(dx)<=2 and abs(dy)<=2:movement={'dx_cells':round(dx,2),'dy_cells':round(dy,2),'source':'minimap_marker_displacement_not_world_coordinates'}
     return {'hp_delta':hp1[0]-hp0[0] if hp0 and hp1 and hp0[1]==hp1[1] else None,
+        'fullness_delta':food1[0]-food0[0] if food0 and food1 else None,
         'screen_kind_before':before['kind'],'screen_kind_after':after['kind'],
         'scene_transition':before['kind']!=after['kind'],
         'visual_change':round(1-similarity(before.get('center'),after.get('center')),4),
@@ -67,6 +69,7 @@ def features(png,native):
         'quotes':labels[:12],'visual':visual,'center':center,'hud':hud,'kind_basis':'current_ocr_labels',
         'contacts':[list(e) for e in m.get('enemies',[])] if m.get('status')=='observed' else None,
         'hp':metrics.get('hp',{}).get('values'),'floor':metrics.get('floor',{}).get('values'),
+        'fullness':metrics.get('fullness',{}).get('values'),
         'map_pose':{k:m[k] for k in ('player','cell_size','shape','source_size','analysis_size')} if m.get('status')=='observed' else None,
         'source_frame_sha256':hashlib.sha256(png).hexdigest()}
 
@@ -162,7 +165,9 @@ class DemonstrationStore:
         if current['ocr_status']!='ok':return []
         def upgraded(f):
             f=copy.deepcopy(f)
-            if f.get('kind')=='unknown':f['kind']=screen_kind(f.get('quotes',[]),{})
+            menu=torneko_menu_kind({'status':'ok','lines':[{'text':q} for q in f.get('quotes',[])]})
+            if menu:f['kind']=menu
+            elif f.get('kind')=='unknown':f['kind']=screen_kind(f.get('quotes',[]),{})
             return f
         current=upgraded(current)
         # Historical examples are retained; old unknown labels can be reclassified

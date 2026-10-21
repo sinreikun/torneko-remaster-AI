@@ -200,6 +200,9 @@ def export_diagnostics(data,destination,detailed=False):
                         selected+=list(map_images.values());report['map_image_evidence']={phase:path.relative_to(data).as_posix() for phase,path in map_images.items()}
                     selected=list(dict.fromkeys(selected))
                     selected+=(p for p in images if p not in selected)
+                important=sorted((recordings[0]/'important').rglob('*'))
+                candidates=[p for p in important if p.is_file()]+candidates
+                report['important_event_evidence']={'files':sum(p.is_file() for p in important),'capacity_events':12,'local_limit_bytes':8*1024*1024}
                 candidates+=metadata+(images if detailed else selected[:4] if report.get('map_image_evidence') else selected[:2])
             candidates+=sorted((data/'sessions').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:20]
             for path in candidates:

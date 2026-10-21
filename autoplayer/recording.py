@@ -11,6 +11,8 @@ class FrameRecorder:
     def __init__(self,folder,limit_bytes=128*1024*1024):
         self.folder=Path(folder);self.folder.mkdir(parents=True,exist_ok=True)
         self.limit=limit_bytes;self.used=0;self.written=0;self.dropped=0;self.failed=0;self.capped=0;self.error=None;self.dropped_details=deque(maxlen=4096)
+        from .important_events import ImportantEvents
+        self.important=ImportantEvents(self.folder/'important')
         self.queue=queue.Queue(maxsize=16);self.done=threading.Event();self.saved=set()
         self.thread=threading.Thread(target=self._work,daemon=True);self.thread.start()
     def record(self,png,phase):
@@ -49,3 +51,4 @@ class RecordedBackend:
     def __init__(self,backend,recorder): self.backend=backend;self.recorder=recorder
     def __getattr__(self,name): return getattr(self.backend,name)
     def record_frame(self,png,phase): self.recorder.record(png,phase)
+    def record_important(self,row,before,after):self.recorder.important.observe(row,before,after)

@@ -14,14 +14,14 @@ class ExplorationRoutes:
         self.reset()
 
     def reset(self):
-        self.space=None;self.nodes={};self.edges={};self.attempts=Counter();self.arrivals=Counter();self.max_pixels=0
+        self.space=None;self.nodes={};self.edges={};self.attempts=Counter();self.arrivals=Counter();self.max_pixels=0;self.no_effect=Counter();self.inspection_node=None;self.resource_inspected=None
 
     def node(self,state):
         m=state.get('minimap',{})
         floor=state.get('metrics',{}).get('floor',{}).get('values')
         if not state.get('eligible') or not floor or m.get('status')!='observed':return None
         space=(tuple(floor),tuple(m.get('analysis_size',[])),tuple(m.get('source_size',[])),m.get('cell_size'))
-        pixels=m.get('known_pixels',0)
+        pixels=len(m.get('known_cells',[])) or m.get('known_pixels',0)
         if space!=self.space or pixels<self.max_pixels*.65:self.reset();self.space=space
         self.max_pixels=max(self.max_pixels,pixels)
         cell=tuple(m['player_cell'])
@@ -43,6 +43,8 @@ class ExplorationRoutes:
             self.reset()  # Teleport, map translation or lost tracking: do not join spaces.
             return
         self.attempts[a,key]+=1;self.arrivals[a]=max(1,self.arrivals[a]);self.arrivals[b]+=1
+        if a==b:self.no_effect[a,key]+=1
+        else:self.no_effect[a,key]=0
         if a!=b and abs(dx-expected[0])<.4 and abs(dy-expected[1])<.4 and b==(a[0]+expected[0],a[1]+expected[1]):
             self.edges[a,key]=b
         else:

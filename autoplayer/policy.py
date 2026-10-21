@@ -15,7 +15,7 @@ from .minimap import read_minimap
 from .exploration import ExplorationRoutes
 from .interfaces import compact_text,torneko_menu_kind,result_screen
 
-VERSION=5
+VERSION=6
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -27,6 +27,13 @@ class ExperiencePolicy:
         # Goal and control changes isolate values; editing prose does not erase learned actions.
         self.profile=profile_for(settings)
         self.routes=ExplorationRoutes()
+        # MemoryStore lives for one UI run. Re-observation retries share these
+        # measured routes; a reconnect explicitly clears them in the caller.
+        cached=getattr(memory,'runtime_navigation',None)
+        if cached and cached.get('profile')==self.profile:
+            self.routes=cached['routes'];self.pose_anchors=cached['anchors'];self.pose_space=cached['space']
+        memory.runtime_navigation={'profile':self.profile,'routes':self.routes,'anchors':getattr(self,'pose_anchors',[]),'space':getattr(self,'pose_space',None)}
+        self.runtime_navigation=memory.runtime_navigation
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS policy_actions(profile TEXT,state TEXT,objective TEXT,action TEXT,
             trials INTEGER NOT NULL DEFAULT 0,q REAL NOT NULL DEFAULT 0,positive INTEGER NOT NULL DEFAULT 0,
@@ -41,6 +48,7 @@ class ExperiencePolicy:
         space=(tuple(floor),tuple(minimap.get('source_size',[])),tuple(minimap.get('analysis_size',[])),minimap['cell_size'])
         if getattr(self,'pose_space',None)!=space:
             self.pose_space=space;self.pose_anchors=[]
+        if hasattr(self,'runtime_navigation'):self.runtime_navigation.update(anchors=self.pose_anchors,space=self.pose_space)
         point=minimap['player'];radius=minimap['cell_size']*.3
         nearest=min(self.pose_anchors,key=lambda a:math.dist(point,a[0]),default=None)
         result=copy.deepcopy(minimap);result['raw_player_cell']=list(minimap['player_cell'])
@@ -97,6 +105,7 @@ class ExperiencePolicy:
             (self.profile,state['id'],state['objective'])).fetchall()
         return {r[0]:dict(zip(('trials','q','positive','reward_sum','goal_trials','goal_wins'),r[1:])) for r in rows}
     def context(self,state,blocked=()):
+        node=self.routes.node(state)
         values=self.values(state)
         prior={r[0]:{'q':r[1]/max(1,r[2]),'trials':r[2]} for r in self.db.execute('SELECT action,SUM(q*trials),SUM(trials) FROM policy_actions WHERE profile=? AND objective=? GROUP BY action',(self.profile,state['objective']))}
         total=sum(v['trials'] for v in values.values());ranking=[]
@@ -112,7 +121,7 @@ class ExperiencePolicy:
             goal_bias=.1*((value['goal_wins']+1)/(value['goal_trials']+2)-.5) if value['goal_trials'] else 0.
             hazard=.15 if neighbor.get('enemy') else 0.
             score=value['q']+exploration+spatial+.1*backoff['q']/(n+1)+goal_bias-hazard
-            allowed=key in MOVES and state['eligible'] and [key] not in blocked
+            allowed=key in MOVES and state['eligible'] and [key] not in blocked and self.routes.no_effect[node,key]<2
             ranking.append({'keys':[key],'meaning':ACTIONS[key],**value,'priority':round(score,5),'game_hazard_cost':hazard,'global_backoff':backoff,'verified_goal_bias':goal_bias,
                 'progress_probability_estimate':round(prob,4) if n else None,'probability_samples':n,
                 'probability_posterior_stddev':round(math.sqrt(prob*(1-prob)/(n+3)),4),
@@ -120,12 +129,30 @@ class ExperiencePolicy:
                 'automatic_candidate':allowed,'model_may_propose':True})
         ranking.sort(key=lambda v:v['priority'],reverse=True)
         return {'version':VERSION,'profile':self.profile,'objective':state['objective'],'state_id':state['id'],'eligible':state['eligible'],
+            'no_effect_moves':{k:self.routes.no_effect.get((tuple(state.get('minimap',{}).get('player_cell',[])),k),0) for k in MOVES},
+            'navigation_instruction':'同条件で2回以上位置変化がない方向は自動巡回しない。壁や入力故障とは断定せず、現在画面から状態異常・決定待ち・入力長・所持品など別の操作仮説を検討する。',
             'ranking':ranking,'control_reference':REFERENCE,
             'note':'priorityは実経験のTD値＋未試行の探索加点。確率は正の観測報酬の推定でありゲームクリア確率ではない。試行0は未推定。全体目標の確率は検証済み終了エピソードがある場合のみ。'}
     def choose(self,decision,state,blocked=(),stable=False,adjustment=None):
         context=self.context(state,blocked)
         if not stable or decision.status!='continue' or decision.risk!='normal' or not state['eligible']:
             return decision,{'source':'model_or_neutral','context':context}
+        food=state['metrics'].get('fullness',{}).get('values')
+        node=self.routes.node(state)
+        exhausted=[k for k in MOVES if self.routes.no_effect[node,k]>=2]
+        if food and food[0]>15:self.routes.resource_inspected=None
+        resource_key=(tuple(state['metrics'].get('floor',{}).get('values',[])),tuple(food or []))
+        resource_inspection=bool(decision.scene not in ('dialog','menu','dialogue') and food and food[0]<=15 and self.routes.resource_inspected!=resource_key and not state['minimap'].get('enemies') and (not decision.keys or all(k in MOVES for k in decision.keys)))
+        stuck_inspection=decision.scene not in ('dialog','menu','dialogue') and len(exhausted)==4 and (not decision.keys or all(k in MOVES for k in decision.keys))
+        if resource_inspection or stuck_inspection:
+            # A single known menu key, then fresh observation; never an eating macro.
+            if 'num0' in self.settings.allowed_keys and ['num0'] not in blocked and (resource_inspection or not getattr(self.routes,'inspection_node',None)==node):
+                self.routes.inspection_node=node
+                if resource_inspection:self.routes.resource_inspected=resource_key
+                return replace(decision,scene='gameplay',keys=['num0'],hold_ms=min(80,self.settings.max_hold_ms),confidence=.85,
+                    reason='現在の満腹度が低いため食料の候補を確認する。' if resource_inspection else '複数方向で位置変化を観測できないため、メニューで状態・利用可能な操作を確認し直す。',
+                    subgoal='所持品・状態の確認',goal_success='新しい画面で所持品と操作候補を確認する',progress=[],memory_updates=[],plan=[]),{'source':'resource_inspection' if resource_inspection else 'navigation_inspection','context':context,'learning':False}
+            return replace(decision,keys=[],confidence=0.,reason='無移動を壁やBackend故障と断定せず、別の操作仮説を再検討する。'),{'source':'navigation_reassessment_needed','context':context}
         # Game-world danger is evaluated as a cost rather than a veto.
         # Respect a concrete non-movement operation; do not turn an attack into walking.
         reconsidered=None
@@ -141,12 +168,17 @@ class ExperiencePolicy:
             if hud_only:
                 reconsidered={'keys':list(decision.keys),'source':'already_observed_hud',
                     'reason':'小目標は既に読めたHUDの確認だけで、決定入力の必要性を確認できません。現在の地図と経験から探索候補を再選択。'}
-            elif (decision.scene=='gameplay' and decision.keys[0] in ('num0','num1','num2') and not state['minimap'].get('enemies')
+            elif (decision.scene in ('gameplay','unknown') and decision.keys[0] in ('num0','num1','num2') and not state['minimap'].get('enemies')
                     and prior.get('trials',0)>=2 and prior.get('reward_sum',0)<0):
                 reconsidered={'keys':list(decision.keys),'trials':prior['trials'],'reward_sum':prior['reward_sum'],
                     'reason':'探索状態で過去の効果が乏しい非移動操作を再提案。別の未試行候補を選び直す。'}
+            elif (decision.scene in ('gameplay','unknown') and decision.keys==['num1'] and state['minimap'].get('enemies')
+                    and all(max(abs(x),abs(y))>1 for x,y in state['minimap']['enemies'])
+                    and prior.get('trials',0)>=2 and prior.get('reward_sum',0)<0
+                    and re.search(r'敵|攻撃|倒',decision.reason+' '+decision.subgoal)):
+                reconsidered={'keys':['num1'],'reason':'敵表示は隣接範囲外で、この操作の効果が乏しい経験があるため、射程を仮定せず別の候補を試す。'}
             else:return decision,{'source':'model_nonmovement','context':context}
-        candidates=[v for v in context['ranking'] if v['automatic_candidate']]
+        candidates=[v for v in context['ranking'] if v['automatic_candidate'] and v['keys'][0] not in exhausted]
         if not candidates:return replace(decision,keys=[]),{'source':'neutral_no_safe_candidate','context':context}
         for candidate in candidates:
             penalty=self.routes.penalty(state,candidate['keys'][0])
@@ -194,8 +226,11 @@ class ExperiencePolicy:
             distance=math.dist(a['player'],b['player'])/cell
             out['position']=min(1.,distance) if distance>=.65 else 0.
             out['enemy_reduction']=float(len(b['enemies'])<len(a['enemies']))
-        growth=b['known_pixels']-a['known_pixels']
-        if growth>max(8,a['known_pixels']*.03):out['coverage']=min(1.,growth/max(1,a['known_pixels']))
+        if af and bf and af['values']==bf['values'] and a.get('known_cells') and b.get('known_cells') and a.get('cell_size')==b.get('cell_size'):
+            ac={(x+a['player_cell'][0],y+a['player_cell'][1]) for x,y in a['known_cells']}
+            bc={(x+b['player_cell'][0],y+b['player_cell'][1]) for x,y in b['known_cells']}
+            growth=len(bc-ac)
+            if growth>=3:out['coverage']=min(1.,growth/max(1,len(ac)))
         return out
     def learn(self,before,after,row,neutral_before=None):
         excluded=(str(row.get('event','')).startswith('diagnostic') or row.get('kind') in ('compatibility','separation') or row.get('learning') is False) or not row.get('executed') or row.get('dry_run') or row.get('turn_kind')=='aborted' or row.get('action_kind')!='input'

@@ -13,6 +13,8 @@ def torneko_menu_kind(native):
     labels={compact_text(line.get('text','')) for line in native.get('lines',[])}
     text='\n'.join(labels)
     if re.search(r'削除|初期化|購入|課金|終了|はい|いいえ',text):return None
+    if len(labels & {'食べる','飲む','読む','振る','装備','外す','投げる','置く','説明'})>=3 and '投げる' in labels and '置く' in labels:
+        return 'item_actions'
     if ('道具' in labels and '詳細表示切替' in text and '整理' in text
             and any(re.fullmatch(r'\d{1,3}/\d{1,3}',label) for label in labels)):
         return 'inventory'

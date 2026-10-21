@@ -10,8 +10,8 @@ KEYS=list(ACTIONS)
 DIGEST=hashlib.sha256(json.dumps(ACTIONS,ensure_ascii=False,sort_keys=True).encode()).hexdigest()
 REFERENCE={'revision':REVISION,'source':'ユーザーが提示した現在のキー配置・地図凡例',
     'keys':ACTIONS,'unused_keys':['enter','space'],
-    'minimap':{'blue':'視界に入ったことのある領域','yellow_square':'自分の位置','red_dot':'敵の位置',
-        'note':'青い表示全体はミニマップという表示であり、近づく対象物ではない。未知領域は壁か未探索か未確定。'}}
+    'minimap':{'blue':'当初の青色を含む、各階層の配色で表示される既知領域','yellow_square':'自分の位置','red_dot':'敵の位置',
+        'note':'色付きの領域全体はミニマップという表示であり、近づく対象物ではない。階層で地図の色・床・壁の模様が変わる。同じ色を同じ地形と決め付けない。未知領域は壁か未探索か未確定。'}}
 
 def is_torneko(title):return any(word in title.casefold() for word in ('トルネコ','torneko'))
 

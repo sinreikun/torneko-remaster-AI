@@ -581,6 +581,7 @@ class Application:
                         agent=Controller(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                         agent.run(dry);break
                     except TargetUnavailable:
+                        memory.runtime_navigation=None
                         if not recovery:raise
                         target=recovery.recover(control)
                         if not target:break

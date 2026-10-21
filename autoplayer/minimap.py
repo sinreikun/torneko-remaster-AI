@@ -36,17 +36,33 @@ def read_minimap(png,isolated=False):
             source_size=source.size;image=source.convert('RGB');image.thumbnail((640,360))
     except (OSError,ValueError):return {'status':'unavailable','reason':'画像を読み取れません。'}
     width,height=image.size;blue=set();yellow=set();red=set()
-    # Green floor maps were observed in real Num7-only captures. Restrict this
-    # palette to that explicit mode with a predominantly dark background.
-    green_map=isolated and sum(max(pixel)<30 for pixel in image.getdata())>=width*height*.8
+    dark_mode=isolated and sum(max(pixel)<30 for pixel in image.getdata())>=width*height*.7
+    pixels=image.load()
     for y in range(height):
         for x in range(width):
-            r,g,b=image.getpixel((x,y))
-            if ((60<=r<=205 and g>105 and g-r>=18 and b-g>=8)
-                    or (isolated and b>70 and b>r*1.4 and b>g*1.08)
-                    or (green_map and g>65 and b>20 and g>r*1.6 and g>b*1.2)):blue.add((x,y))
+            r,g,b=pixels[x,y]
+            if not isolated and 60<=r<=205 and g>105 and g-r>=18 and b-g>=8:blue.add((x,y))
             if r>90 and g>95 and b<min(r,g)*.55 and abs(r-g)<60:yellow.add((x,y))
             if r>145 and r>g*1.6 and r>b*1.5:red.add((x,y))
+    palettes=[]
+    if dark_mode:
+        # Infer local fill colours around small yellow markers. No named hue
+        # means "map"; require a coherent region touching one marker below HUD.
+        for marker in components({p for p in yellow if p[1]>height*.2}):
+            if not 2<=len(marker)<=100 or any(max(p[i] for p in marker)-min(p[i] for p in marker)>12 for i in (0,1)):continue
+            mx=round(sum(p[0] for p in marker)/len(marker));my=round(sum(p[1] for p in marker)/len(marker))
+            colors=Counter()
+            for y in range(max(0,my-12),min(height,my+13)):
+                for x in range(max(0,mx-12),min(width,mx+13)):
+                    rgb=pixels[x,y]
+                    if (x,y) in yellow or (x,y) in red or max(rgb)<40 or max(rgb)-min(rgb)<25:continue
+                    colors[tuple(v//24 for v in rgb)]+=1
+            if colors and colors.most_common(1)[0][1]>=12:palettes.append(colors.most_common(1)[0][0])
+        for y in range(round(height*.2),height):
+            for x in range(width):
+                if (x,y) in yellow or (x,y) in red:continue
+                bucket=tuple(v//24 for v in pixels[x,y])
+                if any(bucket==palette for palette in palettes):blue.add((x,y))
     candidates=[];yellow_parts=components(yellow)
     for region in components(blue,gap=2):
         if not 30<=len(region)<=width*height*.12:continue
@@ -75,7 +91,7 @@ def read_minimap(png,isolated=False):
             'player':[round(mx,2),round(my,2)],'cell_size':tile,'player_cell':[round(mx/tile),round(my/tile)],
             '_region':region,'known_pixels':len(region),'shape':hashlib.sha256(repr(shape).encode()).hexdigest()[:16],
             'neighbors':nearby,'enemies':enemy_cells,'analysis_size':[width,height],'source_size':list(source_size),
-            'note':'色・形状の推定。座標は画面内であり、固定のワールド座標とは未確認。'})
+            'note':'階層で配色・床・壁の見た目は変化する。マーカー近傍の色と接続形状の推定。座標は画面内であり、固定ワールド座標・通行可否は未確認。'})
     # The yellow marker may split the blue overlay into disconnected pieces.
     # Multiple blue components attached to the *same* marker are one map, not
     # competing player detections. Distinct markers remain ambiguous.
@@ -90,6 +106,9 @@ def read_minimap(png,isolated=False):
         shape=quantized_shape(region,left,top,tile)
         item.update(bbox=[left,top,right,bottom],known_pixels=len(region),
             shape=hashlib.sha256(repr(shape).encode()).hexdigest()[:16],blue_components=len(parts),
+            known_cells=quantized_shape(region,item['player'][0],item['player'][1],tile),
+            palette_source='marker_local_palette' if dark_mode else 'legacy_overlay',
+            inferred_palettes=[list(c) for c in palettes],
             enemies=sorted({tuple(e) for p in parts for e in p['enemies']}))
         for key in item['neighbors']:
             item['neighbors'][key]=dict(item['neighbors'][key])

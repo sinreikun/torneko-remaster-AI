@@ -46,7 +46,14 @@ class KnowledgeEngine:
                 if label=='hp' and (numbers[1]==0 or numbers[0]>numbers[1]):continue
                 if label=='fullness' and numbers[0]>100:continue
                 metrics[label]={'values':numbers,'quote':match.group(0),'unverified_ocr':True}
+        from .hud import boxed_fullness
+        paired=boxed_fullness(ocr) if ocr.get('status')=='ok' else None
+        if paired:
+            if 'fullness' not in metrics:metrics['fullness']=paired
+            elif metrics['fullness']['values']!=paired['values']:metrics.pop('fullness',None)
         goal_review={'note':'数値はOCRの未検証読取りです。画像と照合してください。'}
+        if metrics.get('fullness',{}).get('values',[100])[0]<=15:
+            goal_review['resource_priority']='満腹度が低い。食料の所在・所持品と食べる操作の根拠を現在画面から確認し、通常探索より資源補給の具体的な小目標を優先する。未確認の品を食料と断定しない。'
         if 'hp' in metrics:
             current,maximum=metrics['hp']['values']
             goal_review.update(hp_full=current==maximum,hp_quote=metrics['hp']['quote'],

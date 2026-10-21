@@ -42,6 +42,11 @@ class CombatExperiments:
         for native,digest in samples:
             for event in read_messages(native,digest):observed.setdefault(event['quote'],event)
         for event in extra_events:observed.setdefault(event['quote'],event)
+        names={e['enemy'] for e in observed.values() if e['kind']=='defeated_enemy'}
+        for event in observed.values():
+            candidate=event['enemy'].lstrip('ー')
+            if event['enemy']!=candidate and candidate in names:
+                event['raw_enemy']=event['enemy'];event['enemy']=candidate;event['name_evidence']='同じ操作後に読めた撃破名と一致する先頭のOCR揺れだけを統合'
         self.last_messages=set(observed)
         events=[]
         for quote,event in observed.items():
