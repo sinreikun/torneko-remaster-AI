@@ -24,7 +24,7 @@ SYSTEM = JAPANESE_OUTPUT + """
 作戦指示は行動の優先度に毎回反映するが、指示の文章を観察事実として写さない。
 不明な対象は匿名IDで扱う。見た目だけで種類や正体を命名しない。
 階段を探す目標と、今そこに階段があるという観測を区別する。履歴の階段を現在位置に置かない。
-移動・攻撃・会話・階段への接近ではintentにkindとtarget_idを指定する。対象のない探索・確認ではtarget_idを空文字にする。
+移動・攻撃・会話・階段への接近ではintentにkindとtarget_idを指定する。対象のない探索・確認とタイトル・メニュー・会話の操作ではtarget_idを空文字にする。候補にないIDを作らない。
 座標は右+x、下+y。離れた対象への攻撃と接近を区別し、向きは未観測なら不明。
 進める根拠があれば可逆的な操作で探索してよい。不明という理由だけで無入力を繰り返さない。
 keys=[]は中立観測。自然変化と入力効果は別で、無反応だけで入力故障と判断しない。
@@ -198,7 +198,7 @@ def expected_schema():
         'text_appears':{'type':'string','maxLength':100},'text_disappears':{'type':'string','maxLength':100}}}
 
 def _decision_object_schema(cfg):
-    text={'type':'string'}
+    text={'type':'string','maxLength':240}
     return {'type':'object','additionalProperties':False,
         'required':['scene','observation','subgoal','reason','confidence','status','action','intent'],
         'properties':{
@@ -294,7 +294,7 @@ class LocalLLM:
 
     def _request_impl(self,png,system,prompt,schema=None):
         from .performance import vision_image
-        from .performance import model_data,clean_text
+        from .performance import model_data,clean_text,bounded_request_prompt,fallback_schema
         guidance=prompt.get('operator_guidance')
         if is_torneko(self.cfg.window_title):prompt=model_data(prompt);system=clean_text(system)
         if guidance:prompt['operator_guidance']=guidance
@@ -302,19 +302,24 @@ class LocalLLM:
         if getattr(self,'context_compaction',False):
             from .performance import context_retry_prompt
             prompt=context_retry_prompt(prompt)
+        prompt=bounded_request_prompt(prompt)
+        role=prompt.get('task','decision' if 'goal' in prompt else 'text_or_verification')
+        if role=='decision_protocol_repair':role='decision'
         cfg=self.cfg;sent_image=vision_image(png)
         encoded=base64.b64encode(sent_image).decode() if sent_image is not None else None
         # Some Ollama grammar failures arrive as HTTP 200 with an empty model/content.
-        # Retry once with generic JSON, then retain that format for this client.
+        # Retry genuine empty grammar output per role. A failed planner must
+        # not change the image observer or completion verifier output grammar.
         for attempt in range(2):
-            fallback=cfg.provider=='ollama' and getattr(self,'ollama_json_fallback',False)
+            fallback=cfg.provider=='ollama' and role in getattr(self,'json_fallback_roles',set())
             source=getattr(self,'operator_guidance',None)
             latest=source.snapshot() if source else guidance
             request_prompt=dict(prompt);request_system=system
             request_prompt['operator_guidance']=latest or {'revision':0,'text':''}
             if latest and latest.get('text'):
                 request_system+='\n利用者の現在の作戦指示（今回の呼出にも適用）：\n'+latest['text']+'\nこの方針を今回の役割の範囲で毎回考慮する。観察役は指示を観測事実に変換せず、現在画像を独立に読む。計画・再検討では行動優先度へ反映する。出力形式・許可キー・入力時間・破壊的操作禁止は維持する。'
-            actual_prompt={**request_prompt,'required_output_schema':schema} if fallback and schema else request_prompt
+            actual_prompt={**request_prompt,'required_output_schema':fallback_schema(schema)} if fallback and schema else request_prompt
+            actual_prompt=bounded_request_prompt(actual_prompt)
             if cfg.provider=='ollama':
                 path='/api/chat'
                 body={'model':cfg.model,'stream':False,'format':'json' if fallback else (schema or 'json'),'keep_alive':'10m','messages':[
@@ -350,7 +355,7 @@ class LocalLLM:
                 'operator_guidance_revision':(latest or {}).get('revision',0),'operator_guidance_applied':bool(latest and latest.get('text')),
                 'elapsed_ms':round((time.monotonic()-started)*1000),
                 'image_sha256':hashlib.sha256(png).hexdigest() if png is not None else None,
-                'num_ctx':8192 if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),
+                'num_ctx':8192 if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),'schema_fallback_role':role if fallback else None,
                 **{key:result[key] for key in ('model','load_duration','prompt_eval_count','prompt_eval_duration','eval_count','eval_duration','total_duration','done_reason') if key in result}}
             self.request_metrics=(getattr(self,'request_metrics',[])+[metrics])[-8:]
             raw=(result.get('message') or {}).get('content','') if cfg.provider=='ollama' else result['choices'][0]['message']['content']
@@ -361,8 +366,14 @@ class LocalLLM:
                 if not isinstance(json.loads(raw),dict):raise ValueError('LLM応答はJSON objectである必要があります。')
             except ValueError as error:
                 metrics['response_issue']=str(error)[:300]
-                if cfg.provider=='ollama' and schema and not fallback and attempt==0:
-                    self.ollama_json_fallback=True;metrics['recovery']='retry_generic_json';continue
+                if cfg.provider=='ollama' and attempt==0 and result.get('done_reason')=='length':
+                    from .performance import context_retry_prompt
+                    prompt=bounded_request_prompt(context_retry_prompt(prompt),budget=6000)
+                    metrics['recovery']='retry_short_context_same_grammar'
+                    continue
+                if cfg.provider=='ollama' and schema and not fallback and attempt==0 and not raw:
+                    self.json_fallback_roles=getattr(self,'json_fallback_roles',set())|{role}
+                    metrics['recovery']='retry_generic_json';continue
                 raise ValueError('LLMのJSON応答を取得できません: '+str(error)) from error
             return raw
     def observe_scene(self,png,native):
@@ -517,6 +528,9 @@ class LocalLLM:
         planner_cfg=replace(cfg,allowed_keys=[k for k in cfg.allowed_keys if k!='num7']) if is_torneko(cfg.window_title) else cfg
         prompt['allowed_keys']=planner_cfg.allowed_keys
         schema=decision_schema(planner_cfg)
+        target_ids=['']+[o['id'] for o in (self.context.get('world_observation') or {}).get('objects',[])[:20] if isinstance(o.get('id'),str)]
+        for branch in schema['oneOf']:
+            branch['properties']['intent']['properties']['target_id']['enum']=target_ids
         if applicable or cfg.profile_id:
             for branch in schema['oneOf']: branch['required']+=['goal_success']
         blocked=context.get('unresponsive_actions',[])

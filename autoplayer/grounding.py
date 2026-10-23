@@ -9,6 +9,15 @@ def reconcile(decision,world,state,native,cfg):
     report={}
     def wait(reason):
         return replace(decision,keys=[],forecast={},reason=reason,subgoal='現在の対象と位置を確認する',goal_success='現在観測した対象IDと行動が一致する'),{'status':'unverified_target','reason':reason,'original_keys':decision.keys,'intent':intent}
+    if decision.status!='continue' or not decision.keys:return decision,report
+    # Screen/menu commands have no tracked world target. A model-invented menu
+    # ID is protocol noise, not a reason to block confirmation indefinitely.
+    if decision.scene in ('title','menu','dialog','defeat','victory') or intent.get('kind') in ('explore','confirm','observe','use'):
+        if intent.get('target_id'):
+            decision=replace(decision,intent={**intent,'target_id':''})
+            report={'status':'nonspatial_target_discarded','intent':intent,'original_keys':decision.keys}
+        if decision.scene!='gameplay':return decision,report
+        intent=decision.intent;target=None
     if intent.get('target_id') and target is None:
         return wait('指定対象は現在の観測に存在しません。過去の位置への操作を保留します。')
     # Searching for stairs remains a legitimate goal, without claiming their presence.

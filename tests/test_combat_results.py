@@ -109,3 +109,21 @@ class ResultTests(unittest.TestCase):
             self.assertEqual([a[0] for a in backend.actions],[['num5','a'],['num1']])
             self.assertTrue(all(r['policy_choice']['source']=='combat_experiment' for r in rows))
             self.assertEqual(rows[0]['combat_evaluation']['status'],'awaiting_attack_trial')
+
+class MergedRankRegressionTests(unittest.TestCase):
+    # OCR text from the submitted 0.13.0 high-score frame, not a game simulator.
+    labels=['ハイスコア','OG','12345678','42,783G','24階','23,330G','23階','21,810G','14階','21,716G','21階','19,539G','21階','19,162G','25階','6,838G','13階','2,631G','10階','9:','1,602G','8階','10:','1,094G','11階','ギンギンむら村の','不思議のダンジョンの','地下24階で','爆弾岩に倒される。']
+    def test_actual_merged_rank_ocr_and_single_line_layout(self):
+        self.assertEqual(result_screen(native(self.labels)),'high_scores')
+        self.assertEqual(result_screen(native(['ハイスコア','12345678','42,783G 24階 23,330G 23階 21,810G 14階'])),'high_scores')
+    def test_heading_alone_or_gameplay_or_destructive_prompt_is_insufficient(self):
+        for labels in (['ハイスコア'],['ハイスコア','12345678','42G','24階'],self.labels+['HP 15/20'],self.labels+['削除しますか','はい','いいえ']):
+            self.assertIsNone(result_screen(native(labels)))
+    def test_actual_ocr_reaches_confirmation_without_llm_or_fabricated_identity(self):
+        from autoplayer.grounding import reconcile
+        client=LocalLLM(Settings());ocr=native(self.labels)
+        client.ocr=SimpleNamespace(read=Mock(return_value=ocr));client._request=Mock(side_effect=AssertionError('No model call for verified result UI'))
+        d=client.decide(b'result',[],False)
+        d,r=reconcile(d,{'objects':[]},{},ocr,client.cfg)
+        self.assertEqual(d.keys,['num1']);self.assertGreaterEqual(d.confidence,client.cfg.min_confidence)
+        client._request.assert_not_called()

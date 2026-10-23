@@ -27,3 +27,18 @@ class GroundingTests(unittest.TestCase):
         restored=AppearanceBank(db,'p');other=restored.observe(Image.new('RGB',(16,16),(178,42,30)))
         self.assertEqual(other['similar_class_candidate'],first['class_id']);self.assertNotEqual(other['class_id'],first['class_id']);self.assertFalse(other['identity_verified'])
         self.assertFalse(AppearanceBank(db,'different').samples)
+    def test_nonspatial_confirmation_does_not_need_world_identity(self):
+        for scene in ('title','menu','dialog','defeat'):
+            d,r=reconcile(self.decision(scene=scene,keys=['num1'],intent={'kind':'attack','target_id':'enemy_1'}),{'objects':[]},{},{},Settings())
+            self.assertEqual(d.keys,['num1']);self.assertEqual(d.intent['target_id'],'')
+            self.assertEqual(r['status'],'nonspatial_target_discarded')
+    def test_explore_drops_invented_target_but_attack_remains_checked(self):
+        d,r=reconcile(self.decision(intent={'kind':'explore','target_id':'title_screen'}),{'objects':[]},{},{},Settings())
+        self.assertEqual(d.keys,['d']);self.assertEqual(d.intent['target_id'],'')
+        d,r=reconcile(self.decision(intent={'kind':'attack','target_id':'enemy_1'}),{'objects':[]},{},{},Settings())
+        self.assertEqual(d.keys,[])
+    def test_no_action_and_final_status_are_not_changed_to_target_recovery(self):
+        for values in ({'keys':[]},{'status':'blocked','keys':[]},{'status':'complete','keys':[]}):
+            original=self.decision(**values)
+            d,r=reconcile(original,{'objects':[]},{},{},Settings())
+            self.assertIs(d,original);self.assertEqual(r,{})

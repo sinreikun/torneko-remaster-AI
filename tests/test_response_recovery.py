@@ -35,14 +35,15 @@ class ResponseRecoveryTests(unittest.TestCase):
             opened.append(json.loads(request.data))
             return io.BytesIO(json.dumps(replies.pop(0)).encode())
         return LocalLLM(Settings()),SimpleNamespace(open=open_request),opened
-    def test_empty_schema_response_retries_once_and_retains_generic_json(self):
+    def test_empty_schema_response_fallback_is_scoped_to_its_role(self):
         client,opener,requests=self.client([{'model':'','message':{'content':''}},
-            {'message':{'content':'{"ok": true}'}},{'message':{'content':'{"ok": true}'}}])
+            {'message':{'content':'{"ok": true}'}},{'message':{'content':'{"ok": true}'}},{'message':{'content':'{"ok": true}'}}])
         schema={'type':'object','required':['ok']}
         with patch('urllib.request.build_opener',return_value=opener):
             self.assertTrue(json.loads(client._request(b'actual-image-bytes','日本語',{'task':'scene_observation'},schema))['ok'])
             client._request(None,'日本語',{'task':'self_improvement_review'},schema)
-        self.assertEqual([r['format'] for r in requests],[schema,'json','json'])
+            client._request(b'actual-image-bytes','日本語',{'task':'scene_observation'},schema)
+        self.assertEqual([r['format'] for r in requests],[schema,'json',schema,'json'])
         self.assertEqual(requests[0]['messages'][1]['images'],requests[1]['messages'][1]['images'])
         self.assertEqual(json.loads(requests[1]['messages'][1]['content'])['required_output_schema'],schema)
         self.assertEqual(client.request_metrics[0]['recovery'],'retry_generic_json')
@@ -120,3 +121,16 @@ class HudLabelTests(unittest.TestCase):
         for text in ('青い箱に近づく','青い箱が障害物なので動かす','青い物体の上の黄色い円形の影響を評価する'):
             decision=parse_decision(json.dumps(change(subgoal=text)),Settings())
             self.assertTrue(response_quality_issue(decision,minimap_reference=True))
+
+class TruncationRegressionTests(unittest.TestCase):
+    client=ResponseRecoveryTests.client
+    def test_truncated_planner_retries_same_grammar_without_poisoning_observer(self):
+        client,opener,requests=self.client([{'done_reason':'length','message':{'content':'{"observation":"'}},
+            {'message':{'content':'{}'}},{'message':{'content':'{}'}}])
+        schema={'type':'object'}
+        with patch('urllib.request.build_opener',return_value=opener):
+            client._request(None,'日本語',{'goal':'攻略','recent_history':[{'observation':'以前の画面'}]},schema)
+            client._request(b'current-frame','日本語',{'task':'scene_observation'},schema)
+        self.assertEqual([r['format'] for r in requests],[schema,schema,schema])
+        self.assertEqual(client.request_metrics[0]['recovery'],'retry_short_context_same_grammar')
+        self.assertFalse(getattr(client,'json_fallback_roles',set()))

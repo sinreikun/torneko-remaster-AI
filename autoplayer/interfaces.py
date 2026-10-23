@@ -30,8 +30,15 @@ def result_screen(native):
     if ('今回の冒険の結果' in labels and '最深階' in text and 'スコア' in text
             and re.search(r'倒され|死亡|力尽き',text)):
         return 'defeat_result'
-    if 'ハイスコア' in labels and sum(bool(re.fullmatch(r'\d{1,2}:',s)) for s in labels)>=3 and re.search(r'\d[\d,]*G',text,re.I):
-        return 'high_scores'
+    if 'ハイスコア' in labels:
+        ranks=sum(bool(re.fullmatch(r'\d{1,2}:',s)) for s in labels)
+        # OCR may merge the rank column into 12345678 and several rows into a
+        # single line. Repeated score AND floor entries still identify the table.
+        scores=re.findall(r'(?<![\d,])\d[\d,]*G',text,re.I)
+        floors=re.findall(r'\d{1,3}階',text)
+        active_hud=bool(re.search(r'HP.{0,8}\d+[/／]\d+|満腹度',text,re.I))
+        if not active_hud and scores and (ranks>=3 or len(scores)>=3 and len(floors)>=3):
+            return 'high_scores'
     return None
 
 

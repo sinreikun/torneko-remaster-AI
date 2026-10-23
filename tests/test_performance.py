@@ -68,3 +68,31 @@ class PerformanceTests(unittest.TestCase):
         self.assertGreater(len({tuple(r['observed_keys']) for r in results[:4]}),1)
         self.assertTrue(all(r['policy_learning']['status']=='trained' for r in results))
         self.assertTrue(all(r['forecast_evaluation']['status']!='matched' for r in results))
+
+class RequestBudgetTests(unittest.TestCase):
+    def test_large_optional_history_is_removed_without_altering_current_evidence(self):
+        from autoplayer.performance import bounded_request_prompt
+        prompt={'goal':'攻略','allowed_keys':['w','num1'],'limits':{'hold_ms':[1,80]},
+            'operator_guidance':{'revision':7,'text':'慎重に'},'current_evidence':{'metrics':{'hp':[6,15]}},
+            'spatial_observation':{'enemy_offsets':[[-1,0]]},'scene_observation':{'description':'現在の画面'},
+            'world_observation':{'objects':[{'id':'object_1','offset':[-1,0],'variants':['x'*10000]}]},
+            'recent_history':[{'observation':'過去の説明'*5000}],'memory':{'old':'以前'*5000},'retrieved_experiences':[{'old':'以前'*5000}]}
+        bounded=bounded_request_prompt(prompt)
+        self.assertLess(len(json.dumps(bounded,ensure_ascii=False)),8500)
+        for key in ('goal','allowed_keys','limits','operator_guidance','current_evidence','spatial_observation','scene_observation'):
+            self.assertEqual(bounded[key],prompt[key])
+        self.assertEqual(bounded['world_observation']['objects'],[{'id':'object_1','offset':[-1,0]}])
+        self.assertIn('variants',prompt['world_observation']['objects'][0])
+    def test_fallback_schema_retains_allowed_keys_and_target_ids_without_duplicate_branches(self):
+        from autoplayer.performance import fallback_schema
+        from autoplayer.core import decision_schema,Settings,parse_decision
+        schema=decision_schema(Settings())
+        for branch in schema['oneOf']:branch['required']+=['goal_success'];branch['properties']['intent']['properties']['target_id']['enum']=['','object_1']
+        slim=fallback_schema(schema)
+        self.assertNotIn('oneOf',slim)
+        self.assertEqual(slim['properties']['intent']['properties']['target_id']['enum'],['','object_1'])
+        self.assertEqual(slim['properties']['action'],schema['oneOf'][0]['properties']['action'])
+        self.assertIn('goal_success',slim['required'])
+        self.assertLess(len(json.dumps(slim)),len(json.dumps(schema))/2)
+        from test_agent import change
+        with self.assertRaises(ValueError):parse_decision(json.dumps(change(status='complete',action={'keys':['num1'],'hold_ms':80,'wait_ms':0})),Settings())

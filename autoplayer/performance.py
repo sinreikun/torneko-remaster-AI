@@ -96,3 +96,52 @@ def model_data(value):
             if cleaned not in ('',{},[]):result[key]=cleaned
         return result
     return value
+
+
+def fallback_schema(schema):
+    """Avoid duplicating the entire decision grammar inside a JSON-only prompt.
+
+    Dependent status/key constraints remain enforced by parse_decision.
+    """
+    import copy
+    if not isinstance(schema,dict) or 'oneOf' not in schema:return schema
+    branches=schema['oneOf']
+    if not branches or any('properties' not in branch for branch in branches):return schema
+    result=copy.deepcopy(branches[0])
+    properties=result['properties']
+    properties['status']['enum']=['continue','blocked','complete']
+    required=set(result.get('required',[]))
+    # Optional long-term hypotheses and forecasts are not needed for a single
+    # repair. Retain intent, goal success, timing and all required protocol fields.
+    result['properties']={k:v for k,v in properties.items() if k in required or k=='risk'}
+    return result
+
+
+def bounded_request_prompt(prompt,budget=8500):
+    """Bound optional planning context, never clip current metrics or controls."""
+    import copy,json
+    result=copy.deepcopy(prompt)
+    size=lambda:len(json.dumps(result,ensure_ascii=False,separators=(',',':')))
+    if size()<=budget:return result
+    result=context_retry_prompt(result)
+    # Keep current observations at top level; duplicated world/context summaries
+    # and retired model prose are not evidence for this screen.
+    for key in ('human_example_instruction','human_examples','historical_battle_experience','temporal_evidence','exploration_objective','operator_guidance_rule','historical_context_rule','progress_test_instruction','method_selection','anticipation'):
+        result.pop(key,None)
+    world=result.get('world_observation')
+    if isinstance(world,dict):
+        result['world_observation']={k:world[k] for k in ('metrics','metric_changes','identity_rule') if k in world}
+        result['world_observation']['objects']=[{k:v for k,v in o.items() if k in ('id','legend','offset','identity','appearance_memory')} for o in world.get('objects',[])[:20]]
+    knowledge=result.get('source_knowledge')
+    if isinstance(knowledge,dict):
+        result['source_knowledge']={k:v for k,v in knowledge.items() if k in ('edition','rules')}
+    memory=result.get('memory')
+    if isinstance(memory,dict):result['memory']={k:v for k,v in memory.items() if k=='current_interface'}
+    if size()>budget:
+        # Preserve independent OCR, current metrics, spatial offsets and object
+        # IDs. Discard optional unverified prose rather than cut evidence JSON.
+        for key in ('source_knowledge','recent_history','memory','recent_contact_observation','self_improvement','public_references','retrieved_experiences','learned_policy'):
+            result.pop(key,None)
+        world=result.get('world_observation',{})
+        for obj in world.get('objects',[]):obj.pop('appearance_memory',None)
+    return result
