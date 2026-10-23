@@ -158,10 +158,12 @@ class ExperiencePolicy:
             'navigation_instruction':'同条件で2回以上位置変化がない方向は自動巡回しない。壁や入力故障とは断定せず、現在画面から状態異常・決定待ち・入力長・所持品など別の操作仮説を検討する。',
             'ranking':ranking,'control_reference':REFERENCE,
             'note':'priorityは実経験のTD値＋未試行の探索加点。確率は正の観測報酬の推定でありゲームクリア確率ではない。試行0は未推定。全体目標の確率は検証済み終了エピソードがある場合のみ。'}
-    def choose(self,decision,state,blocked=(),stable=False,adjustment=None):
+    def choose(self,decision,state,blocked=(),stable=False,adjustment=None,respect_proposal=False):
         context=self.context(state,blocked)
         if not stable or decision.status!='continue' or decision.risk!='normal' or not state['eligible']:
             return decision,{'source':'model_or_neutral','context':context}
+        if respect_proposal and decision.confidence>=self.settings.min_confidence and decision.keys not in blocked and not (len(decision.keys)==1 and context.get('no_effect_moves',{}).get(decision.keys[0],0)>=2):
+            return decision,{'source':'operator_guided_model','context':context}
         food=state['metrics'].get('fullness',{}).get('values')
         node=self.routes.node(state)
         exhausted=[k for k in MOVES if self.routes.no_effect[node,k]>=2]

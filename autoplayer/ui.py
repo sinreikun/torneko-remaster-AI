@@ -33,6 +33,10 @@ class Application:
         if (DATA/'ui-settings.json').exists():
             try: self.ui_state=json.loads((DATA/'ui-settings.json').read_text(encoding='utf-8'))
             except (OSError,ValueError): pass
+        from .telemetry import RecognitionState
+        from .guidance import OperatorGuidance
+        self.recognition=RecognitionState();self.recognition_window=None;self.recognition_floating=None;self.overlay=None
+        self.operator_guidance=OperatorGuidance(self.ui_state.get('operator_guidance',''))
         from .controls import is_torneko
         saved=self.profiles.load(self.cfg.profile_id) if self.cfg.profile_id else None
         if saved:self.selected_target=dict(saved['target'])
@@ -61,6 +65,15 @@ class Application:
         ttk.Button(tools_bar,text='詳細ZIP',command=lambda:self.export(True)).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='最新ZIPを開く',command=self.open_report).pack(side='left')
         ttk.Button(tools_bar,text='提出用ZIPをコピー',command=self.copy_report).pack(side='left',padx=4)
+        visual_bar=ttk.Frame(root,padding=(8,2));visual_bar.pack(fill='x')
+        ttk.Button(visual_bar,text='認識モニターを別窓で開く',command=self.open_recognition).pack(side='left')
+        ttk.Button(visual_bar,text='作戦指示を入力',command=self.open_guidance).pack(side='left',padx=4)
+        self.overlay_enabled=tk.BooleanVar(value=False)
+        ttk.Checkbutton(visual_bar,text='ゲームに重ねる',variable=self.overlay_enabled,command=self.configure_overlay).pack(side='left',padx=8)
+        self.overlay_layers={}
+        for key,label in [('map','マップ'),('status','ステータス'),('objects','対象枠'),('forecast','予測・LLM')]:
+            var=tk.BooleanVar(value=True);self.overlay_layers[key]=var
+            ttk.Checkbutton(visual_bar,text=label,variable=var,command=self.configure_overlay).pack(side='left')
         options=ttk.Frame(root,padding=8);options.pack(fill='x')
         ttk.Label(options,text='実行時間').pack(side='left')
         self.duration=tk.StringVar(value=self.ui_state.get('duration','なし'))
@@ -87,6 +100,8 @@ class Application:
         logbox=ttk.Frame(left);logbox.pack(fill='both',expand=True)
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
+        from .telemetry import RecognitionPanel
+        self.recognition_panel=RecognitionPanel(right,self.recognition);self.recognition_panel.frame.pack(fill='x',padx=4,pady=4)
         panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={}
         for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','自己改善','ゲームの推定','手法の選択・学習','背景適合性','キー配置・ミニマップ']:
             group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
@@ -183,6 +198,50 @@ class Application:
         body=self.panels[title];body.configure(state='normal');body.delete('1.0','end')
         from .presentation import display_json
         body.insert('1.0',value[:10000] if isinstance(value,str) else display_json(value));body.configure(state='disabled')
+
+    def open_recognition(self):
+        from .telemetry import RecognitionPanel
+        if self.recognition_window and self.recognition_window.winfo_exists():
+            self.recognition_window.deiconify();return
+        self.recognition_window=tk.Toplevel(self.root);self.recognition_window.title(f'認識モニター v{__version__}')
+        self.recognition_window.geometry('380x355');self.recognition_window.minsize(355,330)
+        self.recognition_floating=RecognitionPanel(self.recognition_window,self.recognition)
+        self.recognition_floating.frame.pack(fill='both',expand=True)
+        self.recognition_window.protocol('WM_DELETE_WINDOW',self.recognition_window.withdraw)
+
+    def configure_overlay(self):
+        if not self.overlay_enabled.get():
+            if self.overlay:self.overlay.close();self.overlay=None
+            return
+        try:
+            if self.overlay is None:
+                from .overlay import GameOverlay
+                self.overlay=GameOverlay(self.root,self.recognition);self.overlay.connect(self.backend)
+            self.overlay.set_layers({k:v.get() for k,v in self.overlay_layers.items()})
+            self.status.set('オーバーレイを有効化。ゲームが前面の間だけ表示し、クリックはゲームへ通します。')
+        except Exception as error:
+            self.overlay_enabled.set(False)
+            if self.overlay:self.overlay.close();self.overlay=None
+            self.status.set('オーバーレイを開始できません: '+str(error))
+
+    def open_guidance(self):
+        existing=getattr(self,'guidance_window',None)
+        if existing and existing.winfo_exists():existing.deiconify();return
+        window=tk.Toplevel(self.root);self.guidance_window=window;window.title('自由文の作戦指示');window.geometry('560x245')
+        ttk.Label(window,text='例：慎重に進めて / アイテム回収を優先 / 戦闘を避けて階段を探して',padding=8).pack(anchor='w')
+        editor=tk.Text(window,height=6,wrap='word');editor.pack(fill='both',expand=True,padx=8);editor.insert('1.0',self.operator_guidance.snapshot()['text'])
+        def apply(clear=False):
+            try:
+                text='' if clear else editor.get('1.0','end-1c')
+                revision=self.operator_guidance.set(text);self.recognition.update({'event':'guidance_pending'});self.ui_state['operator_guidance']=text;self.save_ui()
+                if clear:editor.delete('1.0','end')
+                self.status.set(f'作戦指示を適用しました（更新{revision}）。進行中のLLM処理は完了後に破棄し、次の分析で反映します。')
+            except (ValueError,OSError) as error:self.status.set(str(error))
+        buttons=ttk.Frame(window,padding=8);buttons.pack(fill='x')
+        ttk.Button(buttons,text='適用（次の分析から）',command=apply).pack(side='left')
+        ttk.Button(buttons,text='指示を解除',command=lambda:apply(True)).pack(side='left',padx=6)
+        ttk.Label(window,text='2000文字以内。直接のキー送信ではありません。観測と操作制限は維持します。',padding=8).pack(anchor='w')
+        window.protocol('WM_DELETE_WINDOW',window.withdraw)
 
     def save_ui(self):
         self.placement.track()
@@ -637,7 +696,7 @@ class Application:
                     memory.last_row=None
                     if hasattr(backend,'observer'):del backend.observer
                     try:
-                        llm=LocalLLM(runtime_cfg);llm.public_references=reference_context(references)
+                        llm=LocalLLM(runtime_cfg);llm.operator_guidance=self.operator_guidance;llm.public_references=reference_context(references)
                         agent=Controller(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                         agent.run(dry);break
                     except TargetUnavailable:
@@ -715,7 +774,9 @@ class Application:
         self.log.see('end');self.log.configure(state='disabled')
 
     def update_decision(self,value):
-        event=value.get('event');self.append_log(value)
+        event=value.get('event');self.recognition.update(value)
+        if event in ('llm_activity','perception'):return
+        self.append_log(value)
         if value.get('method_selection'):
             self.set_panel('ゲームの推定',value['method_selection'].get('game_hypothesis',{}))
             self.set_panel('手法の選択・学習',value.get('method_context') or value['method_selection'])
@@ -810,6 +871,8 @@ class Application:
                 elif kind=='connected':
                     previous=self.backend
                     self.backend,self.connection_title=value
+                    self.recognition.update({'event':'disconnected'})
+                    if self.overlay:self.overlay.connect(self.backend)
                     if previous is not None and previous is not self.backend:self.close_capture(previous)
                     self.badges.set('接続済み / 背面分離 / OCR: '+self.cfg.ocr_engine)
                     self.set_panel('バックエンド状態',{'window':self.connection_title,'capture':'PrintWindow','input':'WindowMessage / ウィンドウ宛て（ゲーム受理とは別）','model':self.cfg.model,'endpoint':self.cfg.endpoint,'ocr':self.cfg.ocr_engine,'data':str(DATA)})
@@ -818,13 +881,19 @@ class Application:
                     if self.probe:self.probe.destroy();self.probe=None
                 elif kind=='exported':self.latest_zip=Path(value);self.status.set(self.status.get().split('\n診断ZIP')[0]+'\n診断ZIPを生成しました。「提出用ZIPをコピー」で添付できます。');self.append_log({'event':'diagnostic_export','path':str(value)})
                 elif kind=='export_error':self.status.set('診断ZIPの作成に失敗: '+value);self.append_log({'event':'export_error','reason':value})
-                elif kind=='session':self.set_panel('現在状態',value);self.status.set(value['status']+' / '+value['reason'])
+                elif kind=='session':self.recognition.update({'event':'session_end'});self.set_panel('現在状態',value);self.status.set(value['status']+' / '+value['reason'])
                 elif kind=='memory':
                     self.set_panel('仮説',value.get('provisional_claims',[]));self.set_panel('系列のパターン',value.get('known_transitions',[]))
                 elif kind=='cumulative':self.set_panel('累積統計',{'saved_experiences':value,'note':'この目標・知識・ゲーム設定の経験。診断を除く。'})
         except queue.Empty:pass
         try:self.draw_frame()
         except Exception as error:self.live_info.set('ライブ表示エラー: '+str(error))
+        self.recognition_panel.refresh()
+        if self.recognition_floating and self.recognition_window.winfo_exists():self.recognition_floating.refresh()
+        if self.overlay:
+            try:self.overlay.refresh()
+            except Exception as error:
+                self.overlay.close();self.overlay=None;self.overlay_enabled.set(False);self.status.set('オーバーレイを停止しました: '+str(error))
         elapsed=int(time.time()-self.run_started) if self.run_started else 0
         self.set_panel('今回統計',{**self.run_counts,'elapsed_seconds':elapsed,'worker_alive':self.busy(),'stop_requested':self.stop.is_set(),'paused':bool(self.control and self.control.paused.is_set())})
 
@@ -849,6 +918,7 @@ class Application:
         if self.watchdog_file:
             import faulthandler
             faulthandler.cancel_dump_traceback_later();self.watchdog_file.close();self.watchdog_file=None
+        if self.overlay:self.overlay.close();self.overlay=None
         if self.backend:self.close_capture(self.backend)
         try:self.save_ui()
         except (OSError,tk.TclError):pass

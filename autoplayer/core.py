@@ -295,9 +295,23 @@ class LocalLLM:
     def take_state(self): return self.observation_state
     def set_context(self,context): self.context=context
     def _request(self,png,system,prompt,schema=None):
+        import uuid
+        identifier=uuid.uuid4().hex
+        callback=getattr(self,'activity',None)
+        def notify(active):
+            if callback:
+                try:callback({'event':'llm_activity','request_id':identifier,'active':active,'task':prompt.get('task','decision')})
+                except Exception:pass
+        notify(True)
+        try:return self._request_impl(png,system,prompt,schema)
+        finally:notify(False)
+
+    def _request_impl(self,png,system,prompt,schema=None):
         from .performance import vision_image
         from .performance import model_data,clean_text
+        guidance=prompt.get('operator_guidance')
         if is_torneko(self.cfg.window_title):prompt=model_data(prompt);system=clean_text(system)
+        if guidance:prompt['operator_guidance']=guidance
         prompt={k:v for k,v in prompt.items() if not k.startswith('_')}
         if getattr(self,'context_compaction',False):
             from .performance import context_retry_prompt
@@ -475,6 +489,8 @@ class LocalLLM:
             'recent_history':compact,'memory':context,'stalled':stalled,
             'exploration_objective':'当面は未経験の画面・場所・操作結果への到達を優先。ゲーム内の危険は発見と損失の両面で評価し、既知の無益な反復より新しい候補を選ぶ。削除・初期化・課金などの制限は維持する。',
             'instruction':'観察役の現在画像報告とOCRを照合し、履歴の説明をそのまま繰り返さないでください。行き詰まったら別の安全な仮説・操作か無入力観測へ切り替えてください。無反応だけではBackend異常と判断できません。説明は必ず日本語。',
+            'operator_guidance':self.context.get('operator_guidance',{}),
+            'operator_guidance_rule':'利用者の作戦指示を目標・優先度の検討へ反映する。記述された状態は現在の画像・OCRと照合し、観測の代用にしない。キー・入力長・破壊的操作の制限は維持する。',
             'world_observation':self.context.get('world_observation',{}),'anticipation':self.context.get('anticipation',{}),
             'spatial_observation':(self.context.get('learned_policy') or {}).get('spatial_observation',{'status':'unavailable'}),
             'input_mode':'text_planner_from_current_image_observer','output_language':'日本語（ja-JP）','fresh_assessment':reground,'self_improvement':self.context.get('self_improvement'),
@@ -663,6 +679,7 @@ class Controller:
         self.cfg=cfg.validate(); self.backend=backend; self.llm=llm; self.emit=emit
         self.journal=journal; self.stop=stop if stop is not None else threading.Event()
         self.memory=memory
+        llm.activity=emit
         from .demonstrations import DemonstrationStore
         self.demonstrations=DemonstrationStore(memory,cfg) if memory else None
         if self.demonstrations:llm.demonstrations=self.demonstrations
@@ -851,6 +868,13 @@ class Controller:
                     world_observation=self.world.observe(normal_observation_image,native,policy_state,neutral_image)
                     world_observation['new_adventure']=True
                 if policy_state:policy_state['map_route_hint']=self.world.navigation_hint(policy_state)
+                guidance_source=getattr(self.llm,'operator_guidance',None)
+                guidance=guidance_source.snapshot() if guidance_source else {'revision':0,'text':''}
+                if getattr(self,'guidance_revision',guidance['revision'])!=guidance['revision']:
+                    self.executive.cancel('operator_guidance_changed')
+                    if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
+                self.guidance_revision=guidance['revision']
+                self.emit({'event':'perception','policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
                 if self.improvement and not dry_run:
@@ -864,7 +888,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess
@@ -893,6 +917,10 @@ class Controller:
                     if self.stop.wait(min(errors,3)): break
                     continue
                 if self.stop.is_set(): break
+                if guidance_source and guidance_source.snapshot()['revision']!=guidance['revision']:
+                    self.executive.cancel('operator_guidance_changed_during_analysis')
+                    self._write({'event':'not_executed','reason':'operator_guidance_changed','step':step+1})
+                    continue
                 if self.control and revision!=self.control.revision:
                     # A pending inference belongs to the pre-pause screen.
                     # Discard it and reobserve after resume instead of sending it.
@@ -902,7 +930,7 @@ class Controller:
                     continue
                 policy_choice=({'source':'forecast_continuation'} if planned else None);llm_proposal=None;original_proposal=dict(decision.__dict__);combat_choice=None
                 novelty_choice=None;novelty_reconsideration=None
-                if self.policy and self.novelty and not dry_run and not planned:
+                if self.policy and self.novelty and not dry_run and not planned and not guidance['text']:
                     decision,novelty_choice=self.novelty.choose_menu(decision,native,[list(keys) for keys,count in unresponsive_actions.items() if count>=3])
                     if policy_stable:
                         novelty_reconsideration=self.novelty.repeated_menu_opening(native,policy_state,decision)
@@ -911,12 +939,12 @@ class Controller:
                             decision=replace(decision,keys=[],plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={})
                 if self.policy and policy_state and not planned:
                     llm_proposal=original_proposal
-                    if self.combat and not dry_run:
+                    if self.combat and not dry_run and not guidance['text']:
                         decision,combat_choice=self.combat.choose(decision,policy_state,policy_stable,[list(keys) for keys,count in unresponsive_actions.items() if count>=3])
                     if combat_choice:
                         policy_choice={'source':'combat_experiment','context':self.policy.context(policy_state)}
                     else:
-                        decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None)
+                        decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']))
                 timing_trial=self.duration_learner.choose(decision) if self.duration_learner and not dry_run else None
                 pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run else None
                 if not planned and decision.keys not in ([k] for k in ('w','a','s','d')):
@@ -1035,6 +1063,9 @@ class Controller:
                         reason='同じ入力後に画面変化が3回未確認のため、再送を保留して中立観測します。')
                     decision.keys=[];decision.plan=[];decision.progress=[];decision.memory_updates=[]
                     self.feedback={'recovery':'同一操作の反復を保留中。Backend異常を意味しません。','instruction':'現在の画像とOCRから仮説を再検討し、別の安全な操作か無入力観測を選んでください。unresponsive_actionsをそのまま再提案しないでください。'}
+                if guidance_source and guidance_source.snapshot()['revision']!=guidance['revision']:
+                    self.executive.cancel('operator_guidance_changed_before_input')
+                    self._write({'event':'not_executed','reason':'operator_guidance_changed','step':step+1});continue
                 if not dry_run and decision.keys:
                     row['input_receipt']=self.backend.act(decision.keys,decision.hold_ms,self.control or self.stop)
                     receipt=row['input_receipt']

@@ -75,7 +75,7 @@ class RecoveryTests(unittest.TestCase):
     def test_invalid_json_recovers_without_input(self):
         agent,b,out=self.run_agent(Script([ValueError('invalid JSON'),VALID,change(status='complete')]))
         self.assertTrue(agent.completed);self.assertEqual(len(b.actions),1)
-        self.assertEqual(out[0]['status'],'retry')
+        self.assertEqual(next(r for r in out if r.get('status')=='retry')['status'],'retry')
     def test_repeated_invalid_json_stops(self):
         b=Backend()
         with self.assertRaises(ValueError): self.run_agent(Script([ValueError('bad')]*3),backend=b)
