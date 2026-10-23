@@ -103,3 +103,27 @@ class GuidanceIntegrationTests(unittest.TestCase):
                 _,choice=p.choose(d,s,stable=True,respect_proposal=True)
                 self.assertNotEqual(choice['source'],'operator_guided_model')
             finally:m.close()
+
+class EveryRequestGuidanceTests(unittest.TestCase):
+    def test_every_role_gets_current_note_even_if_prompt_contains_stale_note(self):
+        from unittest.mock import MagicMock,patch
+        for provider in ('ollama','openai'):
+            client=LocalLLM(Settings(provider=provider));g=OperatorGuidance('慎重に');client.operator_guidance=g
+            response=MagicMock();response.__enter__.return_value=response
+            response.read.side_effect=lambda *_:json.dumps({'message':{'content':'{}'},'choices':[{'message':{'content':'{}'}}]}).encode()
+            opener=Mock();opener.open.return_value=response
+            with patch('autoplayer.core.urllib.request.build_opener',return_value=opener):
+                for index,task in enumerate(('scene_observation','decision','review','decision_protocol_repair','verification')):
+                    note=f'地図のアイテムを優先 {index}';g.set(note)
+                    client._request(None,'日本語',{'task':task,'operator_guidance':{'text':'old'}})
+                    body=json.loads(opener.open.call_args.args[0].data)
+                    self.assertIn(note,body['messages'][0]['content'])
+                    payload=body['messages'][1]['content'];payload=payload if isinstance(payload,str) else payload[0]['text']
+                    self.assertEqual(json.loads(payload)['operator_guidance']['text'],note)
+                g.set('');client._request(None,'日本語',{'operator_guidance':{'text':'old'}})
+                body=json.loads(opener.open.call_args.args[0].data)
+                self.assertNotIn('old',body['messages'][0]['content'])
+                self.assertFalse(client.request_metrics[-1]['operator_guidance_applied'])
+    def test_identical_note_does_not_invalidate_a_plan_repeatedly(self):
+        g=OperatorGuidance();g.set('慎重に');first=g.snapshot()['revision']
+        self.assertEqual(g.set('慎重に'),first);self.assertEqual(g.set('  慎重に  '),first)

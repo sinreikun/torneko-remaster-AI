@@ -230,18 +230,34 @@ class Application:
         window=tk.Toplevel(self.root);self.guidance_window=window;window.title('自由文の作戦指示');window.geometry('560x245')
         ttk.Label(window,text='例：慎重に進めて / アイテム回収を優先 / 戦闘を避けて階段を探して',padding=8).pack(anchor='w')
         editor=tk.Text(window,height=6,wrap='word');editor.pack(fill='both',expand=True,padx=8);editor.insert('1.0',self.operator_guidance.snapshot()['text'])
+        pending=[None]
+        def persist():
+            pending[0]=None
+            try:self.save_ui()
+            except OSError as error:self.status.set('作戦指示は反映済みですが保存できません: '+str(error))
         def apply(clear=False):
             try:
                 text='' if clear else editor.get('1.0','end-1c')
-                revision=self.operator_guidance.set(text);self.recognition.update({'event':'guidance_pending'});self.ui_state['operator_guidance']=text;self.save_ui()
+                before=self.operator_guidance.snapshot()['revision'];revision=self.operator_guidance.set(text)
+                self.ui_state['operator_guidance']=self.operator_guidance.snapshot()['text']
+                if revision!=before:
+                    self.recognition.update({'event':'guidance_pending'})
+                    self.status.set(f'作戦指示を自動反映しました（更新{revision}）。各LLM呼出で現在の文章を適用します。')
                 if clear:editor.delete('1.0','end')
-                self.status.set(f'作戦指示を適用しました（更新{revision}）。進行中のLLM処理は完了後に破棄し、次の分析で反映します。')
-            except (ValueError,OSError) as error:self.status.set(str(error))
+                if pending[0] is not None:window.after_cancel(pending[0])
+                pending[0]=window.after(400,persist)
+            except ValueError as error:self.status.set('作戦指示は未反映: '+str(error))
+        def modified(event=None):
+            if editor.edit_modified():
+                editor.edit_modified(False);apply()
+        editor.edit_modified(False);editor.bind('<<Modified>>',modified)
         buttons=ttk.Frame(window,padding=8);buttons.pack(fill='x')
-        ttk.Button(buttons,text='適用（次の分析から）',command=apply).pack(side='left')
+        ttk.Button(buttons,text='現在の文章を反映（入力時も自動）',command=apply).pack(side='left')
         ttk.Button(buttons,text='指示を解除',command=lambda:apply(True)).pack(side='left',padx=6)
-        ttk.Label(window,text='2000文字以内。直接のキー送信ではありません。観測と操作制限は維持します。',padding=8).pack(anchor='w')
-        window.protocol('WM_DELETE_WINDOW',window.withdraw)
+        ttk.Label(window,text='入力内容を毎回のLLM呼出に適用。2000文字以内。観測と操作制限は維持します。',padding=8).pack(anchor='w')
+        def hide():
+            apply();persist();window.withdraw()
+        window.protocol('WM_DELETE_WINDOW',hide)
 
     def save_ui(self):
         self.placement.track()

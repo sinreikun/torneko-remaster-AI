@@ -322,16 +322,22 @@ class LocalLLM:
         # Retry once with generic JSON, then retain that format for this client.
         for attempt in range(2):
             fallback=cfg.provider=='ollama' and getattr(self,'ollama_json_fallback',False)
-            actual_prompt={**prompt,'required_output_schema':schema} if fallback and schema else prompt
+            source=getattr(self,'operator_guidance',None)
+            latest=source.snapshot() if source else guidance
+            request_prompt=dict(prompt);request_system=system
+            request_prompt['operator_guidance']=latest or {'revision':0,'text':''}
+            if latest and latest.get('text'):
+                request_system+='\n利用者の現在の作戦指示（今回の呼出にも適用）：\n'+latest['text']+'\nこの方針を今回の役割の範囲で毎回考慮する。観察役は指示を観測事実に変換せず、現在画像を独立に読む。計画・再検討では行動優先度へ反映する。出力形式・許可キー・入力時間・破壊的操作禁止は維持する。'
+            actual_prompt={**request_prompt,'required_output_schema':schema} if fallback and schema else request_prompt
             if cfg.provider=='ollama':
                 path='/api/chat'
                 body={'model':cfg.model,'stream':False,'format':'json' if fallback else (schema or 'json'),'keep_alive':'10m','messages':[
-                    {'role':'system','content':system},{'role':'user','content':json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':')),**({'images':[encoded]} if encoded else {})}],
+                    {'role':'system','content':request_system},{'role':'user','content':json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':')),**({'images':[encoded]} if encoded else {})}],
                     'options':{'temperature':0,'num_predict':900,'num_ctx':8192,'num_thread':2,**({'num_gpu':0} if cfg.compute_mode=='cpu_only' else {})}}
             else:
                 path='/chat/completions' if cfg.endpoint.rstrip('/').endswith('/v1') else '/v1/chat/completions'
                 body={'model':cfg.model,'temperature':0,'max_tokens':900,'messages':[
-                    {'role':'system','content':system},{'role':'user','content':[
+                    {'role':'system','content':request_system},{'role':'user','content':[
                         {'type':'text','text':json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))},
                         *([{'type':'image_url','image_url':{'url':'data:image/png;base64,'+encoded}}] if encoded else [])]}]}
             request=urllib.request.Request(cfg.endpoint.rstrip('/')+path,json.dumps(body).encode(),{'Content-Type':'application/json'})
@@ -355,6 +361,7 @@ class LocalLLM:
             if result.get('error'):raise ValueError('LLM server error: '+str(result['error'])[:600])
             import hashlib
             metrics={'task':prompt.get('task','decision' if 'goal' in prompt else 'text_or_verification'),
+                'operator_guidance_revision':(latest or {}).get('revision',0),'operator_guidance_applied':bool(latest and latest.get('text')),
                 'elapsed_ms':round((time.monotonic()-started)*1000),
                 'image_sha256':hashlib.sha256(png).hexdigest() if png is not None else None,
                 'num_ctx':8192 if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),
