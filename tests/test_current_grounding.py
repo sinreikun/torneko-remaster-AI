@@ -36,8 +36,11 @@ class CurrentEvidenceTests(unittest.TestCase):
 
     def test_green_palette_only_applies_to_explicit_isolated_dark_capture(self):
         def pixels(background):
-            image=Image.new('RGB',(160,120),background);draw=ImageDraw.Draw(image)
-            draw.rectangle((40,40,84,70),fill=(0,105,52));draw.rectangle((60,52,63,55),fill=(200,200,0))
+            image=Image.new('RGB',(1468,828),background);draw=ImageDraw.Draw(image)
+            t=1468/120;left=(1468-53*t)/2;top=254
+            draw.rectangle((left+23*t,top+20*t,left+28*t-1,top+25*t-1),fill=(0,105,52))
+            x,y=left+25.5*t,top+22.5*t
+            draw.rectangle((x-5,y-5,x+5,y+5),fill=(200,200,0))
             output=io.BytesIO();image.save(output,format='PNG');return output.getvalue()
         dark=pixels((0,0,0))
         self.assertEqual(read_minimap(dark,isolated=True)['status'],'observed')

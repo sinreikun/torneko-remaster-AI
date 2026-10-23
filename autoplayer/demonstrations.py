@@ -48,7 +48,7 @@ def observed_effect(before,after):
 
 def features(png,native):
     from .knowledge import KnowledgeEngine
-    from .minimap import read_minimap
+    from .map_sensor import read_grid
     if not native or native.get('frame_sha256')!=hashlib.sha256(png).hexdigest():native={'status':'frame_mismatch','lines':[]}
     metrics=KnowledgeEngine().reconcile(native)['metrics']
     labels=[compact_text(l.get('text',''))[:160] for l in (native or {}).get('lines',[])]
@@ -64,7 +64,7 @@ def features(png,native):
             image=source.convert('L');visual=list(image.resize((16,12)).tobytes())
             center=list(image.crop((image.width*.25,image.height*.25,image.width*.75,image.height*.8)).resize((16,12)).tobytes())
             hud=list(image.crop((0,0,image.width,image.height*.15)).resize((32,4)).tobytes())
-    m=read_minimap(png)
+    m=read_grid(png)
     return {'kind':kind,'ocr_status':(native or {}).get('status'),'tokens':sorted(tokens)[:256],
         'quotes':labels[:12],'visual':visual,'center':center,'hud':hud,'kind_basis':'current_ocr_labels',
         'contacts':[list(e) for e in m.get('enemies',[])] if m.get('status')=='observed' else None,

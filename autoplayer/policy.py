@@ -11,11 +11,11 @@ import copy
 from dataclasses import replace
 from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
-from .minimap import read_minimap
+from .map_sensor import read_grid,MapSensor,FloorConfirmation
 from .exploration import ExplorationRoutes
 from .interfaces import compact_text,torneko_menu_kind,result_screen
 
-VERSION=6
+VERSION=7
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -26,7 +26,7 @@ class ExperiencePolicy:
         self.db=memory.db;self.settings=settings;self.reader=KnowledgeEngine();self.visits={};self.trajectory=[]
         # Goal and control changes isolate values; editing prose does not erase learned actions.
         self.profile=profile_for(settings)
-        self.routes=ExplorationRoutes()
+        self.routes=ExplorationRoutes();self.map_sensor=MapSensor();self.floor_confirmation=FloorConfirmation()
         # MemoryStore lives for one UI run. Re-observation retries share these
         # measured routes; a reconnect explicitly clears them in the caller.
         cached=getattr(memory,'runtime_navigation',None)
@@ -34,6 +34,9 @@ class ExperiencePolicy:
             self.routes=cached['routes'];self.pose_anchors=cached['anchors'];self.pose_space=cached['space']
         memory.runtime_navigation={'profile':self.profile,'routes':self.routes,'anchors':getattr(self,'pose_anchors',[]),'space':getattr(self,'pose_space',None)}
         self.runtime_navigation=memory.runtime_navigation
+        if cached and cached.get('profile')==self.profile:
+            self.map_sensor=cached.get('map_sensor',self.map_sensor);self.floor_confirmation=cached.get('floor_confirmation',self.floor_confirmation)
+        self.runtime_navigation.update(map_sensor=self.map_sensor,floor_confirmation=self.floor_confirmation)
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS policy_actions(profile TEXT,state TEXT,objective TEXT,action TEXT,
             trials INTEGER NOT NULL DEFAULT 0,q REAL NOT NULL DEFAULT 0,positive INTEGER NOT NULL DEFAULT 0,
@@ -45,6 +48,7 @@ class ExperiencePolicy:
         ''')
     def track_pose(self,minimap,floor):
         if minimap.get('status')!='observed' or not floor:return minimap
+        if minimap.get('sensor')=='fixed_grid_54x32':return minimap
         space=(tuple(floor),tuple(minimap.get('source_size',[])),tuple(minimap.get('analysis_size',[])),minimap['cell_size'])
         if getattr(self,'pose_space',None)!=space:
             self.pose_space=space;self.pose_anchors=[]
@@ -75,7 +79,21 @@ class ExperiencePolicy:
     def observe(self,png,native=None,map_display=False):
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native=None
-        minimap=read_minimap(png,isolated=map_display);metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
+        metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
+        raw_floor=metrics.get('floor',{}).get('values')
+        floor_quote=compact_text(metrics.get('floor',{}).get('quote',''))
+        weak_floor=any(compact_text(line.get('text',''))==floor_quote and isinstance(line.get('confidence'),(int,float)) and line['confidence']<.8 for line in (native or {}).get('lines',[]))
+        if weak_floor:raw_floor=None
+        confirmation=self.floor_confirmation.update(raw_floor,(native or {}).get('captured_at',digest))
+        confirmation['rejected_low_confidence']=weak_floor
+        if confirmation['changed']:
+            self.map_sensor.reset();self.routes.reset();self.visits.clear();self.trajectory.clear()
+            self.pose_anchors=[];self.pose_space=None
+            self.runtime_navigation.update(anchors=self.pose_anchors,space=None)
+        floor_ready=confirmation['status'] in ('initialized','confirmed','changed')
+        minimap=read_grid(png) if map_display and floor_ready else {'status':'unavailable','reason':'地図専用表示または階の確認待ち。'}
+        if floor_ready:minimap=self.map_sensor.accumulate(minimap,confirmation['confirmed'])
+        if not floor_ready:metrics.pop('floor',None)
         text='\n'.join(compact_text(line.get('text','')) for line in (native or {}).get('lines',[]))
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
         menu=bool(torneko_menu_kind(native) or result_screen(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
@@ -98,7 +116,7 @@ class ExperiencePolicy:
         if not eligible:payload.update(visual=visual,text_key=text_key)
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,
+        return {'frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',
@@ -128,7 +146,14 @@ class ExperiencePolicy:
                 'verified_goal_success_probability':round((value['goal_wins']+1)/(value['goal_trials']+2),4) if value['goal_trials'] else None,
                 'automatic_candidate':allowed,'model_may_propose':True})
         ranking.sort(key=lambda v:v['priority'],reverse=True)
-        return {'version':VERSION,'profile':self.profile,'objective':state['objective'],'state_id':state['id'],'eligible':state['eligible'],
+        m=state.get('minimap',{})
+        spatial={'status':m.get('status','unavailable'),'sensor':m.get('sensor'),
+            'source_frame_sha256':state.get('frame_sha256'),'floor_confirmation':state.get('floor_confirmation'),
+            'dimensions':m.get('grid_size'),'position':m.get('player_cell'),
+            'enemy_offsets':m.get('enemies',[]),'item_offsets':m.get('items',[]),'stair_offsets':m.get('stairs',[]),
+            'neighbors':m.get('neighbors',{}),'known_cell_count':len(m.get('accumulated_cells',[])),
+            'rule':'専用表示から読み取った格子座標。右が+x、下が+y。未検出は不明。形状分類は推定で、接近や通行の成功を保証しない。'}
+        return {'spatial_observation':spatial,'version':VERSION,'profile':self.profile,'objective':state['objective'],'state_id':state['id'],'eligible':state['eligible'],
             'no_effect_moves':{k:self.routes.no_effect.get((tuple(state.get('minimap',{}).get('player_cell',[])),k),0) for k in MOVES},
             'navigation_instruction':'同条件で2回以上位置変化がない方向は自動巡回しない。壁や入力故障とは断定せず、現在画面から状態異常・決定待ち・入力長・所持品など別の操作仮説を検討する。',
             'ranking':ranking,'control_reference':REFERENCE,
@@ -200,7 +225,7 @@ class ExperiencePolicy:
         reason=('地図の自位置・既知領域と、この状態で蓄積した行動価値・試行回数から優先度を選択しました。' if selected['trials'] else 'この状態では未試行の候補です。地図と安全条件を確認し、経験を蓄積するための短い移動を選択しました。')
         if adjustment:reason+=' 停滞の原因仮説を検証するため、許可された移動候補内で優先度を一時調整しています。'
         if route:reason+=' 実際の移動を観測した区間から、未試行の方向が残る地点への経路を選び、1入力ずつ確認します。'
-        caption=f"地図の黄色マーカーを解析座標{state['minimap']['player']}に観測。青い既知領域は{state['minimap']['known_pixels']}画素。画面内の推定値です。"
+        caption=f"地図の黄色マーカーを解析座標{state['minimap']['player']}に観測。既知領域は{len(state['minimap'].get('known_cells',[]))}マス。格子上の推定値です。"
         chosen=replace(decision,scene='gameplay',observation=caption,keys=[key],hold_ms=min(80,self.settings.max_hold_ms),wait_ms=600,
             confidence=.8,reason=reason,subgoal='食料を探すため未確認の通路を探索する' if state['objective']=='forage' else 'ミニマップ上の未訪問位置または未確認の通路を探索する',
             goal_success='地図の自位置の移動または既知領域の増加を次の観測で確認する',

@@ -23,8 +23,10 @@ class MenuObservationTests(unittest.TestCase):
     def test_policy_retains_menu_guard_even_with_visible_map(self):
         from autoplayer.policy import ExperiencePolicy
         policy=ExperiencePolicy.__new__(ExperiencePolicy)
+        from autoplayer.map_sensor import MapSensor,FloorConfirmation
+        policy.map_sensor=MapSensor();policy.floor_confirmation=FloorConfirmation()
         policy.reader=SimpleNamespace(reconcile=lambda _: {'metrics':state()['metrics']})
-        with patch('autoplayer.policy.read_minimap',return_value=state()['minimap']):
+        with patch('autoplayer.policy.read_grid',return_value=state()['minimap']):
             observed=policy.observe(b'coordinate contract',self.inventory)
         self.assertTrue(observed['menu_evidence']);self.assertFalse(observed['eligible'])
 

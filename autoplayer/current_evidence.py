@@ -3,7 +3,7 @@ import copy
 import hashlib
 import re
 
-_DYNAMIC=re.compile(r'^(?:hp|recorded_hp|current_hp|metrics|floor|fullness|strength|sword|shield|player_position|player_cell|enemies|contacts|relative_contacts|minimap_observation|map_pose)$',re.I)
+_DYNAMIC=re.compile(r'^(?:hp|recorded_hp|current_hp|metrics|floor|fullness|strength|sword|shield|player_position|player_cell|enemies|contacts|relative_contacts|minimap_observation|map_pose|spatial_observation)$',re.I)
 
 def historical(value):
     if isinstance(value,dict):

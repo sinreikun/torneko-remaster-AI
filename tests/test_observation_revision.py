@@ -22,8 +22,11 @@ from test_agent import change
 
 def line(text,box):return {'text':text,'words':[{'text':text,'box':box}]}
 def palette_png(rgb):
-    image=Image.new('RGB',(160,120),'black');draw=ImageDraw.Draw(image)
-    draw.rectangle((40,40,84,70),fill=rgb);draw.rectangle((60,52,63,55),fill=(200,200,0))
+    image=Image.new('RGB',(1468,828),'black');draw=ImageDraw.Draw(image)
+    t=1468/120;left=(1468-53*t)/2;top=254
+    draw.rectangle((left+23*t,top+20*t,left+28*t-1,top+25*t-1),fill=rgb)
+    x,y=left+25.5*t,top+22.5*t
+    draw.rectangle((x-5,y-5,x+5,y+5),fill=(200,200,0))
     stream=io.BytesIO();image.save(stream,format='PNG');return stream.getvalue()
 
 class ObservationRevisionTests(unittest.TestCase):
@@ -40,7 +43,7 @@ class ObservationRevisionTests(unittest.TestCase):
     def test_marker_local_palette_accepts_new_hues_only_in_isolated_capture(self):
         for rgb in ((0,105,52),(90,42,120),(40,120,180)):
             png=palette_png(rgb);r=read_minimap(png,True)
-            self.assertEqual(r['status'],'observed');self.assertEqual(r['palette_source'],'marker_local_palette')
+            self.assertEqual(r['status'],'observed');self.assertEqual(r['sensor'],'fixed_grid_54x32')
             self.assertTrue(r['known_cells'])
         self.assertEqual(read_minimap(palette_png((90,42,120)))['status'],'unavailable')
 

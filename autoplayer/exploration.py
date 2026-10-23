@@ -22,7 +22,7 @@ class ExplorationRoutes:
         if not state.get('eligible') or not floor or m.get('status')!='observed':return None
         space=(tuple(floor),tuple(m.get('analysis_size',[])),tuple(m.get('source_size',[])),m.get('cell_size'))
         pixels=len(m.get('known_cells',[])) or m.get('known_pixels',0)
-        if space!=self.space or pixels<self.max_pixels*.65:self.reset();self.space=space
+        if space!=self.space or (m.get('sensor')!='fixed_grid_54x32' and pixels<self.max_pixels*.65):self.reset();self.space=space
         self.max_pixels=max(self.max_pixels,pixels)
         cell=tuple(m['player_cell'])
         self.nodes[cell]={k:dict(v) for k,v in m.get('neighbors',{}).items()}
@@ -40,7 +40,8 @@ class ExplorationRoutes:
         dx=(mb['player'][0]-ma['player'][0])/tile;dy=(mb['player'][1]-ma['player'][1])/tile
         expected=DELTAS[key]
         if math.hypot(dx,dy)>1.6:
-            self.reset()  # Teleport, map translation or lost tracking: do not join spaces.
+            if ma.get('sensor')=='fixed_grid_54x32':self.edges.clear()
+            else:self.reset()  # Legacy coordinates cannot safely retain a translated map.
             return
         self.attempts[a,key]+=1;self.arrivals[a]=max(1,self.arrivals[a]);self.arrivals[b]+=1
         if a==b:self.no_effect[a,key]+=1
