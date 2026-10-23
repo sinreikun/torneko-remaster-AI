@@ -9,6 +9,7 @@ from pathlib import Path
 from dataclasses import asdict
 import webbrowser
 import os
+from . import __version__
 from .core import Settings, LocalLLM, Controller
 from .memory import MemoryStore
 from .components import CATALOG, MODELS, pull_model, install_capture
@@ -17,7 +18,7 @@ DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.pa
 
 class Application:
     def __init__(self,root):
-        self.root=root;self.configure_theme();root.title('ローカルLLM ゲーム攻略ツール — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
+        self.root=root;self.configure_theme();root.title(f'ローカルLLM ゲーム攻略ツール v{__version__} — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
         self.queue=queue.Queue();self.stop=threading.Event();self.worker=None;self.closing_at=None;self.watchdog_file=None;self.watchdog_at=0
         root.report_callback_exception=self.callback_error
         self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
@@ -41,7 +42,7 @@ class Application:
         from .placement import WindowPlacement
         self.placement=WindowPlacement(root,self.ui_state)
         header=ttk.Frame(root,padding=8);header.pack(fill='x')
-        ttk.Label(header,text='ゲーム攻略くん + ローカルLLM',font=('',16,'bold')).pack(side='left')
+        ttk.Label(header,text=f'ゲーム攻略くん + ローカルLLM v{__version__}',font=('',16,'bold')).pack(side='left')
         self.badges=tk.StringVar(value='未接続 / WindowMessage・背面対応 / 診断と学習を分離')
         ttk.Label(header,textvariable=self.badges).pack(side='left',padx=16)
         toolbar=ttk.Frame(root,padding=(8,0));toolbar.pack(fill='x')
@@ -464,7 +465,7 @@ class Application:
     def open_console(self):
         if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():
             self.console_window.lift();return
-        window=tk.Toplevel(self.root);self.console_window=window;window.title('コンソール操作・お手本記録')
+        window=tk.Toplevel(self.root);self.console_window=window;window.title(f'コンソール操作・お手本記録 v{__version__}')
         ttk.Label(window,text='ゲームを前面にせず、このパネルから操作します。\n1操作ごとに入力前後を記録し、待機・観測・保存が終わるまで再入力できません。',padding=8).pack()
         ttk.Button(window,text='コンソール操作を開始',command=lambda:self.start(console=True)).pack(pady=4)
         timing=ttk.Frame(window);timing.pack(padx=8,pady=4)
@@ -640,7 +641,7 @@ class Application:
                         agent=Controller(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                         agent.run(dry);break
                     except TargetUnavailable:
-                        memory.runtime_navigation=None
+                        memory.runtime_navigation=None;memory.runtime_world=None
                         if not recovery:raise
                         target=recovery.recover(control)
                         if not target:break
@@ -732,7 +733,7 @@ class Application:
         if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='result':
             if value.get('policy_choice'):
-                self.set_panel('自己改善',{'state':value.get('self_improvement'),'evaluation':value.get('improvement_evaluation')})
+                self.set_panel('自己改善',{'予測制御':value.get('anticipation'),'予測照合':value.get('forecast_evaluation'),'state':value.get('self_improvement'),'evaluation':value.get('improvement_evaluation')})
                 self.set_panel('行動学習',{'selection':value.get('policy_choice'),'update':value.get('policy_learning')})
                 self.set_panel('候補と評価',value['policy_choice'].get('context',{}))
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
@@ -747,7 +748,8 @@ class Application:
         self.set_panel('目的',{'overall_goal':self.cfg.goal,'autonomous_goal':value.get('autonomous_goal',{'objective':value.get('subgoal'),'success_condition':value.get('goal_success')}),'progress':value.get('progress',[])})
         self.set_panel('候補と評価',{'confidence':value.get('confidence'),'risk':value.get('risk'),'allowed_keys':self.cfg.allowed_keys,'learned_policy':value.get('policy_choice'),'note':'モデルの信頼度と、経験から計算した優先度・試行数は別の指標です。'})
         self.set_panel('選択行動と理由',{'keys':value.get('keys'),'hold_ms':value.get('hold_ms'),'reason':value.get('reason')})
-        self.set_panel('仮説',value.get('memory_updates',[]));self.set_panel('新発見',value.get('progress',[]))
+        self.set_panel('仮説',{'対象の仮説':value.get('object_hypotheses',[]),'モデルの報告':value.get('memory_updates',[])})
+        self.set_panel('新発見',{'毎ターンの観測':value.get('world_observation',{}),'モデルの進捗報告':value.get('progress',[])})
         self.set_panel('修正履歴',value.get('knowledge_revisions',{}));self.set_panel('OCR・攻略知識の照合',{'ocr':value.get('ocr',{}),'knowledge_assessments':value.get('knowledge_assessments',[]),'note':'OCRと出典の照合は仮説。ゲーム内効果の実証とは区別します。'})
 
     def arm_watchdog(self):

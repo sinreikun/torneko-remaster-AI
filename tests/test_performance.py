@@ -39,7 +39,7 @@ class PerformanceTests(unittest.TestCase):
             elif mutate=='missing':values[0]['eligible']=False
             else:values[0]['objective']='survive';values[4]='survive'
             self.assertFalse(fast_policy_ready(*values))
-    def test_controller_replans_after_three_policy_steps_and_uses_fresh_state(self):
+    def test_controller_replans_when_current_observation_cannot_verify_prediction(self):
         self.run_bounded_controller(False)
     def test_valid_dedicated_map_can_continue_without_adopting_invalid_model_report(self):
         self.run_bounded_controller(True)
@@ -51,7 +51,7 @@ class PerformanceTests(unittest.TestCase):
         backend=ReceiptBackend()
         def observation(*args):return SimpleNamespace(image=b'current',kind='normal',changed=True,raw_change=.3 if len(args)>1 and args[1]!='neutral_observation' else 0,masked_activity=0,duration_ms=1000)
         backend.observe_turn=Mock(side_effect=observation)
-        script=Script([change(scene='gameplay',action={'keys':[],'hold_ms':1,'wait_ms':0})]*2)
+        script=Script([change(scene='gameplay',action={'keys':[],'hold_ms':1,'wait_ms':0})]*5)
         script.ocr=SimpleNamespace(read=Mock(return_value={'status':'ok','lines':[]}))
         script.take_state=lambda:{'scene_observation':{'status':'model_observation_unverified'},**({'learning':False} if dedicated else {})}
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,10 +63,8 @@ class PerformanceTests(unittest.TestCase):
                 results=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
             finally:store.close()
         if dedicated:self.assertTrue(all(not r['model_report_learning'] for r in results))
-        self.assertEqual(len(script.calls),2);self.assertEqual(len(backend.actions),5)
-        self.assertEqual([r['performance']['llm_requested'] for r in results],[True,False,False,False,True])
+        self.assertEqual(len(script.calls),5);self.assertEqual(len(backend.actions),5)
+        self.assertEqual([r['performance']['llm_requested'] for r in results],[True,True,True,True,True])
         self.assertGreater(len({tuple(r['observed_keys']) for r in results[:4]}),1)
         self.assertTrue(all(r['policy_learning']['status']=='trained' for r in results))
-        for row in results[1:4]:
-            self.assertEqual(row['scene_observation']['status'],'not_requested');self.assertEqual(row['inference_metrics'],[])
-            self.assertIsNone(row['llm_proposal'])
+        self.assertTrue(all(r['forecast_evaluation']['status']!='matched' for r in results))

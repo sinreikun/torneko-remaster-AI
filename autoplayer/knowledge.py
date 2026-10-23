@@ -36,6 +36,10 @@ class KnowledgeEngine:
         # Japanese OCR splits a displayed number into words ("1 5 / 1 5").
         # Join horizontal digit spacing only; never join unrelated OCR lines.
         patterns={'hp':r'HP(?:[iIt|])?[ \t:：、・*]*(\d(?:[ \t]*\d){0,3})[ \t]*/[ \t]*(\d(?:[ \t]*\d){0,3})',
+            'level':r'Lv[ \t]*(\d{1,3})',
+            'strength':r'(?:ちから|力)[ \t:：]*(\d{1,3})[ \t]*/[ \t]*(\d{1,3})',
+            'sword':r'剣の強さ[ \t:：]*(\d{1,3})',
+            'shield':r'盾の強さ[ \t:：]*(\d{1,3})',
             'floor':r'(\d(?:[ \t]*\d){0,2})[ \t]*(?:階|F\b)',
             'fullness':r'(?:満[ \t]*腹[ \t]*度|fullness)[ \t]*[:：]?[ \t]*(\d(?:[ \t]*\d){0,2})[ \t]*%'}
         for label,pattern in patterns.items():

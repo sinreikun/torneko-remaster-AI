@@ -88,7 +88,7 @@ class MapDisplayPolicyTests(unittest.TestCase):
             rows=[json.loads(line) for line in agent.journal.read_text().splitlines()]
             row=next(r for r in rows if r['event']=='map_observation');self.assertFalse(row['learning'])
             self.assertEqual(rows[0]['event'],'map_observation_requested')
-            self.assertEqual(len([r for r in rows if r['event']=='map_reading']),2)
+            self.assertEqual(len([r for r in rows if r['event']=='map_reading']),1)
             self.assertNotIn('image',row);self.assertEqual(backend.actions,[])
 
 class MapArchiveTests(unittest.TestCase):

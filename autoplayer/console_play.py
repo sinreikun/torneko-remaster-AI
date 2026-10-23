@@ -30,6 +30,9 @@ class ConsolePlayer:
     def __init__(self,backend,store,ocr,control,commands,emit,journal,recorder):
         self.backend=backend;self.store=store;self.ocr=ocr;self.control=control;self.commands=commands;self.emit=emit;self.journal=journal;self.recorder=recorder
         self.ocr.cancel=control;self.stats={'submitted':0,'complete':0,'incomplete':0,'observations':0}
+        from .world_model import WorldModel
+        import sqlite3
+        self.world=WorldModel(store if isinstance(getattr(store,'db',None),sqlite3.Connection) else None,journal.stem)
         self.next_ready_at=0.
     def log(self,row):
         self.journal.parent.mkdir(parents=True,exist_ok=True)
@@ -81,6 +84,12 @@ class ConsolePlayer:
                 'backend_submission_ms':round((release_at-submission_started)*1000) if release_at is not None else None,
                 'turn_kind':kind,'total_ms':round((time.monotonic()-before_time)*1000)},
             'note':'コンソール指定入力。OS受付とゲーム反応は別。保持時間は指定値で、ゲームが受理した長さの証明ではない。'}
+        from .knowledge import KnowledgeEngine
+        def sensed(native):return {'metrics':KnowledgeEngine().reconcile(native)['metrics'],'minimap':{'status':'unavailable'},'eligible':False}
+        initial=sensed(native0);final=sensed(native1)
+        row['world_observation']=self.world.observe(before,native0,initial)
+        row['world_learning']=self.world.feedback(initial,final,{'executed':complete,'observed_keys':command['keys'],'input_receipt':receipt,'turn_kind':kind},native0,native1,{},before,after or before)
+        self.world.inventory.observe(native1,after)
         identifier=self.store.add(row,'complete' if complete else 'censored') if command['keys'] else None
         self.stats['complete' if complete else 'incomplete']+=int(bool(command['keys']))
         self.log({'event':'human_console_result','example_id':identifier,**row})

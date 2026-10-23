@@ -220,11 +220,12 @@ class ExperiencePolicy:
             candidates.sort(key=lambda v:v['priority'],reverse=True)
         # Least visited actions break cold-start ties deterministically; learned Q then dominates.
         context['ranking'].sort(key=lambda v:v['priority'],reverse=True)
-        route=self.routes.suggest(state,candidates)
+        hint=state.get('map_route_hint')
+        route=hint if hint and any(v['keys']==[hint['key']] for v in candidates) else self.routes.suggest(state,candidates)
         selected=next((v for v in candidates if route and v['keys']==[route['key']]),candidates[0]);key=selected['keys'][0]
         reason=('地図の自位置・既知領域と、この状態で蓄積した行動価値・試行回数から優先度を選択しました。' if selected['trials'] else 'この状態では未試行の候補です。地図と安全条件を確認し、経験を蓄積するための短い移動を選択しました。')
         if adjustment:reason+=' 停滞の原因仮説を検証するため、許可された移動候補内で優先度を一時調整しています。'
-        if route:reason+=' 実際の移動を観測した区間から、未試行の方向が残る地点への経路を選び、1入力ずつ確認します。'
+        if route:reason+=' 観測済みの床の接続または移動実績から経路を選び、1入力ずつ位置を確認します。'
         caption=f"地図の黄色マーカーを解析座標{state['minimap']['player']}に観測。既知領域は{len(state['minimap'].get('known_cells',[]))}マス。格子上の推定値です。"
         chosen=replace(decision,scene='gameplay',observation=caption,keys=[key],hold_ms=min(80,self.settings.max_hold_ms),wait_ms=600,
             confidence=.8,reason=reason,subgoal='食料を探すため未確認の通路を探索する' if state['objective']=='forage' else 'ミニマップ上の未訪問位置または未確認の通路を探索する',
