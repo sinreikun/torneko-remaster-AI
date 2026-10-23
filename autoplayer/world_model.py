@@ -177,6 +177,8 @@ class Inventory:
 class WorldModel:
     def __init__(self,memory=None,session='session'):
         self.db=memory.db if memory else None;self.profile=memory.profile if memory else 'session';self.session=session
+        from .appearance import AppearanceBank
+        self.appearances=AppearanceBank(self.db,self.profile)
         self.scope=hashlib.sha256((self.profile+session).encode()).hexdigest()[:8]+'_'
         cfg=getattr(memory,'settings',getattr(memory,'cfg',None))
         bindings=getattr(cfg,'key_bindings',{}) or {}
@@ -226,6 +228,7 @@ class WorldModel:
                                 t=im.width*pitch;cx=im.width*.5+dx*t;cy=im.height*.48+dy*t
                                 if 0<=cx<im.width and 0<=cy<im.height:
                                     patch=im.convert('RGB').crop((cx-t*.45,cy-t*.45,cx+t*.45,cy+t*.45)).resize((8,8))
+                                    matched['appearance_memory']=self.appearances.observe(patch,(matched.get('appearance_memory') or {}).get('class_id'),(matched.get('hypotheses') or {}).get('facing','unknown'))
                                     variant=hashlib.sha256(patch.tobytes()).hexdigest()[:16]
                                     if variant not in matched['variants']:matched['variants']=(matched['variants']+[variant])[-64:]
                                     matched['screen_association']={'status':'hypothesis','bbox':[round(cx-t/2),round(cy-t/2),round(cx+t/2),round(cy+t/2)],'basis':'background_shift_and_player_center_prior'}
@@ -241,6 +244,12 @@ class WorldModel:
                 obj={'id':identifier,'legend':'unclassified_region','identity':'unconfirmed','name':None,'species':None,'attitude':'unknown','facing':'unknown','animation':'unknown','variants':[]}
                 self.objects[identifier]=obj;new.append(identifier)
             obj.update(cell=cell,offset=patch['offset'],last_tick=self.tick,screen_association={'status':'hypothesis','bbox_normalized':patch['bbox_normalized'],'basis':'registered_grid_animated_region'})
+            try:
+                from PIL import Image
+                with Image.open(io.BytesIO(png)) as im:
+                    box=[v*(im.width if i%2==0 else im.height) for i,v in enumerate(patch['bbox_normalized'])]
+                    obj['appearance_memory']=self.appearances.observe(im.crop(box),(obj.get('appearance_memory') or {}).get('class_id'),(obj.get('hypotheses') or {}).get('facing','unknown'))
+            except (OSError,ValueError):pass
             if patch['appearance'] not in obj['variants']:obj['variants']=(obj['variants']+[patch['appearance']])[-64:]
             visible=copy.deepcopy(obj);visible['appearance_variant_count']=len(visible.pop('variants',[]));current_objects.append(visible)
         known={tuple(c) for c in m.get('accumulated_cells',[])}

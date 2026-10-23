@@ -104,8 +104,10 @@ def _read_grid(png):
                 x0=min(x for x,y in part);x1=max(x for x,y in part);y0=min(y for x,y in part);y1=max(y for x,y in part)
                 rx=max(1,(x1-x0)/2);ry=max(1,(y1-y0)/2);cx0=(x0+x1)/2;cy0=(y0+y1)/2
                 corners=sum(abs(x-cx0)/rx>.65 and abs(y-cy0)/ry>.65 for x,y in part)
-                # Square outlines have corner pixels, diamonds do not.
-                kind='stairs' if corners>=4 else 'items'
+                # A few corner-colored pixels are not sufficient evidence of stairs.
+                quadrants={(x>cx0,y>cy0) for x,y in part if abs(x-cx0)/rx>.65 and abs(y-cy0)/ry>.65}
+                square=.75<=rx/ry<=1.33
+                kind='stairs' if square and len(quadrants)==4 and corners>=8 else 'items' if corners==0 and square else 'uncertain_marks'
             objects[kind].append(cell);known.add(cell)
     neighbors={k:{'known':v in known,'enemy':v in objects['enemies'],'unobserved_cell':'wall_or_unexplored_unknown'} for k,v in {'w':(0,-1),'a':(-1,0),'s':(0,1),'d':(1,0)}.items()}
     return {'status':'observed','sensor':'fixed_grid_54x32','confidence':.85,'grid_size':[54,32],
