@@ -2,6 +2,7 @@
 This is online policy learning, not LLM weight training or proof of causality.
 """
 from .experience_review import outcome_learning_allowed
+from .interface_responses import layout_group,InterfaceResponses
 import hashlib
 import json
 import math
@@ -48,6 +49,8 @@ class ExperiencePolicy:
         CREATE TABLE IF NOT EXISTS policy_text_visits(profile TEXT,text_key TEXT,PRIMARY KEY(profile,text_key));
         CREATE TABLE IF NOT EXISTS policy_visits(profile TEXT,location TEXT,count INTEGER NOT NULL,PRIMARY KEY(profile,location));
         ''')
+        transfer_profile=hashlib.sha256(json.dumps([self.profile,sorted(settings.allowed_keys),settings.key_bindings],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+        self.interface_responses=InterfaceResponses(self.db,transfer_profile)
     def track_pose(self,minimap,floor):
         if minimap.get('status')!='observed' or not floor:return minimap
         if minimap.get('sensor')=='fixed_grid_54x32':return minimap
@@ -109,11 +112,12 @@ class ExperiencePolicy:
         eligible=minimap.get('status')=='observed' and bool(hp and floor) and not menu
         food=metrics.get('fullness',{}).get('values')
         objective='survive' if hp and hp[0]/hp[1]<.3 else ('forage' if food and food[0]<20 else 'explore')
-        visual=[]
+        visual=[];frame_size=[]
         if png.startswith(b'\x89PNG\r\n\x1a\n'):
             from PIL import Image
             try:
-                with Image.open(io.BytesIO(png)) as image:visual=[v//32 for v in image.convert('L').resize((16,12)).tobytes()]
+                with Image.open(io.BytesIO(png)) as image:
+                    frame_size=list(image.size);visual=[v//32 for v in image.convert('L').resize((16,12)).tobytes()]
             except OSError:pass
         text_reliable=bool(text) and all(isinstance(line.get('confidence'),(int,float)) and line['confidence']>=.8 for line in (native or {}).get('lines',[]) if compact_text(line.get('text','')))
         text_key=hashlib.sha256(re.sub(r'\s+','',text)[:2000].encode()).hexdigest()[:16]
@@ -126,7 +130,7 @@ class ExperiencePolicy:
             if not text:payload['visual']=visual
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
+        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',
@@ -173,6 +177,10 @@ class ExperiencePolicy:
     def choose(self,decision,state,blocked=(),stable=False,adjustment=None,respect_proposal=False,interface_stable=False):
         context=self.context(state,blocked)
         if interface_stable and not state['eligible'] and not respect_proposal and decision.status=='continue' and decision.risk!='destructive' and state.get('observable') and state.get('text_reliable') and not any(state.get('metrics',{}).get(k) for k in ('hp','floor')):
+            transferred=self.interface_responses.candidates(state,[k for k in self.settings.allowed_keys if k in ACTIONS and k!='num7'],blocked)
+            if transferred:
+                picked=transferred[0]
+                return replace(decision,keys=picked['keys'],hold_ms=min(80,self.settings.max_hold_ms),wait_ms=min(600,self.settings.max_wait_ms),intent={'kind':'confirm','target_id':''},forecast={},plan=[],progress=[],memory_updates=[],subgoal='似た文字配置で反応が得られた入力を検証する',reason='複数の異なる文章で反応を観測した入力を、現在の文字配置でも短く試す。類似性も効果も未確定で、次の観測で再評価する。',confidence=0.),{'source':'learned_interface_policy','selected':picked,'context':context}
             ranking=[r for r in context['ranking'] if r['keys'] not in blocked and r['trials']>=2 and r['q']>0]
             # Only reuse empirical inputs in the exact current OCR state; no menu
             # semantics, map requirement or invented confidence.
@@ -290,6 +298,7 @@ class ExperiencePolicy:
         if not before.get('observable') or not after.get('observable'):return {'status':'censored','reason':'比較可能な画像とOCRを取得できません。成功にも失敗にも加算しません。'}
         if before.get('observation_mode','normal')!=after.get('observation_mode','normal'):
             return {'status':'censored','reason':'通常画面と専用地図表示の切替は入力成果として比較しません。'}
+        interface_response=self.interface_responses.record(before,after,row,neutral_before)
         action=keys[0];observed=self.signals(before,after)
         natural=self.signals(neutral_before,before) if neutral_before else {k:0. for k in observed}
         net={k:max(0.,v-natural[k]) for k,v in observed.items()}
@@ -329,7 +338,7 @@ class ExperiencePolicy:
         new_q=current+.25*(reward+.85*next_q-current)
         event={'status':'trained','state':before['id'],'next_state':after['id'],'objective':before['objective'],'keys':keys,
             'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'baseline_kind':row.get('policy_baseline_kind','neutral_observation'),'net_signals':net,
-            'interface_information_gain':interface_gain,'interface_gain_is_goal_progress':False,'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
+            'interface_response':interface_response,'interface_information_gain':interface_gain,'interface_gain_is_goal_progress':False,'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}
         with self.db:
             self.db.execute('INSERT INTO policy_actions(profile,state,objective,action,trials,q,positive,reward_sum) VALUES(?,?,?,?,1,?,?,?) ON CONFLICT(profile,state,objective,action) DO UPDATE SET trials=trials+1,q=excluded.q,positive=positive+excluded.positive,reward_sum=reward_sum+excluded.reward_sum',

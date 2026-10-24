@@ -26,6 +26,8 @@ class InformationExploration:
             features={'scene':scene,'contacts':sorted([list(p) for p in m.get('enemies',[]) if max(map(abs,p))<=1]),
                 'map_observed':m.get('status')=='observed','hp_band':min(3,int(hp[0]/hp[1]*4)) if hp and hp[1] else None,
                 'adjacent_known':{k:bool(v.get('known')) for k,v in m.get('neighbors',{}).items()}}
+        elif scene=='unclassified' and state.get('interface_layout_group'):
+            features={'source':'ocr_layout_coverage_v1','layout':state['interface_layout_group']['id']}
         else:
             text=[compact_text(l.get('text','')) for l in (native or {}).get('lines',[])]
             features={'scene':scene,'labels':[re.sub(r'\d+','N',t)[:100] for t in text if not re.search(r'HP|満腹|Lv|^\d+[階G%]$',t,re.I)][:12]}
