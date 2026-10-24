@@ -110,7 +110,10 @@ class Application:
         self.live_info=tk.StringVar(value='画面の記録は実機実行時のみ。架空ゲームは使用しません。')
         ttk.Label(left,textvariable=self.live_info).pack(fill='x')
         ttk.Label(left,text='ターンの要約・介入・観測結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
-        ttk.Button(left,text='ログの最新へ',command=lambda:self.log.see('end')).pack(anchor='e')
+        logtools=ttk.Frame(left);logtools.pack(anchor='e')
+        ttk.Button(logtools,text='ログの最新へ',command=lambda:self.log.see('end')).pack(side='left')
+        self.log_follow_latest=tk.BooleanVar(value=self.ui_state.get('log_follow_latest',False))
+        ttk.Checkbutton(logtools,text='最新で固定',variable=self.log_follow_latest,command=self.follow_log_latest).pack(side='left',padx=(8,0))
         logbox=ttk.Frame(left);logbox.pack(fill='both',expand=True)
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
@@ -301,7 +304,7 @@ class Application:
 
     def save_ui(self):
         self.placement.track()
-        self.ui_state.update(duration=self.duration.get(),compat=self.compat.get(),preview_graph_enabled=self.overlay_enabled.get(),graph_series={k:v.get() for k,v in self.overlay_layers.items()})
+        self.ui_state.update(log_follow_latest=self.log_follow_latest.get(),duration=self.duration.get(),compat=self.compat.get(),preview_graph_enabled=self.overlay_enabled.get(),graph_series={k:v.get() for k,v in self.overlay_layers.items()})
         DATA.mkdir(parents=True,exist_ok=True);temporary=DATA/'ui-settings.json.tmp'
         temporary.write_text(json.dumps(self.ui_state,ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'ui-settings.json')
 
@@ -877,6 +880,9 @@ class Application:
             ok=pull_model(endpoint,name,lambda x:self.queue.put(('progress',json.dumps(x,ensure_ascii=False))),self.stop)
             if ok: self.queue.put(('model',name))
         self.launch(work)
+    def follow_log_latest(self):
+        if self.log_follow_latest.get():self.log.see('end')
+
     def append_log(self,value):
         from .dashboard import append_text
         event=value.get('event','')
@@ -895,6 +901,7 @@ class Application:
             text=f"{event}: {value.get('reason') or value.get('status') or value.get('path','')}\n"
         else:return
         append_text(self.log,text+'─'*35+'\n')
+        self.follow_log_latest()
 
     def update_decision(self,value):
         event=value.get('event');self.recognition.update(value);self.traces.update(value)
