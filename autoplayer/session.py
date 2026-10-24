@@ -6,7 +6,7 @@ class SessionControl:
     def __init__(self, stop=None, seconds=0):
         if seconds not in (0,600,1200,1800,3600): raise ValueError('Invalid run duration')
         self.stop=stop if stop is not None else threading.Event()
-        self.paused=threading.Event();self.revision=0
+        self.paused=threading.Event();self.intervention=threading.Event();self.revision=0
         self.deadline=time.monotonic()+seconds if seconds else None
         self.reason='';self.timer=None
         if seconds:
@@ -19,11 +19,11 @@ class SessionControl:
         else: self.paused.set()
         return self.paused.is_set()
     def checkpoint(self):
-        while self.paused.is_set() and not self.stop.wait(.05): pass
+        while self.paused.is_set() and not self.intervention.is_set() and not self.stop.wait(.05): pass
         if self.deadline is not None and time.monotonic()>=self.deadline: self.expire()
         return not self.stop.is_set()
     def is_set(self):
-        return self.stop.is_set() or self.paused.is_set()
+        return self.stop.is_set() or self.paused.is_set() or self.intervention.is_set()
     def wait(self,seconds):
         end=time.monotonic()+seconds
         while not self.is_set():

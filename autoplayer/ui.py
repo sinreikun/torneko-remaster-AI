@@ -23,7 +23,7 @@ class Application:
         root.report_callback_exception=self.callback_error
         self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
         self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
-        self.run_started=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0};self.last_row={}
+        self.run_started=None;self.run_finished=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0};self.last_row={}
         self.cfg=Settings();self.ui_state={}
         from .profiles import ProfileStore
         self.profiles=ProfileStore(DATA/'profiles');self.selected_target=None
@@ -35,6 +35,8 @@ class Application:
             except (OSError,ValueError): pass
         from .telemetry import RecognitionState
         from .guidance import OperatorGuidance
+        from .dashboard import LearningTraces
+        self.traces=LearningTraces()
         self.recognition=RecognitionState();self.recognition_window=None;self.recognition_floating=None;self.overlay=None
         self.operator_guidance=OperatorGuidance(self.ui_state.get('operator_guidance',''))
         from .controls import is_torneko
@@ -68,12 +70,16 @@ class Application:
         visual_bar=ttk.Frame(root,padding=(8,2));visual_bar.pack(fill='x')
         ttk.Button(visual_bar,text='認識モニターを別窓で開く',command=self.open_recognition).pack(side='left')
         ttk.Button(visual_bar,text='作戦指示を入力',command=self.open_guidance).pack(side='left',padx=4)
-        self.overlay_enabled=tk.BooleanVar(value=False)
-        ttk.Checkbutton(visual_bar,text='ゲームに重ねる',variable=self.overlay_enabled,command=self.configure_overlay).pack(side='left',padx=8)
+        self.overlay_enabled=tk.BooleanVar(value=self.ui_state.get('preview_graph_enabled',False))
+        ttk.Checkbutton(visual_bar,text='キャプチャに学習グラフ',variable=self.overlay_enabled,command=self.configure_overlay).pack(side='left',padx=8)
         self.overlay_layers={}
-        for key,label in [('map','マップ'),('status','ステータス'),('objects','対象枠'),('forecast','予測・LLM')]:
-            var=tk.BooleanVar(value=True);self.overlay_layers[key]=var
-            ttk.Checkbutton(visual_bar,text=label,variable=var,command=self.configure_overlay).pack(side='left')
+        graph_controls=ttk.Frame(root,padding=(8,1));graph_controls.pack(fill='x')
+        from .dashboard import SERIES
+        for key,(label,color) in SERIES.items():
+            var=tk.BooleanVar(value=self.ui_state.get('graph_series',{}).get(key,key in ('coverage','novelty','reward')));self.overlay_layers[key]=var
+            ttk.Checkbutton(graph_controls,text=label,variable=var,command=self.configure_overlay).pack(side='left')
+        ttk.Button(graph_controls,text='全種',command=lambda:self.select_graphs(True)).pack(side='left')
+        ttk.Button(graph_controls,text='全解除',command=lambda:self.select_graphs(False)).pack(side='left')
         options=ttk.Frame(root,padding=8);options.pack(fill='x')
         ttk.Label(options,text='実行時間').pack(side='left')
         self.duration=tk.StringVar(value=self.ui_state.get('duration','なし'))
@@ -96,19 +102,26 @@ class Application:
         self.live.bind('<Configure>',lambda event:self.draw_frame(force=True))
         self.live_info=tk.StringVar(value='画面の記録は実機実行時のみ。架空ゲームは使用しません。')
         ttk.Label(left,textvariable=self.live_info).pack(fill='x')
-        ttk.Label(left,text='観測 → 行動 → 結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
+        ttk.Label(left,text='ターンの要約・介入・観測結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
+        ttk.Button(left,text='ログの最新へ',command=lambda:self.log.see('end')).pack(anchor='e')
         logbox=ttk.Frame(left);logbox.pack(fill='both',expand=True)
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         from .telemetry import RecognitionPanel
+        self.runtime_summary=tk.StringVar(value='経過 00:00:00 / 完了ターン 0')
+        ttk.Label(right,textvariable=self.runtime_summary,padding=7,font=('',11,'bold')).pack(fill='x')
         self.recognition_panel=RecognitionPanel(right,self.recognition);self.recognition_panel.frame.pack(fill='x',padx=4,pady=4)
-        panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={}
-        for title in ['バックエンド状態','現在状態','目的','候補と評価','選択行動と理由','結果','仮説','新発見','修正履歴','今回統計','累積統計','系列のパターン','OCR・攻略知識の照合','行動学習','自己改善','ゲームの推定','手法の選択・学習','背景適合性','キー配置・ミニマップ']:
+        panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={};self.panel_values={}
+        self.panel_aliases={'新発見':'仮説','修正履歴':'仮説','系列のパターン':'行動学習','累積統計':'行動学習','手法の選択・学習':'行動学習','背景適合性':'バックエンド状態','ゲームの推定':'現在状態'}
+        for title in ['今回統計','目的','選択行動と理由','結果','行動学習','現在状態','候補と評価','自己改善','OCR・攻略知識の照合','仮説','新発見','修正履歴','累積統計','系列のパターン','ゲームの推定','手法の選択・学習','背景適合性','バックエンド状態','キー配置・ミニマップ']:
+            if title=='今回統計' or title=='結果' or title in self.panel_aliases:continue
             group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
             button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
-            body=tk.Text(group,height=4,wrap='word',state='disabled',relief='flat');body.pack(fill='x')
-            self.panels[title]=body;self.panel_bodies[title]=body
-            if self.ui_state.get('collapsed',{}).get(title): body.pack_forget()
+            holder=ttk.Frame(group);holder.pack(fill='x')
+            body=tk.Text(holder,height=5,wrap='word',state='disabled',relief='flat');body.pack(side='left',fill='x',expand=True)
+            scroll=ttk.Scrollbar(holder,command=body.yview);scroll.pack(side='right',fill='y');body.configure(yscrollcommand=scroll.set)
+            self.panels[title]=body;self.panel_bodies[title]=holder
+            if self.ui_state.get('collapsed',{}).get(title,title not in ('目的','選択行動と理由','行動学習')):holder.pack_forget()
         self.vars={}
         for row,(label,key) in enumerate([('ゲームのタイトル（一部・固有の文字列）','window_title'),('API形式（ollama / openai）','provider'),('ローカルAPI URL','endpoint'),('画像対応モデル名','model'),('許可キー（カンマ区切り）','allowed_keys'),('手数上限（0 = 上限なし）','max_steps'),('OCR（auto = 導入済みV5 → V4 → Windows）','ocr_engine')]):
             ttk.Label(config,text=label).grid(row=row,column=0,sticky='w')
@@ -170,10 +183,17 @@ class Application:
         self.root.option_add('*Text.background',well);self.root.option_add('*Text.foreground',foreground)
         self.root.option_add('*Text.insertBackground',foreground);self.root.option_add('*Text.selectBackground','#285887')
         self.root.option_add('*Text.font','TkTextFont')
+        for widget in ('Button','Checkbutton','Radiobutton','Spinbox','Entry','Listbox'):
+            self.root.option_add('*'+widget+'.background',well);self.root.option_add('*'+widget+'.foreground',foreground)
+            self.root.option_add('*'+widget+'.selectColor','#34485f')
         style=ttk.Style(self.root);style.theme_use('clam')
         style.configure('.',background=background,foreground=foreground)
         style.configure('TButton',padding=(8,5),background='#303848',foreground=foreground)
         style.map('TButton',background=[('active','#3d5270'),('disabled','#252a33')],foreground=[('disabled','#858b97')])
+        style.configure('TCheckbutton',background=background,foreground=foreground,indicatorbackground='#34485f',indicatorforeground=foreground)
+        style.map('TCheckbutton',background=[('active','#283449')],foreground=[('disabled','#8898ac')])
+        style.configure('TSpinbox',fieldbackground=well,foreground=foreground,arrowcolor=foreground)
+        style.configure('TScrollbar',background='#34485f',troughcolor=well,arrowcolor=foreground)
         style.configure('TEntry',fieldbackground=well,foreground=foreground,insertcolor=foreground)
         style.configure('TCombobox',fieldbackground=well,foreground=foreground,arrowcolor=foreground)
         style.map('TCombobox',fieldbackground=[('readonly',well)],foreground=[('readonly',foreground)])
@@ -195,9 +215,18 @@ class Application:
         return frame
 
     def set_panel(self,title,value):
-        body=self.panels[title];body.configure(state='normal');body.delete('1.0','end')
         from .presentation import display_json
-        body.insert('1.0',value[:10000] if isinstance(value,str) else display_json(value));body.configure(state='disabled')
+        from .dashboard import replace_text
+        if title=='今回統計':self.runtime_summary.set(value);return
+        if title=='結果':return # Completed outcomes are in the large turn journal.
+        destination=self.panel_aliases.get(title,title)
+        if title!=destination or destination in self.panel_values:
+            self.panel_values.setdefault(destination,{})[title]=value
+            value='\n\n'.join(name+'\n'+(item if isinstance(item,str) else display_json(item,4500)) for name,item in self.panel_values[destination].items())
+        text=value[:10000] if isinstance(value,str) else display_json(value)
+        body=self.panels[destination]
+        if getattr(body,'_last_text',None)==text:return
+        replace_text(body,text);body._last_text=text
 
     def open_recognition(self):
         from .telemetry import RecognitionPanel
@@ -209,20 +238,19 @@ class Application:
         self.recognition_floating.frame.pack(fill='both',expand=True)
         self.recognition_window.protocol('WM_DELETE_WINDOW',self.recognition_window.withdraw)
 
+    def select_graphs(self,enabled):
+        for value in self.overlay_layers.values():value.set(enabled)
+        self.configure_overlay()
     def configure_overlay(self):
-        if not self.overlay_enabled.get():
-            if self.overlay:self.overlay.close();self.overlay=None
-            return
-        try:
-            if self.overlay is None:
-                from .overlay import GameOverlay
-                self.overlay=GameOverlay(self.root,self.recognition);self.overlay.connect(self.backend)
-            self.overlay.set_layers({k:v.get() for k,v in self.overlay_layers.items()})
-            self.status.set('オーバーレイを有効化。ゲームが前面の間だけ表示し、クリックはゲームへ通します。')
-        except Exception as error:
-            self.overlay_enabled.set(False)
-            if self.overlay:self.overlay.close();self.overlay=None
-            self.status.set('オーバーレイを開始できません: '+str(error))
+        if self.overlay:self.overlay.close();self.overlay=None
+        self.draw_learning_graph()
+    def draw_learning_graph(self):
+        self.live.delete('learning_graph')
+        if not self.overlay_enabled.get() or not getattr(self,'preview_bounds',None):return
+        x,y,w,h=self.preview_bounds
+        width=min(285,max(120,w*.42));height=min(170,max(100,h*.4))
+        if w<150 or h<140:return
+        self.traces.paint(self.live,{k:v.get() for k,v in self.overlay_layers.items()},(x+w-width-8,y+h-height-8,width,height))
 
     def open_guidance(self):
         existing=getattr(self,'guidance_window',None)
@@ -261,7 +289,7 @@ class Application:
 
     def save_ui(self):
         self.placement.track()
-        self.ui_state.update(duration=self.duration.get(),compat=self.compat.get())
+        self.ui_state.update(duration=self.duration.get(),compat=self.compat.get(),preview_graph_enabled=self.overlay_enabled.get(),graph_series={k:v.get() for k,v in self.overlay_layers.items()})
         DATA.mkdir(parents=True,exist_ok=True);temporary=DATA/'ui-settings.json.tmp'
         temporary.write_text(json.dumps(self.ui_state,ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'ui-settings.json')
 
@@ -287,6 +315,7 @@ class Application:
         if not frame or (frame is self.shown_frame and not force):return
         self.shown_frame=frame;self.live.delete('image')
         if frame[0] is None:
+            self.preview_bounds=None;self.live.delete('learning_graph')
             self.live.create_text(20,20,anchor='nw',text=frame[1],fill='white',tags='image');return
         from PIL import Image,ImageTk
         import io
@@ -294,6 +323,8 @@ class Application:
         image.thumbnail((max(1,self.live.winfo_width()),max(1,self.live.winfo_height())))
         self.live_photo=ImageTk.PhotoImage(image)
         self.live.create_image(self.live.winfo_width()/2,self.live.winfo_height()/2,image=self.live_photo,tags='image')
+        self.preview_bounds=((self.live.winfo_width()-image.width)/2,(self.live.winfo_height()-image.height)/2,image.width,image.height)
+        self.draw_learning_graph()
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
 
     def connect(self):
@@ -541,19 +572,30 @@ class Application:
         if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():
             self.console_window.lift();return
         window=tk.Toplevel(self.root);self.console_window=window;window.title(f'コンソール操作・お手本記録 v{__version__}')
-        ttk.Label(window,text='ゲームを前面にせず、このパネルから操作します。\n1操作ごとに入力前後を記録し、待機・観測・保存が終わるまで再入力できません。',padding=8).pack()
-        ttk.Button(window,text='コンソール操作を開始',command=lambda:self.start(console=True)).pack(pady=4)
+        ttk.Label(window,text='ゲームを前面にせず、このパネルから操作します。\n攻略中はボタンで割り込み、未送信の自動計画を破棄して1回操作します。\n入力・観測・保存が終わると自動攻略へ戻ります。',padding=8).pack()
+        self.console_start=ttk.Button(window,text='単独操作を開始（攻略停止中）',command=lambda:self.start(console=True));self.console_start.pack(pady=4)
         timing=ttk.Frame(window);timing.pack(padx=8,pady=4)
         self.console_hold=tk.IntVar(value=min(100,self.cfg.max_hold_ms));self.console_wait=tk.IntVar(value=800)
         ttk.Label(timing,text='保持(ms)').pack(side='left');ttk.Spinbox(timing,from_=1,to=self.cfg.max_hold_ms,textvariable=self.console_hold,width=6).pack(side='left')
         ttk.Label(timing,text='再入力までの最低待機(ms)').pack(side='left');ttk.Spinbox(timing,from_=100,to=10000,increment=100,textvariable=self.console_wait,width=7).pack(side='left')
         keys=ttk.Frame(window);keys.pack(padx=8,pady=4);self.console_buttons=[];self.console_selected={}
         from .controls import ACTIONS
-        for i,key in enumerate(self.cfg.allowed_keys):
-            block=ttk.Frame(keys);block.grid(row=i//3,column=i%3,padx=4,pady=3,sticky='w')
+        pad=ttk.LabelFrame(keys,text='移動・決定',padding=5);pad.pack(fill='x')
+        extra=ttk.LabelFrame(keys,text='その他の操作',padding=5);extra.pack(fill='x',pady=6)
+        positions={}
+        for choices,pos in [(('w','up'),(0,1)),(('a','left'),(1,0)),(('s','down'),(2,1)),(('d','right'),(1,2))]:
+            key=next((k for k in choices if k in self.cfg.allowed_keys),None)
+            if key:positions[key]=pos
+        confirm=next((k for k in ('num1','enter','z') if k in self.cfg.allowed_keys and k not in positions),None)
+        if confirm:positions[confirm]=(1,1)
+        auxiliary=0
+        for key in self.cfg.allowed_keys:
+            if key in positions:parent=pad;row,col=positions[key]
+            else:parent=extra;row,col=auxiliary//3,auxiliary%3;auxiliary+=1
+            block=ttk.Frame(parent);block.grid(row=row,column=col,padx=3,pady=3,sticky='ew')
             value=tk.BooleanVar(value=False);self.console_selected[key]=value
             ttk.Checkbutton(block,variable=value).pack(side='left')
-            button=ttk.Button(block,text=key+' '+self.cfg.key_bindings.get(key,ACTIONS.get(key,'')),command=lambda k=key:self.console_send([k]))
+            button=ttk.Button(block,text=key+' '+self.cfg.key_bindings.get(key,ACTIONS.get(key,'')),width=18,command=lambda k=key:self.console_send([k]))
             button.pack(side='left');self.console_buttons.append(button)
         ttk.Label(window,text='チェックしたキーは「同時押し」で送信。チェックだけでは入力しません。').pack(padx=8)
         actions=ttk.Frame(window);actions.pack(pady=6)
@@ -564,17 +606,27 @@ class Application:
         window.protocol('WM_DELETE_WINDOW',self.close_console)
         self.console_status(bool(getattr(self,'console_commands',None) and self.console_commands.ready))
     def close_console(self):
-        if getattr(self,'console_commands',None) and not self.console_commands.closed:self.request_stop()
+        if getattr(self,'console_active',False) and getattr(self,'console_commands',None) and not self.console_commands.closed:self.request_stop()
         self.console_window.destroy();self.console_window=None
     def console_status(self,ready):
-        allowed=bool(ready and not self.stop.is_set() and not (self.control and self.control.is_set()))
+        intervention=bool(self.busy() and not getattr(self,'recording_human',False) and getattr(self,'interventions',None) and self.interventions.ready)
+        allowed=intervention or bool(ready and not self.stop.is_set() and not (self.control and self.control.is_set()))
+        if hasattr(self,'console_start') and self.console_start.winfo_exists():self.console_start.configure(state='disabled' if self.busy() else 'normal')
         for button in getattr(self,'console_buttons',[]):
             try:button.configure(state='normal' if allowed else 'disabled')
             except tk.TclError:pass
         if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():
-            self.console_label.set('入力できます。' if allowed else '準備・観測・待機中、または停止中です。')
+            self.console_label.set('攻略に割り込んで入力できます。' if intervention else '入力できます。' if allowed else '準備・観測・待機中、または停止中です。')
     def console_send(self,keys):
-        commands=getattr(self,'console_commands',None)
+        intervention=bool(self.busy() and not getattr(self,'recording_human',False))
+        commands=getattr(self,'interventions',None) if intervention else getattr(self,'console_commands',None)
+        if intervention and commands and not self.stop.is_set():
+            try:
+                if commands.submit(keys,self.console_hold.get(),self.console_wait.get()):
+                    self.control.intervention.set()
+                    self.console_status(False);self.console_label.set('割込受付。安全に切り替えて送信します。')
+            except (ValueError,tk.TclError) as error:self.console_label.set(str(error))
+            return
         if not commands or self.stop.is_set() or (self.control and self.control.is_set()):return
         try:
             if commands.submit(keys,self.console_hold.get(),self.console_wait.get()):self.console_status(False)
@@ -588,6 +640,8 @@ class Application:
             temporary=DATA/'settings.json.tmp';temporary.write_text(json.dumps(asdict(cfg),ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'settings.json')
             if self.selected_target:self.profiles.save(self.selected_target,cfg)
             self.cfg=cfg;self.save_ui()
+            from .dashboard import LearningTraces
+            self.traces=LearningTraces()
             seconds={'なし':0,'10分':600,'20分':1200,'30分':1800,'60分':3600}[self.duration.get()]
         except Exception as error:messagebox.showerror('設定エラー',str(error));return
         if console:
@@ -598,8 +652,10 @@ class Application:
         # Separation now uses only neutral OS probes and observation.
         # State-independent diagnostics never steal focus or send gameplay keys.
         from .session import SessionControl
+        from .console_play import ConsoleCommands
+        self.interventions=ConsoleCommands(cfg);self.intervention_capable=not (demonstration or console or dry or separation)
         self.stop.clear();self.control=SessionControl(self.stop,0 if separation else seconds)
-        control=self.control;self.status.set('お手本記録：ゲームを手動で前面にして操作してください。ツールは入力しません。停止で保存・ZIP生成。' if demonstration else '攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
+        control=self.control;self.status.set('お手本記録：ゲームを手動で前面にして操作してください。ツールは入力しません。停止で保存・ZIP生成。' if demonstration else '攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_finished=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
         def work():
             from .windows import WindowsGame
             from .recording import FrameRecorder,RecordedBackend
@@ -698,11 +754,12 @@ class Application:
                 recovery_event({'event':'public_reference_lookup','status':references['status'],
                     'sources':[{k:s[k] for k in ('title','url','applicability')} for s in references.get('sources',[])],
                     'learning':False})
+                from .cancellation import OperationCancelled
+                self.interventions.set_ready(self.intervention_capable)
                 total_steps=0;retry=0;agent=None
                 def agent_event(row):
                     nonlocal total_steps,retry
-                    if row.get('event')=='result':retry=0
-                    if row.get('step') and row.get('event')!='result':total_steps+=1
+                    if row.get('event')=='result':retry=0;total_steps+=1
                     self.queue.put(('decision',row))
                 self.queue.put(('status','現在の画面から目標と操作を判断します。未知の状況は未確認として記録します。'))
                 while control.checkpoint() and (not cfg.max_steps or total_steps<cfg.max_steps):
@@ -715,6 +772,30 @@ class Application:
                         llm=LocalLLM(runtime_cfg);llm.operator_guidance=self.operator_guidance;llm.public_references=reference_context(references)
                         agent=Controller(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                         agent.run(dry);break
+                    except OperationCancelled:
+                        if not control.intervention.is_set():raise
+                        # The automatic controller has unwound and released its
+                        # keys. Only this worker can now send the manual input.
+                        control.intervention.clear()
+                        command=self.interventions.queue.get_nowait()
+                        command.update(intervention=True,source='manual_intervention')
+                        from .console_play import ConsolePlayer
+                        from .demonstrations import DemonstrationStore
+                        from .ocr import ScreenOCR
+                        manual_control=SessionControl(self.stop)
+                        runner=ConsolePlayer(recorded,DemonstrationStore(memory,cfg),ScreenOCR(cfg.ocr_engine),manual_control,self.interventions,
+                            lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),recorder)
+                        previous_cancel=backend.window_capture.cancel
+                        backend.window_capture.cancel=manual_control
+                        try:
+                            runner.log({'event':'human_intervention_begin',**command,'pending_autonomous_input':'discarded'})
+                            runner.execute(command)
+                            runner.log({'event':'human_intervention_end',**command})
+                        finally:
+                            backend.window_capture.cancel=previous_cancel
+                            manual_control.close();memory.last_row=None;memory.runtime_world=None;memory.runtime_navigation=None
+                            self.interventions.set_ready(not self.stop.is_set())
+                        continue
                     except TargetUnavailable:
                         memory.runtime_navigation=None;memory.runtime_world=None
                         if not recovery:raise
@@ -784,13 +865,24 @@ class Application:
             if ok: self.queue.put(('model',name))
         self.launch(work)
     def append_log(self,value):
-        from .presentation import display_json
-        self.log.configure(state='normal');self.log.insert('end',display_json(value,6000).replace('\n',' ')+'\n')
-        if int(self.log.index('end-1c').split('.')[0])>250:self.log.delete('1.0','50.0')
-        self.log.see('end');self.log.configure(state='disabled')
+        from .dashboard import append_text
+        event=value.get('event','')
+        if event in ('llm_activity','perception','decision','sent'):return
+        if event=='result':
+            learning=value.get('input_coverage',{})
+            text=(f"手 {value.get('step','?')} | {value.get('subgoal','')}\n"
+                f"入力: {value.get('observed_keys',[])} / {value.get('hold_ms','?')}ms | {value.get('reason','')}\n"
+                f"結果: 変化={value.get('changed')} / {value.get('turn_kind','')} | 観測={learning.get('observed','?')}回（因果は未確定）\n"
+                f"処理: {value.get('performance',{}).get('total_ms','?')}ms / 学習選択: {value.get('active_input',{}).get('source','方策・モデル')}\n")
+        elif str(event).startswith('human_'):
+            text=f"人間操作 {event} | 入力 {value.get('keys',[])} | {value.get('reason','')}\n"
+        elif event in ('error','diagnostic_export','observation_recovery','self_improvement'):
+            text=f"{event}: {value.get('reason') or value.get('status') or value.get('path','')}\n"
+        else:return
+        append_text(self.log,text+'─'*35+'\n')
 
     def update_decision(self,value):
-        event=value.get('event');self.recognition.update(value)
+        event=value.get('event');self.recognition.update(value);self.traces.update(value)
         if event in ('llm_activity','perception'):return
         self.append_log(value)
         if value.get('method_selection'):
@@ -799,6 +891,7 @@ class Application:
         if value.get('background_compatibility'):self.set_panel('背景適合性',value['background_compatibility'])
         if isinstance(event,str) and event.startswith('human_'):
             self.set_panel('行動学習',value)
+            if event=='human_console_result' and value.get('keys'):self.run_counts['sent']+=1
             if event=='human_console_ready':
                 self.console_status(value['ready']);return
             if not self.stop.is_set():
@@ -811,7 +904,8 @@ class Application:
         if event=='result':
             if value.get('policy_choice'):
                 self.set_panel('自己改善',{'予測制御':value.get('anticipation'),'予測照合':value.get('forecast_evaluation'),'state':value.get('self_improvement'),'evaluation':value.get('improvement_evaluation')})
-                self.set_panel('行動学習',{'selection':value.get('policy_choice'),'update':value.get('policy_learning')})
+                coverage=value.get('information_exploration',{});actions=coverage.get('actions',[]);ready=sum(a.get('observed',0)>=a.get('required',2) for a in actions)
+                self.set_panel('行動学習',f"この状況の初期観測: {ready}/{len(actions)}候補が目安を充足\n収集中: {not coverage.get('initial_coverage_ready',False)} / 採用元: {value.get('active_input',{}).get('source','方策・モデル')}\n今回操作の観測回数: {value.get('input_coverage',{}).get('observed','不明')} / 報酬: {value.get('policy_learning',{}).get('reward','未採点')}\n観測回数や行動名だけで因果・成功を確定しません。")
                 self.set_panel('候補と評価',value['policy_choice'].get('context',{}))
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
             self.set_panel('結果',{key:value.get(key) for key in ('step','action_kind','observed_keys','input_receipt','neutral_before','executed','changed','transition_attribution','turn_kind','duration_ms','raw_change','masked_activity','performance')})
@@ -822,9 +916,9 @@ class Application:
         self.run_counts['decisions']+=1;self.last_row=value
         self.status.set(f"{value.get('scene','')} / {value.get('subgoal','')}")
         self.set_panel('現在状態',{'独立した画面観察（モデル報告・未検証）':value.get('scene_observation',{}),'モデルの計画時の場面判断':(value.get('llm_proposal') or {}).get('scene',value.get('scene','')),'採用した場面仮説':value.get('scene',''),'採用根拠':value.get('scene_basis','model_report'),'採用した観察':value.get('observation','')})
-        self.set_panel('目的',{'overall_goal':self.cfg.goal,'autonomous_goal':value.get('autonomous_goal',{'objective':value.get('subgoal'),'success_condition':value.get('goal_success')}),'progress':value.get('progress',[])})
+        self.set_panel('目的','全体目標: '+self.cfg.goal+'\n今回の小目標: '+str(value.get('subgoal','未設定'))+'\n達成条件: '+str(value.get('goal_success','未設定')))
         self.set_panel('候補と評価',{'confidence':value.get('confidence'),'risk':value.get('risk'),'allowed_keys':self.cfg.allowed_keys,'learned_policy':value.get('policy_choice'),'note':'モデルの信頼度と、経験から計算した優先度・試行数は別の指標です。'})
-        self.set_panel('選択行動と理由',{'keys':value.get('keys'),'hold_ms':value.get('hold_ms'),'reason':value.get('reason')})
+        self.set_panel('選択行動と理由','入力予定: '+str(value.get('keys',[]))+' / '+str(value.get('hold_ms','?'))+'ms\n'+str(value.get('reason','')))
         self.set_panel('仮説',{'対象の仮説':value.get('object_hypotheses',[]),'モデルの報告':value.get('memory_updates',[])})
         self.set_panel('新発見',{'毎ターンの観測':value.get('world_observation',{}),'モデルの進捗報告':value.get('progress',[])})
         self.set_panel('修正履歴',value.get('knowledge_revisions',{}));self.set_panel('OCR・攻略知識の照合',{'ocr':value.get('ocr',{}),'knowledge_assessments':value.get('knowledge_assessments',[]),'note':'OCRと出典の照合は仮説。ゲーム内効果の実証とは区別します。'})
@@ -876,6 +970,7 @@ class Application:
                     self.control=None
                     self.recording_human=False;self.console_active=False
                     if getattr(self,'console_commands',None):self.console_commands.close()
+                    if getattr(self,'interventions',None):self.interventions.close()
                     if hasattr(self,'console_buttons'):self.console_status(False)
                     if self.backend is not None and self.closing_at is None:self.backend.window_capture.cancel=None
                     self.start_button.configure(state='normal');self.pause_button.configure(text='⏸ 一時停止')
@@ -897,21 +992,22 @@ class Application:
                     if self.probe:self.probe.destroy();self.probe=None
                 elif kind=='exported':self.latest_zip=Path(value);self.status.set(self.status.get().split('\n診断ZIP')[0]+'\n診断ZIPを生成しました。「提出用ZIPをコピー」で添付できます。');self.append_log({'event':'diagnostic_export','path':str(value)})
                 elif kind=='export_error':self.status.set('診断ZIPの作成に失敗: '+value);self.append_log({'event':'export_error','reason':value})
-                elif kind=='session':self.recognition.update({'event':'session_end'});self.set_panel('現在状態',value);self.status.set(value['status']+' / '+value['reason'])
+                elif kind=='session':self.run_finished=value.get('ended',time.time());self.recognition.update({'event':'session_end'});self.set_panel('現在状態',value);self.status.set(value['status']+' / '+value['reason'])
                 elif kind=='memory':
                     self.set_panel('仮説',value.get('provisional_claims',[]));self.set_panel('系列のパターン',value.get('known_transitions',[]))
                 elif kind=='cumulative':self.set_panel('累積統計',{'saved_experiences':value,'note':'この目標・知識・ゲーム設定の経験。診断を除く。'})
         except queue.Empty:pass
-        try:self.draw_frame()
+        try:self.draw_frame();self.draw_learning_graph()
         except Exception as error:self.live_info.set('ライブ表示エラー: '+str(error))
+        if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():self.console_status(bool(getattr(self,'console_commands',None) and self.console_commands.ready))
         self.recognition_panel.refresh()
         if self.recognition_floating and self.recognition_window.winfo_exists():self.recognition_floating.refresh()
         if self.overlay:
             try:self.overlay.refresh()
             except Exception as error:
                 self.overlay.close();self.overlay=None;self.overlay_enabled.set(False);self.status.set('オーバーレイを停止しました: '+str(error))
-        elapsed=int(time.time()-self.run_started) if self.run_started else 0
-        self.set_panel('今回統計',{**self.run_counts,'elapsed_seconds':elapsed,'worker_alive':self.busy(),'stop_requested':self.stop.is_set(),'paused':bool(self.control and self.control.paused.is_set())})
+        elapsed=int((self.run_finished or time.time())-self.run_started) if self.run_started else 0
+        self.set_panel('今回統計',f"経過 {elapsed//3600:02d}:{elapsed//60%60:02d}:{elapsed%60:02d}   完了ターン {self.traces.turn}\n送信 {self.run_counts['sent']} / 画面変化 {self.run_counts['changed']} / 再試行 {self.run_counts['retries']}\n{'一時停止' if self.control and self.control.paused.is_set() else '実行中' if self.busy() else '停止'}")
 
     @staticmethod
     def close_capture(backend):

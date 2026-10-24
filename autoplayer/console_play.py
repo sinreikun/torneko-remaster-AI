@@ -74,7 +74,7 @@ class ConsolePlayer:
         before_features=features(before,native0);after_features=features(after,native1) if after else None
         accepted=bool(command['keys'] and receipt.get('os_submission')=='accepted')
         complete=bool(accepted and not error and kind!='aborted' and not self.control.is_set() and self.control.revision==revision and time.monotonic()>=self.next_ready_at and before_features['ocr_status']=='ok' and after_features and after_features['ocr_status']=='ok')
-        row={**command,'source':'human_console','complete':complete,'action_kind':'input' if command['keys'] else 'observe',
+        row={**command,'source':command.get('source','human_console'),'complete':complete,'action_kind':'input' if command['keys'] else 'observe',
             'reason':error or ('neutral_observation' if not command['keys'] else '' if complete else 'observation_or_submission_incomplete'),
             'steps':[{'keys':command['keys'],'duration_ms':command['hold_ms']}],
             'input_receipt':receipt,'before_features':before_features,'after_features':after_features,

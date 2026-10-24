@@ -1,4 +1,4 @@
-"""Compact UI observations; never replace missing current values with history."""
+"""Compact UI observations; retained values are explicitly marked as last observed."""
 import copy
 import time
 
@@ -28,7 +28,17 @@ class RecognitionState:
             after=row.get('after_features') or {}
             state={'minimap':{'status':'unavailable'},'metrics':{k:{'values':after[k]} for k in ('hp','floor','fullness') if after.get(k) is not None}}
         if state is not None:
-            self.map=copy.deepcopy(state.get('minimap',{}));self.metrics=copy.deepcopy(state.get('metrics',{}))
+            confirmation=state.get('floor_confirmation',{})
+            old_floor=self.metrics.get('floor',{}).get('values');new_floor=state.get('metrics',{}).get('floor',{}).get('values')
+            if confirmation.get('changed') or world.get('new_adventure') or (old_floor and new_floor and old_floor!=new_floor and confirmation.get('status') in ('initialized','confirmed','changed')):
+                self.map={};self.objects=[]
+            if world.get('new_adventure'):self.metrics={}
+            observed_map=state.get('minimap',{})
+            if observed_map.get('status')=='observed':self.map=copy.deepcopy(observed_map)
+            elif self.map.get('status')=='observed':self.map['retained']=True
+            fresh=copy.deepcopy(state.get('metrics',{}))
+            retained={k:{**v,'retained':True} for k,v in self.metrics.items() if k in ('strength','sword','shield','experience','max_floor','level','gold') and k not in fresh}
+            self.metrics={**retained,**fresh}
             self.floor_state=copy.deepcopy(state.get('floor_confirmation',{}))
             self.objects=[] if event=='result' else copy.deepcopy(world.get('objects',[]))
             self.observed_at=time.monotonic();self.phase='観測・実行'
@@ -66,7 +76,9 @@ class RecognitionState:
             return '/'.join(str(v) for v in values) if values else '不明'
         age='未観測' if self.observed_at is None else f'{int(time.monotonic()-self.observed_at)}秒前'
         count='分析中' if self.thinking else '未設定' if self.remaining is None else '次の判断で分析' if self.remaining==0 else f'あと{self.remaining}手（状況変化で前倒し）'
-        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}"
+        retained=' / '.join({'strength':'ちから','sword':'剣','shield':'盾','experience':'経験値','max_floor':'最深階','level':'Lv','gold':'所持金'}.get(k,k) for k,v in self.metrics.items() if v.get('retained'))
+        note='\n保持値（未再確認）: '+retained if retained else ''
+        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') else ''}{note}"
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 

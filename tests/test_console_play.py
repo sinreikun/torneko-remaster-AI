@@ -37,6 +37,16 @@ class ConsolePlayTests(unittest.TestCase):
         self.assertEqual(rows[0]['event'],'human_console_accepted');self.assertEqual(rows[-1]['event'],'human_console_result')
         self.assertTrue(rows[-1]['complete']);self.assertEqual(self.memory.db.execute('SELECT status FROM human_examples').fetchone()[0],'complete')
         self.backend.release_all.assert_called_once()
+    def test_intervention_is_marked_and_durably_requested_before_sending(self):
+        command=self.command();command.update(source='manual_intervention',intervention=True)
+        def send(*args):
+            rows=[json.loads(line) for line in self.journal.read_text().splitlines()]
+            self.assertEqual(rows[-1]['event'],'human_console_requested');self.assertTrue(rows[-1]['intervention'])
+            return {'os_submission':'accepted','events':[]}
+        self.backend.act.side_effect=send;self.runner.execute(command)
+        row=json.loads(self.journal.read_text().splitlines()[-1])
+        self.assertEqual(row['source'],'manual_intervention');self.assertTrue(row['intervention']);self.assertTrue(row['complete'])
+
     def test_journal_failure_prevents_any_input(self):
         command=self.command()
         with patch('autoplayer.console_play.os.fsync',side_effect=OSError('disk full')):

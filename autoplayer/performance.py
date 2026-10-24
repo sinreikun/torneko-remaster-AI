@@ -133,7 +133,7 @@ def bounded_request_prompt(prompt,budget=8500):
         result.pop(key,None)
     world=result.get('world_observation')
     if isinstance(world,dict):
-        result['world_observation']={k:world[k] for k in ('metrics','metric_changes','identity_rule') if k in world}
+        result['world_observation']={k:world[k] for k in ('metrics','metric_changes','identity_rule','last_known_metrics') if k in world}
         result['world_observation']['objects']=[{k:v for k,v in o.items() if k in ('id','legend','offset','identity','appearance_memory')} for o in world.get('objects',[])[:20]]
     knowledge=result.get('source_knowledge')
     if isinstance(knowledge,dict):

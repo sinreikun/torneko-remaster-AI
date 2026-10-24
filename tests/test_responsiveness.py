@@ -95,7 +95,7 @@ class UIResponsivenessTests(unittest.TestCase):
     def test_regular_decisions_without_event_and_retry_notifications_do_not_stop_play(self):
         from autoplayer.core import Settings
         app=Application.__new__(Application);app.recognition=__import__('autoplayer.telemetry',fromlist=['RecognitionState']).RecognitionState();app.stop=threading.Event();app.status=Mock()
-        app.append_log=Mock();app.set_panel=Mock();app.cfg=Settings()
+        app.append_log=Mock();app.set_panel=Mock();app.cfg=Settings();app.traces=__import__('autoplayer.dashboard',fromlist=['LearningTraces']).LearningTraces()
         app.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
         for event in ('absent',None,23):
             value={'scene':'unknown','subgoal':'現在の画面から進路を調べる','keys':['s']}
@@ -110,9 +110,9 @@ class UIResponsivenessTests(unittest.TestCase):
     def test_finished_worker_releases_preview_cancellation(self):
         app=Application.__new__(Application);app.queue=queue.Queue();app.queue.put(('done',None))
         app.control=Mock();app.closing_at=None;app.backend=SimpleNamespace(window_capture=SimpleNamespace(cancel=threading.Event()))
-        app.start_button=Mock();app.pause_button=Mock();app.draw_frame=Mock();app.set_panel=Mock()
+        app.start_button=Mock();app.pause_button=Mock();app.draw_frame=Mock();app.draw_learning_graph=Mock();app.set_panel=Mock()
         app.recognition_panel=Mock();app.recognition_floating=None;app.overlay=None
-        app.run_started=None;app.run_counts={};app.stop=threading.Event();app.busy=lambda:False
+        app.run_started=None;app.run_finished=None;app.traces=__import__('autoplayer.dashboard',fromlist=['LearningTraces']).LearningTraces();app.run_counts={'sent':0,'changed':0,'retries':0};app.stop=threading.Event();app.busy=lambda:False
         app.poll_once();self.assertIsNone(app.backend.window_capture.cancel);self.assertIsNone(app.control)
 
     def test_poll_reschedules_itself_after_a_display_error(self):

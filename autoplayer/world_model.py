@@ -179,6 +179,7 @@ class WorldModel:
         self.db=memory.db if memory else None;self.profile=memory.profile if memory else 'session';self.session=session
         from .appearance import AppearanceBank
         self.appearances=AppearanceBank(self.db,self.profile)
+        self.memory=memory;self.last_known_metrics=copy.deepcopy(getattr(memory,'last_known_status',{}))
         self.scope=hashlib.sha256((self.profile+session).encode()).hexdigest()[:8]+'_'
         cfg=getattr(memory,'settings',getattr(memory,'cfg',None))
         bindings=getattr(cfg,'key_bindings',{}) or {}
@@ -199,6 +200,7 @@ class WorldModel:
         if result_screen(native or {}):self.result_seen=True
         new_adventure=bool(self.result_seen and floor and state.get('eligible'))
         if new_adventure:
+            self.last_known_metrics={}
             self.episode+=1;self.inventory=Inventory(self.scope+str(self.episode)+'_',self.confirm_key);self.pending_effects=[];self.delayed=[];self.result_seen=False
         if new_adventure or (floor and self.floor and floor!=self.floor):
             self.objects={};self.visited=set();self.visual=VisualSense()
@@ -256,6 +258,10 @@ class WorldModel:
         frontier={c for c in known if sum((c[0]+dx,c[1]+dy) in known for dx,dy in ((0,1),(0,-1),(1,0),(-1,0)))<=1}
         targets={tuple(o['cell']) for o in current_objects if o.get('cell') and o['legend'] not in ('player',)}
         surveyed=known-frontier-targets
+        for key,value in state.get('metrics',{}).items():
+            if key in ('strength','sword','shield','experience','max_floor','level','gold'):
+                self.last_known_metrics[key]={'values':copy.deepcopy(value.get('values')),'frame_sha256':digest,'observed_at':time.time(),'status':'last_observed_not_current_confirmation'}
+        if self.memory:self.memory.last_known_status=self.last_known_metrics
         now_metrics=metrics(state);delta=changes(self.previous_metrics,now_metrics);self.previous_metrics=copy.deepcopy(now_metrics)
         inv=self.inventory.observe(native,png)
         current_messages=[s for s in labels(native) if not re.search(r'HP|Lv|満腹|\d+\s*階|ちから|剣の強さ|盾の強さ|^\d+[GＧ%％]?$|^G$',s,re.I)]
@@ -355,5 +361,6 @@ class WorldModel:
     def context(self):
         l=self.latest
         return {k:l[k] for k in ('metrics','metric_changes','visual','exploration','inventory','identity_rule') if k in l}|{
+            'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],
             'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}
