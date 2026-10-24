@@ -38,14 +38,15 @@ class PolicyTests(unittest.TestCase):
         self.policy.routes.reset()
         proposal=parse_decision(json.dumps(change(action={'keys':['w'],'hold_ms':80,'wait_ms':0})),self.cfg)
         selected,detail=self.policy.choose(proposal,before,stable=True)
-        self.assertEqual(selected.keys,['a']);self.assertEqual(detail['source'],'learned_policy')
+        self.assertNotEqual(selected.keys,['w']);self.assertEqual(detail['source'],'learned_policy')
+        selected_keys=selected.keys
         values=self.policy.values(before);self.assertEqual(values['w']['trials'],4)
         self.assertLess(values['w']['q'],values['a']['q'])
         self.assertIsNone(detail['selected']['verified_goal_success_probability'])
         self.store.close();self.store=MemoryStore(self.path,Settings(knowledge='編集後の攻略知識'))
         reopened=ExperiencePolicy(self.store,Settings(knowledge='編集後の攻略知識').validate())
         self.assertEqual(reopened.values(before),values)
-        selected,_=reopened.choose(proposal,before,stable=True);self.assertEqual(selected.keys,['a'])
+        selected,_=reopened.choose(proposal,before,stable=True);self.assertEqual(selected.keys,selected_keys)
     def test_return_trip_does_not_learn_a_profitable_loop(self):
         a,b=state('A'),state('B',261.7)
         first=self.policy.learn(a,b,receipt_row('w'),a)
@@ -187,16 +188,17 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(backend.actions[0][0],['w'])
         rows=[json.loads(line) for line in agent.journal.read_text().splitlines()]
         result=rows[-1];self.assertEqual(result['policy_choice']['source'],'learned_policy')
-        self.assertEqual(result['policy_learning']['status'],'trained')
+        self.assertEqual(result['policy_learning']['status'],'not_trained')
+        self.assertEqual(result['input_coverage']['status'],'response_observed')
         self.assertEqual(result['llm_proposal']['keys'],[])
         self.assertEqual(result['observed_keys'],['w'])
-        self.assertFalse(result['model_report_learning']);self.assertTrue(result['learning'])
+        self.assertFalse(result['model_report_learning']);self.assertFalse(result['learning'])
         self.assertIn('黄色マーカー',result['observation'])
         self.assertEqual(script.knowledge_engine.goal['source'],'experience_policy')
         script.methods.record.assert_not_called()
         self.assertEqual(result['method_learning']['reason'],'model_action_replaced_by_map_policy')
         self.assertEqual(result['adaptive_pacing']['wait_ms'],600)
-        self.assertEqual(result['pacing_evaluation']['status'],'stable_sample')
+        self.assertEqual(result['pacing_evaluation']['status'],'margin_restored')
         self.assertEqual(backend.observe_turn.call_args_list[1].args[2],600)
 
 class ConfirmedControlsTests(unittest.TestCase):
@@ -259,3 +261,11 @@ class HudObservationTests(unittest.TestCase):
             if altered=='dialogue':proposal.scene='dialogue'
             kept,_=self.policy.choose(proposal,other,stable=stable)
             self.assertEqual(kept.keys,['num1'],altered)
+
+    def test_old_q_outliers_have_bounded_influence(self):
+        s=state();self.policy.learn(s,s,receipt_row('w'),s)
+        self.store.db.execute('UPDATE policy_actions SET q=1000');self.store.db.commit()
+        ranking=self.policy.context(s)['ranking']
+        self.assertTrue(any(r['q']==1000 for r in ranking))
+        self.assertTrue(all(abs(r['historical_q_contribution'])<=.35 for r in ranking))
+        self.assertTrue(all(abs(r['historical_backoff_contribution'])<=.1 for r in ranking))

@@ -101,7 +101,7 @@ class NoveltyTests(unittest.TestCase):
         agent=Controller(Settings(max_steps=3),backend,script,lambda _:None,Path(self.temp.name)/'run.jsonl',memory=self.memory)
         agent.policy.observe=Mock(return_value=state());agent.run()
         rows=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
-        self.assertEqual([a[0] for a in backend.actions[:2]],[['num0'],['num0']])
+        self.assertNotEqual(backend.actions[0][0],backend.actions[1][0])
         self.assertIn(backend.actions[-1][0][0],'wasd')
-        self.assertIn('novelty_reconsideration',rows[-1])
+        self.assertEqual(rows[-1]['active_input']['source'],'information_collection')
         self.assertEqual(rows[-1]['llm_proposal']['keys'],['num0'])

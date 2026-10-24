@@ -138,9 +138,11 @@ class ExperiencePolicy:
             backoff=prior.get(key,{'q':0.,'trials':0})
             goal_bias=.1*((value['goal_wins']+1)/(value['goal_trials']+2)-.5) if value['goal_trials'] else 0.
             hazard=.15 if neighbor.get('enemy') else 0.
-            score=value['q']+exploration+spatial+.1*backoff['q']/(n+1)+goal_bias-hazard
+            historical_q=.35*max(-1.,min(1.,value['q']))
+            historical_backoff=.1*max(-1.,min(1.,backoff['q']))/(n+1)
+            score=historical_q+exploration+spatial+historical_backoff+goal_bias-hazard
             allowed=key in MOVES and state['eligible'] and [key] not in blocked and self.routes.no_effect[node,key]<2
-            ranking.append({'keys':[key],'meaning':ACTIONS[key],**value,'priority':round(score,5),'game_hazard_cost':hazard,'global_backoff':backoff,'verified_goal_bias':goal_bias,
+            ranking.append({'keys':[key],'meaning':ACTIONS[key],**value,'historical_backoff_contribution':historical_backoff,'historical_q_contribution':historical_q,'priority':round(score,5),'game_hazard_cost':hazard,'global_backoff':backoff,'verified_goal_bias':goal_bias,
                 'progress_probability_estimate':round(prob,4) if n else None,'probability_samples':n,
                 'probability_posterior_stddev':round(math.sqrt(prob*(1-prob)/(n+3)),4),
                 'verified_goal_success_probability':round((value['goal_wins']+1)/(value['goal_trials']+2),4) if value['goal_trials'] else None,
@@ -157,7 +159,7 @@ class ExperiencePolicy:
             'no_effect_moves':{k:self.routes.no_effect.get((tuple(state.get('minimap',{}).get('player_cell',[])),k),0) for k in MOVES},
             'navigation_instruction':'同条件で2回以上位置変化がない方向は自動巡回しない。壁や入力故障とは断定せず、現在画面から状態異常・決定待ち・入力長・所持品など別の操作仮説を検討する。',
             'ranking':ranking,'control_reference':REFERENCE,
-            'note':'priorityは実経験のTD値＋未試行の探索加点。確率は正の観測報酬の推定でありゲームクリア確率ではない。試行0は未推定。全体目標の確率は検証済み終了エピソードがある場合のみ。'}
+            'note':'priorityは過去TD値を±1に制限して35%だけ反映し、現在の候補と未試行の探索加点を併用する。過去の行動名は意味や成功の証明ではない。確率は正の観測報酬の推定でありゲームクリア確率ではない。試行0は未推定。全体目標の確率は検証済み終了エピソードがある場合のみ。'}
     def choose(self,decision,state,blocked=(),stable=False,adjustment=None,respect_proposal=False):
         context=self.context(state,blocked)
         if not stable or decision.status!='continue' or decision.risk!='normal' or not state['eligible']:

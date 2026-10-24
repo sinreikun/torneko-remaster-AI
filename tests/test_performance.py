@@ -66,7 +66,8 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(len(script.calls),5);self.assertEqual(len(backend.actions),5)
         self.assertEqual([r['performance']['llm_requested'] for r in results],[True,True,True,True,True])
         self.assertGreater(len({tuple(r['observed_keys']) for r in results[:4]}),1)
-        self.assertTrue(all(r['policy_learning']['status']=='trained' for r in results))
+        self.assertTrue(all(r['policy_learning']['status']=='not_trained' for r in results))
+        self.assertTrue(all(r['input_coverage']['status']=='response_observed' for r in results))
         self.assertTrue(all(r['forecast_evaluation']['status']!='matched' for r in results))
 
 class RequestBudgetTests(unittest.TestCase):

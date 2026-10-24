@@ -109,7 +109,8 @@ class MethodTests(unittest.TestCase):
                     SimpleNamespace(image=b'after',kind='normal',changed=True,raw_change=.2,duration_ms=100,masked_activity=0)])
                 try:
                     Controller(cfg,backend,llm,lambda _:None,Path(tmp)/'run.jsonl',memory=memory).run()
-                    self.assertEqual(llm.methods.context()['methods'][0]['criterion_observations'],expected)
+                    # The information trial superseded the model's proposed action.
+                    self.assertEqual(llm.methods.context()['methods'][0]['criterion_observations'],0)
                 finally:memory.close()
 
 

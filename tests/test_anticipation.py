@@ -2,7 +2,7 @@
 import copy,json,tempfile,unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock,patch
 from autoplayer.anticipation import Anticipation,validate_forecast
 from autoplayer.core import Settings,parse_decision,Controller
 from autoplayer.memory import MemoryStore
@@ -75,7 +75,9 @@ class ForecastTests(unittest.TestCase):
                 agent.policy.observe=Mock(side_effect=observe)
                 agent.policy.choose=Mock(side_effect=lambda d,*args:(d,{'source':'model_or_neutral'}));agent.combat=None;agent.novelty=None;agent.improvement=None
                 agent.world.visual.read=Mock(return_value={'status':'observed','scene_change':False})
-                agent.run();rows=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
+                from autoplayer.information_exploration import InformationExploration
+                with patch.object(InformationExploration,'choose',autospec=True,side_effect=lambda obj,d,n,s,b:(d,obj.context(d,n,s))):agent.run()
+                rows=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
                 self.assertEqual(len(backend.actions),4);self.assertEqual(len(rows),4)
                 self.assertEqual([r['performance']['llm_requested'] for r in rows],[True,False,False,True])
                 self.assertTrue(rows[1]['anticipation']['planned_continuation']);self.assertTrue(all(r['forecast_evaluation']['status']=='matched' for r in rows))

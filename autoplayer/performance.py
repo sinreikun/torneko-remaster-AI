@@ -24,7 +24,7 @@ def knowledge_context(value):
     selected=value['facts'][:6];ids={s for f in selected for s in f.get('sources',[])}
     goal=value.get('active_goal')
     return {k:value[k] for k in ('catalog_sha256','edition','metrics','goal_review') if k in value}|{
-        'active_goal':{k:v for k,v in goal.items() if k in ('objective','success_condition','reason')} if isinstance(goal,dict) else goal,
+        'active_goal':{**{k:v for k,v in goal.items() if k in ('objective','success_condition','reason')},'status':'model_proposal_unverified'} if isinstance(goal,dict) else goal,
         'ocr':ocr_context(value.get('ocr',{})),
         'facts':[{k:f[k] for k in ('id','summary','editions','sources','applicability','verification') if k in f} for f in selected],
         'sources':[{k:s[k] for k in ('id','url') if k in s} for s in value['sources'] if s['id'] in ids],
