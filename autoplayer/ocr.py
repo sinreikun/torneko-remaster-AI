@@ -59,6 +59,8 @@ class ScreenOCR:
                 from .paddle_ocr import PaddleOCR
                 self.readers[engine]=PaddleOCR(engine)
         self.readers[engine].cancel=getattr(self,'cancel',None)
+        self.readers[engine].recognition_cache_enabled=getattr(self,'fast_mode',False)
+        self.readers[engine].force_fresh=getattr(self,'force_fresh',False)
         return self.readers[engine].read(png)
     def read(self,png):
         from .cancellation import call_interruptible
@@ -67,7 +69,7 @@ class ScreenOCR:
         digest=hashlib.sha256(png).hexdigest()
         engines=tuple(self.engines() if self.selected=='auto' else [self.selected])
         cache_key=(engines,digest)
-        if cache_key in self.cache:
+        if cache_key in self.cache and not getattr(self,'force_fresh',False):
             self.cache.move_to_end(cache_key)
             return {**copy.deepcopy(self.cache[cache_key]),'cache_hit':True}
         failures=[]

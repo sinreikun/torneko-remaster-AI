@@ -91,8 +91,8 @@ class GridTests(unittest.TestCase):
     def test_pending_floor_refreshes_ocr_instead_of_counting_cache(self):
         from types import SimpleNamespace
         from unittest.mock import Mock
-        from autoplayer.core import Controller
-        agent=Controller.__new__(Controller);gate=FloorConfirmation();gate.floor=1;gate.pending=2
+        from autoplayer.core import Controller,Settings
+        agent=Controller.__new__(Controller);agent.cfg=Settings();gate=FloorConfirmation();gate.floor=1;gate.pending=2
         ocr=SimpleNamespace(cache={'old':'response'},read=Mock(return_value={'status':'ok'}))
         agent.llm=SimpleNamespace(ocr=ocr);agent.policy=SimpleNamespace(floor_confirmation=gate)
         agent.read_policy_ocr(b'frame');self.assertFalse(ocr.cache)

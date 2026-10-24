@@ -12,9 +12,12 @@ class TurnObservation:
     masked_activity: float
     duration_ms: int
     last_activity_ms: int | None = None
+    requested_minimum_ms: int = 0
+    applied_minimum_ms: int = 0
+    timing_mode: str = "standard"
 
 class TurnObserver:
-    def __init__(self): self.motion={};self.masks={}
+    def __init__(self): self.motion={};self.masks={};self.fast_mode=False;self.timing_samples={};self.failures={};self.neutral_calls=0;self.input_signature=()
     @staticmethod
     def grid(png):
         from PIL import Image
@@ -23,11 +26,22 @@ class TurnObserver:
     @staticmethod
     def bits(a,b): return [abs(x-y)>8 for x,y in zip(a,b)]
     def observe(self,capture,baseline,scene,stop,minimum_ms=0,clock=time.monotonic):
-        initial=self.grid(baseline); previous=initial; anchor=initial
+        requested_minimum=minimum_ms;fast=self.fast_mode and scene!='human_console'
+        initial=self.grid(baseline)
+        bands=tuple(int(sum(v for i,v in enumerate(initial) if (i//32>=12)*2+(i%32>=16)==b)/192/32) for b in range(4)) if fast else ()
+        key=(self.input_signature,bands);samples=self.timing_samples.get(key,[])
+        calibrated=fast and scene!='neutral_observation' and len(samples)>=4
+        if calibrated:
+            duration=sorted(samples)[min(len(samples)-1,int(len(samples)*.9))]
+            minimum_ms=min(minimum_ms,max(350,int(duration*1.3+180)+150*self.failures.get(key,0)))
+        if scene=='neutral_observation':self.neutral_calls+=1
+        quick_neutral=fast and scene=='neutral_observation' and self.neutral_calls%8!=0
+        mode='short_neutral' if quick_neutral else 'adaptive_margin' if calibrated else 'standard'
+        previous=initial; anchor=initial
         mask=self.masks.get(scene,set());late=set();stable_since=None
         start=clock();maximum=max(1.2,min(8.,minimum_ms/1000+2.))
         image=baseline;changed=False;kind='timeout';current=initial
-        while not stop.wait(.1):
+        while not stop.wait(.06 if fast else .1):
             image=capture();current=self.grid(image);now=clock();elapsed=now-start
             raw=self.bits(initial,current)
             changed=changed or any(bit and i not in mask for i,bit in enumerate(raw))
@@ -36,6 +50,7 @@ class TurnObserver:
             if any(bit and i not in mask for i,bit in enumerate(self.bits(anchor,current))):
                 anchor=current;stable_since=now
             elif stable_since is None: stable_since=now
+            if quick_neutral and elapsed>=.3:kind='neutral_sample';break
             if elapsed>=minimum_ms/1000 and changed and now-stable_since>=.25:
                 kind='normal';break
             if not changed and elapsed>=max(1.2,minimum_ms/1000): kind='no_change';break
@@ -47,9 +62,14 @@ class TurnObserver:
             for i in late: counts[i]=counts.get(i,0)+1
             learned={i for i,n in counts.items() if n>=2}
             if len(learned)/len(initial)<=.12: self.masks[scene]=learned
+        if fast and scene!='neutral_observation':
+            if kind=='normal' and changed and stable_since is not None:
+                self.timing_samples[key]=(samples+[max(0,(stable_since-start)*1000)])[-12:]
+                self.failures[key]=max(0,self.failures.get(key,0)-1)
+            elif kind in ('timeout','no_change'):self.failures[key]=min(10,self.failures.get(key,0)+1)
         raw=self.bits(initial,current)
         return TurnObservation(image,kind,any(bit and i not in mask for i,bit in enumerate(raw)),sum(raw)/len(raw),sum(raw[i] for i in mask)/max(1,len(mask)),int((clock()-start)*1000),
-            max(0,int((stable_since-start)*1000)) if stable_since is not None else None)
+            max(0,int((stable_since-start)*1000)) if stable_since is not None else None,requested_minimum,minimum_ms,mode)
 
 
 def image_color_facts(png):

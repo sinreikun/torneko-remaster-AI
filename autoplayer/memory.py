@@ -4,6 +4,18 @@ import json
 import sqlite3
 import time
 from pathlib import Path
+from contextlib import contextmanager
+
+class LearningConnection(sqlite3.Connection):
+    batch_depth=0
+    batch_bad=False
+    def commit(self):
+        if not self.batch_depth:return super().commit()
+    def __exit__(self,kind,value,traceback):
+        if self.batch_depth:
+            if kind:self.batch_bad=True;self.rollback()
+            return False
+        return super().__exit__(kind,value,traceback)
 
 class MemoryStore:
     def __init__(self,path,settings):
@@ -12,7 +24,7 @@ class MemoryStore:
         self.profile=hashlib.sha256(signature.encode()).hexdigest()
         self.last_row=None;self.settings=settings
         try:
-            self.db=sqlite3.connect(path)
+            self.db=sqlite3.connect(path,factory=LearningConnection)
             self.db.execute('PRAGMA journal_mode=WAL')
             if self.db.execute('PRAGMA quick_check').fetchone()[0]!='ok': raise sqlite3.DatabaseError('integrity check failed')
         except sqlite3.DatabaseError as error:
@@ -24,7 +36,7 @@ class MemoryStore:
             for tail in ('','-wal','-shm'):
                 candidate=Path(str(original)+tail)
                 if candidate.exists(): candidate.rename(Path(str(original)+suffix+tail))
-            self.db=sqlite3.connect(path)
+            self.db=sqlite3.connect(path,factory=LearningConnection)
             self.db.execute('PRAGMA journal_mode=WAL')
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS experiences(id INTEGER PRIMARY KEY, profile TEXT NOT NULL, time REAL NOT NULL, row TEXT NOT NULL);
@@ -90,5 +102,21 @@ class MemoryStore:
                 'proposed_goal':row.get('autonomous_goal'),'goal_status':'unverified_model_proposal'}))
         candidates.sort(key=lambda item:item[0],reverse=True)
         return [r for _,r in candidates[:3]]
+
+    @contextmanager
+    def learning_batch(self):
+        """One feedback transaction; never defer the input journal."""
+        outer=self.db.batch_depth==0
+        if outer:self.db.batch_bad=False;self.last_batch_commit_ms=0.
+        self.db.batch_depth+=1
+        try:yield
+        except BaseException:
+            self.db.batch_bad=True;self.db.rollback();raise
+        finally:self.db.batch_depth-=1
+        if outer:
+            if self.db.batch_bad:raise RuntimeError('学習の一括更新が失敗したため保存を取り消しました。')
+            started=time.monotonic()
+            sqlite3.Connection.commit(self.db)
+            self.last_batch_commit_ms=(time.monotonic()-started)*1000
 
     def close(self): self.db.close()

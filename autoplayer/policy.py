@@ -76,27 +76,32 @@ class ExperiencePolicy:
         return bool(math.dist(first['player'],last['player'])<=tile*.3
             and all(abs(first['bbox'][i]-last['bbox'][i])<=tile*.5 for i in range(4))
             and abs(first['known_pixels']-last['known_pixels'])<=max(8,first['known_pixels']*.03))
-    def observe(self,png,native=None,map_display=False):
+    def observe(self,png,native=None,map_display=False,reference=None):
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native=None
-        metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
-        raw_floor=metrics.get('floor',{}).get('values')
-        floor_quote=compact_text(metrics.get('floor',{}).get('quote',''))
-        weak_floor=any(compact_text(line.get('text',''))==floor_quote and isinstance(line.get('confidence'),(int,float)) and line['confidence']<.8 for line in (native or {}).get('lines',[]))
-        if weak_floor:raw_floor=None
-        confirmation=self.floor_confirmation.update(raw_floor,(native or {}).get('captured_at',digest))
-        confirmation['rejected_low_confidence']=weak_floor
-        if confirmation['changed']:
-            self.map_sensor.reset();self.routes.reset();self.visits.clear();self.trajectory.clear()
-            self.pose_anchors=[];self.pose_space=None
-            self.runtime_navigation.update(anchors=self.pose_anchors,space=None)
+        if reference is not None:
+            import copy
+            metrics=copy.deepcopy(reference['metrics']);confirmation=copy.deepcopy(reference.get('floor_confirmation',{}))
+        else:
+            metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
+            raw_floor=metrics.get('floor',{}).get('values')
+            floor_quote=compact_text(metrics.get('floor',{}).get('quote',''))
+            weak_floor=any(compact_text(line.get('text',''))==floor_quote and isinstance(line.get('confidence'),(int,float)) and line['confidence']<.8 for line in (native or {}).get('lines',[]))
+            if weak_floor:raw_floor=None
+            tokens=[l['recognition_at'] for l in (native or {}).get('lines',[]) if compact_text(l.get('text',''))==floor_quote and l.get('recognition_at') is not None]
+            confirmation=self.floor_confirmation.update(raw_floor,min(tokens) if tokens else (native or {}).get('captured_at',digest))
+            confirmation['rejected_low_confidence']=weak_floor
+            if confirmation['changed']:
+                self.map_sensor.reset();self.routes.reset();self.visits.clear();self.trajectory.clear()
+                self.pose_anchors=[];self.pose_space=None
+                self.runtime_navigation.update(anchors=self.pose_anchors,space=None)
         floor_ready=confirmation['status'] in ('initialized','confirmed','changed')
         minimap=read_grid(png) if map_display and floor_ready else {'status':'unavailable','reason':'地図専用表示または階の確認待ち。'}
         if floor_ready:minimap=self.map_sensor.accumulate(minimap,confirmation['confirmed'])
         if not floor_ready:metrics.pop('floor',None)
         text='\n'.join(compact_text(line.get('text','')) for line in (native or {}).get('lines',[]))
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
-        menu=bool(torneko_menu_kind(native) or result_screen(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
+        menu=bool((reference or {}).get('menu_evidence') or torneko_menu_kind(native) or result_screen(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
         hp=metrics.get('hp',{}).get('values');floor=metrics.get('floor',{}).get('values')
         minimap=self.track_pose(minimap,floor)
         eligible=minimap.get('status')=='observed' and bool(hp and floor) and not menu
@@ -116,7 +121,7 @@ class ExperiencePolicy:
         if not eligible:payload.update(visual=visual,text_key=text_key)
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
+        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',

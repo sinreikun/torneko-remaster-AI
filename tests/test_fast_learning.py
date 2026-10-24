@@ -37,8 +37,14 @@ class FastLearningTests(unittest.TestCase):
         script.take_state=lambda:{'scene_observation':{'description':'過去の報告'}}
         backend=Backend();backend.observe_turn=Mock(return_value=SimpleNamespace(image=b'current',kind='normal',changed=False,raw_change=0,masked_activity=0,duration_ms=0))
         with tempfile.TemporaryDirectory() as t:
-            c=Controller(cfg,backend,script,lambda _:None,Path(t)/'run');c.run()
-            rows=[json.loads(l) for l in c.journal.read_text().splitlines() if json.loads(l)['event']=='result']
+            from autoplayer.memory import MemoryStore
+            memory=MemoryStore(Path(t)/'memory.sqlite',cfg)
+            try:
+                c=Controller(cfg,backend,script,lambda _:None,Path(t)/'run',memory=memory);c.run()
+                rows=[json.loads(l) for l in c.journal.read_text().splitlines() if json.loads(l)['event']=='result']
+                self.assertEqual(memory.db.batch_depth,0)
+                self.assertIn('learning_batch_commit_ms',rows[-1]['performance']['stages_ms'])
+            finally:memory.close()
         self.assertEqual(len(script.calls),1);self.assertEqual(len(backend.actions),6)
         self.assertEqual([r['performance']['llm_requested'] for r in rows],[True,False,False,False,False,False])
         self.assertTrue(all(r['scene_observation']['status']=='not_requested' for r in rows[1:]))

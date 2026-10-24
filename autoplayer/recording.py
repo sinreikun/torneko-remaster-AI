@@ -1,4 +1,5 @@
 """Bounded, asynchronous real-screen recording for reproducible field reports."""
+import copy
 import hashlib
 from collections import deque
 import json
@@ -20,6 +21,10 @@ class FrameRecorder:
         try: self.queue.put_nowait((entry,png))
         except queue.Full:
             self.dropped+=1;self.dropped_details.append({**entry,'file':None,'reason':'queue_full'})
+    def record_important(self,row,before,after):
+        entry={'at':time.time(),'phase':'important_event','important':True}
+        try:self.queue.put_nowait((entry,(copy.deepcopy(row),before,after)))
+        except queue.Full:self.dropped+=1;self.dropped_details.append({**entry,'file':None,'reason':'queue_full'})
     def _work(self):
         try:self._drain()
         except OSError as error:self.failed+=1;self.error=str(error)
@@ -29,13 +34,15 @@ class FrameRecorder:
                 try: entry,png=self.queue.get(timeout=.1)
                 except queue.Empty: continue
                 try:
+                    if entry.get('important'):
+                        self.important.observe(*png);continue
                     name=entry['sha256']+'.png'
                     if name in self.saved: entry['file']=name
                     elif self.used+len(png)<=self.limit:
                         (self.folder/name).write_bytes(png);self.saved.add(name);self.used+=len(png);self.written+=1;entry['file']=name
                     else: self.capped+=1;entry['file']=None;entry['reason']='storage_limit'
                     manifest.write(json.dumps(entry,ensure_ascii=False)+'\n');manifest.flush()
-                except OSError: self.failed+=1
+                except (OSError,ValueError) as error:self.failed+=1;self.error=str(error)
                 finally: self.queue.task_done()
     def close(self):
         self.done.set();self.thread.join()
@@ -51,4 +58,4 @@ class RecordedBackend:
     def __init__(self,backend,recorder): self.backend=backend;self.recorder=recorder
     def __getattr__(self,name): return getattr(self.backend,name)
     def record_frame(self,png,phase): self.recorder.record(png,phase)
-    def record_important(self,row,before,after):self.recorder.important.observe(row,before,after)
+    def record_important(self,row,before,after):self.recorder.record_important(row,before,after)

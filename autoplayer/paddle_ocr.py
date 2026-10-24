@@ -32,19 +32,25 @@ class PaddleOCR:
                     predictions=predictions.copy();predictions[...,forbidden]=0
                     return decoder(predictions,*args,**kwargs)
             self.engine.text_rec.postprocess_op=AlphabetDecoder()
+        from .recognition_cache import CroppedRecognitionCache
+        self.engine.text_rec=CroppedRecognitionCache(self.engine.text_rec)
     def read(self,png):
         record={'engine':self.model['id'],'status':'unavailable','frame_sha256':hashlib.sha256(png).hexdigest(),
                 'captured_at':time.time(),'lines':[],'confidence':None}
         try:
             with self.lock:
                 if self.engine is None: self._load()
+                self.engine.text_rec.enabled=getattr(self,'recognition_cache_enabled',False)
+                self.engine.text_rec.force_fresh=getattr(self,'force_fresh',False)
+                self.engine.text_rec.hits=0;self.engine.text_rec.misses=0;self.engine.text_rec.last_records=[]
                 output=self.engine(png,use_cls=False,text_score=.5 if self.model['id']=='ocr-paddle-v5' else 0)
             lines=[]
             if output.txts is not None:
                 for text,score,polygon in zip(output.txts,output.scores,output.boxes):
                     left=float(min(p[0] for p in polygon));top=float(min(p[1] for p in polygon))
                     width=float(max(p[0] for p in polygon))-left;height=float(max(p[1] for p in polygon))-top
-                    lines.append({'text':str(text),'confidence':float(score),'words':[{'text':str(text),'box':[left,top,width,height]}]})
-            record.update(status='ok',language='ja',lines=lines)
+                    stamps=[r[2] for r in self.engine.text_rec.last_records if r[0]==str(text)]
+                    lines.append({'recognition_at':min(stamps) if stamps else record['captured_at'],'text':str(text),'confidence':float(score),'words':[{'text':str(text),'box':[left,top,width,height]}]})
+            record.update(status='ok',language='ja',lines=lines,recognition_cache={'enabled':self.engine.text_rec.enabled,'hits':self.engine.text_rec.hits,'misses':self.engine.text_rec.misses})
         except Exception as error: record['reason']=str(error)[:700]
         return record

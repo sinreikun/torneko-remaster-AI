@@ -778,10 +778,15 @@ class Controller:
         if ocr is None:return None
         gate=getattr(self.policy,'floor_confirmation',None)
         # A cached OCR response is not an independent confirmation of a new floor.
-        if gate and gate.pending is not None and hasattr(ocr,'cache'):ocr.cache.clear()
+        pending=bool(gate and gate.pending is not None)
+        if pending and hasattr(ocr,'cache'):ocr.cache.clear()
+        previous_force=getattr(ocr,'force_fresh',False);ocr.force_fresh=pending
+        ocr.fast_mode=self.cfg.fast_learning
         started=time.monotonic()
         try:return ocr.read(image)
-        finally:self.ocr_observation_ms=getattr(self,'ocr_observation_ms',0)+(time.monotonic()-started)*1000
+        finally:
+            ocr.force_fresh=previous_force
+            self.ocr_observation_ms=getattr(self,'ocr_observation_ms',0)+(time.monotonic()-started)*1000
 
     def map_sample(self,image,state,phase,baseline=False):
         # A currently read floor permits the user-confirmed display request. Never
@@ -789,20 +794,26 @@ class Controller:
         if not (self.policy and 'num7' in self.cfg.allowed_keys
                 and state['metrics'].get('floor') and not state.get('menu_evidence')
                 and hasattr(self.backend,'capture_map_display')):return None
+        if self.cfg.fast_learning:
+            from .map_sampling import MapSamplingPlan
+            if not hasattr(self,'map_plan'):self.map_plan=MapSamplingPlan()
+            if not self.map_plan.due(state,getattr(self,'current_step',0),phase):
+                self._write({'event':'map_observation_deferred','phase':phase,'prediction':self.map_plan.context(),'learning':False});return None
         self._write({'event':'map_observation_requested','phase':phase,'keys':['num7'],'learning':False})
-        sample=self.backend.capture_map_display(self.control or self.stop,baseline=baseline)
+        sample=self._timed('map_capture_ms',self.backend.capture_map_display,self.control or self.stop,baseline=baseline)
         metadata={k:v for k,v in sample.items() if k not in ('image','baseline_image','restored_image')}
         self._write({'event':'map_observation','phase':phase,**metadata,'learning':False})
         if sample.get('status')!='captured':return None
         if hasattr(self.backend,'record_frame'):self.backend.record_frame(sample['image'],phase)
         def read(png,role):
-            native=self.read_policy_ocr(png)
-            result=self.policy.observe(png,native,map_display=True);result['observation_mode']='num7_held'
+            native=None if self.cfg.fast_learning else self.read_policy_ocr(png)
+            result=self._timed('map_geometry_ms',self.policy.observe,png,native,map_display=True,**({'reference':state} if self.cfg.fast_learning else {}));result['observation_mode']='num7_held'
             from .battle_messages import read_messages
             result['battle_messages']=read_messages(native,result.get('frame_sha256'))
             self._write({'event':'map_reading','phase':phase,'role':role,'frame_sha256':result.get('frame_sha256'),'ocr':native,'learning':False})
             return result
         current=read(sample['image'],'current')
+        if self.cfg.fast_learning:self.map_plan.confirmed(current,getattr(self,'current_step',0))
         first=None
         if baseline:
             from .map_sensor import read_grid
@@ -815,6 +826,7 @@ class Controller:
         return current,first,sample.get('restored_image')
 
     def run(self, dry_run=False):
+        if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(self.cfg.fast_learning and not dry_run)
         if getattr(self.llm,'methods',None):self.llm.methods.read_only=dry_run
         self.journal.parent.mkdir(parents=True,exist_ok=True)
         repeats=0; previous=None; errors=0; stagnant=0
@@ -834,9 +846,9 @@ class Controller:
                 revision=self.control.revision if self.control else 0
                 if getattr(self.executive,'control_revision',revision)!=revision:self.executive.cancel('control_revision_changed')
                 self.executive.control_revision=revision
-                self.ocr_observation_ms=0
+                self.ocr_observation_ms=0;self.stage_ms={};self.current_step=step
                 step_started=time.monotonic()
-                image=self.backend.capture()
+                image=self._timed('capture_ms',self.backend.capture)
                 neutral_image=image
                 neutral=None
                 natural_metric_changes={}
@@ -847,7 +859,7 @@ class Controller:
                         image=configured
                         state_before_neutral=self.policy.observe(image,self.read_policy_ocr(image))
                 if hasattr(self.backend,'observe_turn'):
-                    neutral=self.backend.observe_turn(image,'neutral_observation',0,self.control or self.stop)
+                    neutral=self._timed('neutral_observation_ms',self.backend.observe_turn,image,'neutral_observation',0,self.control or self.stop)
                     image=neutral.image
                     if self.stop.is_set():break
                     if self.control and revision!=self.control.revision:
@@ -917,7 +929,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
@@ -1106,10 +1118,10 @@ class Controller:
                 row['neutral_before']=({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind} if neutral else {'status':'not_sampled'})
                 row['transition_attribution']='undetermined_after_input' if row['executed'] else 'natural_or_external_uncontrolled'
                 if hasattr(self.backend,'observe_turn'):
-                    observation=self.backend.observe_turn(image,decision.scene,decision.wait_ms,self.control or self.stop)
+                    observation=self._timed('input_response_observation_ms',self.backend.observe_turn,image,decision.scene,decision.wait_ms,self.control or self.stop)
                     if hasattr(self.backend,'record_frame'): self.backend.record_frame(observation.image,'result')
                     row.update(changed=observation.changed,turn_kind=observation.kind,raw_change=observation.raw_change,
-                        masked_activity=observation.masked_activity,duration_ms=observation.duration_ms)
+                        masked_activity=observation.masked_activity,duration_ms=observation.duration_ms,settle_timing={'requested_ms':getattr(observation,'requested_minimum_ms',decision.wait_ms),'applied_ms':getattr(observation,'applied_minimum_ms',decision.wait_ms),'mode':getattr(observation,'timing_mode','standard')})
                 else:
                     if self.stop.wait(max(.1,decision.wait_ms/1000)): break
                     after=self.backend.capture()
@@ -1125,39 +1137,43 @@ class Controller:
                 elif row['executed']:
                     key=tuple(row['observed_keys']);unresponsive_actions[key]=unresponsive_actions.get(key,0)+1
                     if unresponsive_actions[key]>=3:blocked_at.setdefault(key,step)
-                if self.policy and policy_state:
-                    after_image=observation.image if hasattr(self.backend,'observe_turn') else after
-                    after_native=self.read_policy_ocr(after_image)
-                    after_state=self.policy.observe(after_image,after_native)
-                    map_after=self.map_sample(after_image,after_state,'map_result') if not dry_run else None
-                    if map_after:after_state=map_after[0]
-                    row['policy_learning']=self.policy.learn(policy_state,after_state,row,state_before_neutral)
-                    row['policy_after']=after_state
-                    if self.combat:
-                        import hashlib
-                        row['battle_observations']=self.combat.observe_messages(row,native,[(after_native,hashlib.sha256(after_image).hexdigest())],after_state.get('battle_messages',[]))
-                    if combat_choice:row['combat_evaluation']=self.combat.record(combat_choice,row,after_native)
-                    if self.novelty:
-                        row['novelty_learning']=self.novelty.record(row,native,after_native,state_before_neutral)
-                    if pace_trial and hasattr(self.backend,'observe_turn'):
-                        row['pacing_evaluation']=self.pacing.record(pace_trial,row,observation)
-                    hp0=policy_state['metrics'].get('hp',{}).get('values');hp1=after_state['metrics'].get('hp',{}).get('values')
-                    policy_damage=bool(hp0 and hp1 and hp0[1]==hp1[1] and hp1[0]<hp0[0])
-                    if self.improvement and not dry_run:
-                        row['improvement_evaluation']=self.improvement.consume(row)
-                        row['self_improvement']=self.improvement.context()
-                if self.policy and policy_state:
-                    natural_signals=self.policy.signals(state_before_neutral,policy_state) if state_before_neutral else {}
-                    natural_signals['metric_changes']=natural_metric_changes
-                    row['forecast_evaluation']=self.executive.feedback(policy_state,after_state,row,native,after_native,natural_signals)
-                    row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,natural_signals,normal_observation_image,after_image)
-                else:
-                    after_image=observation.image if hasattr(self.backend,'observe_turn') else after
-                    after_native=self.read_policy_ocr(after_image)
-                    after_state={'metrics':KnowledgeEngine().reconcile(after_native or {'status':'unavailable'})['metrics'],'minimap':{'status':'unavailable'},'eligible':False}
-                    row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,{},normal_observation_image,after_image)
-                    self.executive.cancel('no_map_policy')
-                row['input_coverage']=information.record(information_context,row,policy_state,after_state,native,after_native,after_image)
+                from contextlib import nullcontext
+                with self.memory.learning_batch() if self.cfg.fast_learning and self.memory else nullcontext():
+                    if self.policy and policy_state:
+                        after_image=observation.image if hasattr(self.backend,'observe_turn') else after
+                        after_native=self.read_policy_ocr(after_image)
+                        after_state=self.policy.observe(after_image,after_native)
+                        map_after=self.map_sample(after_image,after_state,'map_result') if not dry_run else None
+                        if map_after:after_state=map_after[0]
+                        elif self.cfg.fast_learning and hasattr(self,'map_plan') and row['executed']:self.map_plan.after_input(row['observed_keys'],after_state)
+                        row['policy_learning']=self._timed('learning_save_ms',self.policy.learn,policy_state,after_state,row,state_before_neutral)
+                        row['policy_after']=after_state
+                        if self.combat:
+                            import hashlib
+                            row['battle_observations']=self.combat.observe_messages(row,native,[(after_native,hashlib.sha256(after_image).hexdigest())],after_state.get('battle_messages',[]))
+                        if combat_choice:row['combat_evaluation']=self.combat.record(combat_choice,row,after_native)
+                        if self.novelty:
+                            row['novelty_learning']=self.novelty.record(row,native,after_native,state_before_neutral)
+                        if pace_trial and hasattr(self.backend,'observe_turn'):
+                            row['pacing_evaluation']=self.pacing.record(pace_trial,row,observation)
+                        hp0=policy_state['metrics'].get('hp',{}).get('values');hp1=after_state['metrics'].get('hp',{}).get('values')
+                        policy_damage=bool(hp0 and hp1 and hp0[1]==hp1[1] and hp1[0]<hp0[0])
+                        if self.improvement and not dry_run:
+                            row['improvement_evaluation']=self.improvement.consume(row)
+                            row['self_improvement']=self.improvement.context()
+                    if self.policy and policy_state:
+                        natural_signals=self.policy.signals(state_before_neutral,policy_state) if state_before_neutral else {}
+                        natural_signals['metric_changes']=natural_metric_changes
+                        row['forecast_evaluation']=self.executive.feedback(policy_state,after_state,row,native,after_native,natural_signals)
+                        row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,natural_signals,normal_observation_image,after_image)
+                    else:
+                        after_image=observation.image if hasattr(self.backend,'observe_turn') else after
+                        after_native=self.read_policy_ocr(after_image)
+                        after_state={'metrics':KnowledgeEngine().reconcile(after_native or {'status':'unavailable'})['metrics'],'minimap':{'status':'unavailable'},'eligible':False}
+                        row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,{},normal_observation_image,after_image)
+                        self.executive.cancel('no_map_policy')
+                    row['input_coverage']=self._timed('learning_save_ms',information.record,information_context,row,policy_state,after_state,native,after_native,after_image)
+                if self.cfg.fast_learning and self.memory:self.stage_ms['learning_batch_commit_ms']=self.memory.last_batch_commit_ms
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
                 row['performance'].update(total_ms=round((time.monotonic()-step_started)*1000),after_decision_ms=round((time.monotonic()-decision_finished)*1000))
                 if getattr(self.llm,'methods',None) and row.get('method_selection') and ((row.get('policy_choice') or {}).get('source')=='learned_policy' or novelty_choice or combat_choice):
@@ -1180,9 +1196,13 @@ class Controller:
                     row['background_compatibility']=self.background_evidence.update(row,criterion)
                 if self.duration_learner:self.duration_learner.record(timing_trial,row)
                 if hasattr(self.backend,'record_important'):
-                    try:self.backend.record_important(row,image,observation.image if hasattr(self.backend,'observe_turn') else after)
+                    try:self._timed('evidence_enqueue_ms',self.backend.record_important,row,image,observation.image if hasattr(self.backend,'observe_turn') else after)
                     except (OSError,ValueError) as error:self._write({'event':'important_recording_error','reason':str(error),'learning':False})
                 if self.demonstrations:self.demonstrations.record_reuse(row)
+                if self.cfg.fast_learning and hasattr(self,'map_plan'):row['map_prediction']=self.map_plan.context()
+                self.stage_ms['ocr_ms']=self.ocr_observation_ms
+                self.stage_ms['decision_ms']=row['performance']['decision_ms']
+                row['performance']['stages_ms']={k:round(v,2) for k,v in getattr(self,'stage_ms',{}).items()}
                 row['performance']['ocr_observation_ms']=round(self.ocr_observation_ms)
                 row['performance']['total_ms']=round((time.monotonic()-step_started)*1000)
                 self._write({'event':'result',**row})
@@ -1192,6 +1212,7 @@ class Controller:
             else: self.emit({'status':'limit','reason':'手数上限に達しました。'})
         finally:
             self.backend.release_all()
+            if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(False)
             if self.improvement and self.improvement.active:
                 result=self.improvement.finish(False,'実行終了で検証が中断。成功にも失敗にも確定せず調整を撤回。')
                 self._write({'event':'self_improvement',**result});self.emit({'event':'self_improvement',**result})
@@ -1200,5 +1221,13 @@ class Controller:
             from .recovery import ObservationRetry
             return ObservationRetry(reason)
         return RuntimeError(reason)
+    def _timed(self,name,fn,*args,**kwargs):
+        start=time.monotonic()
+        try:return fn(*args,**kwargs)
+        finally:
+            if not hasattr(self,'stage_ms'):self.stage_ms={}
+            self.stage_ms[name]=self.stage_ms.get(name,0)+(time.monotonic()-start)*1000
     def _write(self,row):
-        with self.journal.open('a',encoding='utf-8') as f: f.write(json.dumps(row,ensure_ascii=False)+'\n')
+        def write():
+            with self.journal.open('a',encoding='utf-8') as f:f.write(json.dumps(row,ensure_ascii=False)+'\n')
+        return self._timed('journal_before_result_ms',write)

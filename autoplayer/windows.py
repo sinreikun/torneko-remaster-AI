@@ -115,9 +115,14 @@ class WindowsGame:
         return ImageStat.Stat(ImageChops.difference(before,after)).mean[0]
     def is_current(self,png): return self.difference(png,self.capture())<18
     def changed(self,before,after): return self.difference(before,after)>1.0
+    def configure_fast_learning(self,enabled):
+        from .observation import TurnObserver
+        if not hasattr(self,'observer'):self.observer=TurnObserver()
+        self.observer.fast_mode=bool(enabled)
     def observe_turn(self,baseline,scene,wait_ms,stop):
         from .observation import TurnObserver
         if not hasattr(self,'observer'): self.observer=TurnObserver()
+        self.observer.input_signature=getattr(self,'last_input_signature',())
         return self.observer.observe(self.capture,baseline,scene,stop,wait_ms)
     def activate(self):
         # Kept for callers; SW_SHOWNOACTIVATE restores a minimized target without
@@ -173,6 +178,7 @@ class WindowsGame:
                 self.ready()
                 if stop.wait(min(.01,max(0,end-time.monotonic()))): break
         finally: receipts.extend(self.release_all())
+        self.last_input_signature=(tuple(keys),min(2,ms//100))
         return {'os_submission':'accepted' if receipts else 'not_attempted','events':receipts,'game_processing':'unverified',
             'backend':'window_message_only','background_before':background_before,'background_after':self.is_background()}
     def capture_map_display(self,stop,baseline=False):
