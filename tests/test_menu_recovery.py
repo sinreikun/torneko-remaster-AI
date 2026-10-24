@@ -59,4 +59,4 @@ class MenuObservationTests(unittest.TestCase):
         self.assertTrue(all(a[0][0] in 'wasd' for a in backend.actions))
         self.assertEqual(rows[-1]['llm_proposal']['keys'],[])
         self.assertEqual(rows[-1]['decision_policy']['source'],'novelty_exploration')
-        self.assertEqual(rows[-1]['policy_learning']['status'],'not_trained')
+        self.assertEqual(rows[-1]['policy_learning']['status'],'trained')

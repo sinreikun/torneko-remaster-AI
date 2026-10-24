@@ -4,7 +4,7 @@ from .interfaces import compact_text,torneko_menu_kind,result_screen
 
 class FastLearningGate:
     def __init__(self,interval=128):self.interval=interval;self.last_call=None;self.floor=None;self.guidance=None;self.events={}
-    def evaluate(self,turn,native,state,guidance):
+    def evaluate(self,turn,native,state,guidance,experience=None):
         native=native or {};state=state or {}
         linked=not (native.get('frame_sha256') and state.get('frame_sha256') and native['frame_sha256']!=state['frame_sha256'])
         if native.get('status')!='ok' or not linked:native={'status':'unavailable','lines':[]}
@@ -15,6 +15,7 @@ class FastLearningGate:
         elif guidance.get('revision')!=self.guidance:reason='operator_guidance_changed'
         elif floor and self.floor and floor!=self.floor:reason='confirmed_floor_changed'
         elif turn-self.last_call>=self.interval:reason='periodic_review'
+        elif experience and turn-self.last_call>=32 and experience.get('retained_observations',0)>=16 and any(g.get('forecast_mismatches',0) or g.get('metric_examples') for g in experience.get('action_groups',[])):reason='accumulated_experience_review'
         meaningful=bool(re.search(r'はい|いいえ|選択|どれ|ゲームクリア|持ち帰|脱出|帰還|地上に戻|倒された|力尽き|箱.{0,12}(?:入手|手に[入い]|拾|ひろ|取|とっ|所持)',text)
             or torneko_menu_kind(native) in ('inventory','item_actions') or result_screen(native))
         hud=re.compile(r'^(?:HP[^0-9]{0,3}\d+/\d+|Lv\d+|満腹度(?:\d+%)?|ちから(?:\d+/\d+)?|剣の強さ\d*|盾の強さ\d*|経験値\d*|最深階\d*|\d+(?:/\d+|G|階|%)?)$',re.I)

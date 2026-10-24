@@ -47,6 +47,18 @@ class PolicyTests(unittest.TestCase):
         reopened=ExperiencePolicy(self.store,Settings(knowledge='編集後の攻略知識').validate())
         self.assertEqual(reopened.values(before),values)
         selected,_=reopened.choose(proposal,before,stable=True);self.assertEqual(selected.keys,selected_keys)
+    def test_exploration_input_trains_outcomes_without_model_report_learning(self):
+        before=state();after=state('B',261.7,650)
+        row=receipt_row('w',learning=False,model_report_learning=False,active_input={'source':'information_collection'})
+        event=self.policy.learn(before,after,row,before)
+        self.assertEqual(event['status'],'trained');self.assertEqual(self.policy.values(before)['w']['trials'],1)
+        diagnostic=dict(row,event='diagnostic')
+        self.assertEqual(self.policy.learn(before,after,diagnostic,before)['status'],'not_trained')
+    def test_animation_alone_is_not_positive_progress(self):
+        before=state();before['eligible']=False
+        after=state('B');after['eligible']=False;after['visual']=[255]*192
+        result=self.policy.learn(before,after,receipt_row('w'),before)
+        self.assertLessEqual(result['reward'],0)
     def test_return_trip_does_not_learn_a_profitable_loop(self):
         a,b=state('A'),state('B',261.7)
         first=self.policy.learn(a,b,receipt_row('w'),a)
@@ -93,7 +105,7 @@ class PolicyTests(unittest.TestCase):
         route={'source':'learned_policy','exploration_route':{'mode':'observed_route','distance':1,'key':'a'}}
         result=self.policy.learn(b,a,receipt_row('a',policy_choice=route),b)
         self.assertTrue(result['route_transit']);self.assertEqual(result['revisit_cost'],0)
-        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],7)
+        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],8)
     def test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train(self):
         for row in (receipt_row(executed=False),receipt_row(dry_run=True),receipt_row(event='diagnostic'),
                     receipt_row(learning=False),receipt_row(learning=False,policy_choice={'source':'learned_policy'}),receipt_row(turn_kind='aborted'),receipt_row(input_receipt={'os_submission':'rejected'})):
@@ -188,7 +200,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(backend.actions[0][0],['w'])
         rows=[json.loads(line) for line in agent.journal.read_text().splitlines()]
         result=rows[-1];self.assertEqual(result['policy_choice']['source'],'learned_policy')
-        self.assertEqual(result['policy_learning']['status'],'not_trained')
+        self.assertEqual(result['policy_learning']['status'],'trained')
         self.assertEqual(result['input_coverage']['status'],'response_observed')
         self.assertEqual(result['llm_proposal']['keys'],[])
         self.assertEqual(result['observed_keys'],['w'])
@@ -198,7 +210,7 @@ class PolicyTests(unittest.TestCase):
         script.methods.record.assert_not_called()
         self.assertEqual(result['method_learning']['reason'],'model_action_replaced_by_map_policy')
         self.assertEqual(result['adaptive_pacing']['wait_ms'],600)
-        self.assertEqual(result['pacing_evaluation']['status'],'margin_restored')
+        self.assertEqual(result['pacing_evaluation']['status'],'stable_sample')
         self.assertEqual(backend.observe_turn.call_args_list[1].args[2],600)
 
 class ConfirmedControlsTests(unittest.TestCase):

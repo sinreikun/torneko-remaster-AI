@@ -1,6 +1,7 @@
 """Persistent contextual TD action values and Beta estimates of *observed progress*.
 This is online policy learning, not LLM weight training or proof of causality.
 """
+from .experience_review import outcome_learning_allowed
 import hashlib
 import json
 import math
@@ -15,7 +16,7 @@ from .map_sensor import read_grid,MapSensor,FloorConfirmation
 from .exploration import ExplorationRoutes
 from .interfaces import compact_text,torneko_menu_kind,result_screen
 
-VERSION=7
+VERSION=8
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -268,7 +269,7 @@ class ExperiencePolicy:
             if growth>=3:out['coverage']=min(1.,growth/max(1,len(ac)))
         return out
     def learn(self,before,after,row,neutral_before=None):
-        excluded=(str(row.get('event','')).startswith('diagnostic') or row.get('kind') in ('compatibility','separation') or row.get('learning') is False) or not row.get('executed') or row.get('dry_run') or row.get('turn_kind')=='aborted' or row.get('action_kind')!='input'
+        excluded=(str(row.get('event','')).startswith('diagnostic') or row.get('kind') in ('compatibility','separation') or not outcome_learning_allowed(row)) or not row.get('executed') or row.get('dry_run') or row.get('turn_kind')=='aborted' or row.get('action_kind')!='input'
         receipt=row.get('input_receipt')
         if excluded or not isinstance(receipt,dict) or receipt.get('os_submission')!='accepted':
             return {'status':'not_trained','reason':'未送信・無入力・中断・診断・送信受付未確認は入力の成功経験にしません。'}
@@ -298,7 +299,7 @@ class ExperiencePolicy:
         route_transit=bool((row.get('policy_choice') or {}).get('source')=='learned_policy' and route.get('mode')=='observed_route'
             and route.get('distance',0)>0 and route.get('key')==action and net['position'])
         revisit_cost=.12*min(3,revisits) if net['position'] and not route_transit and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
-        reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']+(.15*net['visual']*novelty if not before['eligible'] else 0)-.04-revisit_cost
+        reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']-.04-revisit_cost
         hp0=before['metrics'].get('hp',{}).get('values');hp1=after['metrics'].get('hp',{}).get('values')
         if hp0 and hp1 and hp0[1]==hp1[1]:reward-=2*max(0.,hp0[0]-hp1[0])/hp0[1]
         # No positive reward for natural HP regeneration or simply remaining at full HP.

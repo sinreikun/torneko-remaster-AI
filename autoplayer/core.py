@@ -510,6 +510,7 @@ class LocalLLM:
             'spatial_observation':(self.context.get('learned_policy') or {}).get('spatial_observation',{'status':'unavailable'}),
             'input_mode':'text_planner_from_current_image_observer','output_language':'日本語（ja-JP）','fresh_assessment':reground,'self_improvement':self.context.get('self_improvement'),
             'information_exploration':self.context.get('information_exploration',{}),
+            'experience_review':self.context.get('experience_review',{}),
             'action_principles':action_principles(is_torneko(cfg.window_title)),
             'planning_checks':'現在の根拠、対象の位置、選ぶキーを照合する。過去の仮説や作戦指示を観察した事実として引用しない。'}
         if selection:
@@ -835,6 +836,8 @@ class Controller:
         active_input=ActiveInput(self.cfg)
         from .information_exploration import InformationExploration
         information=InformationExploration(self.cfg,self.memory if not dry_run else None)
+        from .experience_review import ExperienceReview
+        experience_review=ExperienceReview(self.memory if not dry_run else None)
         information_context={}
         from .fast_learning import FastLearningGate
         learning_gate=FastLearningGate(self.cfg.llm_review_interval)
@@ -916,7 +919,7 @@ class Controller:
                 self.emit({'event':'perception','policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
-                learning_review=learning_gate.evaluate(step,native,policy_state,guidance) if self.cfg.fast_learning and not dry_run else None
+                learning_review=learning_gate.evaluate(step,native,policy_state,guidance,experience_review.context()) if self.cfg.fast_learning and not dry_run else None
                 local_learning=bool(learning_review and not learning_review['llm_requested'])
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
@@ -929,7 +932,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
@@ -1199,6 +1202,7 @@ class Controller:
                     try:self._timed('evidence_enqueue_ms',self.backend.record_important,row,image,observation.image if hasattr(self.backend,'observe_turn') else after)
                     except (OSError,ValueError) as error:self._write({'event':'important_recording_error','reason':str(error),'learning':False})
                 if self.demonstrations:self.demonstrations.record_reuse(row)
+                row['experience_review']=experience_review.record(row,policy_state,after_state)
                 if self.cfg.fast_learning and hasattr(self,'map_plan'):row['map_prediction']=self.map_plan.context()
                 self.stage_ms['ocr_ms']=self.ocr_observation_ms
                 self.stage_ms['decision_ms']=row['performance']['decision_ms']
