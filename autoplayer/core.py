@@ -180,7 +180,7 @@ RESPONSE_LABELS=frozenset(('現在の画面で確認できる事実','次に達�
 def response_placeholder(value):
     return isinstance(value,str) and (not value.strip() or value.strip().rstrip('。.') in RESPONSE_LABELS or value.strip() in RESPONSE_LABELS)
 
-def response_quality_issue(decision,instruction_texts=(),minimap_reference=False):
+def response_quality_issue(decision,instruction_texts=(),minimap_reference=False,goal_text=''):
     if decision.scene in ('model_observation_unverified','model_proposed','unavailable','completed'):
         return '検証・記録の状態ラベルをゲーム場面として返しています。'
     import re,unicodedata
@@ -194,6 +194,12 @@ def response_quality_issue(decision,instruction_texts=(),minimap_reference=False
         text=compact(getattr(decision,key))
         if len(text)>=12 and any(text in instruction for instruction in instructions):
             return '判断内容の代わりに指示文をコピーした応答を検出しました。'
+    reason=compact(decision.reason)
+    if goal_text and len(reason)>=80:
+        from difflib import SequenceMatcher
+        blocks=SequenceMatcher(None,reason,compact(goal_text),autojunk=False).get_matching_blocks()
+        if max((b.size for b in blocks),default=0)>=60 and sum(b.size for b in blocks)/len(reason)>=.75:
+            return '行動理由の大半が全体目標のコピーです。今回の入力を選ぶ現在画面の根拠が必要です。'
     if any(response_placeholder(getattr(decision,key)) for key in ('observation','subgoal','reason')):
         return '内容のない説明欄・例文のコピーを検出しました。'
     if decision.goal_success and response_placeholder(decision.goal_success):
@@ -582,7 +588,7 @@ class LocalLLM:
             decision=parse_decision(self._request(planner_image,planner_system,repair,schema),planner_cfg)
         self.language_fallback=False
         decision=self.localize_decision(decision)
-        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,cfg.goal,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')),minimap_reference=is_torneko(cfg.window_title))
+        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,cfg.goal,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')),minimap_reference=is_torneko(cfg.window_title),goal_text=cfg.goal)
         if knowledge_context:issue=issue or self.knowledge_engine.decision_grounding_issue(decision,knowledge_context)
         if cfg.profile_id and decision.keys:
             observed_scene=scene_observation.get('scene_type')
