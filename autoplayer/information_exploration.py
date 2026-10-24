@@ -56,7 +56,11 @@ class InformationExploration:
         candidates=[r for r in context['actions'] if r['observed']<r['required']]
         # Temporary no-response backoff changes priority, never removes all input.
         recent={tuple(k) for k in blocked}
-        chosen=min(candidates,key=lambda r:(r['observed']>0,r['observed']/r['required'],tuple(r['keys']) in recent,r['sent']))
+        candidates=[r for r in candidates if tuple(r['keys']) not in recent]
+        if not candidates:
+            context['temporarily_deferred']=True
+            return decision,context
+        chosen=min(candidates,key=lambda r:(r['observed']>0,r['observed']/r['required'],r['sent']))
         context.update(selected=chosen['keys'],source='information_collection',learning=False)
         return replace(decision,keys=chosen['keys'],hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),
             intent={'kind':'explore','target_id':''},forecast={},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},

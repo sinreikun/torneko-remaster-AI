@@ -51,6 +51,12 @@ class InformationTests(unittest.TestCase):
             other=Settings(window_title='Different',allowed_keys=['a','b'],goal=self.cfg.goal).validate();memory=MemoryStore(path,other)
             try:self.assertEqual(InformationExploration(other,memory).context(self.decision,self.native,self.state)['actions'][0]['observed'],0)
             finally:memory.close()
+    def test_only_remaining_coverage_candidate_does_not_override_backoff(self):
+        model=InformationExploration(self.cfg);situation=model.situation(self.decision,self.native,self.state)
+        model.stats(situation,['a']).update(observed=3,sent=3,outcomes=['one','two'])
+        model.stats(situation,['b']).update(observed=2,sent=2,outcomes=['one'])
+        selected,context=model.choose(self.decision,self.native,self.state,[['a']])
+        self.assertEqual(selected.keys,['b']);self.assertTrue(context['temporarily_deferred'])
     def test_all_temporarily_blocked_candidates_still_produce_input(self):
         d,c=InformationExploration(self.cfg).choose(self.decision,self.native,self.state,[['a'],['b']]);self.assertTrue(d.keys)
     def test_controller_records_actual_trials_without_changing_overall_goal(self):

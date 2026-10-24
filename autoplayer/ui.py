@@ -895,6 +895,8 @@ class Application:
                 f"処理: {value.get('performance',{}).get('total_ms','?')}ms / 学習選択: {value.get('active_input',{}).get('source','方策・モデル')}\n")
             stages=value.get('performance',{}).get('stages_ms',{})
             if stages:text+=f"内訳ms: OCR {stages.get('ocr_ms','?')} / 地図取得 {stages.get('map_capture_ms',0)} / 自然観測 {stages.get('neutral_observation_ms',0)} / 入力後観測 {stages.get('input_response_observation_ms',0)} / 学習・保存 {stages.get('learning_save_ms',0)}\n"
+            visual=value.get('visual_response',{})
+            if visual.get('status')=='observed':text+=f"画像反応: 大きな変化={visual.get('context_change')} / 変化未確認 {visual.get('stagnant_turns',0)}手 / 一時保留 {value.get('visual_action_evidence',{}).get('blocked_actions',[])}（攻略成果は未確認）\n"
         elif str(event).startswith('human_'):
             text=f"人間操作 {event} | 入力 {value.get('keys',[])} | {value.get('reason','')}\n"
         elif event in ('error','diagnostic_export','observation_recovery','self_improvement'):

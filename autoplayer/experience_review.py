@@ -35,7 +35,7 @@ class ExperienceReview:
         same_mode=before.get('observation_mode','normal')==after.get('observation_mode','normal')
         signals=copy.deepcopy((row.get('policy_learning') or {}).get('net_signals',{})) if same_mode and text_or_map else {}
         entry={'keys':list(row.get('observed_keys',[])),'situation':(row.get('information_exploration') or {}).get('situation'),
-            'metric_changes':changes,'net_signals':signals,'reward_proxy':(row.get('policy_learning') or {}).get('reward') if text_or_map else None,
+            'metric_changes':changes,'net_signals':signals,'visual_response':copy.deepcopy(row.get('visual_response')), 'reward_proxy':(row.get('policy_learning') or {}).get('reward') if text_or_map else None,
             'forecast_status':(row.get('forecast_evaluation') or {}).get('status'),'natural_changes':copy.deepcopy(row.get('natural_metric_changes',{})),
             'text_before':before.get('text_key'),'text_after':after.get('text_key'),'nonspatial':bool(before.get('text_reliable') and after.get('text_reliable') and not before.get('eligible') and not after.get('eligible')),'evidence_mode':evidence_mode,'raw_activity':row.get('raw_change'),'neutral_activity':(row.get('neutral_before') or {}).get('raw_change'),'before_frame':before.get('frame_sha256'),'source_frame':after.get('frame_sha256'),'observation_mode_comparable':same_mode,
             'attribution':'observed_sequence_not_proven_cause'}

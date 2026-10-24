@@ -516,8 +516,9 @@ class LocalLLM:
             'input_mode':'text_planner_from_current_image_observer','output_language':'日本語（ja-JP）','fresh_assessment':reground,'self_improvement':self.context.get('self_improvement'),
             'information_exploration':self.context.get('information_exploration',{}),
             'experience_review':self.context.get('experience_review',{}),
+            'visual_action_evidence':self.context.get('visual_action_evidence',{}),
             'action_principles':action_principles(is_torneko(cfg.window_title)),
-            'planning_checks':'現在の根拠、対象の位置、選ぶキーを照合する。過去の仮説や作戦指示を観察した事実として引用しない。'}
+            'planning_checks':'理由には全体目標を繰り返さず、今回のキーを選ぶ現在画面の根拠を短く記す。現在の根拠、対象の位置、選ぶキーを照合する。過去の仮説や作戦指示を観察した事実として引用しない。'}
         if selection:
             prompt['method_selection']=selection
             prompt['temporal_evidence']=[{k:r.get(k) for k in ('observed_keys','executed','neutral_before','raw_change','transition_attribution')} for r in history[-2:]]
@@ -581,7 +582,7 @@ class LocalLLM:
             decision=parse_decision(self._request(planner_image,planner_system,repair,schema),planner_cfg)
         self.language_fallback=False
         decision=self.localize_decision(decision)
-        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')),minimap_reference=is_torneko(cfg.window_title))
+        issue='日本語応答を確認できませんでした。' if self.language_fallback else response_quality_issue(decision,(SYSTEM,cfg.goal,prompt['instruction'],prompt['planning_checks'],(knowledge_context or {}).get('goal_review',{}).get('instruction','')),minimap_reference=is_torneko(cfg.window_title))
         if knowledge_context:issue=issue or self.knowledge_engine.decision_grounding_issue(decision,knowledge_context)
         if cfg.profile_id and decision.keys:
             observed_scene=scene_observation.get('scene_type')
@@ -846,6 +847,12 @@ class Controller:
         information_context={}
         from .fast_learning import FastLearningGate
         learning_gate=FastLearningGate(self.cfg.llm_review_interval)
+        from .visual_responses import VisualResponses
+        visual_responses=VisualResponses()
+        visual_blocked=[]
+        def blocked_keys():
+            raw=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
+            return [list(keys) for keys in dict.fromkeys(tuple(k) for k in raw+visual_blocked)]
         fast_count=0
         try:
             for step in (range(self.cfg.max_steps) if self.cfg.max_steps else itertools.count()):
@@ -922,9 +929,12 @@ class Controller:
                     if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 self.guidance_revision=guidance['revision']
                 self.emit({'event':'perception','policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
-                blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
-                forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
                 learning_review=learning_gate.evaluate(step,native,policy_state,guidance,experience_review.context(),image_available=normal_observation_image.startswith(b'\x89PNG\r\n\x1a\n')) if self.cfg.fast_learning and not dry_run else None
+                visual_grid=self._timed('visual_evidence_ms',visual_responses.grid,normal_observation_image) if learning_review and learning_review.get('visual_fallback') else None
+                visual_evidence=visual_responses.evidence(visual_grid,step) if visual_grid else {}
+                visual_blocked=visual_evidence.get('blocked_actions',[])
+                blocked=blocked_keys()
+                forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
                 local_learning=bool(learning_review and not learning_review['llm_requested'])
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
@@ -937,13 +947,13 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
-                blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
+                    self.llm.set_context({'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                blocked=blocked_keys()
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
                 planned=False
                 anchor_available=self.executive.active
-                decision_started=time.monotonic()
+                decision_started=time.monotonic();decision_source_image=image
                 try:
                     if local_learning:
                         fast_count=0;self.executive.cancel('fast_learning_local_observation')
@@ -977,7 +987,7 @@ class Controller:
                 fresh_interface_proposal=bool(not local_learning and not planned and ((learning_review or {}).get('interface_decision') or torneko_menu_kind(native)) and decision.keys and decision.status=='continue' and decision.risk!='destructive')
                 novelty_choice=None;novelty_reconsideration=None
                 if self.policy and self.novelty and not dry_run and not planned and not fresh_interface_proposal and not guidance['text']:
-                    decision,novelty_choice=self.novelty.choose_menu(decision,native,[list(keys) for keys,count in unresponsive_actions.items() if count>=3])
+                    decision,novelty_choice=self.novelty.choose_menu(decision,native,blocked_keys())
                     if policy_stable:
                         novelty_reconsideration=self.novelty.repeated_menu_opening(native,policy_state,decision)
                         if novelty_reconsideration:
@@ -986,11 +996,11 @@ class Controller:
                 if self.policy and policy_state and not planned:
                     llm_proposal=original_proposal
                     if self.combat and not dry_run and not guidance['text']:
-                        decision,combat_choice=self.combat.choose(decision,policy_state,policy_stable,[list(keys) for keys,count in unresponsive_actions.items() if count>=3])
+                        decision,combat_choice=self.combat.choose(decision,policy_state,policy_stable,blocked_keys())
                     if combat_choice:
                         policy_choice={'source':'combat_experiment','context':self.policy.context(policy_state)}
                     else:
-                        decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']),interface_stable=bool(local_learning and state_before_neutral and policy_state.get('observable') and state_before_neutral.get('text_key')==policy_state.get('text_key')))
+                        decision,policy_choice=self.policy.choose(decision,policy_state,blocked_keys(),policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']),interface_stable=bool(local_learning and state_before_neutral and policy_state.get('observable') and state_before_neutral.get('text_key')==policy_state.get('text_key')))
                 if original_proposal.get('keys')!=decision.keys:decision.intent={}
                 from .grounding import reconcile
                 decision,grounding=reconcile(decision,world_observation,policy_state,native,self.cfg)
@@ -1024,6 +1034,7 @@ class Controller:
                 row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
+                row['visual_action_evidence']=visual_evidence
                 row['interface_model_input_retained']=bool(interface_model_action and decision.keys==original_proposal['keys'])
                 row['visual_fallback']={'active':bool(learning_review and learning_review.get('visual_fallback')),'fresh_model_input_retained':bool(visual_model_action and decision.keys==original_proposal['keys'])}
                 row['information_exploration']=information_context
@@ -1119,8 +1130,12 @@ class Controller:
                 if guidance_source and guidance_source.snapshot()['revision']!=guidance['revision']:
                     self.executive.cancel('operator_guidance_changed_before_input')
                     self._write({'event':'not_executed','reason':'operator_guidance_changed','step':step+1});continue
-                row['interface_model_input_retained']=bool(interface_model_action and decision.keys==original_proposal['keys'])
-                row['visual_fallback']['fresh_model_input_retained']=bool(visual_model_action and decision.keys==original_proposal['keys'])
+                same_decision_frame=image==decision_source_image
+                row['interface_model_input_retained']=bool(same_decision_frame and interface_model_action and decision.keys==original_proposal['keys'])
+                row['visual_fallback']['fresh_model_input_retained']=bool(same_decision_frame and visual_model_action and decision.keys==original_proposal['keys'])
+                if visual_grid and not same_decision_frame:
+                    visual_grid=None
+                    row['visual_response']={'status':'not_observed','reason':'frame_changed_during_inference'}
                 information_context=information.context(decision,native,policy_state)
                 if not dry_run and decision.keys:
                     row['input_receipt']=self.backend.act(decision.keys,decision.hold_ms,self.control or self.stop)
@@ -1141,12 +1156,22 @@ class Controller:
                     if self.stop.wait(max(.1,decision.wait_ms/1000)): break
                     after=self.backend.capture()
                     row['changed']=self.backend.changed(image,after) if hasattr(self.backend,'changed') else image!=after
+                visual_response=None
+                if visual_grid:
+                    after_grid=self._timed('visual_evidence_ms',visual_responses.grid,observation.image if hasattr(self.backend,'observe_turn') else after)
+                    neutral_grid=self._timed('visual_evidence_ms',visual_responses.grid,neutral_image)
+                    visual_response=visual_responses.record(visual_grid,after_grid,neutral_grid,row,step)
+                    row['visual_response']=visual_response
                 if row['executed']: stagnant=0 if row.get('changed') else stagnant+1
+                if visual_response and visual_response.get('status')=='observed':stagnant=visual_response['stagnant_turns']
                 # A few animated grid cells are not evidence that a stuck
                 # input became useful. This controls planning only, not success.
                 if hasattr(self.backend,'observe_turn'):
                     row['recovery_context_change']=bool(row.get('raw_change',0)>max(.01,4*max(neutral_changes,default=0)))
                 else:row['recovery_context_change']=bool(row.get('changed'))
+                if visual_response and visual_response.get('status')=='observed':
+                    row['raw_recovery_context_change']=row['recovery_context_change']
+                    row['recovery_context_change']=visual_response['context_change']
                 if row['recovery_context_change']:
                     unresponsive_actions.clear();blocked_at.clear()
                 elif row['executed']:
