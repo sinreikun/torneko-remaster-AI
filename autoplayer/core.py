@@ -15,6 +15,7 @@ from .knowledge import KnowledgeEngine
 from .ocr import ScreenOCR
 from .controls import KEYS as PROFILE_KEYS,REFERENCE,is_torneko
 from .combat import relative_contacts
+from .interfaces import compact_text
 from .principles import LEGACY_GOAL,TORNEKO_GOAL,action_principles
 
 KEYS = {'w','a','s','d','up','down','left','right','enter','space','escape','tab','z','x','c','v', *'abcdefghijklmnopqrstuvwxyz', *(str(i) for i in range(10)), *(f'num{i}' for i in range(10))}
@@ -984,7 +985,7 @@ class Controller:
                     if combat_choice:
                         policy_choice={'source':'combat_experiment','context':self.policy.context(policy_state)}
                     else:
-                        decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']))
+                        decision,policy_choice=self.policy.choose(decision,policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3],policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']),interface_stable=bool(local_learning and state_before_neutral and policy_state.get('observable') and state_before_neutral.get('text_key')==policy_state.get('text_key')))
                 if original_proposal.get('keys')!=decision.keys:decision.intent={}
                 from .grounding import reconcile
                 decision,grounding=reconcile(decision,world_observation,policy_state,native,self.cfg)
@@ -993,8 +994,8 @@ class Controller:
                     if hasattr(self.llm,'needs_regrounding'):self.llm.needs_regrounding=True
                     if hasattr(self.llm,'knowledge_engine'):
                         self.llm.knowledge_engine.goal={'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'source':'action_grounding','status':'proposed_observation_goal'}
-                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''))
-                if not dry_run and original_proposal.get('status')!='blocked' and original_proposal.get('risk')!='destructive' and not combat_choice and not (self.improvement and self.improvement.active):
+                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),preserve_proposal=bool((policy_choice or {}).get('source')=='learned_interface_policy' or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
+                if not dry_run and original_proposal.get('status')!='blocked' and original_proposal.get('risk')!='destructive' and not combat_choice and (policy_choice or {}).get('source')!='learned_interface_policy' and not (self.improvement and self.improvement.active):
                     decision,information_context=information.choose(decision,native,policy_state,blocked)
                     if information_context.get('selected'):
                         active_choice={'source':'information_collection','learning':False}

@@ -105,7 +105,7 @@ class PolicyTests(unittest.TestCase):
         route={'source':'learned_policy','exploration_route':{'mode':'observed_route','distance':1,'key':'a'}}
         result=self.policy.learn(b,a,receipt_row('a',policy_choice=route),b)
         self.assertTrue(result['route_transit']);self.assertEqual(result['revisit_cost'],0)
-        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],8)
+        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],9)
     def test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train(self):
         for row in (receipt_row(executed=False),receipt_row(dry_run=True),receipt_row(event='diagnostic'),
                     receipt_row(learning=False),receipt_row(learning=False,policy_choice={'source':'learned_policy'}),receipt_row(turn_kind='aborted'),receipt_row(input_receipt={'os_submission':'rejected'})):

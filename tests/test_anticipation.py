@@ -73,7 +73,7 @@ class ForecastTests(unittest.TestCase):
                     step=index//3+(1 if index%3==2 else 0)
                     return state(str(step),x=260+6*step)
                 agent.policy.observe=Mock(side_effect=observe)
-                agent.policy.choose=Mock(side_effect=lambda d,*args:(d,{'source':'model_or_neutral'}));agent.combat=None;agent.novelty=None;agent.improvement=None
+                agent.policy.choose=Mock(side_effect=lambda d,*args,**kwargs:(d,{'source':'model_or_neutral'}));agent.combat=None;agent.novelty=None;agent.improvement=None
                 agent.world.visual.read=Mock(return_value={'status':'observed','scene_change':False})
                 from autoplayer.information_exploration import InformationExploration
                 with patch.object(InformationExploration,'choose',autospec=True,side_effect=lambda obj,d,n,s,b:(d,obj.context(d,n,s))):agent.run()

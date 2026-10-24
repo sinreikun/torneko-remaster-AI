@@ -16,7 +16,7 @@ from .map_sensor import read_grid,MapSensor,FloorConfirmation
 from .exploration import ExplorationRoutes
 from .interfaces import compact_text,torneko_menu_kind,result_screen
 
-VERSION=8
+VERSION=9
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -45,6 +45,7 @@ class ExperiencePolicy:
             PRIMARY KEY(profile,state,objective,action));
         CREATE TABLE IF NOT EXISTS policy_events(id INTEGER PRIMARY KEY,profile TEXT,created REAL,data TEXT);
         CREATE INDEX IF NOT EXISTS policy_events_profile ON policy_events(profile,id);
+        CREATE TABLE IF NOT EXISTS policy_text_visits(profile TEXT,text_key TEXT,PRIMARY KEY(profile,text_key));
         CREATE TABLE IF NOT EXISTS policy_visits(profile TEXT,location TEXT,count INTEGER NOT NULL,PRIMARY KEY(profile,location));
         ''')
     def track_pose(self,minimap,floor):
@@ -114,15 +115,18 @@ class ExperiencePolicy:
             try:
                 with Image.open(io.BytesIO(png)) as image:visual=[v//32 for v in image.convert('L').resize((16,12)).tobytes()]
             except OSError:pass
+        text_reliable=bool(text) and all(isinstance(line.get('confidence'),(int,float)) and line['confidence']>=.8 for line in (native or {}).get('lines',[]) if compact_text(line.get('text','')))
         text_key=hashlib.sha256(re.sub(r'\s+','',text)[:2000].encode()).hexdigest()[:16]
         if not eligible:objective='interface'
         payload={'floor':floor,'hp_band':int(4*hp[0]/hp[1]) if hp else None,'food_band':food[0]//20 if food else None,'map_shape':minimap.get('shape'),
             'player_cell':minimap.get('player_cell'),'neighbors':minimap.get('neighbors'),'enemies':minimap.get('enemies'),'menu_evidence':menu}
         if map_display:payload['observation_mode']='num7_held'
-        if not eligible:payload.update(visual=visual,text_key=text_key)
+        if not eligible:
+            payload.update(text_key=text_key)
+            if not text:payload['visual']=visual
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
+        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',
@@ -166,8 +170,15 @@ class ExperiencePolicy:
             'navigation_instruction':'同条件で2回以上位置変化がない方向は自動巡回しない。壁や入力故障とは断定せず、現在画面から状態異常・決定待ち・入力長・所持品など別の操作仮説を検討する。',
             'ranking':ranking,'control_reference':REFERENCE,
             'note':'priorityは過去TD値を±1に制限して35%だけ反映し、現在の候補と未試行の探索加点を併用する。過去の行動名は意味や成功の証明ではない。確率は正の観測報酬の推定でありゲームクリア確率ではない。試行0は未推定。全体目標の確率は検証済み終了エピソードがある場合のみ。'}
-    def choose(self,decision,state,blocked=(),stable=False,adjustment=None,respect_proposal=False):
+    def choose(self,decision,state,blocked=(),stable=False,adjustment=None,respect_proposal=False,interface_stable=False):
         context=self.context(state,blocked)
+        if interface_stable and not state['eligible'] and not respect_proposal and decision.status=='continue' and decision.risk!='destructive' and state.get('observable') and state.get('text_reliable') and not any(state.get('metrics',{}).get(k) for k in ('hp','floor')):
+            ranking=[r for r in context['ranking'] if r['keys'] not in blocked and r['trials']>=2 and r['q']>0]
+            # Only reuse empirical inputs in the exact current OCR state; no menu
+            # semantics, map requirement or invented confidence.
+            if ranking:
+                picked=max(ranking,key=lambda r:r['priority'])
+                return replace(decision,keys=picked['keys'],hold_ms=min(80,self.settings.max_hold_ms),wait_ms=min(600,self.settings.max_wait_ms),intent={'kind':'confirm','target_id':''},forecast={},plan=[],progress=[],memory_updates=[],subgoal='現在の文字状態で経験済みの入力を比較する',reason='無入力観測でも文字が安定した現在の状態に限り、実測した入力評価を再利用する。',confidence=0.),{'source':'learned_interface_policy','selected':picked,'context':context}
         if not stable or decision.status!='continue' or decision.risk!='normal' or not state['eligible']:
             return decision,{'source':'model_or_neutral','context':context}
         if respect_proposal and decision.confidence>=self.settings.min_confidence and decision.keys not in blocked and not (len(decision.keys)==1 and context.get('no_effect_moves',{}).get(decision.keys[0],0)>=2):
@@ -303,13 +314,22 @@ class ExperiencePolicy:
         hp0=before['metrics'].get('hp',{}).get('values');hp1=after['metrics'].get('hp',{}).get('values')
         if hp0 and hp1 and hp0[1]==hp1[1]:reward-=2*max(0.,hp0[0]-hp1[0])/hp0[1]
         # No positive reward for natural HP regeneration or simply remaining at full HP.
+        interface_gain=0.
+        if not before.get('eligible') and not after.get('eligible') and not any(s.get('metrics',{}).get(k) for s in (before,after) for k in ('hp','floor')) and before.get('text_reliable') and after.get('text_reliable') and before.get('text_key') and after.get('text_key') and before['text_key']!=after['text_key']:
+            natural_text_change=bool(neutral_before and neutral_before.get('text_key')!=before['text_key'])
+            seen=self.db.execute('SELECT 1 FROM policy_text_visits WHERE profile=? AND text_key=?',(self.profile,after['text_key'])).fetchone()
+            if not seen and not natural_text_change:interface_gain=.1
+        with self.db:
+            for state in (before,after):
+                if not state.get('eligible') and state.get('text_key'):self.db.execute('INSERT OR IGNORE INTO policy_text_visits VALUES(?,?)',(self.profile,state['text_key']))
+        reward+=interface_gain
         reward=max(-1.,min(1.,reward));positive=reward>0
         current=self.values(before).get(action,{'q':0.})['q']
         next_q=max(0.,max((v['q'] for k,v in self.values(after).items() if k in MOVES and k in self.settings.allowed_keys),default=0.))
         new_q=current+.25*(reward+.85*next_q-current)
         event={'status':'trained','state':before['id'],'next_state':after['id'],'objective':before['objective'],'keys':keys,
             'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'baseline_kind':row.get('policy_baseline_kind','neutral_observation'),'net_signals':net,
-            'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
+            'interface_information_gain':interface_gain,'interface_gain_is_goal_progress':False,'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}
         with self.db:
             self.db.execute('INSERT INTO policy_actions(profile,state,objective,action,trials,q,positive,reward_sum) VALUES(?,?,?,?,1,?,?,?) ON CONFLICT(profile,state,objective,action) DO UPDATE SET trials=trials+1,q=excluded.q,positive=positive+excluded.positive,reward_sum=reward_sum+excluded.reward_sum',

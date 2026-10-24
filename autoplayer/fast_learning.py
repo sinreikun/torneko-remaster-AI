@@ -15,7 +15,7 @@ class FastLearningGate:
         elif guidance.get('revision')!=self.guidance:reason='operator_guidance_changed'
         elif floor and self.floor and floor!=self.floor:reason='confirmed_floor_changed'
         elif turn-self.last_call>=self.interval:reason='periodic_review'
-        elif experience and turn-self.last_call>=32 and experience.get('retained_observations',0)>=16 and any(g.get('forecast_mismatches',0) or g.get('metric_examples') for g in experience.get('action_groups',[])):reason='accumulated_experience_review'
+        elif experience and turn-self.last_call>=32 and experience.get('retained_observations',0)>=16 and (experience.get('repeated_interface_observations',0)>=6 or any(g.get('forecast_mismatches',0) or g.get('metric_examples') for g in experience.get('action_groups',[]))):reason='accumulated_experience_review'
         meaningful=bool(re.search(r'はい|いいえ|選択|どれ|ゲームクリア|持ち帰|脱出|帰還|地上に戻|倒された|力尽き|箱.{0,12}(?:入手|手に[入い]|拾|ひろ|取|とっ|所持)',text)
             or torneko_menu_kind(native) in ('inventory','item_actions') or result_screen(native))
         hud=re.compile(r'^(?:HP[^0-9]{0,3}\d+/\d+|Lv\d+|満腹度(?:\d+%)?|ちから(?:\d+/\d+)?|剣の強さ\d*|盾の強さ\d*|経験値\d*|最深階\d*|\d+(?:/\d+|G|階|%)?)$',re.I)

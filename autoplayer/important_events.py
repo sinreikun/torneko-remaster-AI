@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 from collections import deque
+from .interfaces import compact_text
 
 
 def brief(row):
@@ -25,10 +26,11 @@ class ImportantEvents:
         if floor and self.last_floor and floor!=self.last_floor:reasons.append('floor_changed')
         if food0 and food1 and food1[0]>food0[0]:reasons.append('fullness_increased')
         if any(e.get('new_message') and e['kind']=='defeated_enemy' for e in row.get('battle_observations',[])):reasons.append('defeat_message')
-        if row.get('scene')=='dialog':reasons.append('dialogue_or_choice')
+        labels={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (row.get('ocr') or {}).get('lines',[])}
+        if row.get('scene')=='dialog' or {'はい','いいえ'}<=labels:reasons.append('dialogue_or_choice')
         if self.pending:
             path=self.pending/'event.json'
-            data=json.loads(path.read_text());data['following_action']=brief(row);path.write_text(json.dumps(data,ensure_ascii=False))
+            data=json.loads(path.read_text(encoding='utf-8'));data['following_action']=brief(row);path.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8')
             self.pending=None
         if reasons:
             self.sequence+=1;kind=reasons[0];self.kind_counts[kind]=self.kind_counts.get(kind,0)+1
@@ -50,6 +52,6 @@ class ImportantEvents:
                 if used+len(encoded)>self.limit-65536:data.setdefault('omitted_images',[]).append(phase);continue
                 name=phase+'.png';(slot/name).write_bytes(encoded)
                 data['frames'].append({'phase':phase,'file':name,'source_sha256':hashlib.sha256(png).hexdigest(),'stored_sha256':hashlib.sha256(encoded).hexdigest()})
-            (slot/'event.json').write_text(json.dumps(data,ensure_ascii=False));self.pending=slot
+            (slot/'event.json').write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8');self.pending=slot
         if floor:self.last_floor=floor
         self.previous.append((brief(row),after))

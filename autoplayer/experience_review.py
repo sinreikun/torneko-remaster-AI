@@ -5,7 +5,7 @@ import copy,json
 def outcome_learning_allowed(row):
     if str(row.get('event','')).startswith('diagnostic') or row.get('kind') in ('compatibility','separation'):
         return False
-    return row.get('learning') is not False or (row.get('active_input') or {}).get('source') in ('information_collection','active_input_trial')
+    return row.get('learning') is not False or (row.get('active_input') or {}).get('source') in ('information_collection','active_input_trial','uncertain_input_trial')
 
 
 class ExperienceReview:
@@ -34,7 +34,7 @@ class ExperienceReview:
         entry={'keys':list(row.get('observed_keys',[])),'situation':(row.get('information_exploration') or {}).get('situation'),
             'metric_changes':changes,'net_signals':signals,'reward_proxy':(row.get('policy_learning') or {}).get('reward'),
             'forecast_status':(row.get('forecast_evaluation') or {}).get('status'),'natural_changes':copy.deepcopy(row.get('natural_metric_changes',{})),
-            'source_frame':after.get('frame_sha256'),'observation_mode_comparable':same_mode,
+            'text_before':before.get('text_key'),'text_after':after.get('text_key'),'nonspatial':not before.get('eligible') and not after.get('eligible'),'source_frame':after.get('frame_sha256'),'observation_mode_comparable':same_mode,
             'attribution':'observed_sequence_not_proven_cause'}
         self.rows=(self.rows+[entry])[-64:]
         if self.db:
@@ -47,5 +47,7 @@ class ExperienceReview:
             g['observations']+=1;reward=r['reward_proxy'];g['positive_proxy']+=int(reward is not None and reward>0);g['negative_proxy']+=int(reward is not None and reward<0)
             g['forecast_mismatches']+=int(r['forecast_status']=='mismatch')
             if r['metric_changes']:g['metric_examples']=(g['metric_examples']+[r['metric_changes']])[-2:]
-        return {'retained_observations':len(self.rows),'action_groups':list(groups.values())[-24:],'recent_observations':copy.deepcopy(self.rows[-8:]),
+        recent=[r.get('text_after') for r in self.rows[-8:] if r.get('nonspatial') and r.get('text_after')]
+        repeated=len(recent) if len(recent)>=6 and len(set(recent))<=3 else 0
+        return {'repeated_interface_observations':repeated,'retained_observations':len(self.rows),'action_groups':list(groups.values())[-24:],'recent_observations':copy.deepcopy(self.rows[-8:]),
             'instruction':'これは実入力と観測の要約で、成功や因果の確定ではない。現在の画面と作戦指示を優先する。反復・予測不一致・持続するステータス変化を比較し、全体目標へ有効そうな行動と未確認の仮説を分け、次に試す具体的なキーと期待する変化をforecastに設定する。見た目の変化だけを攻略成果にしない。過去の予測が外れたなら修正する。'}

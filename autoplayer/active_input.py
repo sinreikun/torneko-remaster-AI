@@ -15,7 +15,7 @@ DANGEROUS=re.compile(r'削除|初期化|購入|課金|終了しますか|delete|
 
 class ActiveInput:
     def __init__(self,cfg):self.cfg=cfg;self.attempts={}
-    def select(self,decision,native=None,state=None,blocked=(),reason='',force=False):
+    def select(self,decision,native=None,state=None,blocked=(),reason='',force=False,preserve_proposal=False):
         cfg=self.cfg;bindings=cfg.key_bindings or (REFERENCE['keys'] if is_torneko(cfg.window_title) else {})
         text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]))
         forbidden=decision.status=='blocked' or decision.risk=='destructive' or bool(DANGEROUS.search(text))
@@ -34,7 +34,7 @@ class ActiveInput:
         while len(self.attempts)>64:self.attempts.pop(next(iter(self.attempts)))
         recent={tuple(keys) for keys in blocked}
         proposal=decision.keys
-        repeat=bool(proposal and (tuple(proposal) in recent or counts[tuple(proposal)]>=3))
+        repeat=bool(proposal and (tuple(proposal) in recent or (counts[tuple(proposal)]>=3 and not preserve_proposal)))
         if decision.status=='complete' and not force:return decision,{}
         ordinary=(decision.status=='continue' and proposal and set(proposal)<=set(cfg.allowed_keys) and not forbidden and not repeat and not force)
         if ordinary:
