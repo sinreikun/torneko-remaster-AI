@@ -15,12 +15,14 @@ from .knowledge import KnowledgeEngine
 from .ocr import ScreenOCR
 from .controls import KEYS as PROFILE_KEYS,REFERENCE,is_torneko
 from .combat import relative_contacts
+from .principles import LEGACY_GOAL,TORNEKO_GOAL,action_principles
 
 KEYS = {'w','a','s','d','up','down','left','right','enter','space','escape','tab','z','x','c','v', *'abcdefghijklmnopqrstuvwxyz', *(str(i) for i in range(10)), *(f'num{i}' for i in range(10))}
 JAPANESE_OUTPUT = '説明文・観察・小目標・理由・計画・進捗・仮説・達成条件は日本語で記述してください。JSONのキー名、enum、許可キー、識別子は指定のまま、OCR引用は原文のまま保持してください。'
 SYSTEM = JAPANESE_OUTPUT + """
 画面・現在OCR・現在の座標を根拠に、利用者の目標へ進む次の一手を選ぶ。
 履歴・知識・モデルの観察報告は仮説。現在の直接観測と矛盾すれば更新する。
+action_principlesは行動原則。未経験の試行→予測→直後と遅延した結果の比較→因果仮説の更新を繰り返し、全体目標に役立てる。
 作戦指示は行動の優先度に毎回反映するが、指示の文章を観察事実として写さない。
 不明な対象は匿名IDで扱う。見た目だけで種類や正体を命名しない。
 階段を探す目標と、今そこに階段があるという観測を区別する。履歴の階段を現在位置に置かない。
@@ -41,7 +43,7 @@ class Settings:
     endpoint: str = 'http://127.0.0.1:11434'
     provider: str = 'ollama'
     model: str = 'qwen2.5vl:7b'
-    goal: str = '現在の画面からゲームを開始・再開し、攻略を進めて、画面で確認できるゲームクリアに到達する。'
+    goal: str = TORNEKO_GOAL
     knowledge: str = ''
     allowed_keys: list[str] = field(default_factory=lambda: list(PROFILE_KEYS))
     max_steps: int = 100000
@@ -60,6 +62,8 @@ class Settings:
     compute_mode: str = 'shared'
 
     def validate(self):
+        if is_torneko(self.window_title) and self.goal==LEGACY_GOAL:self.goal=TORNEKO_GOAL
+        elif not is_torneko(self.window_title) and self.goal==TORNEKO_GOAL:self.goal=LEGACY_GOAL
         u = urlsplit(self.endpoint)
         if u.scheme not in ('http','https') or u.hostname not in ('localhost','127.0.0.1','::1') or u.username or u.password or u.query or u.fragment:
             raise ValueError('LLM の接続先は認証情報を含まない localhost の HTTP(S) URL を指定してください。')
@@ -306,6 +310,8 @@ class LocalLLM:
         prompt=bounded_request_prompt(prompt)
         role=prompt.get('task','decision' if 'goal' in prompt else 'text_or_verification')
         if role=='decision_protocol_repair':role='decision'
+        if role in ('decision','self_improvement_review'):
+            prompt['action_principles']=action_principles(is_torneko(self.cfg.window_title))
         cfg=self.cfg;sent_image=vision_image(png)
         encoded=base64.b64encode(sent_image).decode() if sent_image is not None else None
         # Some Ollama grammar failures arrive as HTTP 200 with an empty model/content.
@@ -499,6 +505,7 @@ class LocalLLM:
             'world_observation':self.context.get('world_observation',{}),'anticipation':self.context.get('anticipation',{}),
             'spatial_observation':(self.context.get('learned_policy') or {}).get('spatial_observation',{'status':'unavailable'}),
             'input_mode':'text_planner_from_current_image_observer','output_language':'日本語（ja-JP）','fresh_assessment':reground,'self_improvement':self.context.get('self_improvement'),
+            'action_principles':action_principles(is_torneko(cfg.window_title)),
             'planning_checks':'現在の根拠、対象の位置、選ぶキーを照合する。過去の仮説や作戦指示を観察した事実として引用しない。'}
         if selection:
             prompt['method_selection']=selection
@@ -670,7 +677,7 @@ not optional actions after success. If any required action remains, achieved MUS
         permitted=list(dict.fromkeys(x for x in texts+[facts['description']]+[line['text'] for line in native_lines]+([measured['description']] if measured else []) if x.strip()))
         if not permitted: return {'achieved':False,'confidence':0,'evidence':[],'reason':'No independent visible evidence.','visual_facts':facts}
         schema['properties']['evidence']['items']['enum']=permitted
-        value=json.loads(self._request(None,system,{'goal':self.cfg.goal,'observations':facts},schema))
+        value=json.loads(self._request(None,system,{'goal':self.cfg.goal,'observations':facts,'completion_principles':action_principles(True)['box_retrieval']} if is_torneko(self.cfg.window_title) and self.cfg.goal==TORNEKO_GOAL else {'goal':self.cfg.goal,'observations':facts},schema))
         if type(value.get('achieved')) is not bool or type(value.get('confidence')) not in (int,float) or not 0<=value['confidence']<=1: raise ValueError('invalid verification')
         evidence=value.get('evidence');remaining=value.get('remaining_actions')
         if not isinstance(evidence,list) or len(evidence)>12 or any(not isinstance(x,str) or len(x)>1000 for x in evidence): raise ValueError('invalid completion evidence')
