@@ -60,21 +60,21 @@ class ResponseRecoveryTests(unittest.TestCase):
         with patch('urllib.request.build_opener',return_value=opener):
             raw=client._request(None,'日本語',{}, {'type':'object'})
         with self.assertRaises(ValueError):parse_decision(raw,Settings())
-    def test_unavailable_observer_has_a_bounded_no_input_recovery(self):
+    def test_unavailable_observer_uses_active_input_trials(self):
         backend=Backend();script=Script([change(action={'keys':[],'hold_ms':1,'wait_ms':0})]*3)
         script.take_state=lambda:{'scene_observation':{'status':'unavailable','reason':'empty response'}}
         with tempfile.TemporaryDirectory() as tmp:
-            controller=Controller(Settings(max_steps=100,recovery_attempts=0),backend,script,lambda row:None,Path(tmp)/'run.jsonl')
-            with self.assertRaisesRegex(RuntimeError,'LLM'):controller.run()
+            controller=Controller(Settings(max_steps=3,recovery_attempts=0),backend,script,lambda row:None,Path(tmp)/'run.jsonl')
+            controller.run()
             rows=[json.loads(line) for line in controller.journal.read_text().splitlines()]
-        self.assertEqual(backend.actions,[]);self.assertEqual(len(script.calls),3)
-        self.assertEqual(rows[-1]['status'],'llm_unavailable');self.assertEqual(backend.releases,1)
+        self.assertEqual(len(backend.actions),3);self.assertEqual(len(script.calls),3)
+        self.assertTrue(all(r['keys'] for r in rows if r.get('event')=='result'));self.assertEqual(backend.releases,1)
     def test_valid_unknown_scene_is_not_a_service_failure(self):
         backend=Backend();script=Script([change(scene='unknown',action={'keys':[],'hold_ms':1,'wait_ms':0})]*4)
         script.take_state=lambda:{'scene_observation':{'status':'model_observation_unverified','scene_type':'unknown'}}
         with tempfile.TemporaryDirectory() as tmp:
             Controller(Settings(max_steps=4,recovery_attempts=0),backend,script,lambda row:None,Path(tmp)/'run.jsonl').run()
-        self.assertEqual(len(script.calls),4);self.assertEqual(backend.actions,[])
+        self.assertEqual(len(script.calls),4);self.assertEqual(len(backend.actions),4)
 
 class PixelGeometryTests(unittest.TestCase):
     def test_only_small_gaps_are_joined_and_markers_keep_strict_components(self):

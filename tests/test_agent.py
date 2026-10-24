@@ -69,8 +69,8 @@ class LoopTests(unittest.TestCase):
     def test_dry_run(self):
         b,_,_,rows=self.run_loop([VALID,change(status='complete')],True)
         self.assertEqual(b.actions,[]); self.assertTrue(rows[1]['dry_run'])
-    def test_blocked_never_inputs(self):
-        b,_,_,rows=self.run_loop([change(status='blocked')]);self.assertEqual(b.actions,[])
+    def test_blocked_selects_cancel_instead_of_waiting(self):
+        b,_,_,rows=self.run_loop([change(status='blocked')],steps=1);self.assertEqual(b.actions[0][0],['num2'])
     def test_stopped_before_request(self):
         s=threading.Event();s.set();b,l,_,_=self.run_loop([],stop=s)
         self.assertEqual(l.calls,[]);self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
@@ -83,16 +83,16 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
     def test_invalid_response_releases(self):
         b=Backend()
-        with self.assertRaises(ValueError): self.run_loop([ValueError('bad json')],backend=b)
-        self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
+        self.run_loop([ValueError('bad json')],backend=b,steps=1)
+        self.assertEqual(len(b.actions),1);self.assertEqual(b.releases,1)
     def test_stale_screen(self):
         b=Backend();b.is_current=lambda image:False
         self.run_loop([VALID]*5,backend=b,steps=5)
-        self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
+        self.assertEqual(len(b.actions),5);self.assertEqual(b.releases,1)
     def test_low_confidence(self):
         b=Backend()
-        with self.assertRaisesRegex(RuntimeError,'信頼度'): self.run_loop([change(confidence=.1)]*3,backend=b)
-        self.assertEqual(b.actions,[])
+        self.run_loop([change(confidence=.1)]*3,backend=b,steps=3)
+        self.assertEqual(len(b.actions),3)
     def test_step_limit(self):
         b,_,out,_=self.run_loop([VALID],steps=1)
         self.assertEqual(len(b.actions),1);self.assertEqual(out[-1]['status'],'limit')

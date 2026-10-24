@@ -109,7 +109,10 @@ def fallback_schema(schema):
     if not branches or any('properties' not in branch for branch in branches):return schema
     result=copy.deepcopy(branches[0])
     properties=result['properties']
-    properties['status']['enum']=['continue','blocked','complete']
+    properties['status']['enum']=list(dict.fromkeys(s for branch in branches for s in branch['properties']['status']['enum']))
+    # Generic JSON has no dependent grammar. Allow verified completion's empty
+    # action; the controller supplies an input for every continuing response.
+    properties['action']['properties']['keys'].pop('minItems',None)
     required=set(result.get('required',[]))
     # Optional long-term hypotheses and forecasts are not needed for a single
     # repair. Retain intent, goal success, timing and all required protocol fields.

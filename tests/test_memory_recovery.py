@@ -72,14 +72,14 @@ class RecoveryTests(unittest.TestCase):
         backend=backend or Backend();output=[]
         agent=Controller(cfg or Settings(max_steps=6,recovery_attempts=1),backend,llm,output.append,Path(directory.name)/'run')
         agent.run();return agent,backend,output
-    def test_invalid_json_recovers_without_input(self):
+    def test_invalid_json_uses_input_trial_then_recovers(self):
         agent,b,out=self.run_agent(Script([ValueError('invalid JSON'),VALID,change(status='complete')]))
-        self.assertTrue(agent.completed);self.assertEqual(len(b.actions),1)
-        self.assertEqual(next(r for r in out if r.get('status')=='retry')['status'],'retry')
-    def test_repeated_invalid_json_stops(self):
+        self.assertTrue(agent.completed);self.assertEqual(len(b.actions),2)
+        self.assertTrue(any(r.get('active_input') for r in out))
+    def test_repeated_invalid_json_keeps_inputting(self):
         b=Backend()
-        with self.assertRaises(ValueError): self.run_agent(Script([ValueError('bad')]*3),backend=b)
-        self.assertEqual(b.actions,[]);self.assertEqual(b.releases,1)
+        self.run_agent(Script([ValueError('bad')]*3),cfg=Settings(max_steps=3),backend=b)
+        self.assertEqual(len(b.actions),3);self.assertEqual(b.releases,1)
     def test_unverified_completion_does_not_finish(self):
         class Verify(Script):
             def __init__(self): super().__init__([change(status='complete'),VALID,change(status='complete')]);self.verifications=0
@@ -87,19 +87,19 @@ class RecoveryTests(unittest.TestCase):
                 self.verifications+=1
                 return {'achieved':self.verifications>1,'evidence':['new visible goal'],'confidence':.95}
         llm=Verify();agent,b,_=self.run_agent(llm)
-        self.assertTrue(agent.completed);self.assertEqual(llm.verifications,2);self.assertEqual(len(b.actions),1)
+        self.assertTrue(agent.completed);self.assertEqual(llm.verifications,2);self.assertEqual(len(b.actions),2)
     def test_no_verifier_cannot_finish(self):
         class Unverified:
             def decide(self,*args): return parse_decision(json.dumps(change(status='complete')),Settings())
         agent,b,_=self.run_agent(Unverified(),Settings(max_steps=2))
-        self.assertFalse(agent.completed);self.assertEqual(b.actions,[])
-    def test_destructive_risk_never_sends(self):
-        agent,b,_=self.run_agent(Script([change(risk='destructive')]))
-        self.assertFalse(agent.completed);self.assertEqual(b.actions,[])
-    def test_loading_wait_is_not_stagnation(self):
+        self.assertFalse(agent.completed);self.assertEqual(len(b.actions),2)
+    def test_destructive_risk_sends_cancel_instead(self):
+        agent,b,_=self.run_agent(Script([change(risk='destructive')]),cfg=Settings(max_steps=1))
+        self.assertFalse(agent.completed);self.assertEqual(b.actions[0][0],['num2'])
+    def test_loading_wait_proposal_becomes_input_and_can_finish(self):
         waiting=change(scene='loading',action={'keys':[],'hold_ms':1,'wait_ms':0})
         agent,b,_=self.run_agent(Script([waiting]*9+[change(status='complete')]),Settings(max_steps=12))
-        self.assertTrue(agent.completed);self.assertEqual(b.actions,[])
+        self.assertTrue(agent.completed);self.assertEqual(len(b.actions),9)
     def test_key_name_aliases_still_respect_allowlist(self):
         for name,expected in [('ENTER','enter'),('Return','enter'),('SPACEBAR','space')]:
             value=change(action={'keys':[name],'hold_ms':80,'wait_ms':0})

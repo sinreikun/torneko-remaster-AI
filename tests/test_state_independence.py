@@ -23,29 +23,30 @@ class NeutralObservationTests(unittest.TestCase):
         return backend,script,rows,stats
     def test_repeated_unresponsive_inputs_do_not_stop_as_backend_failure(self):
         backend,script,rows,stats=self.run_steps([change() for _ in range(12)])
-        self.assertEqual(len(backend.actions),3)
+        self.assertEqual(len(backend.actions),len(script.calls))
         self.assertEqual(len(stats),12)
         self.assertTrue(all(row['attribution']=='undetermined_after_input' for row in stats[:3]))
-        self.assertTrue(all(row['action_kind']=='observe' for row in stats[3:]))
-        self.assertEqual(len([r for r in rows if r.get('action_guard')=='repeated_unconfirmed_response']),9)
+        self.assertTrue(all(row['action_kind']=='input' for row in stats))
+        self.assertGreater(len({tuple(k) for k,ms in backend.actions}),1)
+        self.assertTrue(any(r.get('active_input') for r in rows if r.get('event')=='result'))
     def test_tiny_animation_does_not_release_held_actions(self):
         backend=Backend()
         def observation(*args):return SimpleNamespace(image=b'latest',kind='normal',changed=True,raw_change=2/768,masked_activity=0,duration_ms=1200)
         backend.observe_turn=Mock(side_effect=observation)
         backend,script,rows,stats=self.run_steps([change() for _ in range(8)],backend)
-        self.assertEqual(len(backend.actions),3)
+        self.assertEqual(len(backend.actions),len(script.calls))
         self.assertTrue(all(not r['recovery_context_change'] for r in rows if r.get('event')=='result'))
         self.assertTrue(all(r['changed_after'] for r in stats))
     def test_held_action_has_bounded_cooldown_without_stopping(self):
         backend,script,rows,stats=self.run_steps([change() for _ in range(16)])
         self.assertEqual(len(stats),16)
-        self.assertEqual(len(backend.actions),5)
-    def test_low_confidence_wait_is_neutral_not_stalled_or_failure(self):
+        self.assertEqual(len(backend.actions),16)
+    def test_low_confidence_wait_proposal_becomes_active_trial(self):
         value=change(confidence=.01,risk='uncertain',action={'keys':[],'hold_ms':1,'wait_ms':0})
         backend,script,rows,stats=self.run_steps([value]*10)
-        self.assertEqual(backend.actions,[]);self.assertTrue(all(not call[2] for call in script.calls))
-        self.assertTrue(all(row['action_kind']=='observe' for row in stats))
-        self.assertTrue(all(row['observed_keys']==[] for row in stats))
+        self.assertEqual(len(backend.actions),10);self.assertGreater(len({tuple(k) for k,ms in backend.actions}),1)
+        self.assertTrue(all(row['action_kind']=='input' for row in stats))
+        self.assertTrue(all(row['observed_keys'] for row in stats))
     def test_natural_observation_and_input_response_are_separate(self):
         backend=Backend()
         backend.observe_turn=Mock(side_effect=[SimpleNamespace(image=b'latest',kind='timeout',changed=True,raw_change=.8,masked_activity=0,duration_ms=1200),SimpleNamespace(image=b'after',kind='normal',changed=True,raw_change=.9,masked_activity=0,duration_ms=1400)])
@@ -166,7 +167,7 @@ class Diagnostic4404RegressionTests(unittest.TestCase):
                 self.assertEqual(branch['properties']['action']['properties']['keys']['maxItems'],0)
             else:
                 choices=branch['properties']['action']['properties']['keys']['enum']
-                self.assertNotIn(['s'],choices);self.assertIn([],choices);self.assertIn(['w'],choices)
+                self.assertNotIn(['s'],choices);self.assertNotIn([],choices);self.assertIn(['w'],choices)
     def test_low_quality_results_never_enter_game_memory(self):
         from autoplayer.core import LocalLLM
         with tempfile.TemporaryDirectory() as folder:
@@ -177,7 +178,7 @@ class Diagnostic4404RegressionTests(unittest.TestCase):
                 llm._request=Mock(return_value=json.dumps(change(observation='現在の画面で確認できる事実')))
                 backend=Backend()
                 Controller(settings,backend,llm,lambda row:None,Path(folder)/'run.jsonl',memory=memory).run()
-                self.assertEqual(backend.actions,[]);self.assertEqual(memory.history(),[])
+                self.assertEqual(len(backend.actions),1);self.assertEqual(memory.history(),[])
             finally:memory.close()
 
 class SceneObservationSeparationTests(unittest.TestCase):

@@ -91,7 +91,8 @@ class RequestBudgetTests(unittest.TestCase):
         slim=fallback_schema(schema)
         self.assertNotIn('oneOf',slim)
         self.assertEqual(slim['properties']['intent']['properties']['target_id']['enum'],['','object_1'])
-        self.assertEqual(slim['properties']['action'],schema['oneOf'][0]['properties']['action'])
+        self.assertEqual(slim['properties']['action']['properties']['keys']['items'],schema['oneOf'][0]['properties']['action']['properties']['keys']['items'])
+        self.assertNotIn('minItems',slim['properties']['action']['properties']['keys'])
         self.assertIn('goal_success',slim['required'])
         self.assertLess(len(json.dumps(slim)),len(json.dumps(schema))/2)
         from test_agent import change
