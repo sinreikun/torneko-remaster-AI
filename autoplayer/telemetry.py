@@ -4,12 +4,13 @@ import time
 
 class RecognitionState:
     def __init__(self):
-        self.map={};self.metrics={};self.objects=[];self.floor_state={};self.remaining=None
+        self.map={};self.tentative={};self.metrics={};self.objects=[];self.floor_state={};self.remaining=None
         self.inference=set();self.observed_at=None;self.phase='待機';self.revision=0
     @property
     def thinking(self):return bool(self.inference)
     def update(self,row):
         event=row.get('event')
+        if 'mapless_navigation' in row:self.tentative=copy.deepcopy(row['mapless_navigation'])
         if event=='llm_activity':
             request=row.get('request_id','default')
             if row.get('active'):self.inference.add(request);self.remaining=0
@@ -20,7 +21,7 @@ class RecognitionState:
             self.remaining=0;self.phase='作戦指示の反映待ち';self.revision+=1;return
         if event in ('session_end','disconnected'):
             self.inference.clear();self.remaining=None;self.objects=[];self.phase='停止'
-            if event=='disconnected':self.map={};self.metrics={};self.objects=[];self.observed_at=None
+            if event=='disconnected':self.tentative={};self.map={};self.metrics={};self.objects=[];self.observed_at=None
             self.revision+=1;return
         state=row.get('policy_after') if event=='result' else row.get('policy_state')
         world=row.get('world_observation') or {}
@@ -56,6 +57,17 @@ class RecognitionState:
         if row.get('fast_learning'):self.remaining=row['fast_learning'].get('next_review_in',0)
         self.revision+=1
     def grid(self):
+        if self.tentative.get('active'):
+            t=self.tentative;px,py=t.get('pose',[0,0]);out={}
+            def project(c):return (c[0]-px+27,c[1]-py+16)
+            for c in t.get('cells',[]):
+                cell=project(c['cell'])
+                if valid(cell):out[cell]='tentative'
+            for c in t.get('obstacles',[]):
+                cell=project(c)
+                if valid(cell) and cell not in out:out[cell]='obstacle'
+            out[(27,16)]='uncertain_pose' if t.get('pose_uncertain') else 'estimated_pose'
+            return out
         m=self.map
         if m.get('status')!='observed' or m.get('grid_size')!=[54,32]:return {}
         out={};player=m.get('player_cell')
@@ -79,11 +91,12 @@ class RecognitionState:
         count='分析中' if self.thinking else '未設定' if self.remaining is None else '次の判断で分析' if self.remaining==0 else f'あと{self.remaining}手（状況変化で前倒し）'
         retained=' / '.join({'strength':'ちから','sword':'剣','shield':'盾','experience':'経験値','max_floor':'最深階','level':'Lv','gold':'所持金'}.get(k,k) for k,v in self.metrics.items() if v.get('retained'))
         note='\n保持値（未再確認）: '+retained if retained else ''
-        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') else ''}{note}"
+        if self.tentative.get('active'):note+='\n仮経路地図 / '+self.tentative.get('mode','')+' / '+self.tentative.get('calibration','')+'\n仮の移動単位・実マス未保証 / 黄枠:推定位置 橙:障害候補'
+        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'仮経路（実地図と別座標）' if self.tentative.get('active') else '確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') and not self.tentative.get('active') else ''}{note}"
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
-COLORS={'known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
+COLORS={'tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
 def paint_grid(canvas,cells,x=8,y=8,unit=6):
     # All 1,728 grid cells are drawn, including unknown ones.
@@ -91,7 +104,9 @@ def paint_grid(canvas,cells,x=8,y=8,unit=6):
         for col in range(54):
             kind=cells.get((col,row));a=x+col*unit;b=y+row*unit
             canvas.create_rectangle(a,b,a+unit,b+unit,fill=COLORS['known'] if kind in ('enemy','item','stairs') else COLORS.get(kind,'#121c2b'),outline='#263346',width=1,tags='recognition')
-            if kind=='enemy':canvas.create_oval(a+1,b+1,a+unit-1,b+unit-1,fill=COLORS[kind],outline='',tags='recognition')
+            if kind in ('estimated_pose','uncertain_pose'):canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,outline='#ffe04b',tags='recognition')
+            elif kind=='obstacle':canvas.create_line(a,b+unit,a+unit,b,fill='#ffbe63',tags='recognition')
+            elif kind=='enemy':canvas.create_oval(a+1,b+1,a+unit-1,b+unit-1,fill=COLORS[kind],outline='',tags='recognition')
             elif kind=='item':canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill=COLORS[kind],tags='recognition')
             elif kind=='stairs':canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,fill='#121c2b',outline=COLORS[kind],tags='recognition')
 

@@ -855,6 +855,8 @@ class Controller:
         learning_gate=FastLearningGate(self.cfg.llm_review_interval)
         from .visual_responses import VisualResponses
         visual_responses=VisualResponses()
+        from .mapless_navigation import MaplessNavigation
+        mapless=MaplessNavigation(self.cfg)
         visual_blocked=[]
         def blocked_keys():
             raw=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
@@ -934,14 +936,17 @@ class Controller:
                     self.executive.cancel('operator_guidance_changed')
                     if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 self.guidance_revision=guidance['revision']
-                self.emit({'event':'perception','policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
+                mapless.locate(normal_observation_image)
+                mapless_context=mapless.prepare(policy_state,native,world_observation,revision)
+                self.emit({'event':'perception','mapless_navigation':mapless_context,'policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
                 learning_review=learning_gate.evaluate(step,native,policy_state,guidance,experience_review.context(),image_available=normal_observation_image.startswith(b'\x89PNG\r\n\x1a\n')) if self.cfg.fast_learning and not dry_run else None
                 visual_grid=self._timed('visual_evidence_ms',visual_responses.grid,normal_observation_image) if learning_review and learning_review.get('visual_fallback') else None
                 visual_evidence=visual_responses.evidence(visual_grid,step) if visual_grid else {}
                 visual_blocked=visual_evidence.get('blocked_actions',[])
                 blocked=blocked_keys()
                 forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
-                local_learning=bool(learning_review and not learning_review['llm_requested'])
+                route_local=bool(mapless.propose() and len(mapless.samples)>=3 and step%8 and not guidance['text'] and self.history and (self.history[-1].get('scene') in ('gameplay','exploration','dungeon') or (self.history[-1].get('active_input') or {}).get('source')=='tentative_route'))
+                local_learning=bool(route_local or (learning_review and not learning_review['llm_requested']))
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
                     if not local_learning and not forecast_ready and hasattr(self.llm,'review_strategy'):
@@ -953,7 +958,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=blocked_keys()
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
@@ -1025,8 +1030,15 @@ class Controller:
                         if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 else:information_context=information.context(decision,native,policy_state)
                 if active_choice:self.executive.cancel('active_input_trial')
-                timing_trial=self.duration_learner.choose(decision) if self.duration_learner and not dry_run else None
-                pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run else None
+                route_proposal=mapless.propose() if not dry_run and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and decision.scene in ('unknown','gameplay','exploration','dungeon') else None
+                if route_proposal:
+                    from dataclasses import replace
+                    route_keys,route_reason=route_proposal
+                    decision=replace(decision,keys=route_keys,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),intent={},forecast={},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},subgoal='現在領域の出口を探す',reason=route_reason)
+                    active_choice={'source':'tentative_route','learning':False,'reason':route_reason}
+                    self.executive.cancel('tentative_route')
+                timing_trial=self.duration_learner.choose(decision) if self.duration_learner and not dry_run and not route_proposal else None
+                pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run and not route_proposal else None
                 if not planned and decision.keys not in ([k] for k in ('w','a','s','d')):
                     self.executive.remaining=0
                 if original_proposal.get('keys')!=decision.keys:
@@ -1040,6 +1052,7 @@ class Controller:
                 row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
+                row['mapless_navigation']=mapless_context
                 row['visual_action_evidence']=visual_evidence
                 row['interface_model_input_retained']=bool(interface_model_action and decision.keys==original_proposal['keys'])
                 row['visual_fallback']={'active':bool(learning_review and learning_review.get('visual_fallback')),'fresh_model_input_retained':bool(visual_model_action and decision.keys==original_proposal['keys'])}
@@ -1219,6 +1232,8 @@ class Controller:
                         row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,{},normal_observation_image,after_image)
                         self.executive.cancel('no_map_policy')
                     row['input_coverage']=self._timed('learning_save_ms',information.record,information_context,row,policy_state,after_state,native,after_native,after_image)
+                row['mapless_navigation']=mapless.record(image,after_image,neutral_image,row,same_decision_frame) if not dry_run else mapless_context
+                if not dry_run:mapless.locate(after_image)
                 if self.cfg.fast_learning and self.memory:self.stage_ms['learning_batch_commit_ms']=self.memory.last_batch_commit_ms
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
                 row['performance'].update(total_ms=round((time.monotonic()-step_started)*1000),after_decision_ms=round((time.monotonic()-decision_finished)*1000))
