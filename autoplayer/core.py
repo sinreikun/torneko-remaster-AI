@@ -552,8 +552,26 @@ class LocalLLM:
 
         from dataclasses import replace
         planner_cfg=replace(cfg,allowed_keys=[k for k in cfg.allowed_keys if k!='num7']) if is_torneko(cfg.window_title) else cfg
+        from .exterior_actions import ExteriorActions
+        from .mapless_navigation import MaplessNavigation
+        exterior=ExteriorActions(cfg,MaplessNavigation(cfg))
+        previous_exterior=self.context.get('exterior_action_policy',{})
+        exterior.location=previous_exterior.get('location','unclassified')
+        action_scope=exterior.observe({},native,scene_observation.get('scene_type','unknown'))
+        if action_scope.get('active'):
+            prompt['exterior_action_policy']=action_scope
+            prompt['information_exploration']={'actions':[{'keys':a} for a in action_scope['actions']],'rule':action_scope['rule']}
+            if 'current_user_controls' in prompt:prompt['current_user_controls']['keys']={k:v for k,v in prompt['current_user_controls'].get('keys',{}).items() if any(k in a for a in action_scope['actions'])}
+            prompt['key_bindings']={k:v for k,v in prompt.get('key_bindings',{}).items() if any(k in a for a in action_scope['actions'])}
+            prompt['instruction']+=' '+action_scope['rule']
+            planner_cfg=replace(planner_cfg,allowed_keys=[k for k in planner_cfg.allowed_keys if any(k in a for a in action_scope['actions'])])
+            prompt['exploration_objective']='現在領域の出口へ移動する。メニュー等の無関係な操作を試すことは情報収集に含めない。'
         prompt['allowed_keys']=planner_cfg.allowed_keys
         schema=decision_schema(planner_cfg)
+        if action_scope.get('active'):
+            for branch in schema['oneOf']:
+                if branch['properties']['status']['enum']!=['complete']:
+                    branch['properties']['action']['properties']['keys']={'type':'array','enum':action_scope['actions']}
         target_ids=['']+[o['id'] for o in (self.context.get('world_observation') or {}).get('objects',[])[:20] if isinstance(o.get('id'),str)]
         for branch in schema['oneOf']:
             branch['properties']['intent']['properties']['target_id']['enum']=target_ids
@@ -564,13 +582,14 @@ class LocalLLM:
             # During recovery use a single allowed key or observation. Explicit
             # enums are supported by Ollama's grammar; prompt advice alone did
             # not prevent the field model repeatedly proposing a held action.
-            choices=[[key] for key in planner_cfg.allowed_keys if [key] not in blocked] or [[key] for key in planner_cfg.allowed_keys]
+            permitted=action_scope['actions'] if action_scope.get('active') else [[key] for key in planner_cfg.allowed_keys]
+            choices=[keys for keys in permitted if keys not in blocked] or permitted
             for branch in schema['oneOf']:
                 if branch['properties']['status']['enum']!=['complete']:
                     branch['properties']['action']['properties']['keys']={'type':'array','enum':choices}
-            prompt['allowed_keys']=[key for key in cfg.allowed_keys if [key] in choices]
+            prompt['allowed_keys']=[key for key in planner_cfg.allowed_keys if any(key in keys for keys in choices)]
             prompt['recovery_action_choices']=choices
-            prompt['instruction']+=' 再送保留中のキーは選べません。現在の通路・障害物・表示を見直し、recovery_action_choicesから単独の許可入力を選んでください。'
+            prompt['instruction']+=' 再送保留中のキーは選べません。現在の通路・障害物・表示を見直し、recovery_action_choicesに列挙した組合せから一手の許可入力を選んでください。'
         if cfg.profile_id:
             from .performance import compact_profile_prompt
             prompt=compact_profile_prompt(prompt)
@@ -857,6 +876,8 @@ class Controller:
         visual_responses=VisualResponses()
         from .mapless_navigation import MaplessNavigation
         mapless=MaplessNavigation(self.cfg)
+        from .exterior_actions import ExteriorActions
+        exterior=ExteriorActions(self.cfg,mapless)
         visual_blocked=[]
         def blocked_keys():
             raw=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
@@ -936,6 +957,9 @@ class Controller:
                     self.executive.cancel('operator_guidance_changed')
                     if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 self.guidance_revision=guidance['revision']
+                if world_observation.get('new_adventure'):exterior.location='unclassified'
+                exterior_context=exterior.observe(policy_state,native)
+                policy_state['exterior_action_policy']=exterior_context
                 mapless.locate(normal_observation_image)
                 mapless_context=mapless.prepare(policy_state,native,world_observation,revision)
                 self.emit({'event':'perception','mapless_navigation':mapless_context,'policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
@@ -958,7 +982,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'exterior_action_policy':exterior_context,'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=blocked_keys()
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
@@ -994,17 +1018,20 @@ class Controller:
                     if not self.control.checkpoint(): break
                     self._write({'event':'not_executed','reason':'paused_during_inference','step':step+1})
                     continue
+                exterior_context=exterior.observe(policy_state,native,decision.scene)
+                policy_state['exterior_action_policy']=exterior_context
                 policy_choice=({'source':'forecast_continuation'} if planned else None);llm_proposal=None;original_proposal=dict(decision.__dict__);combat_choice=None
+                if exterior_context.get('active'):policy_choice={'source':'exterior_exit_exploration'}
                 fresh_interface_proposal=bool(not local_learning and not planned and ((learning_review or {}).get('interface_decision') or torneko_menu_kind(native)) and decision.keys and decision.status=='continue' and decision.risk!='destructive')
                 novelty_choice=None;novelty_reconsideration=None
-                if self.policy and self.novelty and not dry_run and not planned and not fresh_interface_proposal and not guidance['text']:
+                if self.policy and self.novelty and not dry_run and not planned and not fresh_interface_proposal and not guidance['text'] and not exterior_context.get('active'):
                     decision,novelty_choice=self.novelty.choose_menu(decision,native,blocked_keys())
                     if policy_stable:
                         novelty_reconsideration=self.novelty.repeated_menu_opening(native,policy_state,decision)
                         if novelty_reconsideration:
                             from dataclasses import replace
                             decision=replace(decision,keys=[],plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={})
-                if self.policy and policy_state and not planned:
+                if self.policy and policy_state and not planned and not exterior_context.get('active'):
                     llm_proposal=original_proposal
                     if self.combat and not dry_run and not guidance['text']:
                         decision,combat_choice=self.combat.choose(decision,policy_state,policy_stable,blocked_keys())
@@ -1022,7 +1049,7 @@ class Controller:
                         self.llm.knowledge_engine.goal={'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'source':'action_grounding','status':'proposed_observation_goal'}
                 interface_model_action=bool(fresh_interface_proposal and decision.keys==original_proposal['keys'] and grounding.get('status')!='unverified_target')
                 visual_model_action=bool(learning_review and learning_review.get('visual_fallback') and original_proposal.get('keys') and original_proposal.get('status')=='continue' and original_proposal.get('risk')!='destructive' and decision.keys==original_proposal['keys'] and grounding.get('status')!='unverified_target')
-                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),preserve_proposal=bool(interface_model_action or visual_model_action or (policy_choice or {}).get('source')=='learned_interface_policy' or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
+                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),scope_actions=exterior_context['actions'] if exterior_context.get('active') else None,preserve_proposal=bool(interface_model_action or visual_model_action or (policy_choice or {}).get('source')=='learned_interface_policy' or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
                 if not dry_run and original_proposal.get('status')!='blocked' and original_proposal.get('risk')!='destructive' and not combat_choice and not visual_model_action and not interface_model_action and (policy_choice or {}).get('source')!='learned_interface_policy' and not (self.improvement and self.improvement.active):
                     decision,information_context=information.choose(decision,native,policy_state,blocked)
                     if information_context.get('selected'):
@@ -1030,13 +1057,15 @@ class Controller:
                         if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 else:information_context=information.context(decision,native,policy_state)
                 if active_choice:self.executive.cancel('active_input_trial')
-                route_proposal=mapless.propose() if not dry_run and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and decision.scene in ('unknown','gameplay','exploration','dungeon') else None
+                route_proposal=mapless.propose() if not dry_run and (not exterior_context.get('active') or exterior_context.get('mode')=='exit_exploration') and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and decision.scene in ('unknown','gameplay','exploration','dungeon') else None
                 if route_proposal:
                     from dataclasses import replace
                     route_keys,route_reason=route_proposal
                     decision=replace(decision,keys=route_keys,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),intent={},forecast={},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},subgoal='現在領域の出口を探す',reason=route_reason)
                     active_choice={'source':'tentative_route','learning':False,'reason':route_reason}
                     self.executive.cancel('tentative_route')
+                decision,exterior_filter=exterior.enforce(decision,blocked)
+                if exterior_filter:active_choice=exterior_filter;self.executive.cancel('exterior_action_filter')
                 timing_trial=self.duration_learner.choose(decision) if self.duration_learner and not dry_run and not route_proposal else None
                 pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run and not route_proposal else None
                 if not planned and decision.keys not in ([k] for k in ('w','a','s','d')):
@@ -1052,6 +1081,7 @@ class Controller:
                 row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
+                row['exterior_action_policy']=exterior_context
                 row['mapless_navigation']=mapless_context
                 row['visual_action_evidence']=visual_evidence
                 row['interface_model_input_retained']=bool(interface_model_action and decision.keys==original_proposal['keys'])
@@ -1149,6 +1179,15 @@ class Controller:
                 if guidance_source and guidance_source.snapshot()['revision']!=guidance['revision']:
                     self.executive.cancel('operator_guidance_changed_before_input')
                     self._write({'event':'not_executed','reason':'operator_guidance_changed','step':step+1});continue
+                exterior_context=exterior.observe(policy_state,native,decision.scene if image==decision_source_image else 'unknown')
+                decision,exterior_filter=exterior.enforce(decision,blocked)
+                row['exterior_action_policy']=exterior_context
+                policy_state['exterior_action_policy']=exterior_context
+                if exterior_filter:
+                    active_choice=exterior_filter;self.executive.cancel('exterior_action_filter_before_input')
+                    row.update(decision.__dict__);row.update(active_input=active_choice,learning=False,model_report_learning=False,input_timing_trial=None)
+                    row.pop('adaptive_pacing',None)
+                    self._write({'event':'decision_revision',**row,'revision_reason':'exterior_action_filter'})
                 same_decision_frame=image==decision_source_image
                 row['interface_model_input_retained']=bool(same_decision_frame and interface_model_action and decision.keys==original_proposal['keys'])
                 row['visual_fallback']['fresh_model_input_retained']=bool(same_decision_frame and visual_model_action and decision.keys==original_proposal['keys'])
@@ -1160,7 +1199,7 @@ class Controller:
                     row['input_receipt']=self.backend.act(decision.keys,decision.hold_ms,self.control or self.stop)
                     receipt=row['input_receipt']
                     row['executed']=any(event.get('message')=='WM_KEYDOWN' for event in receipt.get('events',[])) if isinstance(receipt,dict) else True
-                    if row['executed']:active_input.sent(decision,native,policy_state)
+                    if row['executed']:active_input.sent(decision,native,policy_state);exterior.sent(decision.keys)
                     self._write({'event':'sent',**row})
                 row['action_kind']='input' if row['executed'] else 'observe'
                 row['observed_keys']=decision.keys if row['executed'] else []

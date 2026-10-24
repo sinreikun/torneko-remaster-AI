@@ -43,7 +43,9 @@ class InformationExploration:
         return self.cache[key]
     def context(self,decision,native,state):
         situation=self.situation(decision,native,state);rows=[]
-        for action in self.actions():
+        scope=(state or {}).get('exterior_action_policy',{})
+        actions=scope.get('actions',[]) if scope.get('active') else self.actions()
+        for action in actions:
             data=self.stats(situation,action);needed=4 if len(data['outcomes'])>1 else 2
             rows.append({'keys':action,'observed':data['observed'],'required':needed,'sent':data['sent']})
         return {'situation':situation,'initial_coverage_ready':all(r['observed']>=r['required'] for r in rows),

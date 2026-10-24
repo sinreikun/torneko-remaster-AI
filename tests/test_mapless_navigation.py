@@ -19,13 +19,19 @@ class MaplessTests(unittest.TestCase):
         for d in ('w','a','d'):n.trials[(n.pose,d)]=3
         proposal=n.propose();self.assertEqual(proposal[0],['s']);self.assertEqual(n.mode,'復路')
     def test_face_confirm_move_bounded(self):
-        n=self.make()
+        n=self.make();n.samples=[6,6,6]
         for _ in range(2):self.record(n,['w'],{'status':'stationary'})
         self.assertEqual(n.propose()[0],['num5','w'])
         self.record(n,['num5','w'],{});self.assertEqual(n.propose()[0],['num1'])
         self.record(n,['num1'],{});self.assertEqual(n.propose()[0],['w'])
         self.record(n,['w'],{'status':'stationary'});self.assertIsNone(n.pending);self.assertEqual(n.propose()[0],['d'])
         self.record(n,['w'],{'status':'stationary'});self.assertIsNone(n.pending)
+    def test_uncalibrated_stationary_is_not_surrounded_by_obstacles(self):
+        n=self.make()
+        for direction in ('w','a','s','d'):
+            for _ in range(3):self.record(n,[direction],{'status':'stationary'})
+        self.assertEqual(n.obstacles,set());self.assertIsNone(n.pending)
+        self.assertTrue(n.uncertain);self.assertEqual(n.pose,(0,0))
     def test_wrong_translation_invalidates_pose(self):
         n=self.make();self.record(n,['w'],{'status':'translated','shift':[6,0]});self.assertTrue(n.uncertain);self.assertEqual(n.pose,(0,0))
     def test_menu_and_real_map_suspend(self):
@@ -37,9 +43,21 @@ class MaplessTests(unittest.TestCase):
     def test_no_os_acceptance_no_motion(self):
         n=self.make();row=self.row(['w']);row['input_receipt']={};n.record(b'',b'',b'',row);self.assertEqual(len(n.nodes),1)
     def test_relocalization_requires_unique_match(self):
-        n=self.make();n.landmarks={(0,0):[20]*448};n.uncertain=True
+        n=self.make();n.landmarks={(0,0):[20]*448};n.samples=[6,6,6];n.uncertain=True
         with patch.object(n,'signature',return_value=[20]*448):n.locate(b'')
         self.assertFalse(n.uncertain)
+    def test_unknown_pose_does_not_extend_old_map_after_measured_input(self):
+        n=self.make();self.record(n,['w'],{'status':'stationary'});scope=n.scope
+        for _ in range(2):
+            self.record(n,['w'],{'status':'translated','shift':[0,6]})
+            self.assertTrue(n.uncertain);self.assertEqual(n.pose,(0,0));self.assertEqual(len(n.nodes),1)
+        self.record(n,['w'],{'status':'translated','shift':[0,6]})
+        self.assertNotEqual(scope,n.scope);self.assertEqual(n.pose,(0,0));self.assertEqual(len(n.nodes),1)
+        self.assertFalse(n.uncertain);self.assertEqual(n.samples,[6,6,6])
+    def test_uncalibrated_same_view_cannot_restore_position(self):
+        n=self.make();n.landmarks={(0,0):[20]*448};n.uncertain=True
+        with patch.object(n,'signature',return_value=[20]*448):n.locate(b'')
+        self.assertTrue(n.uncertain)
     def test_all_frontiers_closed_does_not_claim_exit(self):
         n=self.make()
         for d in ('w','a','s','d'):n.trials[(n.pose,d)]=3

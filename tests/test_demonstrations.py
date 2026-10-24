@@ -132,10 +132,12 @@ class DemonstrationTests(unittest.TestCase):
         identifier=self.example();client=LocalLLM(self.cfg);client.demonstrations=self.store
         client.ocr=SimpleNamespace(read=Mock(return_value=ocr()))
         client.observe_scene=Mock(return_value={'scene_type':'menu','visible_text':['道具','マップ'],'description':'上段に道具とマップ、下段に足元とその他が表示されている。','player_position':'背景の中央','open_routes':[],'obstacles':[],'hazards':[],'confidence':.9})
-        client._request=Mock(return_value=json.dumps(change(scene='menu',observation='上段に道具とマップ、下段に足元とその他が表示されている。',subgoal='所持品を確認する',reason='現在の道具を調べるため選択項目を決定する。',goal_success='道具の一覧が表示されたことを次に確認する。')))
+        client._request=Mock(return_value=json.dumps(change(scene='menu',action={'keys':['num2'],'hold_ms':80,'wait_ms':0},observation='上段に道具とマップ、下段に足元とその他が表示されている。',subgoal='メニューを閉じて出口探索に戻る',reason='ダンジョン外のメニューは探索候補にせず取消する。',goal_success='メニューが閉じたことを次に確認する。')))
         with patch('autoplayer.demonstrations.features',return_value=self.f):client.decide(b'capture-contract',[],False)
         prompt=client._request.call_args.args[2]
         self.assertEqual(prompt['human_examples'][0]['id'],identifier)
+        self.assertEqual(prompt['allowed_keys'],['num2'])
+        self.assertEqual(prompt['exterior_action_policy']['mode'],'close_existing_menu')
         self.assertEqual(client.take_state()['demonstration_candidates'][0]['id'],identifier)
         self.store.record_reuse({'demonstration_candidates':client.take_state()['demonstration_candidates'],'executed':False,'observed_keys':[]})
         reused=json.loads(self.memory.db.execute('SELECT data FROM human_reuse').fetchone()[0])

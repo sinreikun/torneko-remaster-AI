@@ -15,12 +15,14 @@ DANGEROUS=PROTECTED_CONFIRMATION
 
 class ActiveInput:
     def __init__(self,cfg):self.cfg=cfg;self.attempts={}
-    def select(self,decision,native=None,state=None,blocked=(),reason='',force=False,preserve_proposal=False):
+    def select(self,decision,native=None,state=None,blocked=(),reason='',force=False,preserve_proposal=False,scope_actions=None):
         cfg=self.cfg;bindings=cfg.key_bindings or (REFERENCE['keys'] if is_torneko(cfg.window_title) else {})
         text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]))
         forbidden=decision.status=='blocked' or decision.risk=='destructive' or bool(DANGEROUS.search(text))
         allowed=[k for k in cfg.allowed_keys if k not in ('num3','num5','num7','num6') or not is_torneko(cfg.window_title)]
         if not allowed:allowed=list(cfg.allowed_keys)
+        if scope_actions is not None:allowed=[k for k in allowed if [k] in scope_actions]
+        if not allowed:raise RuntimeError('現在の行動制限で許可された単独入力がありません。')
         match=lambda pattern:[k for k in allowed if re.search(pattern,bindings.get(k,''),re.I)]
         confirm=match(r'決定|confirm');cancel=match(r'キャンセル|cancel')
         movement=match(r'^(上|下|左|右)|^(up|down|left|right)$')
@@ -36,7 +38,7 @@ class ActiveInput:
         proposal=decision.keys
         repeat=bool(proposal and (tuple(proposal) in recent or (counts[tuple(proposal)]>=3 and not preserve_proposal)))
         if decision.status=='complete' and not force:return decision,{}
-        ordinary=(decision.status=='continue' and proposal and set(proposal)<=set(cfg.allowed_keys) and not forbidden and not repeat and not force)
+        ordinary=(decision.status=='continue' and proposal and set(proposal)<=set(cfg.allowed_keys) and not forbidden and not repeat and not force and (scope_actions is None or proposal in scope_actions))
         if ordinary:
             if decision.confidence>=cfg.min_confidence and decision.risk=='normal':return decision,{}
             # Retain honest confidence; the action is an experiment, not a new

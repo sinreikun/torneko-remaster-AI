@@ -62,6 +62,7 @@ class MaplessNavigation:
         signature=self.signature(png)
         if signature is None:return
         if self.uncertain:
+            if len(self.samples)<3:return
             matches=[c for c,s in self.landmarks.items() if sum(abs(a-b) for a,b in zip(s,signature))/len(s)<1.5]
             if len(matches)==1:
                 self.pose=matches[0];self.uncertain=False;self.reason='unique_previous_view_relocalized';self.pending=None
@@ -122,12 +123,32 @@ class MaplessNavigation:
             if along<2 or cross>2:self.uncertain=True;self.reason='translation_conflicts_with_input'
             elif self.samples and abs(along-statistics.median(self.samples))>max(2,statistics.median(self.samples)*.3):self.uncertain=True;self.reason='movement_unit_mismatch'
             else:
-                self.samples=(self.samples+[along])[-12:];dest=(previous[0]+delta[0],previous[1]+delta[1]);self.pose=dest
+                self.samples=(self.samples+[along])[-12:]
+                if self.uncertain:
+                    # A measurable input after an unmeasurable one does not
+                    # recover the old coordinate. Recalibrate and begin a new
+                    # relative origin, without inventing a link to old cells.
+                    self.reason='movement_calibrating_after_unknown_pose'
+                    if len(self.samples)>=3:
+                        samples=list(self.samples);last=self.last;old_scope=self.scope
+                        self.reset('reanchored_after_unobserved_movement')
+                        self.active=True;self.samples=samples;self.last=last
+                        self.last.update(previous_scope=old_scope,pose_update='new_relative_origin_no_link_to_previous_map')
+                    self.last['to']=list(self.pose)
+                    return self.snapshot()
+                dest=(previous[0]+delta[0],previous[1]+delta[1]);self.pose=dest
                 self.nodes.setdefault(dest,{'visits':0})['visits']+=1
                 self.edges[edge]={'to':list(dest),'evidence':self.last}
                 inverse=next(d for d,v in DIRECTIONS.items() if v==(-delta[0],-delta[1]));self.edges[(dest,inverse)]={'to':list(previous),'reverse_hypothesis':True}
                 self.obstacles.discard(dest);self.pending=None
         elif evidence['status']=='stationary':
+            if len(self.samples)<3:
+                # Stable background is not a collision sensor. Before camera
+                # motion has been calibrated it cannot establish blocked cells
+                # or justify a door-probe sequence at this estimated coordinate.
+                self.uncertain=True;self.pending=None;self.reason='stationary_without_movement_calibration'
+                self.last['to']=list(self.pose)
+                return self.snapshot()
             if stage and stage[1]=='move':self.trials[edge]=3;self.pending=None;self.edges.pop(edge,None)
             elif self.trials[edge]>=2:
                 self.obstacles.add((previous[0]+delta[0],previous[1]+delta[1]))
