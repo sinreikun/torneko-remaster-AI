@@ -2,6 +2,15 @@
 import re
 import unicodedata
 
+# Match confirmation sentences, including punctuation/line breaks between the
+# operation and the question. A menu entry named 中断 alone is not a question.
+PROTECTED_CONFIRMATION=re.compile(
+    r'削除|初期化|購入|課金|終了しますか|'
+    r'(?:(?:終了|中断)(?:します|する|しても|して)|やめ(?:ます|る|ても))'
+    r'[\s\S]{0,24}(?:よろし|いいです|良いです|か[?？])|'
+    r'delete|purchase|reset\s+save',re.I)
+
+
 
 def compact_text(text):
     return re.sub(r'\s+','',unicodedata.normalize('NFKC',text))

@@ -1,6 +1,6 @@
 """Unverified transfer of observed text responses between similar OCR layouts."""
 import hashlib,json,math
-from .interfaces import compact_text
+from .interfaces import compact_text,PROTECTED_CONFIRMATION
 from .experience_review import outcome_learning_allowed
 
 
@@ -8,6 +8,7 @@ def layout_group(native,size,metrics):
     if not native or native.get('status')!='ok' or len(size)!=2 or min(size)<=0 or any(metrics.get(k) for k in ('hp','floor')):return None
     lines=[l for l in native.get('lines',[]) if compact_text(l.get('text',''))]
     if not lines or any(not isinstance(l.get('confidence'),(int,float)) or not math.isfinite(l['confidence']) or l['confidence']<.8 for l in lines):return None
+    if PROTECTED_CONFIRMATION.search('\n'.join(l.get('text','') for l in lines)):return None
     boxes=[w.get('box',[]) for l in lines for w in l.get('words',[])]
     if not boxes or any(len(b)!=4 or any(not isinstance(v,(int,float)) or not math.isfinite(v) for v in b) or b[2]<=0 or b[3]<=0 or b[0]<0 or b[1]<0 or b[0]+b[2]>size[0] or b[1]+b[3]>size[1] for b in boxes):return None
     labels={compact_text(l['text']).lstrip('▶►▷>→') for l in lines}

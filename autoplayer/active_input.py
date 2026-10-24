@@ -8,9 +8,9 @@ from dataclasses import replace
 import hashlib
 import re
 from .controls import REFERENCE,is_torneko
-from .interfaces import choice_action
+from .interfaces import choice_action,PROTECTED_CONFIRMATION
 
-DANGEROUS=re.compile(r'削除|初期化|購入|課金|終了しますか|delete|purchase|reset\s+save',re.I)
+DANGEROUS=PROTECTED_CONFIRMATION
 
 
 class ActiveInput:
@@ -46,7 +46,7 @@ class ActiveInput:
         choice=choice_action(native or {},bindings,allowed) if not forbidden else None
         if choice and counts[(choice['key'],)]<3 and (choice['key'],) not in recent:key=choice['key']
         else:key=min(candidates,key=lambda k:(counts[(k,)]+(3 if (k,) in recent else 0),candidates.index(k)))
-        why=('対象の根拠が不十分なため、その操作は採用せず別の許可入力を試す。' if reason and '対象' in reason else reason) or ('破壊的な確認から取消・移動で離れる。' if forbidden else '同じ無反応の反復を避け別の許可入力を試す。' if repeat else '観察のみで待たず、許可入力を試して次の画面を取得する。')
+        why=('対象の根拠が不十分なため、その操作は採用せず別の許可入力を試す。' if reason and '対象' in reason else reason) or ('終了・中断・削除等の確認から取消・移動で離れる。' if forbidden else '同じ無反応の反復を避け別の許可入力を試す。' if repeat else '観察のみで待たず、許可入力を試して次の画面を取得する。')
         return replace(decision,status='continue',risk='uncertain',keys=[key],hold_ms=min(80,cfg.max_hold_ms),wait_ms=min(600,cfg.max_wait_ms),
             intent={'kind':'confirm' if key in confirm else 'explore','target_id':''},forecast={},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
             subgoal='入力を試して次の状況を確認する',reason=why,goal_success='入力後の画面と数値を再取得し変化を比較する'),{
