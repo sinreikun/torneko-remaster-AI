@@ -66,7 +66,7 @@ class RecognitionState:
             return '/'.join(str(v) for v in values) if values else '不明'
         age='未観測' if self.observed_at is None else f'{int(time.monotonic()-self.observed_at)}秒前'
         count='分析中' if self.thinking else '未設定' if self.remaining is None else '次の判断で分析' if self.remaining==0 else f'あと{self.remaining}手（状況変化で前倒し）'
-        return f"階 {val('floor')}   HP {val('hp')}   満腹度 {val('fullness')}\nちから {val('strength')}   剣 {val('sword')}   盾 {val('shield')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}"
+        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}"
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 

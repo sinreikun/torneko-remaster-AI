@@ -41,20 +41,29 @@ class KnowledgeEngine:
             'sword':r'剣の強さ[ \t:：]*(\d{1,3})',
             'shield':r'盾の強さ[ \t:：]*(\d{1,3})',
             'floor':r'(\d(?:[ \t]*\d){0,2})[ \t]*(?:階|F\b)',
+            'max_floor':r'最深階[ \t:：]*(\d{1,3})',
+            'experience':r'経験値[ \t:：]*(\d{1,9})',
+            'gold':r'(?<![A-Za-z\d])(\d{1,9})[ \t]*G\b',
             'fullness':r'(?:満[ \t]*腹[ \t]*度|fullness)[ \t]*[:：]?[ \t]*(\d(?:[ \t]*\d){0,2})[ \t]*%'}
         for label,pattern in patterns.items():
-            matches=list(re.finditer(pattern,unicodedata.normalize('NFKC',text),re.I))
+            metric_text='\n'.join(l['text'] for l in ocr.get('lines',[]) if not re.search(r'最深|最高|到達記録',l['text'])) if label=='floor' and ocr.get('status')=='ok' else text
+            matches=list(re.finditer(pattern,unicodedata.normalize('NFKC',metric_text),re.I))
             readings={tuple(int(re.sub(r'[ \t]','',x)) for x in m.groups()) for m in matches}
             if len(readings)==1:
                 numbers=list(next(iter(readings)));match=matches[0]
-                if label=='hp' and (numbers[1]==0 or numbers[0]>numbers[1]):continue
+                if label in ('hp','strength') and (numbers[1]==0 or numbers[0]>numbers[1]):continue
                 if label=='fullness' and numbers[0]>100:continue
                 metrics[label]={'values':numbers,'quote':match.group(0),'unverified_ocr':True}
-        from .hud import boxed_fullness
-        paired=boxed_fullness(ocr) if ocr.get('status')=='ok' else None
-        if paired:
-            if 'fullness' not in metrics:metrics['fullness']=paired
-            elif metrics['fullness']['values']!=paired['values']:metrics.pop('fullness',None)
+        from .hud import boxed_statuses
+        paired=boxed_statuses(ocr)
+        for label,reading in paired.items():
+            if label not in metrics:metrics[label]=reading
+            elif metrics[label]['values']!=reading['values']:metrics.pop(label,None)
+        meanings={'hp':'HP（現在値/最大値）','level':'現在のレベル','strength':'ちから（現在値/最大値）',
+            'sword':'剣の強さ','shield':'盾の強さ','floor':'現在の階（最深階ではない）',
+            'max_floor':'記録上の最深階（現在の階ではない）','fullness':'満腹度（%）',
+            'experience':'経験値（レベルとは別）','gold':'所持金（G）'}
+        for label,reading in metrics.items():reading['meaning']=meanings[label]
         goal_review={'note':'数値はOCRの未検証読取りです。画像と照合してください。'}
         if metrics.get('fullness',{}).get('values',[100])[0]<=15:
             goal_review['resource_priority']='満腹度が低い。食料の所在・所持品と食べる操作の根拠を現在画面から確認し、通常探索より資源補給の具体的な小目標を優先する。未確認の品を食料と断定しない。'

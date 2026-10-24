@@ -3,7 +3,7 @@ import copy
 import hashlib
 import re
 
-_DYNAMIC=re.compile(r'^(?:hp|recorded_hp|current_hp|metrics|floor|fullness|strength|sword|shield|player_position|player_cell|enemies|contacts|relative_contacts|minimap_observation|map_pose|spatial_observation|world_observation|anticipation)$',re.I)
+_DYNAMIC=re.compile(r'^(?:hp|recorded_hp|current_hp|metrics|floor|max_floor|level|experience|gold|fullness|strength|sword|shield|player_position|player_cell|enemies|contacts|relative_contacts|minimap_observation|map_pose|spatial_observation|world_observation|anticipation)$',re.I)
 
 def historical(value):
     if isinstance(value,dict):
@@ -24,5 +24,5 @@ def current(png,native,engine):
     metrics=engine.reconcile(native)['metrics'] if linked else {}
     return {'source':'current_screen','frame_sha256':hashlib.sha256(png).hexdigest(),
         'captured_at':(native or {}).get('captured_at'),'ocr_status':native.get('status') if linked else 'frame_mismatch',
-        'metrics':metrics,'unknown_fields':[k for k in ('hp','floor','fullness','strength','sword','shield') if k not in metrics],
+        'metrics':metrics,'unknown_fields':[k for k in ('hp','floor','max_floor','level','fullness','strength','sword','shield','experience','gold') if k not in metrics],
         'rule':'現在画像が最新の観測。読めない値は不明で、履歴・お手本・過去の目標の値で補完しない。OCRも誤読し得るため画像と食い違えば再観測する。履歴を根拠に現在画面を誤りと扱わない。'}
