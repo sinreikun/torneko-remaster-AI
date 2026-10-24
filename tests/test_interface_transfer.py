@@ -61,7 +61,7 @@ class TransferTests(unittest.TestCase):
         self.assertEqual(result['interface_response']['status'],'recorded')
         self.assertTrue(result['interface_response']['text_response'])
     def test_response_window_is_bounded_and_persists(self):
-        for i in range(40):self.record(str(i),str(i+1))
+        for i in range(40):self.record('文'+str(i),'文'+str(i+1))
         group=state('x')['interface_layout_group']['id']
         self.assertEqual(len(self.policy.interface_responses.samples(group,'num1')),32)
         self.store.close();self.store=MemoryStore(self.path,self.cfg)

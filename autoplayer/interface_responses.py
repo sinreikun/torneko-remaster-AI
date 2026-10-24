@@ -1,11 +1,11 @@
 """Unverified transfer of observed text responses between similar OCR layouts."""
 import hashlib,json,math
-from .interfaces import compact_text,PROTECTED_CONFIRMATION
+from .interfaces import compact_text,PROTECTED_CONFIRMATION,has_text_content
 from .experience_review import outcome_learning_allowed
 
 
 def layout_group(native,size,metrics):
-    if not native or native.get('status')!='ok' or len(size)!=2 or min(size)<=0 or any(metrics.get(k) for k in ('hp','floor')):return None
+    if not has_text_content(native) or len(size)!=2 or min(size)<=0 or any(metrics.get(k) for k in ('hp','floor')):return None
     lines=[l for l in native.get('lines',[]) if compact_text(l.get('text',''))]
     if not lines or any(not isinstance(l.get('confidence'),(int,float)) or not math.isfinite(l['confidence']) or l['confidence']<.8 for l in lines):return None
     if PROTECTED_CONFIRMATION.search('\n'.join(l.get('text','') for l in lines)):return None

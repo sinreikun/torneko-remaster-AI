@@ -1,6 +1,6 @@
 """Event-triggered reasoning with wide periodic reviews; OCR stays per-turn."""
 import hashlib,re,copy
-from .interfaces import compact_text,torneko_menu_kind,result_screen
+from .interfaces import compact_text,torneko_menu_kind,result_screen,has_text_content
 
 class FastLearningGate:
     def __init__(self,interval=128):self.interval=interval;self.last_call=None;self.floor=None;self.guidance=None;self.events={}
@@ -9,7 +9,7 @@ class FastLearningGate:
         linked=not (native.get('frame_sha256') and state.get('frame_sha256') and native['frame_sha256']!=state['frame_sha256'])
         if native.get('status')!='ok' or not linked:native={'status':'unavailable','lines':[]}
         text='\n'.join(compact_text(l.get('text','')) for l in native.get('lines',[]))
-        visual_fallback=bool((state.get('visual') or image_available) and not text.strip() and not (state.get('eligible') and state.get('minimap',{}).get('status')=='observed'))
+        visual_fallback=bool((state.get('visual') or image_available) and not has_text_content(native) and not (state.get('eligible') and state.get('minimap',{}).get('status')=='observed'))
         floor=(state or {}).get('metrics',{}).get('floor',{}).get('values')
         reason=None
         if self.last_call is None:reason='initial_review'

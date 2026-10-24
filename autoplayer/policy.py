@@ -15,7 +15,7 @@ from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .map_sensor import read_grid,MapSensor,FloorConfirmation
 from .exploration import ExplorationRoutes
-from .interfaces import compact_text,torneko_menu_kind,result_screen
+from .interfaces import compact_text,torneko_menu_kind,result_screen,has_text_content
 
 VERSION=9
 MOVES=('w','a','s','d')
@@ -119,7 +119,7 @@ class ExperiencePolicy:
                 with Image.open(io.BytesIO(png)) as image:
                     frame_size=list(image.size);visual=[v//32 for v in image.convert('L').resize((16,12)).tobytes()]
             except OSError:pass
-        text_reliable=bool(text) and all(isinstance(line.get('confidence'),(int,float)) and line['confidence']>=.8 for line in (native or {}).get('lines',[]) if compact_text(line.get('text','')))
+        text_reliable=has_text_content(native) and all(isinstance(line.get('confidence'),(int,float)) and line['confidence']>=.8 for line in (native or {}).get('lines',[]) if compact_text(line.get('text','')))
         text_key=hashlib.sha256(re.sub(r'\s+','',text)[:2000].encode()).hexdigest()[:16]
         if not eligible:objective='interface'
         payload={'floor':floor,'hp_band':int(4*hp[0]/hp[1]) if hp else None,'food_band':food[0]//20 if food else None,'map_shape':minimap.get('shape'),
@@ -127,10 +127,10 @@ class ExperiencePolicy:
         if map_display:payload['observation_mode']='num7_held'
         if not eligible:
             payload.update(text_key=text_key)
-            if not text:payload['visual']=visual
+            if not has_text_content(native):payload['visual']=visual
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and text),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
+        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and has_text_content(native)),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',

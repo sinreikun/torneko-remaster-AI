@@ -16,6 +16,11 @@ def compact_text(text):
     return re.sub(r'\s+','',unicodedata.normalize('NFKC',text))
 
 
+def has_text_content(native):
+    """Letters/ideographs provide text context; lone numbers/symbols do not."""
+    return bool(native and native.get('status')=='ok' and any(char.isalpha() for line in native.get('lines',[]) for char in compact_text(line.get('text',''))))
+
+
 def torneko_menu_kind(native):
     """Require multiple independent visible labels, never an LLM menu caption."""
     if not native or native.get('status')!='ok':return None
