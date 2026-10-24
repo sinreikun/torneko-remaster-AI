@@ -2,7 +2,7 @@
 import hashlib,json,re
 from dataclasses import replace
 from .controls import is_torneko
-from .interfaces import compact_text,torneko_menu_kind,result_screen
+from .interfaces import compact_text,torneko_menu_kind,result_screen,main_menu_context
 from .active_input import DANGEROUS
 
 
@@ -26,6 +26,8 @@ class InformationExploration:
             features={'scene':scene,'contacts':sorted([list(p) for p in m.get('enemies',[]) if max(map(abs,p))<=1]),
                 'map_observed':m.get('status')=='observed','hp_band':min(3,int(hp[0]/hp[1]*4)) if hp and hp[1] else None,
                 'adjacent_known':{k:bool(v.get('known')) for k,v in m.get('neighbors',{}).items()}}
+        elif scene=='main_menu':
+            features={'scene':scene,**main_menu_context(native)}
         elif scene=='unclassified' and state.get('interface_layout_group'):
             features={'source':'ocr_layout_coverage_v1','layout':state['interface_layout_group']['id']}
         else:

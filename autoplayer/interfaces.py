@@ -21,10 +21,17 @@ def has_text_content(native):
     return bool(native and native.get('status')=='ok' and any(char.isalpha() for line in native.get('lines',[]) for char in compact_text(line.get('text',''))))
 
 
+MAIN_MENU_LABELS={'道具','どうぐ','マップ','足元','その他','プレイ記録','倉庫','せってい','設定','中断'}
+
+def main_menu_context(native):
+    labels={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])}
+    return {'labels':sorted(labels&MAIN_MENU_LABELS),'extra_text':sorted(t for t in labels-MAIN_MENU_LABELS if sum(c.isalpha() for c in t)>=8)}
+
+
 def torneko_menu_kind(native):
     """Require multiple independent visible labels, never an LLM menu caption."""
     if not native or native.get('status')!='ok':return None
-    labels={compact_text(line.get('text','')) for line in native.get('lines',[])}
+    labels={compact_text(line.get('text','')).lstrip('▶►▷>→') for line in native.get('lines',[])}
     text='\n'.join(labels)
     if re.search(r'削除|初期化|購入|課金|終了|はい|いいえ',text):return None
     if len(labels & {'食べる','飲む','読む','振る','装備','外す','投げる','置く','説明'})>=3 and '投げる' in labels and '置く' in labels:
@@ -33,6 +40,7 @@ def torneko_menu_kind(native):
             and any(re.fullmatch(r'\d{1,3}/\d{1,3}',label) for label in labels)):
         return 'inventory'
     if len(labels & {'道具','どうぐ','マップ','足元','その他'})>=3:return 'main_menu'
+    if '道具' in labels and len(labels & {'プレイ記録','倉庫','せってい','設定','中断','その他'})>=2:return 'main_menu'
     return None
 
 

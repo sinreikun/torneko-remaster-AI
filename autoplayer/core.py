@@ -15,7 +15,7 @@ from .knowledge import KnowledgeEngine
 from .ocr import ScreenOCR
 from .controls import KEYS as PROFILE_KEYS,REFERENCE,is_torneko
 from .combat import relative_contacts
-from .interfaces import compact_text
+from .interfaces import compact_text,torneko_menu_kind
 from .principles import LEGACY_GOAL,TORNEKO_GOAL,action_principles
 
 KEYS = {'w','a','s','d','up','down','left','right','enter','space','escape','tab','z','x','c','v', *'abcdefghijklmnopqrstuvwxyz', *(str(i) for i in range(10)), *(f'num{i}' for i in range(10))}
@@ -383,9 +383,13 @@ class LocalLLM:
                     prompt=bounded_request_prompt(context_retry_prompt(prompt),budget=6000)
                     metrics['recovery']='retry_short_context_same_grammar'
                     continue
-                if cfg.provider=='ollama' and schema and not fallback and attempt==0 and not raw:
+                if cfg.provider=='ollama' and schema and not fallback and attempt==0:
+                    if raw:
+                        from .performance import context_retry_prompt
+                        prompt=bounded_request_prompt(context_retry_prompt(prompt),budget=6000)
+                        prompt['protocol_feedback']='前の応答はJSONとして読めないため採用していません。指定Schema・許可キー・時間制限を守り、完全なJSON objectだけを返してください。'
                     self.json_fallback_roles=getattr(self,'json_fallback_roles',set())|{role}
-                    metrics['recovery']='retry_generic_json';continue
+                    metrics['recovery']='retry_generic_json_invalid_output' if raw else 'retry_generic_json';continue
                 raise ValueError('LLMのJSON応答を取得できません: '+str(error)) from error
             return raw
     def observe_scene(self,png,native):
@@ -750,7 +754,7 @@ class Controller:
         def text(png):
             native=self.llm.ocr.read(png)
             self._write({'event':'display_setting_ocr','ocr':native,'learning':False})
-            from .interfaces import compact_text
+            from .interfaces import compact_text,torneko_menu_kind
             return '\n'.join(compact_text(l.get('text','')) for l in native.get('lines',[]))
         def send(key):
             if control.is_set():return False
@@ -970,8 +974,9 @@ class Controller:
                     self._write({'event':'not_executed','reason':'paused_during_inference','step':step+1})
                     continue
                 policy_choice=({'source':'forecast_continuation'} if planned else None);llm_proposal=None;original_proposal=dict(decision.__dict__);combat_choice=None
+                fresh_interface_proposal=bool(not local_learning and not planned and ((learning_review or {}).get('interface_decision') or torneko_menu_kind(native)) and decision.keys and decision.status=='continue' and decision.risk!='destructive')
                 novelty_choice=None;novelty_reconsideration=None
-                if self.policy and self.novelty and not dry_run and not planned and not guidance['text']:
+                if self.policy and self.novelty and not dry_run and not planned and not fresh_interface_proposal and not guidance['text']:
                     decision,novelty_choice=self.novelty.choose_menu(decision,native,[list(keys) for keys,count in unresponsive_actions.items() if count>=3])
                     if policy_stable:
                         novelty_reconsideration=self.novelty.repeated_menu_opening(native,policy_state,decision)
@@ -994,9 +999,10 @@ class Controller:
                     if hasattr(self.llm,'needs_regrounding'):self.llm.needs_regrounding=True
                     if hasattr(self.llm,'knowledge_engine'):
                         self.llm.knowledge_engine.goal={'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'source':'action_grounding','status':'proposed_observation_goal'}
+                interface_model_action=bool(fresh_interface_proposal and decision.keys==original_proposal['keys'] and grounding.get('status')!='unverified_target')
                 visual_model_action=bool(learning_review and learning_review.get('visual_fallback') and original_proposal.get('keys') and original_proposal.get('status')=='continue' and original_proposal.get('risk')!='destructive' and decision.keys==original_proposal['keys'] and grounding.get('status')!='unverified_target')
-                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),preserve_proposal=bool(visual_model_action or (policy_choice or {}).get('source')=='learned_interface_policy' or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
-                if not dry_run and original_proposal.get('status')!='blocked' and original_proposal.get('risk')!='destructive' and not combat_choice and not visual_model_action and (policy_choice or {}).get('source')!='learned_interface_policy' and not (self.improvement and self.improvement.active):
+                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),preserve_proposal=bool(interface_model_action or visual_model_action or (policy_choice or {}).get('source')=='learned_interface_policy' or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
+                if not dry_run and original_proposal.get('status')!='blocked' and original_proposal.get('risk')!='destructive' and not combat_choice and not visual_model_action and not interface_model_action and (policy_choice or {}).get('source')!='learned_interface_policy' and not (self.improvement and self.improvement.active):
                     decision,information_context=information.choose(decision,native,policy_state,blocked)
                     if information_context.get('selected'):
                         active_choice={'source':'information_collection','learning':False}
@@ -1018,6 +1024,7 @@ class Controller:
                 row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
+                row['interface_model_input_retained']=bool(interface_model_action and decision.keys==original_proposal['keys'])
                 row['visual_fallback']={'active':bool(learning_review and learning_review.get('visual_fallback')),'fresh_model_input_retained':bool(visual_model_action and decision.keys==original_proposal['keys'])}
                 row['information_exploration']=information_context
                 row['active_input']=active_choice
@@ -1112,6 +1119,8 @@ class Controller:
                 if guidance_source and guidance_source.snapshot()['revision']!=guidance['revision']:
                     self.executive.cancel('operator_guidance_changed_before_input')
                     self._write({'event':'not_executed','reason':'operator_guidance_changed','step':step+1});continue
+                row['interface_model_input_retained']=bool(interface_model_action and decision.keys==original_proposal['keys'])
+                row['visual_fallback']['fresh_model_input_retained']=bool(visual_model_action and decision.keys==original_proposal['keys'])
                 information_context=information.context(decision,native,policy_state)
                 if not dry_run and decision.keys:
                     row['input_receipt']=self.backend.act(decision.keys,decision.hold_ms,self.control or self.stop)

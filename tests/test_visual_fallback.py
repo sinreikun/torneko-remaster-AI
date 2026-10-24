@@ -19,7 +19,7 @@ class VisualFallbackTests(unittest.TestCase):
             result=gate.evaluate(turn,EMPTY,state,{})
             self.assertTrue(result['llm_requested']);self.assertTrue(result['visual_fallback']);self.assertEqual(result['next_review_in'],0)
         self.assertEqual(result['reason'],'visual_evidence_gap')
-        restored=gate.evaluate(3,{'status':'ok','lines':[{'text':'HP15/15'}]},state,{})
+        restored=gate.evaluate(3,{'status':'ok','lines':[{'text':'HP15/15'}]},{**state,'metrics':{'hp':{'values':[15,15]}}},{})
         self.assertFalse(restored['llm_requested']);self.assertFalse(restored['visual_fallback'])
     def test_capture_without_game_specific_policy_also_requests_visual_review(self):
         gate=FastLearningGate(128);gate.evaluate(0,EMPTY,{}, {},image_available=True)

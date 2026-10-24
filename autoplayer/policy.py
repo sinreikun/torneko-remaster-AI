@@ -15,9 +15,9 @@ from .controls import ACTIONS,DIGEST,REFERENCE
 from .knowledge import KnowledgeEngine
 from .map_sensor import read_grid,MapSensor,FloorConfirmation
 from .exploration import ExplorationRoutes
-from .interfaces import compact_text,torneko_menu_kind,result_screen,has_text_content
+from .interfaces import compact_text,torneko_menu_kind,result_screen,has_text_content,main_menu_context
 
-VERSION=9
+VERSION=10
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -106,6 +106,7 @@ class ExperiencePolicy:
         if not floor_ready:metrics.pop('floor',None)
         text='\n'.join(compact_text(line.get('text','')) for line in (native or {}).get('lines',[]))
         # A visible map may remain under a menu. Do not infer an input-ready scene from colors alone.
+        interface_kind=torneko_menu_kind(native)
         menu=bool((reference or {}).get('menu_evidence') or torneko_menu_kind(native) or result_screen(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
         hp=metrics.get('hp',{}).get('values');floor=metrics.get('floor',{}).get('values')
         minimap=self.track_pose(minimap,floor)
@@ -121,6 +122,7 @@ class ExperiencePolicy:
             except OSError:pass
         text_reliable=has_text_content(native) and all(isinstance(line.get('confidence'),(int,float)) and line['confidence']>=.8 for line in (native or {}).get('lines',[]) if compact_text(line.get('text','')))
         text_key=hashlib.sha256(re.sub(r'\s+','',text)[:2000].encode()).hexdigest()[:16]
+        if interface_kind=='main_menu':text_key=hashlib.sha256(json.dumps(main_menu_context(native),ensure_ascii=False,sort_keys=True).encode()).hexdigest()[:16]
         if not eligible:objective='interface'
         payload={'floor':floor,'hp_band':int(4*hp[0]/hp[1]) if hp else None,'food_band':food[0]//20 if food else None,'map_shape':minimap.get('shape'),
             'player_cell':minimap.get('player_cell'),'neighbors':minimap.get('neighbors'),'enemies':minimap.get('enemies'),'menu_evidence':menu}
@@ -130,7 +132,7 @@ class ExperiencePolicy:
             if not has_text_content(native):payload['visual']=visual
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and has_text_content(native)),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'floor_confirmation':confirmation,
+        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and has_text_content(native)),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'interface_kind':interface_kind,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',
@@ -324,7 +326,7 @@ class ExperiencePolicy:
         if hp0 and hp1 and hp0[1]==hp1[1]:reward-=2*max(0.,hp0[0]-hp1[0])/hp0[1]
         # No positive reward for natural HP regeneration or simply remaining at full HP.
         interface_gain=0.
-        if not before.get('eligible') and not after.get('eligible') and not any(s.get('metrics',{}).get(k) for s in (before,after) for k in ('hp','floor')) and before.get('text_reliable') and after.get('text_reliable') and before.get('text_key') and after.get('text_key') and before['text_key']!=after['text_key']:
+        if before.get('interface_kind')!='main_menu' and after.get('interface_kind')!='main_menu' and not before.get('eligible') and not after.get('eligible') and not any(s.get('metrics',{}).get(k) for s in (before,after) for k in ('hp','floor')) and before.get('text_reliable') and after.get('text_reliable') and before.get('text_key') and after.get('text_key') and before['text_key']!=after['text_key']:
             natural_text_change=bool(neutral_before and neutral_before.get('text_key')!=before['text_key'])
             seen=self.db.execute('SELECT 1 FROM policy_text_visits WHERE profile=? AND text_key=?',(self.profile,after['text_key'])).fetchone()
             if not seen and not natural_text_change:interface_gain=.1

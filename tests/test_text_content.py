@@ -21,7 +21,7 @@ class TextContentTests(unittest.TestCase):
         gate=FastLearningGate(128);state={'visual':[0]*192};gate.evaluate(0,native(''),state,{})
         for turn,text in enumerate(('`','8'),1):
             self.assertEqual(gate.evaluate(turn,native(text),state,{})['reason'],'visual_evidence_gap')
-        self.assertFalse(gate.evaluate(3,native('話す'),state,{})['visual_fallback'])
+        self.assertFalse(gate.evaluate(3,native('十分な文章が表示されています'),state,{})['visual_fallback'])
     def test_single_glyphs_are_not_transfer_layouts(self):
         for text in ('`','8'):self.assertIsNone(layout_group(native(text),[100,100],{}))
         self.assertIsNotNone(layout_group(native('話す'),[100,100],{}))

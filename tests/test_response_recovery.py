@@ -48,6 +48,23 @@ class ResponseRecoveryTests(unittest.TestCase):
         self.assertEqual(json.loads(requests[1]['messages'][1]['content'])['required_output_schema'],schema)
         self.assertEqual(client.request_metrics[0]['recovery'],'retry_generic_json')
         self.assertEqual(client.request_metrics[1]['response_format'],'json')
+    def test_incomplete_nonempty_json_retries_once_without_poisoning_other_role(self):
+        client,opener,requests=self.client([{'message':{'content':'{"reason":"unfinished'},'done_reason':'stop'},
+            {'message':{'content':'{"ok": true}'}},{'message':{'content':'{"ok": true}'}}])
+        schema={'type':'object','required':['ok']}
+        with patch('urllib.request.build_opener',return_value=opener):
+            self.assertTrue(json.loads(client._request(None,'日本語',{'goal':'目的','allowed_keys':['num1'],'limits':{'hold_ms':[1,80]}},schema))['ok'])
+            client._request(b'capture','日本語',{'task':'scene_observation'},schema)
+        self.assertEqual([r['format'] for r in requests],[schema,'json',schema])
+        retried=json.loads(requests[1]['messages'][1]['content'])
+        self.assertEqual(retried['allowed_keys'],['num1']);self.assertEqual(retried['limits'],{'hold_ms':[1,80]})
+        self.assertIn('protocol_feedback',retried)
+        self.assertEqual(client.request_metrics[0]['recovery'],'retry_generic_json_invalid_output')
+    def test_incomplete_json_retry_stops_after_second_failure(self):
+        client,opener,requests=self.client([{'message':{'content':'{"reason":"unfinished'}},{'message':{'content':'{"still":"unfinished'}}])
+        with patch('urllib.request.build_opener',return_value=opener),self.assertRaises(ValueError):
+            client._request(None,'日本語',{'goal':'目的'},{'type':'object'})
+        self.assertEqual(len(requests),2)
     def test_no_infinite_retry_for_invalid_generic_response(self):
         client,opener,requests=self.client([{'message':{'content':''}},{'message':{'content':'not json'}}])
         with patch('urllib.request.build_opener',return_value=opener),self.assertRaises(ValueError):

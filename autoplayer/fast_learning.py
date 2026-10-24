@@ -9,12 +9,19 @@ class FastLearningGate:
         linked=not (native.get('frame_sha256') and state.get('frame_sha256') and native['frame_sha256']!=state['frame_sha256'])
         if native.get('status')!='ok' or not linked:native={'status':'unavailable','lines':[]}
         text='\n'.join(compact_text(l.get('text','')) for l in native.get('lines',[]))
-        visual_fallback=bool((state.get('visual') or image_available) and not has_text_content(native) and not (state.get('eligible') and state.get('minimap',{}).get('status')=='observed'))
+        kind=torneko_menu_kind(native)
+        labels={compact_text(l.get('text','')).lstrip('▶►▷>→').casefold() for l in native.get('lines',[])}
+        interface_decision=bool(kind or {'はい','いいえ'}<=labels or {'yes','no'}<=labels)
+        context_lines={line for line in text.splitlines() if any(c.isalpha() for c in line)}
+        context_letters=sum(c.isalpha() for line in context_lines for c in line)
+        text_context=has_text_content(native) and (context_letters>=8 or len(context_lines)>=2 or any(state.get('metrics',{}).get(k) for k in ('hp','floor')))
+        visual_fallback=bool((state.get('visual') or image_available) and not text_context and not interface_decision and not (state.get('eligible') and state.get('minimap',{}).get('status')=='observed'))
         floor=(state or {}).get('metrics',{}).get('floor',{}).get('values')
         reason=None
         if self.last_call is None:reason='initial_review'
         elif guidance.get('revision')!=self.guidance:reason='operator_guidance_changed'
         elif floor and self.floor and floor!=self.floor:reason='confirmed_floor_changed'
+        elif interface_decision:reason='interface_decision'
         elif visual_fallback:reason='visual_evidence_gap'
         elif turn-self.last_call>=self.interval:reason='periodic_review'
         elif experience and turn-self.last_call>=32 and experience.get('retained_observations',0)>=16 and (experience.get('repeated_interface_observations',0)>=6 or any(g.get('forecast_mismatches',0) or g.get('metric_examples') for g in experience.get('action_groups',[]))):reason='accumulated_experience_review'
@@ -31,6 +38,6 @@ class FastLearningGate:
             if signature:self.events[signature]=turn
             while len(self.events)>64:self.events.pop(next(iter(self.events)))
         elif floor:self.floor=copy.deepcopy(floor)
-        return {'llm_requested':bool(reason),'visual_fallback':visual_fallback,'reason':reason or 'local_input_and_observation','review_interval':self.interval,
-            'next_review_in':0 if visual_fallback else max(0,self.interval-(turn-self.last_call)),'turn':turn,
-            'note':'文字・地図が使える通常手はローカル処理。文字も使用可能な地図もない画像状態では毎手LLMで再判断し、情報が戻れば広い間隔へ復帰する。'}
+        return {'llm_requested':bool(reason),'visual_fallback':visual_fallback,'interface_decision':interface_decision,'reason':reason or 'local_input_and_observation','review_interval':self.interval,
+            'next_review_in':0 if visual_fallback or interface_decision else max(0,self.interval-(turn-self.last_call)),'turn':turn,
+            'note':'地図や十分な文章が使える通常手はローカル処理。メニュー・選択肢と、短い操作表示しかない画像状態は毎手LLMで再判断する。'}

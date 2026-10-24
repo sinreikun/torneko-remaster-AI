@@ -17,11 +17,11 @@ class FastLearningTests(unittest.TestCase):
         self.assertTrue(gate.evaluate(0,EMPTY,{},{} )['llm_requested'])
         self.assertTrue(all(not gate.evaluate(n,EMPTY,{},{} )['llm_requested'] for n in range(1,128)))
         self.assertEqual(gate.evaluate(128,EMPTY,{},{} )['reason'],'periodic_review')
-    def test_new_choice_and_guidance_trigger_review_but_same_choice_is_debounced(self):
+    def test_choices_require_each_step_and_guidance_changes_still_trigger_review(self):
         g=FastLearningGate(128);g.evaluate(0,EMPTY,{}, {'revision':0})
         choice={'status':'ok','lines':[{'text':'はい'},{'text':'いいえ'}]}
-        self.assertEqual(g.evaluate(1,choice,{}, {'revision':0})['reason'],'choice_or_objective_event')
-        self.assertFalse(g.evaluate(2,{**choice,'lines':choice['lines']+[{'text':'HP14/15'},{'text':'満腹度96%'}]}, {}, {'revision':0})['llm_requested'])
+        self.assertEqual(g.evaluate(1,choice,{}, {'revision':0})['reason'],'interface_decision')
+        self.assertTrue(g.evaluate(2,{**choice,'lines':choice['lines']+[{'text':'HP14/15'},{'text':'満腹度96%'}]}, {}, {'revision':0})['llm_requested'])
         self.assertEqual(g.evaluate(3,choice,{}, {'revision':1})['reason'],'operator_guidance_changed')
     def test_floor_and_acquisition_events_and_frame_link(self):
         g=FastLearningGate();state={'metrics':{'floor':{'values':[1]}}};g.evaluate(0,EMPTY,state,{})
