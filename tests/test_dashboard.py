@@ -68,3 +68,13 @@ class DashboardTests(unittest.TestCase):
         a=Application.__new__(Application);a.console_active=False;a.console_commands=Mock();a.console_commands.closed=False
         a.console_window=Mock();window=a.console_window;a.request_stop=Mock()
         a.close_console();a.request_stop.assert_not_called();window.destroy.assert_called_once();self.assertIsNone(a.console_window)
+
+    def test_top_actions_wrap_in_order_and_fit_each_window_width(self):
+        from autoplayer.dashboard import flow_positions
+        sizes=[(100,28),(130,28),(90,30),(180,28)]
+        for width in (180,340,640,1000):
+            positions,height=flow_positions(width,sizes)
+            self.assertEqual(len(positions),len(sizes))
+            for x,y,w,h in positions:self.assertGreaterEqual(x,8);self.assertLessEqual(x+w,width-8);self.assertLessEqual(y+h,height)
+            self.assertEqual([p[1] for p in positions],sorted(p[1] for p in positions))
+        self.assertGreater(flow_positions(180,sizes)[1],flow_positions(1000,sizes)[1])

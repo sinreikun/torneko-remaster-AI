@@ -53,6 +53,7 @@ class RecognitionState:
         # Forecast counts successful future inputs before the next analysis;
         # a perception event is emitted before deciding the current input.
         if self.floor_state.get('status') in ('pending','unreadable'):self.remaining=0
+        if row.get('fast_learning'):self.remaining=row['fast_learning'].get('next_review_in',0)
         self.revision+=1
     def grid(self):
         m=self.map

@@ -51,14 +51,16 @@ class Application:
         ttk.Label(header,text=f'ゲーム攻略くん + ローカルLLM v{__version__}',font=('',16,'bold')).pack(side='left')
         self.badges=tk.StringVar(value='未接続 / WindowMessage・背面対応 / 診断と学習を分離')
         ttk.Label(header,textvariable=self.badges).pack(side='left',padx=16)
-        toolbar=ttk.Frame(root,padding=(8,0));toolbar.pack(fill='x')
+        from .dashboard import flow_frame_class
+        FlowFrame=flow_frame_class()
+        toolbar=FlowFrame(root,padding=(8,0));toolbar.pack(fill='x')
         ttk.Button(toolbar,text='起動中のゲームを選択',command=self.choose_target).pack(side='left',padx=4)
         ttk.Button(toolbar,text='ゲームに接続',command=self.connect).pack(side='left')
         self.start_button=ttk.Button(toolbar,text='▶ 攻略開始',command=self.start);self.start_button.pack(side='left',padx=4)
         self.pause_button=ttk.Button(toolbar,text='⏸ 一時停止',command=self.pause);self.pause_button.pack(side='left')
         ttk.Button(toolbar,text='■ 停止',command=self.request_stop).pack(side='left',padx=4)
         ttk.Button(toolbar,text='緊急停止 (F8 / Ctrl+Shift+F9)',command=self.emergency).pack(side='left')
-        tools_bar=ttk.Frame(root,padding=(8,4));tools_bar.pack(fill='x')
+        tools_bar=FlowFrame(root,padding=(8,4));tools_bar.pack(fill='x')
         self.demo_button=ttk.Button(tools_bar,text='お手本記録',command=lambda:self.start(demonstration=True));self.demo_button.pack(side='left',padx=4)
         ttk.Button(tools_bar,text='コンソール操作',command=self.open_console).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='OCRテスト',command=self.open_ocr).pack(side='left',padx=4)
@@ -67,29 +69,34 @@ class Application:
         ttk.Button(tools_bar,text='詳細ZIP',command=lambda:self.export(True)).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='最新ZIPを開く',command=self.open_report).pack(side='left')
         ttk.Button(tools_bar,text='提出用ZIPをコピー',command=self.copy_report).pack(side='left',padx=4)
-        visual_bar=ttk.Frame(root,padding=(8,2));visual_bar.pack(fill='x')
+        visual_bar=FlowFrame(root,padding=(8,2));visual_bar.pack(fill='x')
         ttk.Button(visual_bar,text='認識モニターを別窓で開く',command=self.open_recognition).pack(side='left')
         ttk.Button(visual_bar,text='作戦指示を入力',command=self.open_guidance).pack(side='left',padx=4)
         self.overlay_enabled=tk.BooleanVar(value=self.ui_state.get('preview_graph_enabled',False))
         ttk.Checkbutton(visual_bar,text='キャプチャに学習グラフ',variable=self.overlay_enabled,command=self.configure_overlay).pack(side='left',padx=8)
         self.overlay_layers={}
-        graph_controls=ttk.Frame(root,padding=(8,1));graph_controls.pack(fill='x')
+        graph_controls=FlowFrame(root,padding=(8,1));graph_controls.pack(fill='x')
         from .dashboard import SERIES
         for key,(label,color) in SERIES.items():
             var=tk.BooleanVar(value=self.ui_state.get('graph_series',{}).get(key,key in ('coverage','novelty','reward')));self.overlay_layers[key]=var
             ttk.Checkbutton(graph_controls,text=label,variable=var,command=self.configure_overlay).pack(side='left')
         ttk.Button(graph_controls,text='全種',command=lambda:self.select_graphs(True)).pack(side='left')
         ttk.Button(graph_controls,text='全解除',command=lambda:self.select_graphs(False)).pack(side='left')
-        options=ttk.Frame(root,padding=8);options.pack(fill='x')
+        options=FlowFrame(root,padding=(8,2));options.pack(fill='x')
         ttk.Label(options,text='実行時間').pack(side='left')
         self.duration=tk.StringVar(value=self.ui_state.get('duration','なし'))
         self.duration_box=ttk.Combobox(options,textvariable=self.duration,values=['なし','10分','20分','30分','60分'],state='readonly',width=6)
         self.duration_box.pack(side='left',padx=6)
         self.separation=tk.BooleanVar(value=False);self.compat=tk.BooleanVar(value=self.ui_state.get('compat',True))
         ttk.Checkbutton(options,text='分離監視（無入力・10分）',variable=self.separation).pack(side='left')
-        ttk.Checkbutton(options,text='開始時にOS/Backend経路を確認',variable=self.compat).pack(side='left',padx=6)
+        ttk.Checkbutton(options,text='起動時の入力経路確認',variable=self.compat).pack(side='left',padx=6)
         self.dry=tk.BooleanVar(value=False);ttk.Checkbutton(options,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
-        ttk.Label(options,text='背面のまま動作 / 最小化不可 / 診断は学習に使用しません').pack(side='right')
+        fast_bar=FlowFrame(root,padding=(8,1));fast_bar.pack(fill='x')
+        self.fast_learning=tk.BooleanVar(value=self.cfg.fast_learning);self.review_interval=tk.IntVar(value=self.cfg.llm_review_interval)
+        ttk.Checkbutton(fast_bar,text='高速学習（選択肢・重要変化＋広い間隔でLLM）',variable=self.fast_learning).pack(side='left')
+        ttk.Label(fast_bar,text='定期確認の間隔（手）').pack(side='left',padx=6)
+        ttk.Spinbox(fast_bar,from_=16,to=4096,increment=16,textvariable=self.review_interval,width=6).pack(side='left')
+        ttk.Label(fast_bar,text='（次の攻略開始から適用）').pack(side='left',padx=5)
         self.status=tk.StringVar(value='待機中 — ゲームに接続するとライブ画面を表示します。')
         ttk.Label(root,textvariable=self.status,padding=(10,4),wraplength=1400).pack(fill='x')
         self.tabs=ttk.Notebook(root);self.tabs.pack(fill='both',expand=True,padx=8,pady=5)
@@ -188,7 +195,7 @@ class Application:
             self.root.option_add('*'+widget+'.selectColor','#34485f')
         style=ttk.Style(self.root);style.theme_use('clam')
         style.configure('.',background=background,foreground=foreground)
-        style.configure('TButton',padding=(8,5),background='#303848',foreground=foreground)
+        style.configure('TButton',padding=(7,4),background='#303848',foreground=foreground)
         style.map('TButton',background=[('active','#3d5270'),('disabled','#252a33')],foreground=[('disabled','#858b97')])
         style.configure('TCheckbutton',background=background,foreground=foreground,indicatorbackground='#34485f',indicatorforeground=foreground)
         style.map('TCheckbutton',background=[('active','#283449')],foreground=[('disabled','#8898ac')])
@@ -250,7 +257,12 @@ class Application:
         x,y,w,h=self.preview_bounds
         width=min(285,max(120,w*.42));height=min(170,max(100,h*.4))
         if w<150 or h<140:return
-        self.traces.paint(self.live,{k:v.get() for k,v in self.overlay_layers.items()},(x+w-width-8,y+h-height-8,width,height))
+        from .dashboard import translucent_background
+        from PIL import ImageTk
+        box=(round(x+w-width-8),round(y+h-height-8),round(width),round(height))
+        crop=(box[0]-x,box[1]-y,box[2],box[3])
+        self.graph_background=ImageTk.PhotoImage(translucent_background(self.preview_image,crop))
+        self.traces.paint(self.live,{k:v.get() for k,v in self.overlay_layers.items()},box,background=self.graph_background)
 
     def open_guidance(self):
         existing=getattr(self,'guidance_window',None)
@@ -323,6 +335,7 @@ class Application:
         image.thumbnail((max(1,self.live.winfo_width()),max(1,self.live.winfo_height())))
         self.live_photo=ImageTk.PhotoImage(image)
         self.live.create_image(self.live.winfo_width()/2,self.live.winfo_height()/2,image=self.live_photo,tags='image')
+        self.preview_image=image.copy()
         self.preview_bounds=((self.live.winfo_width()-image.width)/2,(self.live.winfo_height()-image.height)/2,image.width,image.height)
         self.draw_learning_graph()
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
@@ -358,7 +371,7 @@ class Application:
             value=getattr(cfg,key);var.set(','.join(value) if isinstance(value,list) else str(value))
         for widget,value in ((self.goal,cfg.goal),(self.knowledge,cfg.knowledge),(self.bindings,'\n'.join(k+'='+v for k,v in cfg.key_bindings.items()))):
             widget.delete('1.0','end');widget.insert('1.0',value)
-        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing)
+        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing);self.fast_learning.set(cfg.fast_learning);self.review_interval.set(cfg.llm_review_interval)
         from .controls import REFERENCE,is_torneko
         self.set_panel('キー配置・ミニマップ',REFERENCE if is_torneko(cfg.window_title) else cfg.key_bindings or 'キー配置一覧を入力してください。')
         self.set_panel('目的',cfg.goal);self.status.set('選択: '+target['title']+' / キー配置は接続設定で編集できます。')
@@ -541,7 +554,7 @@ class Application:
         from .profiles import parse_bindings
         bindings=parse_bindings(self.bindings.get('1.0','end'))
         if bindings:v['allowed_keys']=list(bindings)
-        v.update(key_bindings=bindings,resilient=self.resilient.get(),adaptive_timing=self.adaptive.get())
+        v.update(key_bindings=bindings,resilient=self.resilient.get(),adaptive_timing=self.adaptive.get(),fast_learning=self.fast_learning.get(),llm_review_interval=self.review_interval.get())
         v.update(goal=self.goal.get('1.0','end').strip(),knowledge=self.knowledge.get('1.0','end').strip())
         if len(v['knowledge'])>50000: raise ValueError('知識は 50,000 文字以内にしてください。')
         return Settings(**v).validate()

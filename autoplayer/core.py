@@ -61,6 +61,8 @@ class Settings:
     resilient: bool = False
     adaptive_timing: bool = False
     compute_mode: str = 'shared'
+    fast_learning: bool = False
+    llm_review_interval: int = 128
 
     def validate(self):
         if is_torneko(self.window_title) and self.goal==LEGACY_GOAL:self.goal=TORNEKO_GOAL
@@ -84,6 +86,7 @@ class Settings:
         if self.profile_id and (len(self.profile_id)!=24 or any(c not in '0123456789abcdef' for c in self.profile_id)): raise ValueError('プロファイルIDが不正です。')
         if not isinstance(self.key_bindings,dict) or any(k not in self.allowed_keys or not isinstance(v,str) or not v.strip() or len(v)>200 for k,v in self.key_bindings.items()): raise ValueError('キーの意味が不正です。')
         if type(self.resilient) is not bool or type(self.adaptive_timing) is not bool: raise ValueError('復旧・時間調整設定が不正です。')
+        if type(self.fast_learning) is not bool or type(self.llm_review_interval) is not int or not 16<=self.llm_review_interval<=4096:raise ValueError('高速学習の推論間隔は16〜4096手で指定してください。')
         if self.compute_mode not in ('shared','cpu_only'):raise ValueError('計算資源の設定が不正です。')
         return self
 
@@ -821,6 +824,8 @@ class Controller:
         from .information_exploration import InformationExploration
         information=InformationExploration(self.cfg,self.memory if not dry_run else None)
         information_context={}
+        from .fast_learning import FastLearningGate
+        learning_gate=FastLearningGate(self.cfg.llm_review_interval)
         fast_count=0
         try:
             for step in (range(self.cfg.max_steps) if self.cfg.max_steps else itertools.count()):
@@ -899,9 +904,11 @@ class Controller:
                 self.emit({'event':'perception','policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
+                learning_review=learning_gate.evaluate(step,native,policy_state,guidance) if self.cfg.fast_learning and not dry_run else None
+                local_learning=bool(learning_review and not learning_review['llm_requested'])
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
-                    if not forecast_ready and hasattr(self.llm,'review_strategy'):
+                    if not local_learning and not forecast_ready and hasattr(self.llm,'review_strategy'):
                         review=self.improvement.review(self.llm)
                         if review:
                             self._write({'event':'self_improvement',**review});self.emit({'event':'self_improvement',**review})
@@ -913,12 +920,15 @@ class Controller:
                     self.llm.set_context({'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,[list(keys) for keys,count in unresponsive_actions.items() if count>=3]),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':[list(keys) for keys,count in unresponsive_actions.items() if count>=3],'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=[list(keys) for keys,count in unresponsive_actions.items() if count>=3]
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
-                fast=forecast_ready and not reassess
+                fast=forecast_ready and not reassess and not local_learning and not learning_review
                 planned=False
                 anchor_available=self.executive.active
                 decision_started=time.monotonic()
                 try:
-                    if fast:
+                    if local_learning:
+                        fast_count=0;self.executive.cancel('fast_learning_local_observation')
+                        decision=Decision('gameplay' if policy_state and policy_state.get('eligible') else 'unknown','現在の画面・OCR・地図から入力候補を選ぶ。','情報を集めて全体目標へ役立てる','高速学習モードのため、この手はLLMを呼ばず短い許可入力と反応を収集する。',0.,'continue',[],1,600)
+                    elif fast:
                         from dataclasses import replace
                         decision,planned=self.executive.next();fast_count+=1
                     else:
@@ -987,8 +997,10 @@ class Controller:
                 decision_finished=time.monotonic()
                 state_report=({'ocr':native,'scene_observation':{'status':'not_requested','reason':'新しい地図/HUDと中立観測による限定的な方策実行'},'inference_metrics':[],
                     'decision_policy':{'source':'bounded_policy_continuation','steps_since_llm':fast_count}} if fast else (self.llm.take_state() if hasattr(self.llm,'take_state') else {}))
+                if local_learning:state_report={'ocr':native,'scene_observation':{'status':'not_requested','reason':'高速学習のローカル観測'},'inference_metrics':[],'learning':False}
                 row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
-                    'performance':{'llm_requested':not fast,'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
+                    'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
+                if learning_review:row['fast_learning']=learning_review
                 row['information_exploration']=information_context
                 row['active_input']=active_choice
                 if active_choice:row.update(learning=False,model_report_learning=False)
@@ -997,7 +1009,7 @@ class Controller:
                 row['natural_metric_changes']=natural_metric_changes
                 row['world_observation']=world_observation
                 row['anticipation']={**self.executive.latest,'expected_current_step':__import__('copy').deepcopy(self.executive.expected),'planned_continuation':planned,'remaining':self.executive.remaining,'reason':self.executive.reason}
-                if fast:llm_proposal=None
+                if fast or local_learning:llm_proposal=None
                 if pace_trial:row['adaptive_pacing']=pace_trial
                 if novelty_reconsideration:row['novelty_reconsideration']=novelty_reconsideration
                 if combat_choice:
