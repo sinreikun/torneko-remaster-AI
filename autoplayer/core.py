@@ -1191,6 +1191,35 @@ class Controller:
                     row.update(decision.__dict__);row.update(active_input=active_choice,learning=False,model_report_learning=False,input_timing_trial=None)
                     row.pop('adaptive_pacing',None)
                     self._write({'event':'decision_revision',**row,'revision_reason':'exterior_action_filter'})
+                input_pair_valid=None;input_neutral_image=neutral_image
+                if not dry_run and decision.keys and exterior_context.get('active'):
+                    # The planner may have taken seconds. Never compare the
+                    # next WASD result to a frame from before a previous input.
+                    planned_frame_visible=policy_state.get('white_frame_evidence',{}).get('visible')
+                    input_neutral_image=self._timed('input_baseline_capture_ms',self.backend.capture)
+                    latest_gate=self._timed('white_frame_ms',white_frames,input_neutral_image)
+                    fresh_input_image=self._timed('input_baseline_capture_ms',self.backend.capture)
+                    if fresh_input_image!=input_neutral_image:
+                        latest_gate=self._timed('white_frame_ms',white_frames,fresh_input_image)
+                    if self.stop.is_set():break
+                    if self.control and revision!=self.control.revision:
+                        self._write({'event':'not_executed','reason':'control_changed_before_input_baseline','step':step+1});continue
+                    if guidance_source and guidance_source.snapshot()['revision']!=guidance['revision']:
+                        self._write({'event':'not_executed','reason':'guidance_changed_before_input_baseline','step':step+1});continue
+                    is_movement=any(decision.keys==[key] for key in mapless.keys.values() if key)
+                    if is_movement and latest_gate.get('visible') and planned_frame_visible is not True:
+                        mapless.pending=None;mapless.active=False;mapless.frame_evidence=latest_gate
+                        self.executive.cancel('white_frame_before_movement')
+                        self._write({'event':'not_executed','reason':'white_frame_before_movement','step':step+1,'keys':decision.keys,'white_frame_evidence':latest_gate})
+                        continue
+                    image=fresh_input_image;normal_observation_image=image;input_pair_valid=latest_gate.get('status')=='observed'
+                    policy_state['white_frame_evidence']=latest_gate
+                    mapless.prepare({**policy_state,'floor_confirmation':{}},native,{},revision)
+                    row['input_observation_baseline']={'source':'capture_immediately_before_this_input','step':step+1,'keys':list(decision.keys),
+                        'frame_sha256':hashlib.sha256(image).hexdigest(),'neutral_sha256':hashlib.sha256(input_neutral_image).hexdigest(),
+                        'white_frame_evidence':latest_gate}
+                    if hasattr(self.backend,'record_frame'):self.backend.record_frame(image,'observation')
+                    self._write({'event':'input_baseline',**row['input_observation_baseline']})
                 same_decision_frame=image==decision_source_image
                 row['interface_model_input_retained']=bool(same_decision_frame and interface_model_action and decision.keys==original_proposal['keys'])
                 row['visual_fallback']['fresh_model_input_retained']=bool(same_decision_frame and visual_model_action and decision.keys==original_proposal['keys'])
@@ -1274,7 +1303,14 @@ class Controller:
                         row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,{},normal_observation_image,after_image)
                         self.executive.cancel('no_map_policy')
                     row['input_coverage']=self._timed('learning_save_ms',information.record,information_context,row,policy_state,after_state,native,after_native,after_image)
-                row['mapless_navigation']=mapless.record(image,after_image,neutral_image,row,same_decision_frame) if not dry_run else mapless_context
+                row['mapless_navigation']=mapless.record(image,after_image,input_neutral_image,row,input_pair_valid if input_pair_valid is not None else same_decision_frame) if not dry_run else mapless_context
+                action_observation=row['mapless_navigation'].get('last',{})
+                if action_observation.get('step')==row['step']:
+                    row['action_screen_observation']={'step':row['step'],'keys':action_observation.get('keys',[]),'action_kind':action_observation.get('action_kind'),
+                        'before_sha256':action_observation.get('before_sha256'),'after_sha256':action_observation.get('after_sha256'),
+                        'screen_change':action_observation.get('screen_change',{}),'white_frame_observation':action_observation.get('white_frame_observation',{})}
+                    row['movement_result']=action_observation.get('movement',{'status':'not_evaluated','success':None})
+                else:row['movement_result']={'status':'not_evaluated','success':None}
                 if not dry_run:mapless.locate(after_image)
                 if self.cfg.fast_learning and self.memory:self.stage_ms['learning_batch_commit_ms']=self.memory.last_batch_commit_ms
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})

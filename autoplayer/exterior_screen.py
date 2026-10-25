@@ -62,18 +62,28 @@ def white_frames(png):
     return {'status':'observed','visible':bool(rectangles),'rectangles':rectangles,'basis':'white_rectangle_dark_interior'}
 
 
-def assumed_change(before,after,neutral):
+def observe_change(before,after,neutral):
+    """Report pixel change and frame visibility independently of input meaning."""
     gates=[white_frames(p) for p in (before,after)]
-    if any(g['visible'] is None for g in gates):return {'status':'unknown','reason':'unreadable_image','white_frames':gates}
-    if any(g['visible'] for g in gates):return {'status':'interface','reason':'white_frame_before_or_after_input','white_frames':gates}
+    a_visible,b_visible=(g.get('visible') for g in gates)
+    transition='unknown' if None in (a_visible,b_visible) else 'appeared' if not a_visible and b_visible else 'disappeared' if a_visible and not b_visible else 'unchanged'
+    result={'white_frames':gates,'frame_transition':transition}
     def image(png):return Image.open(io.BytesIO(png)).convert('RGB').resize((160,90)).crop((0,12,160,85))
-    a,b=image(before),image(after)
-    def fraction(other):
-        return sum(max(p)>=22 for p in flat_pixels(ImageChops.difference(a,other)))/(160*73)
-    changed=fraction(b)
-    try:natural=fraction(image(neutral))
-    except Exception:return {'status':'unknown','reason':'unreadable_neutral_image','white_frames':gates}
+    try:
+        a,b=image(before),image(after)
+        def fraction(other):
+            return sum(max(p)>=22 for p in flat_pixels(ImageChops.difference(a,other)))/(160*73)
+        changed=fraction(b);natural=fraction(image(neutral))
+    except Exception:return {**result,'status':'unknown','reason':'unreadable_image_pair','large_change':None}
     threshold=max(.035,natural+.02)
-    return {'status':'assumed_moved' if changed>=threshold else 'assumed_blocked','changed_fraction':round(changed,5),
-        'natural_fraction':round(natural,5),'large_change_threshold':round(threshold,5),'white_frames':gates,
+    return {**result,'status':'observed','large_change':changed>=threshold,'changed_fraction':round(changed,5),
+        'natural_fraction':round(natural,5),'large_change_threshold':round(threshold,5)}
+
+
+def assumed_change(before,after,neutral):
+    evidence=observe_change(before,after,neutral)
+    if evidence['status']=='unknown':return evidence
+    if any(g['visible'] is None for g in evidence['white_frames']):return {**evidence,'status':'unknown','reason':'white_frame_unavailable'}
+    if any(g['visible'] for g in evidence['white_frames']):return {**evidence,'status':'interface','reason':'white_frame_before_or_after_input'}
+    return {**evidence,'status':'assumed_moved' if evidence['large_change'] else 'assumed_blocked',
         'basis':'user_assumption_screen_change_not_measured_displacement'}
