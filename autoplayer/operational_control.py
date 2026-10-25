@@ -1,0 +1,247 @@
+"""Single decision authority for bounded skills; fresh evidence before every input."""
+from dataclasses import replace
+import copy,math,re
+from .interfaces import PROTECTED_CONFIRMATION,choice_action,ordinary_choice,torneko_menu_kind,result_screen,compact_text
+from .controls import is_torneko
+
+class OperationalControl:
+    def __init__(self,cfg,effects):
+        self.cfg=cfg;self.effects=effects;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None
+    def _decision(self,base,keys,source,reason,expected=None):
+        return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
+          intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
+          reason=reason,goal_success='次の観測で位置・HP・敵・現在画面の変化を別々に確認する。')
+    def _key(self,role):
+        keys=self.effects.keys(role)
+        return keys[0] if keys else None
+    def interface(self,base,native,state,plan,ledger,blocked):
+        text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]));confirm=self._key('confirm');cancel=self._key('cancel')
+        if PROTECTED_CONFIRMATION.search(text) and cancel:return self._decision(base,[cancel],'protected_confirmation','現在の保護確認から取消で離れる。')
+        choice=choice_action(native or {},self.effects.bindings,self.cfg.allowed_keys)
+        if not choice and ordinary_choice(native):
+            toward=self._cursor_toward(native,'はい')
+            if toward:choice={'key':confirm if toward=='selected' else toward,'reason':'現在のカーソルの画素仮説と項目配置を照合し、はいへ1段階進める。'}
+        if ordinary_choice(native):
+            selected_no=any(re.fullmatch(r'[▶►▷>→](?:いいえ|No)',compact_text(l.get('text','')),re.I) for l in (native or {}).get('lines',[]))
+            visual=(native or {}).get('_visual_selection') or {}
+            selected_no=selected_no or bool(visual.get('frame_sha256') and visual['frame_sha256']==(native or {}).get('frame_sha256') and compact_text(visual.get('text','')).casefold() in ('いいえ','no'))
+            if not choice and selected_no:
+                directions=[k for k,v in self.effects.bindings.items() if k in self.effects.keys('move') and re.match(r'^右|^下|^左|^上|^(right|down|left|up)$',v,re.I)]
+                if directions:
+                    scope=ledger.current['scope'];key=min(directions,key=lambda k:self.trials.get((scope,(k,)),0))
+                    return self._decision(base,[key],'ordinary_choice_probe','現在はいいえを選択。はいへの方向は未確定なので方向を1回試し、選択を読み直す。')
+            key=choice['key'] if choice else confirm
+            if key:return self._decision(base,[key],'ordinary_choice',choice['reason'] if choice else '通常の選択肢を確認。取消で戻らず決定を1回試し、選択結果を確認する。')
+        outcome=result_screen(native)
+        if outcome and confirm:
+            key=confirm if [confirm] not in blocked else cancel or confirm
+            return self._decision(base,[key],'result_screen','現在の結果表示を1回進め、再挑戦画面を確認する。')
+        kind=torneko_menu_kind(native)
+        skill=plan['skill']
+        # A supervisor UI hint is a single, scoped role, never a macro. Exact
+        # current text and quoted premise must still agree with the request.
+        role=plan.get('interface_role','none');quote=plan.get('interface_quote','')
+        hint_current=plan.get('request_text_key')==ledger.current.get('text_key') and bool(quote and compact_text(quote) in compact_text(text))
+        if ledger.current.get('selection_key'):
+            hint_current=hint_current and plan.get('request_selection')==ledger.current['selection_key']
+        else:hint_current=hint_current and plan.get('request_frame')==ledger.current.get('frame_sha256')
+        if not text:hint_current=plan.get('request_frame')==ledger.current.get('frame_sha256') and role!='none'
+        if kind or ledger.current.get('interface') or plan['skill']=='interface':
+            if hint_current and not plan.get('hint_consumed'):
+                patterns={'up':r'^上|^up$','left':r'^左|^left$','down':r'^下|^down$','right':r'^右|^right$'}
+                key=self._key(role) if role in ('confirm','cancel') else next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and re.search(patterns.get(role,r'(?!)'),v,re.I)),None)
+                if key and [key] not in blocked:
+                    plan['hint_consumed']=True
+                    return self._decision(base,[key],'scoped_interface_hint','現在の同じ表示と引用を確認し、監督役が指定した役割の入力を1回試す。')
+            if kind=='main_menu' and skill in ('inspect_inventory','recover'):
+                target=self._cursor_toward(native,'道具')
+                if target and confirm:return self._decision(base,[confirm if target=='selected' else target],'inventory_navigation','現在のメニュー項目とカーソルから道具へ1段階進める。')
+            if kind in ('inventory','item_actions') and skill=='recover':
+                target=self._recovery_item(native,state,kind,ledger.current)
+                if target:return self._decision(base,[target],'recovery_item','現在読めた品名・カーソル・使用法から回復/食料の操作を1段階だけ進める。')
+            if kind and cancel:return self._decision(base,[cancel],'close_known_menu','必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')
+            if confirm and not kind:return self._decision(base,[confirm],'dialogue_advance','現在の文章枠を決定入力で1回進め、次の表示を確認する。')
+        return None
+    def _cursor_toward(self,native,target):
+        lines=(native or {}).get('lines',[]);selected=[];targets=[]
+        visual=(native or {}).get('_visual_selection') or {}
+        observed=compact_text(visual.get('text','')) if visual.get('frame_sha256') and visual['frame_sha256']==(native or {}).get('frame_sha256') else ''
+        for line in lines:
+            label=compact_text(line.get('text',''));prefix=bool(re.match(r'^[▶►▷>→]',label));clean=label.lstrip('▶►▷>→')
+            if prefix or observed and label==observed:selected.append(line)
+            if clean==target or clean.startswith(target+'('):targets.append(line)
+        if len(selected)!=1 or len(targets)!=1:return None
+        if selected[0] is targets[0]:return 'selected'
+        def pos(line):
+            boxes=[w.get('box') for w in line.get('words',[]) if len(w.get('box',[]))==4]
+            return (min(b[0] for b in boxes),min(b[1] for b in boxes)) if boxes else None
+        a=pos(selected[0]);b=pos(targets[0])
+        if a is None or b is None:return None
+        dx,dy=b[0]-a[0],b[1]-a[1]
+        direction=('右' if dx>0 else '左') if abs(dx)>abs(dy) else ('下' if dy>0 else '上')
+        return next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and (v.startswith(direction) or v.lower()=={'上':'up','下':'down','左':'left','右':'right'}[direction])),None)
+    def _recovery_item(self,native,state,kind,current):
+        hp=state.get('metrics',{}).get('hp',{}).get('values');food=state.get('metrics',{}).get('fullness',{}).get('values')
+        lines=[compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])]
+        if kind=='inventory':
+            names=('パン','大きいパン') if food and food[0]<=15 else ('薬草','弟切草') if hp and hp[0]/max(1,hp[1])<.4 else ()
+            for name in names:
+                # Exact visible name only, including its displayed quantity.
+                label=next((compact_text(r['quote']).lstrip('▶►▷>→') for r in (native or {}).get('_current_inventory_rows',[]) if r.get('display_name')==name),None) or next((x for x in lines if re.fullmatch(re.escape(name)+r'(?:[×x]\d+|\(\d+\))?',x)),None)
+                if label:
+                    target=self._cursor_toward(native,label)
+                    if target:
+                        if target=='selected':self.item_context={'name':name,'phase':'opening','step':current['step'],'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':current['floor']}
+                        return self._key('confirm') if target=='selected' else target
+        else:
+            item=self.item_context
+            if not item or item['phase']!='actions' or current['step']-item['step']>3 or item['control']!=current['control_revision'] or item['guidance']!=current['operator_guidance'].get('revision',0) or item['floor'] and current['floor'] and item['floor']!=current['floor']:return None
+            action='食べる' if item['name'] in ('パン','大きいパン') else '飲む'
+            target=self._cursor_toward(native,action)
+            if target:
+                if target=='selected':item['phase']='using'
+                else:item['_navigation']=True
+                return self._key('confirm') if target=='selected' else target
+        return None
+    def select(self,base,state,native,ledger,plan,policy,predictions,combat,mapless,exterior,blocked,stable,guidance):
+        candidates=[];pc=None;combat_trial=None;prediction_context={};self.sequence+=1
+        def offer(decision,source,skill,score,detail=None):
+            if decision is not None and (decision.keys or decision.status=='complete'):
+                candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'detail':detail or {}})
+        quote=plan.get('interface_quote','')
+        if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
+            complete=replace(base,status='complete',keys=[],goal_evidence=[quote],goal_success=quote,subgoal='現在の帰還/達成表示を独立に検証する')
+            operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':'verify_goal','selected_source':'completion_check','expected_signal':'interface_change','scope':ledger.current['scope'],'candidates':[],'experiment':None}
+            return complete,{'source':'operational_completion_check'},None,{},operation
+        interface=self.interface(base,native,state,plan,ledger,blocked)
+        if interface:offer(interface,'interface','interface',10.)
+        context=exterior.context
+        current=ledger.current
+        if not interface and context.get('active'):
+            route=mapless.propose(allow_facing=False) if context.get('mode')=='exit_exploration' else None
+            if route:offer(self._decision(base,route[0],'exterior_route',route[1]),'exterior_route','exit',2.)
+            for keys in context.get('actions',[]):
+                estimate=self.effects.estimate(state,keys);count=self.trials.get((current['scope'],tuple(keys)),0)
+                score=.4+max(-.3,min(.3,estimate['mean_observed_value']))-.08*min(6,count)
+                if keys and keys[0] in self.effects.keys('move'):score+=.1
+                offer(self._decision(base,keys,'exterior_probe','現在の出口探索の許可候補から、実測と未検証の疑問を比較する。'),'exterior_probe','exit',score,estimate)
+        elif not interface:
+            hp=state.get('metrics',{}).get('hp',{}).get('values');food=state.get('metrics',{}).get('fullness',{}).get('values')
+            urgent=bool(hp and hp[0]/max(1,hp[1])<.3 or food and food[0]<=15)
+            if state.get('eligible') and combat:
+                d,trial=combat.choose(base,state,stable,blocked)
+                if trial:offer(d,'combat','combat',2.,{'trial':trial})
+            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent
+            inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
+            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.inspections.get(inspection_scope,-1000)>=24:
+                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8)
+            if policy and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
+                d,choice=policy.choose(base,state,blocked,stable,None,bool(guidance.get('text')))
+                if predictions:d,choice,prediction_context=predictions.choose(d,state,choice,blocked)
+                pc=choice
+                selected=(choice or {}).get('selected') or {}
+                score=.8+max(-.3,min(.3,selected.get('expected_return',selected.get('q',0))))
+                if choice.get('exploration_route'):score+=.35
+                offer(d,'policy','explore',score,{'choice':choice})
+            if policy and state.get('eligible') and pc and not any(c['skill']=='combat' for c in candidates):
+                for rank in (pc.get('context') or {}).get('ranking',[]):
+                    keys=rank.get('keys',[])
+                    if not rank.get('automatic_candidate') or keys in blocked or not keys or keys[0] not in self.effects.keys('move'):continue
+                    if (pc.get('context',{}).get('no_effect_moves') or {}).get(keys[0],0)>=2:continue
+                    score=.55+.2*max(-1,min(1,rank.get('priority',0)))-policy.routes.penalty(state,keys[0])
+                    offer(self._decision(base,keys,'movement_alternative','現在の移動候補を、過去の作用と再訪コストで比較して選ぶ。'),'movement_alternative','explore',score,{'rank':rank,'context':pc.get('context',{})})
+            if not state.get('eligible') and not current.get('interface'):
+                # Unknown states have short, purpose-labelled probes rather than
+                # waiting for the supervisor or sweeping every key combination.
+                actions=[[k] for k in self.effects.keys('move')+self.effects.keys('confirm')]
+                if not actions:actions=[[k] for k in self.cfg.allowed_keys if k not in ('num3','num5','num7')]
+                for keys in actions:
+                    n=self.trials.get((current['scope'],tuple(keys)),0)
+                    offer(self._decision(base,keys,'unknown_probe','現在の場面で進行を可能にする入力と反応の仮説を短く確認する。'),'unknown_probe','verify_action',.4-.1*min(5,n))
+        # Existing measured route/skill is an actual candidate, not a suggestion
+        # that a later coverage sweep can silently replace.
+        experiment=self.effects.experiment(plan,state)
+        experiment_active=bool(experiment and experiment['attempts']<experiment['limit'])
+        if experiment_active:
+            test=experiment['test']
+            relevant=[c for c in candidates if (test=='face_then_attack' and c['source']=='combat') or
+                (test=='movement_response' and c['decision'].keys[0] in self.effects.keys('move')) or
+                (test=='door_response' and c['decision'].keys==[self._key('confirm')] and current.get('region')=='outside') or
+                (test=='item_effect' and c['source'] in ('inventory_inspection','interface'))]
+            if relevant:
+                for c in relevant:c['score']+=.25
+            else:experiment_active=False
+        preferred=plan['skill']
+        for c in candidates:
+            if c['skill']==preferred:c['score']+=.15
+            if c['decision'].keys in blocked:c['score']-=1.
+            c['estimate']=self.effects.estimate(state,c['decision'].keys)
+            # Recent empirical no-effect changes relative priority; no positive
+            # reward threshold is required to use the least bad known option.
+            if c['estimate']['samples']>=2:c['score']+=max(-.3,min(.3,c['estimate']['mean_observed_value']))
+            if plan.get('strategy')=='avoid_repetition' and c['estimate']['samples']>=2 and c['estimate']['no_effect_rate'] is not None:c['score']-=.4*c['estimate']['no_effect_rate']
+            if plan.get('strategy')=='gather_information' and c['estimate']['samples']<2:c['score']+=.1
+        # Purposeful exploration compares legal single moves; never forces a
+        # menu, facing or diagonal sweep just to complete key coverage.
+        fraction=max(plan['exploration_fraction'],.25) if plan.get('strategy')=='compare_alternatives' else plan['exploration_fraction'];period=max(2,round(1/fraction)) if fraction else None
+        if period and self.sequence%period==0 and state.get('eligible') and not state['minimap'].get('enemies') and not interface:
+            for key in self.effects.keys('move'):
+                if [key] in blocked:continue
+                estimate=self.effects.estimate(state,[key])
+                if estimate['samples']>=2 and estimate['no_effect_rate'] is not None and estimate['no_effect_rate']>=.75:continue
+                route_cost=policy.routes.penalty(state,key) if policy and key in ('w','a','s','d') else 0
+                if estimate['samples']<2:
+                    offer(self._decision(base,[key],'targeted_probe','未解決の移動作用を、現在の通路と実績を確認して1回検証する。'),'targeted_probe','verify_action',.95-route_cost,estimate)
+        if not candidates:
+            key=self._key('confirm') or self.cfg.allowed_keys[0]
+            offer(self._decision(base,[key],'bounded_probe','進行可能な入力仮説を短く試して現在の反応を取得する。'),'bounded_probe','verify_action',0.)
+        chosen=max(candidates,key=lambda c:c['score']);d=chosen['decision'];source=chosen['source']
+        self.trials[current['scope'],tuple(d.keys)]=self.trials.get((current['scope'],tuple(d.keys)),0)+1
+        while len(self.trials)>256:self.trials.pop(next(iter(self.trials)))
+        if source=='inventory_inspection':self.inspections[inspection_scope]=current['step']
+        while len(self.inspections)>64:self.inspections.pop(next(iter(self.inspections)))
+        if source=='combat':combat_trial=chosen['detail']['trial'];pc={'source':'combat_experiment','context':policy.context(state) if policy else {}}
+        elif source=='policy':pc=chosen['detail']['choice']
+        elif source=='movement_alternative':pc={'source':'learned_policy','selected':chosen['detail']['rank'],'context':chosen['detail']['context'],'selection_basis':'operational_relative_comparison'}
+        else:pc={'source':'operational_'+source}
+        if experiment_active and chosen not in relevant:experiment_active=False
+        if pc.get('source')!='learned_outcome_prediction' and prediction_context.get('selected'):
+            prediction_context['not_adopted']=prediction_context.pop('selected')
+        operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':chosen['skill'],'selected_source':source,
+          'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
+          'expected_signal':plan['expected_signal'],'experiment':experiment if experiment_active else None,
+          'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
+          'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'skill':c['skill']} for c in candidates][:12],
+          'selected_keys':list(d.keys),'scope':current['scope'],'selection_rule':'現在の条件を満たす候補を一度だけ比較。後段の総当たりで上書きしない。'}
+        self.last_selection=operation
+        return d,pc,combat_trial,prediction_context,operation
+    def feedback(self,row):
+        e=(row.get('action_effect_learning') or {}).get('effects',{});op=row.get('operation',{})
+        values={'position':e.get('moved') is True,'damage_dealt':bool(e.get('new_hit_message')),'enemy_defeated':bool(e.get('new_defeat_message')),
+          'hp_gain':e.get('hp_gain_net',0)>0,'food_gain':e.get('food_gain_net',0)>0,'interface_change':e.get('text_changed') is True,
+          'item_change':bool((row.get('world_learning') or {}).get('item_effect'))}
+        prepared=(row.get('combat_evaluation') or {}).get('status')=='awaiting_attack_trial'
+        # Interface information may be useful without being dungeon progress.
+        policy=row.get('policy_learning') or {};net=policy.get('net_signals') or {}
+        new_location=bool(values['position'] and policy.get('arrival_visits_before')==0)
+        nav=row.get('mapless_navigation') or {};pose=nav.get('pose')
+        assumed_frontier=bool((row.get('movement_result') or {}).get('success') is True and not nav.get('pose_uncertain') and any(c.get('cell')==pose and c.get('visits')==1 for c in nav.get('cells',[])))
+        floor_progress=bool(net.get('floor'));coverage_progress=bool(net.get('coverage'))
+        progress=new_location or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
+
+        actual=row.get('observed_keys',[]);applied=actual==op.get('selected_keys') and row.get('executed') and (row.get('input_receipt') or {}).get('os_submission')=='accepted' and row.get('turn_kind')!='aborted'
+        evaluation={'progress':bool(progress and applied),'comparable':bool(e.get('comparable') and applied and not prepared),
+          'expected_signal_observed':bool(values.get(op.get('expected_signal')) and applied), 'signals':values,'new_location':new_location,'assumed_frontier':assumed_frontier,'preparation':prepared,
+          'sequence_evaluation':copy.deepcopy(row.get('combat_evaluation')),'scope':'observed_effects_not_goal_success','selection_applied':bool(applied)}
+        item=self.item_context
+        phase=item.get('phase') if item else None
+        if item and phase in ('opening','using'):
+            if applied and actual==[self._key('confirm')] and op.get('selected_source')=='interface':
+                if item['phase']=='opening':item.update(phase='actions',step=row.get('step',0))
+                else:self.item_context=None
+            else:self.item_context=None
+        elif item and phase=='actions':
+            if not (item.pop('_navigation',False) and applied and op.get('selected_source')=='interface'):self.item_context=None
+        row['operation_evaluation']=evaluation
+        row['operational_experiment']=self.effects.record_experiment(op.get('experiment'),evaluation,row) if applied else None
+        return evaluation

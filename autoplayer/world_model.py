@@ -274,7 +274,7 @@ class WorldModel:
                 'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'既知領域の行き止まり形状を探索候補とし、既知の部屋・通路は探索優先度を下げる。端点は壁・行き止まりの確定ではない。通行・回収の経路として再利用できる。'},
             'inventory':inv,'identity_rule':'数値IDは識別用。画像から正体・敵種・非敵対NPCを確定しない。姿の変化は別個体の証明ではない。'}
         return copy.deepcopy(self.latest)
-    def navigation_hint(self,state):
+    def navigation_hint(self,state,preference='current_goal'):
         """Route on observed floor cells, never assume unobserved cells are walls."""
         m=(state or {}).get('minimap',{});player=m.get('player_cell')
         known={tuple(c) for c in m.get('accumulated_cells',[])}
@@ -283,7 +283,8 @@ class WorldModel:
         items={(start[0]+dx,start[1]+dy) for dx,dy in m.get('items',[])}
         stairs={(start[0]+dx,start[1]+dy) for dx,dy in m.get('stairs',[])}
         enemy={(start[0]+dx,start[1]+dy) for dx,dy in m.get('enemies',[])}
-        targets=(items if (state or {}).get('objective')=='forage' and items else frontier) or items or stairs
+        preferred={'stairs':stairs,'items':items,'frontier':frontier}.get(preference,set())
+        targets=preferred or (items if (state or {}).get('objective')=='forage' and items else frontier) or items or stairs
         if start in targets:return None
         queue=deque([(start,None,0)]);seen={start}
         while queue:

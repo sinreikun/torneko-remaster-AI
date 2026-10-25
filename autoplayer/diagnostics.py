@@ -131,6 +131,17 @@ def export_diagnostics(data,destination,detailed=False):
                         entry['recent_improvement_events']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_events ORDER BY id DESC LIMIT 30')]
                         entry['improvement_state']=[{'profile':r[0],'data':r[1][:16000]} for r in target.execute('SELECT profile,data FROM improvement_state LIMIT 20')]
                     if name=='memory.sqlite':
+                        operational={}
+                        for table in ('action_effects_v1','operational_experiments_v1'):
+                            if target.execute('SELECT 1 FROM sqlite_master WHERE name=?',(table,)).fetchone():
+                                column='action' if table=='action_effects_v1' else 'test'
+                                operational[table]={'total':target.execute('SELECT COUNT(*) FROM '+table).fetchone()[0],
+                                    'recent':[{'profile':r[0],'context':r[1],column:json.loads(r[2]) if column=='action' else r[2],'data':json.loads(r[3])} for r in target.execute('SELECT profile,context,'+column+',data FROM '+table+' ORDER BY updated DESC LIMIT 12')]}
+                        if operational:
+                            encoded=json.dumps(operational,ensure_ascii=False).encode()
+                            if len(encoded)<min(256000,remaining):
+                                archive.writestr('supervision/learning.json',encoded);remaining-=len(encoded)
+                                entry['operational_learning_export']={'path':'supervision/learning.json','bytes':len(encoded),'depends_on_raw_database':False}
                         if target.execute("SELECT 1 FROM sqlite_master WHERE name='human_examples'").fetchone():
                             entry['human_example_export']=export_human_examples(target,archive,folder)
                             remaining-=entry['human_example_export']['compressed_bytes']

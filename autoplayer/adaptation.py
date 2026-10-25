@@ -43,7 +43,11 @@ class DurationLearner:
                 or row.get('neutral_before', {}).get('kind') not in ('normal','no_change','timeout')):
             return
         baseline = row['neutral_before'].get('raw_change', 0)
-        response = int(row.get('raw_change', 0) > max(.01, 4*baseline))
+        if row.get('operation'):
+            delta=(row.get('action_effect_learning') or {}).get('effects',{}).get('player_delta')
+            if delta is None:return
+            response=int(delta!=[0,0])
+        else:response = int(row.get('raw_change', 0) > max(.01, 4*baseline))
         with self.memory.db:
             self.memory.db.execute('''INSERT INTO input_durations VALUES(?,?,?,?,1,?)
                 ON CONFLICT(profile,state,key,ms) DO UPDATE SET trials=trials+1,responses=responses+excluded.responses''',

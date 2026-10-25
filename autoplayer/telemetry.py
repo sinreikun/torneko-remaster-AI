@@ -55,6 +55,7 @@ class RecognitionState:
         # a perception event is emitted before deciding the current input.
         if self.floor_state.get('status') in ('pending','unreadable'):self.remaining=0
         if row.get('fast_learning'):self.remaining=row['fast_learning'].get('next_review_in',0)
+        if row.get('supervision'):self.remaining=0 if row['supervision'].get('review_running') else row['supervision'].get('review_in',0)
         self.revision+=1
     def grid(self):
         if self.tentative.get('active') or self.tentative.get('display_retained'):

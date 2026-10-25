@@ -6,7 +6,9 @@ def outcome_learning_allowed(row):
     if str(row.get('event','')).startswith('diagnostic') or row.get('kind') in ('compatibility','separation'):
         return False
     empirical_combat=bool(row.get('combat_experiment') and row.get('observed_keys')==row['combat_experiment'].get('keys'))
-    return empirical_combat or row.get('learning') is not False or bool((row.get('visual_fallback') or {}).get('active')) or (row.get('active_input') or {}).get('source') in ('information_collection','active_input_trial','uncertain_input_trial')
+    operation=row.get('operation') or {}
+    operational=operation.get('authority')=='operational_control' and row.get('observed_keys')==operation.get('selected_keys')
+    return operational or empirical_combat or row.get('learning') is not False or bool((row.get('visual_fallback') or {}).get('active')) or (row.get('active_input') or {}).get('source') in ('information_collection','active_input_trial','uncertain_input_trial')
 
 
 class ExperienceReview:

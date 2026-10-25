@@ -95,10 +95,12 @@ class Application:
         ttk.Checkbutton(options,text='起動時の入力経路確認',variable=self.compat).pack(side='left',padx=6)
         self.dry=tk.BooleanVar(value=False);ttk.Checkbutton(options,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
         fast_bar=toolbar
+        self.supervised_learning=tk.BooleanVar(value=self.cfg.supervised_learning)
+        ttk.Checkbutton(fast_bar,text='LLM監督・自律学習',variable=self.supervised_learning).pack(side='left')
         self.fast_learning=tk.BooleanVar(value=self.cfg.fast_learning);self.review_interval=tk.IntVar(value=self.cfg.llm_review_interval)
-        ttk.Checkbutton(fast_bar,text='高速学習（選択肢・重要変化＋広い間隔でLLM）',variable=self.fast_learning).pack(side='left')
+        ttk.Checkbutton(fast_bar,text='従来モードで高速学習',variable=self.fast_learning).pack(side='left')
         review_group=ttk.Frame(fast_bar);review_group.pack(side='left')
-        ttk.Label(review_group,text='定期確認（手）').pack(side='left',padx=(0,4))
+        ttk.Label(review_group,text='従来モードの確認（手）').pack(side='left',padx=(0,4))
         ttk.Spinbox(review_group,from_=16,to=4096,increment=16,textvariable=self.review_interval,width=6).pack(side='left')
         ttk.Label(review_group,text='（次回開始から適用）').pack(side='left',padx=5)
         for widget in toolbar.winfo_children():
@@ -132,7 +134,7 @@ class Application:
         self.recognition_panel=RecognitionPanel(right,self.recognition);self.recognition_panel.frame.pack(fill='x',padx=4,pady=4)
         panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={};self.panel_values={}
         self.panel_aliases={'新発見':'仮説','修正履歴':'仮説','系列のパターン':'行動学習','累積統計':'行動学習','手法の選択・学習':'行動学習','背景適合性':'バックエンド状態','ゲームの推定':'現在状態'}
-        for title in ['今回統計','目的','選択行動と理由','結果','行動学習','現在状態','候補と評価','自己改善','OCR・攻略知識の照合','仮説','新発見','修正履歴','累積統計','系列のパターン','ゲームの推定','手法の選択・学習','背景適合性','バックエンド状態','キー配置・ミニマップ']:
+        for title in ['今回統計','目的','運用計画','選択行動と理由','結果','行動学習','現在状態','候補と評価','自己改善','OCR・攻略知識の照合','仮説','新発見','修正履歴','累積統計','系列のパターン','ゲームの推定','手法の選択・学習','背景適合性','バックエンド状態','キー配置・ミニマップ']:
             if title=='今回統計' or title=='結果' or title in self.panel_aliases:continue
             group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
             button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
@@ -140,7 +142,7 @@ class Application:
             body=tk.Text(holder,height=5,wrap='word',state='disabled',relief='flat');body.pack(side='left',fill='x',expand=True)
             scroll=ttk.Scrollbar(holder,command=body.yview);scroll.pack(side='right',fill='y');body.configure(yscrollcommand=scroll.set)
             self.panels[title]=body;self.panel_bodies[title]=holder
-            if self.ui_state.get('collapsed',{}).get(title,title not in ('目的','選択行動と理由','行動学習')):holder.pack_forget()
+            if self.ui_state.get('collapsed',{}).get(title,title not in ('目的','運用計画','選択行動と理由','行動学習')):holder.pack_forget()
         self.vars={}
         for row,(label,key) in enumerate([('ゲームのタイトル（一部・固有の文字列）','window_title'),('API形式（ollama / openai）','provider'),('ローカルAPI URL','endpoint'),('画像対応モデル名','model'),('許可キー（カンマ区切り）','allowed_keys'),('手数上限（0 = 上限なし）','max_steps'),('OCR（auto = 導入済みV5 → V4 → Windows）','ocr_engine')]):
             ttk.Label(config,text=label).grid(row=row,column=0,sticky='w')
@@ -388,7 +390,7 @@ class Application:
             value=getattr(cfg,key);var.set(','.join(value) if isinstance(value,list) else str(value))
         for widget,value in ((self.goal,cfg.goal),(self.knowledge,cfg.knowledge),(self.bindings,'\n'.join(k+'='+v for k,v in cfg.key_bindings.items()))):
             widget.delete('1.0','end');widget.insert('1.0',value)
-        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing);self.fast_learning.set(cfg.fast_learning);self.review_interval.set(cfg.llm_review_interval)
+        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing);self.fast_learning.set(cfg.fast_learning);self.supervised_learning.set(cfg.supervised_learning);self.review_interval.set(cfg.llm_review_interval)
         from .controls import REFERENCE,is_torneko
         self.set_panel('キー配置・ミニマップ',REFERENCE if is_torneko(cfg.window_title) else cfg.key_bindings or 'キー配置一覧を入力してください。')
         self.set_panel('目的',cfg.goal);self.status.set('選択: '+target['title']+' / キー配置は接続設定で編集できます。')
@@ -571,7 +573,7 @@ class Application:
         from .profiles import parse_bindings
         bindings=parse_bindings(self.bindings.get('1.0','end'))
         if bindings:v['allowed_keys']=list(bindings)
-        v.update(key_bindings=bindings,resilient=self.resilient.get(),adaptive_timing=self.adaptive.get(),fast_learning=self.fast_learning.get(),llm_review_interval=self.review_interval.get())
+        v.update(key_bindings=bindings,resilient=self.resilient.get(),adaptive_timing=self.adaptive.get(),fast_learning=self.fast_learning.get(),supervised_learning=self.supervised_learning.get(),llm_review_interval=self.review_interval.get())
         v.update(goal=self.goal.get('1.0','end').strip(),knowledge=self.knowledge.get('1.0','end').strip())
         if len(v['knowledge'])>50000: raise ValueError('知識は 50,000 文字以内にしてください。')
         return Settings(**v).validate()
@@ -909,6 +911,10 @@ class Application:
                 f"処理: {value.get('performance',{}).get('total_ms','?')}ms / 学習選択: {value.get('active_input',{}).get('source','方策・モデル')}\n")
             stages=value.get('performance',{}).get('stages_ms',{})
             if stages:text+=f"内訳ms: OCR {stages.get('ocr_ms','?')} / 地図取得 {stages.get('map_capture_ms',0)} / 自然観測 {stages.get('neutral_observation_ms',0)} / 入力後観測 {stages.get('input_response_observation_ms',0)} / 学習・保存 {stages.get('learning_save_ms',0)}\n"
+            if value.get('supervision'):
+                sup=value['supervision'];op=value.get('operation',{});evaluation=value.get('operation_evaluation',{})
+                text+=f"監督: {op.get('skill')} / {op.get('selected_source')} / 計画残り{sup.get('remaining')}手 / 推論{'中' if sup.get('review_running') else '待機'} / 方針採用{sup.get('adoptions')}回\n"
+                text+=f"作用照合: {value.get('action_effect_learning',{}).get('role')} / 進行={evaluation.get('progress')} / 準備={evaluation.get('preparation')} / 検証={value.get('operational_experiment')}\n"
             if value.get('learning_connection'):
                 from .learning_connection import summary as learning_summary
                 text+=learning_summary(value['learning_connection'])+'\n'
@@ -948,8 +954,15 @@ class Application:
             return
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event=='self_improvement':self.set_panel('自己改善',value);return
+        if event=='supervisor_plan':
+            self.set_panel('運用計画',value['plan']);return
         if event=='result':
-            if value.get('policy_choice'):
+            if value.get('supervision'):
+                self.set_panel('運用計画',value['supervision'])
+                self.set_panel('行動学習',{'作用の学習':value.get('action_effect_learning'),'計画の照合':value.get('operation_evaluation'),'仮説検証':value.get('operational_experiment')})
+                self.set_panel('候補と評価',value.get('operation',{}))
+            if value.get('policy_choice') and not value.get('supervision'):
+
                 self.set_panel('自己改善',{'予測制御':value.get('anticipation'),'予測照合':value.get('forecast_evaluation'),'state':value.get('self_improvement'),'evaluation':value.get('improvement_evaluation')})
                 coverage=value.get('information_exploration',{});actions=coverage.get('actions',[]);ready=sum(a.get('observed',0)>=a.get('required',2) for a in actions)
                 self.set_panel('行動学習',f"この状況の初期観測: {ready}/{len(actions)}候補が目安を充足\n収集中: {not coverage.get('initial_coverage_ready',False)} / 採用元: {value.get('active_input',{}).get('source','方策・モデル')}\n今回操作の観測回数: {value.get('input_coverage',{}).get('observed','不明')} / 報酬: {value.get('policy_learning',{}).get('reward','未採点')}\n観測回数や行動名だけで因果・成功を確定しません。")
