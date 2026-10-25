@@ -969,7 +969,7 @@ class Controller:
                 visual_blocked=visual_evidence.get('blocked_actions',[])
                 blocked=blocked_keys()
                 forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
-                route_local=bool(mapless.propose() and len(mapless.samples)>=3 and step%8 and not guidance['text'] and self.history and (self.history[-1].get('scene') in ('gameplay','exploration','dungeon') or (self.history[-1].get('active_input') or {}).get('source')=='tentative_route'))
+                route_local=bool(mapless.propose(allow_facing=not exterior_context.get('active')) and len(mapless.samples)>=3 and step%8 and not guidance['text'] and self.history and (self.history[-1].get('scene') in ('gameplay','exploration','dungeon') or (self.history[-1].get('active_input') or {}).get('source')=='tentative_route'))
                 local_learning=bool(route_local or (learning_review and not learning_review['llm_requested']))
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
@@ -1057,7 +1057,7 @@ class Controller:
                         if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 else:information_context=information.context(decision,native,policy_state)
                 if active_choice:self.executive.cancel('active_input_trial')
-                route_proposal=mapless.propose() if not dry_run and (not exterior_context.get('active') or exterior_context.get('mode')=='exit_exploration') and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and decision.scene in ('unknown','gameplay','exploration','dungeon') else None
+                route_proposal=mapless.propose(allow_facing=not exterior_context.get('active')) if not dry_run and (not exterior_context.get('active') or exterior_context.get('mode')=='exit_exploration') and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and decision.scene in ('unknown','gameplay','exploration','dungeon') else None
                 if route_proposal:
                     from dataclasses import replace
                     route_keys,route_reason=route_proposal

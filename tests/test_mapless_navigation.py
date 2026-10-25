@@ -32,6 +32,14 @@ class MaplessTests(unittest.TestCase):
             for _ in range(3):self.record(n,[direction],{'status':'stationary'})
         self.assertEqual(n.obstacles,set());self.assertIsNone(n.pending)
         self.assertTrue(n.uncertain);self.assertEqual(n.pose,(0,0))
+    def test_exterior_door_probe_skips_turn_in_place(self):
+        n=self.make();n.samples=[6,6,6]
+        for _ in range(2):self.record(n,['w'],{'status':'stationary'})
+        self.assertEqual(n.propose(allow_facing=False)[0],['num1'])
+        self.record(n,['num1'],{})
+        self.assertEqual(n.propose(allow_facing=False)[0],['w'])
+        self.record(n,['w'],{'status':'stationary'})
+        self.assertIsNone(n.pending)
     def test_wrong_translation_invalidates_pose(self):
         n=self.make();self.record(n,['w'],{'status':'translated','shift':[6,0]});self.assertTrue(n.uncertain);self.assertEqual(n.pose,(0,0))
     def test_menu_and_real_map_suspend(self):

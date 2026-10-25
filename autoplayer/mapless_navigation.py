@@ -78,11 +78,11 @@ class MaplessNavigation:
         self.active=bool((state or {}).get('minimap',{}).get('status')!='observed' and not torneko_menu_kind(native) and not result_screen(native) and not PROTECTED_CONFIRMATION.search(text) and not dialogue and all(self.keys.values()))
         if not self.active:self.pending=None
         return self.snapshot()
-    def propose(self):
+    def propose(self,allow_facing=True):
         if not self.active or self.uncertain:return None
         if self.pending:
             direction,stage=self.pending
-            if stage=='face' and self.face:return [self.face,self.keys[direction]],'相互作用前の向き確認'
+            if stage=='face' and self.face and allow_facing:return [self.face,self.keys[direction]],'相互作用前の向き確認'
             if stage in ('face','confirm') and self.confirm:return [self.confirm],'通過できない方向への決定入力を1回確認'
             return [self.keys[direction]],'決定入力後の通過再確認'
         # BFS through observed edges to the nearest untried frontier. Revisit

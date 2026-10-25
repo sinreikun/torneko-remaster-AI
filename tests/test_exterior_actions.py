@@ -11,10 +11,10 @@ class ExteriorTests(unittest.TestCase):
         cfg=cfg or Settings();nav=MaplessNavigation(cfg)
         return cfg,nav,ExteriorActions(cfg,nav)
     def decision(self,keys):return Decision('gameplay','','','',.9,'continue',keys,80,600)
-    def test_scope_only_movement_facing_and_confirm(self):
+    def test_scope_only_movement_and_confirm(self):
         cfg,nav,p=self.make();c=p.observe({}, {},'gameplay')
         self.assertTrue(c['active'])
-        self.assertEqual(c['actions'],[['w'],['d'],['s'],['a'],['num5','w'],['num5','d'],['num5','s'],['num5','a'],['num1']])
+        self.assertEqual(c['actions'],[['w'],['d'],['s'],['a'],['num1']])
         for key in ('num0','num2','num3','num4','num6','num7'):
             d,report=p.enforce(self.decision([key]));self.assertIn(d.keys,c['actions']);self.assertEqual(report['previous_keys'],[key])
     def test_uncertain_position_does_not_expand_actions(self):
@@ -22,7 +22,7 @@ class ExteriorTests(unittest.TestCase):
         d,_=p.enforce(self.decision(['num0']));self.assertNotIn('num0',d.keys)
     def test_scope_replaces_forbidden_mixed_chords(self):
         cfg,nav,p=self.make();p.observe({}, {},'gameplay')
-        for keys in (['num0','w'],['num5'],['num1','num0'],['w','d']):
+        for keys in (['num0','w'],['num5'],['num1','num0'],['w','d'],['num5','w'],['num5','a'],['num5','s'],['num5','d']):
             d,_=p.enforce(self.decision(keys));self.assertIn(d.keys,p.context['actions'])
     def test_dungeon_and_ocr_dropout_remain_unrestricted(self):
         cfg,nav,p=self.make();p.observe({}, {},'gameplay')
@@ -119,7 +119,7 @@ class ExteriorPlannerTests(unittest.TestCase):
         client._request=Mock(return_value=json.dumps(change(scene='gameplay',action={'keys':['w'],'hold_ms':80,'wait_ms':0},reason='未試行の上方向を確認する。')))
         client.decide(png,[],False)
         args=client._request.call_args.args;prompt,schema=args[2],args[3]
-        expected=[['w'],['d'],['s'],['a'],['num5','w'],['num5','d'],['num5','s'],['num5','a'],['num1']]
+        expected=[['w'],['d'],['s'],['a'],['num1']]
         self.assertEqual(prompt['exterior_action_policy']['actions'],expected)
         self.assertEqual([r['keys'] for r in prompt['information_exploration']['actions']],expected)
         self.assertNotIn('num0',prompt['allowed_keys']);self.assertNotIn('num6',prompt['allowed_keys'])

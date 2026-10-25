@@ -40,10 +40,9 @@ class ExteriorActions:
             else:
                 movement=[k for k in self.navigation.keys.values() if k]
                 actions=[[k] for k in movement]
-                if self.navigation.face:actions += [[self.navigation.face,k] for k in movement]
                 if confirm:actions.append([confirm])
         self.context={'active':active,'location':self.location,'mode':mode,'actions':actions,
-            'rule':'ダンジョン外の固定地形では出口への移動が唯一の局所目標。探索候補は移動・方向転換・通過を確認する決定入力だけ。メニュー・射撃・ダッシュ・足踏み・地図表示を試さない。既に開いたメニューと保護確認は取消で閉じる。全体目標は維持する。'}
+            'rule':'ダンジョン外の固定地形では出口への移動が唯一の局所目標。探索候補は移動・通過を確認する決定入力だけ。その場での方向転換（Num5＋方向キー）を試さない。メニュー・射撃・ダッシュ・足踏み・地図表示を試さない。既に開いたメニューと保護確認は取消で閉じる。全体目標は維持する。'}
         return self.context
     def enforce(self,decision,blocked=()):
         context=self.context
@@ -57,7 +56,7 @@ class ExteriorActions:
         return replace(decision,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),
             intent={},forecast={},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
             subgoal='既存の画面を閉じて出口探索へ戻る' if context['mode']!='exit_exploration' else '現在領域の出口へ向かう',
-            reason='ダンジョン外の行動制限に従い、移動・方向転換・決定、または既存画面を閉じる入力へ変更する。'),{
+            reason='ダンジョン外の行動制限に従い、移動・決定、または既存画面を閉じる入力へ変更する。'),{
                 'source':'exterior_action_filter','mode':context['mode'],'previous_keys':decision.keys,'selected_keys':list(keys),'learning':False}
     def sent(self,keys):
         if self.context.get('active'):
