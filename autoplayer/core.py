@@ -557,7 +557,7 @@ class LocalLLM:
         exterior=ExteriorActions(cfg,MaplessNavigation(cfg))
         previous_exterior=self.context.get('exterior_action_policy',{})
         exterior.location=previous_exterior.get('location','unclassified')
-        action_scope=exterior.observe({},native,scene_observation.get('scene_type','unknown'))
+        action_scope=exterior.observe({'white_frame_evidence':self.context.get('white_frame_evidence',{})},native,scene_observation.get('scene_type','unknown'))
         if action_scope.get('active'):
             prompt['exterior_action_policy']=action_scope
             prompt['information_exploration']={'actions':[{'keys':a} for a in action_scope['actions']],'rule':action_scope['rule']}
@@ -958,6 +958,8 @@ class Controller:
                     if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 self.guidance_revision=guidance['revision']
                 if world_observation.get('new_adventure'):exterior.location='unclassified'
+                from .exterior_screen import white_frames
+                policy_state['white_frame_evidence']=self._timed('white_frame_ms',white_frames,normal_observation_image) if is_torneko(self.cfg.window_title) else {}
                 exterior_context=exterior.observe(policy_state,native)
                 policy_state['exterior_action_policy']=exterior_context
                 mapless.locate(normal_observation_image)
@@ -969,7 +971,8 @@ class Controller:
                 visual_blocked=visual_evidence.get('blocked_actions',[])
                 blocked=blocked_keys()
                 forecast_ready=self.executive.ready(policy_state,world_observation,blocked,stagnant) and policy_stable and not dry_run
-                route_local=bool(mapless.propose(allow_facing=not exterior_context.get('active')) and len(mapless.samples)>=3 and step%8 and not guidance['text'] and self.history and (self.history[-1].get('scene') in ('gameplay','exploration','dungeon') or (self.history[-1].get('active_input') or {}).get('source')=='tentative_route'))
+                route_local=bool(mapless.propose(allow_facing=not exterior_context.get('active')) and (mapless.assumed_mode or len(mapless.samples)>=3) and step%8 and not guidance['text'] and self.history and (self.history[-1].get('scene') in ('gameplay','exploration','dungeon') or (self.history[-1].get('active_input') or {}).get('source')=='tentative_route'))
+                if route_local and learning_review:learning_review={**learning_review,'llm_requested':False,'reason':'local_exterior_route','next_review_in':8-step%8}
                 local_learning=bool(route_local or (learning_review and not learning_review['llm_requested']))
                 if self.improvement and not dry_run:
                     self.improvement.begin_step()
@@ -982,7 +985,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'exterior_action_policy':exterior_context,'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'white_frame_evidence':policy_state.get('white_frame_evidence',{}),'exterior_action_policy':exterior_context,'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=blocked_keys()
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
@@ -1057,7 +1060,7 @@ class Controller:
                         if hasattr(self.llm,'knowledge_engine'):self.llm.knowledge_engine.goal=None
                 else:information_context=information.context(decision,native,policy_state)
                 if active_choice:self.executive.cancel('active_input_trial')
-                route_proposal=mapless.propose(allow_facing=not exterior_context.get('active')) if not dry_run and (not exterior_context.get('active') or exterior_context.get('mode')=='exit_exploration') and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and decision.scene in ('unknown','gameplay','exploration','dungeon') else None
+                route_proposal=mapless.propose(allow_facing=not exterior_context.get('active')) if not dry_run and (not exterior_context.get('active') or exterior_context.get('mode')=='exit_exploration') and not guidance['text'] and decision.status=='continue' and decision.risk!='destructive' and (decision.scene in ('unknown','gameplay','exploration','dungeon') or mapless.assumed_mode and decision.scene in ('menu','dialog')) else None
                 if route_proposal:
                     from dataclasses import replace
                     route_keys,route_reason=route_proposal

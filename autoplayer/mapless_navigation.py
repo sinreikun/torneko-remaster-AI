@@ -51,7 +51,7 @@ class MaplessNavigation:
         self.confirm=next((k for k,v in bindings.items() if ('決定' in v or 'confirm' in v.lower()) and k in cfg.allowed_keys),None)
         self.face='num5' if is_torneko(cfg.window_title) and 'num5' in cfg.allowed_keys else None
     def reset(self,reason):
-        self.scope=uuid.uuid4().hex[:12];self.pose=(0,0);self.nodes={(0,0):{'visits':1}};self.edges={};self.trials={};self.obstacles=set();self.samples=[];self.pending=None;self.interacted=set();self.uncertain=False;self.mode='校正中';self.active=False;self.reason=reason;self.last={};self.landmarks={}
+        self.scope=uuid.uuid4().hex[:12];self.pose=(0,0);self.nodes={(0,0):{'visits':1}};self.edges={};self.trials={};self.obstacles=set();self.samples=[];self.pending=None;self.interacted=set();self.uncertain=False;self.mode='校正中';self.active=False;self.reason=reason;self.last={};self.landmarks={};self.assumed_mode=False;self.assumption_history=False;self.real_map_available=False;self.frame_evidence={}
     @staticmethod
     def signature(png):
         try:
@@ -59,6 +59,7 @@ class MaplessNavigation:
             return list(Image.open(io.BytesIO(png)).convert('L').resize((32,18)).crop((0,4,32,18)).getdata())
         except Exception:return None
     def locate(self,png):
+        if self.assumption_history:return
         signature=self.signature(png)
         if signature is None:return
         if self.uncertain:
@@ -76,6 +77,16 @@ class MaplessNavigation:
         # not the game; the existing interface/LLM policy remains responsible.
         dialogue=any(sum(c.isalpha() for c in l.get('text',''))>=8 and not any(t in l.get('text','') for t in ('HP','満腹','Lv')) for l in (native or {}).get('lines',[]))
         self.active=bool((state or {}).get('minimap',{}).get('status')!='observed' and not torneko_menu_kind(native) and not result_screen(native) and not PROTECTED_CONFIRMATION.search(text) and not dialogue and all(self.keys.values()))
+        scope=(state or {}).get('exterior_action_policy',{})
+        self.assumed_mode=bool(is_torneko(self.cfg.window_title) and scope.get('active') and scope.get('mode')=='exit_exploration')
+        self.frame_evidence=(state or {}).get('white_frame_evidence',{})
+        self.real_map_available=(state or {}).get('minimap',{}).get('status')=='observed'
+        if self.assumed_mode:self.assumption_history=True
+        if self.assumed_mode:
+            self.active=bool((state or {}).get('minimap',{}).get('status')!='observed' and all(self.keys.values()) and self.frame_evidence.get('visible') is False)
+            self.reason='user_assumption_ready' if self.active else 'white_frame_or_image_unavailable'
+        if is_torneko(self.cfg.window_title) and self.frame_evidence.get('visible'):
+            self.active=False;self.reason='white_frame_geometry_suspended'
         if not self.active:self.pending=None
         return self.snapshot()
     def propose(self,allow_facing=True):
@@ -104,6 +115,8 @@ class MaplessNavigation:
         if not self.active:return self.snapshot()
         if not same_frame or not row.get('executed') or row.get('turn_kind')=='aborted' or (row.get('input_receipt') or {}).get('os_submission')!='accepted':
             self.pending=None;self.uncertain=True;self.reason='input_or_frame_not_comparable';return self.snapshot()
+        if self.assumed_mode:
+            return self.record_assumed(before,after,neutral,row)
         previous=self.pose;stage=self.pending
         if stage and len(keys)==2 and self.face in keys:
             self.pending=(stage[0],'confirm');self.mode='相互作用確認';return self.snapshot()
@@ -158,5 +171,45 @@ class MaplessNavigation:
         if len(self.nodes)>1024:self.uncertain=True;self.reason='bounded_map_limit'
         self.last['to']=list(self.pose)
         return self.snapshot()
+    def record_assumed(self,before,after,neutral,row):
+        from .exterior_screen import assumed_change
+        keys=row.get('observed_keys',[])
+        if self.pending and keys==[self.confirm]:
+            self.pending=(self.pending[0],'move');self.mode='通過再確認';return self.snapshot()
+        direction=next((d for d,k in self.keys.items() if keys==[k]),None)
+        if direction is None:
+            self.pending=None;return self.snapshot()
+        evidence=assumed_change(before,after,neutral)
+        if evidence.get('white_frames'):self.frame_evidence=evidence['white_frames'][-1]
+        previous=self.pose;delta=DIRECTIONS[direction];dest=(previous[0]+delta[0],previous[1]+delta[1]);edge=(previous,direction)
+        self.last={'before_sha256':hashlib.sha256(before).hexdigest(),'after_sha256':hashlib.sha256(after).hexdigest(),
+            'motion':evidence,'keys':keys,'hold_ms':row.get('hold_ms'),'wait_ms':row.get('wait_ms'),'from':list(previous),'to':list(previous)}
+        if evidence['status'] in ('unknown','interface'):
+            self.pending=None;self.active=False
+            if evidence['status']=='unknown':self.uncertain=True
+            self.reason=evidence['reason'];return self.snapshot()
+        if self.uncertain:
+            # Resume the user's relative-step model from a new origin rather
+            # than joining it to coordinates whose input history was lost.
+            last=self.last;self.reset('new_origin_for_assumed_steps');self.active=True;self.assumed_mode=True;self.assumption_history=True;self.last=last
+            previous=self.pose;dest=(previous[0]+delta[0],previous[1]+delta[1]);edge=(previous,direction)
+            self.last['from']=list(previous)
+        self.trials[edge]=self.trials.get(edge,0)+1
+        self.nodes[previous]['surface']='floor'
+        if evidence['status']=='assumed_moved':
+            self.pose=dest;self.uncertain=False;self.nodes.setdefault(dest,{'visits':0,'surface':'floor'})['visits']+=1
+            self.edges[edge]={'to':list(dest),'basis':evidence['basis'],'evidence':self.last}
+            inverse=next(d for d,v in DIRECTIONS.items() if v==(-delta[0],-delta[1]))
+            self.edges[(dest,inverse)]={'to':list(previous),'reverse_hypothesis':True,'basis':evidence['basis']}
+            self.obstacles.discard(dest);self.pending=None;self.reason='large_change_assumed_step'
+        else:
+            self.obstacles.add(dest);self.edges.pop(edge,None);self.reason='small_change_assumed_obstacle'
+            if self.pending and self.pending[1]=='move':self.trials[edge]=3;self.pending=None
+            elif self.confirm and edge not in self.interacted:
+                self.interacted.add(edge);self.pending=(direction,'confirm');self.mode='通過確認'
+            else:self.trials[edge]=3;self.pending=None
+        self.last['to']=list(self.pose)
+        if len(self.nodes)>1024:self.uncertain=True;self.reason='bounded_map_limit'
+        return self.snapshot()
     def snapshot(self):
-        return {'source':'tentative_screen_route','active':self.active,'scope':self.scope,'pose':list(self.pose),'pose_uncertain':self.uncertain,'unit':'仮の入力移動単位（実マス未保証）','calibration':'校正中' if len(self.samples)<3 else '反復変位を照合済み','mode':'再定位が必要' if self.uncertain else self.mode,'local_goal':'現在領域の出口を探す（全体目標は維持）','reason':self.reason,'cells':[{'cell':list(c),'visits':v['visits']} for c,v in self.nodes.items()],'obstacles':[list(c) for c in sorted(self.obstacles)],'edges':[{'from':list(c),'direction':d,**v} for (c,d),v in self.edges.items()],'last':self.last,'pending':list(self.pending) if self.pending else None}
+        return {'source':'tentative_screen_route','active':self.active,'display_retained':self.assumption_history and not self.active and not self.real_map_available,'scope':self.scope,'pose':list(self.pose),'pose_uncertain':self.uncertain,'movement_basis':'user_assumption_screen_change' if self.assumption_history else 'background_translation','white_frame_evidence':self.frame_evidence,'unit':'移動入力1回＝仮の1マス' if self.assumption_history else '仮の入力移動単位（実マス未保証）','calibration':'利用者指定の仮定（校正不要）' if self.assumption_history else '校正中' if len(self.samples)<3 else '反復変位を照合済み','mode':'再定位が必要' if self.uncertain else self.mode,'local_goal':'現在領域の出口を探す（全体目標は維持）','reason':self.reason,'cells':[{'cell':list(c),'visits':v['visits'],'surface':v.get('surface','passage_hypothesis')} for c,v in self.nodes.items()],'obstacles':[list(c) for c in sorted(self.obstacles)],'edges':[{'from':list(c),'direction':d,**v} for (c,d),v in self.edges.items()],'last':self.last,'pending':list(self.pending) if self.pending else None}

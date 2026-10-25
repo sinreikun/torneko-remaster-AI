@@ -53,6 +53,7 @@ class InformationExploration:
     def choose(self,decision,native,state,blocked=()):
         context=self.context(decision,native,state)
         text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]))
+        if (state or {}).get('white_frame_evidence',{}).get('visible'):return decision,context
         if decision.status!='continue' or DANGEROUS.search(text) or result_screen(native) or re.search(r'はい|いいえ|ロード中|読み込み中',text):return decision,context
         if context['initial_coverage_ready']:return decision,context
         candidates=[r for r in context['actions'] if r['observed']<r['required']]

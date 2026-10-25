@@ -28,14 +28,15 @@ class ExteriorActions:
         text='\n'.join(l.get('text','') for l in native.get('lines',[]))
         confirm=self.navigation.confirm
         cancel=next((k for k,v in (self.cfg.key_bindings or REFERENCE['keys']).items() if ('キャンセル' in v or 'cancel' in v.lower()) and k in self.cfg.allowed_keys),None)
+        clear_screen=state.get('white_frame_evidence',{}).get('visible') is False
         if active:
             if PROTECTED_CONFIRMATION.search(text):
                 mode='protected_cancel';actions=[[cancel]] if cancel else []
-            elif torneko_menu_kind(native) or state.get('menu_evidence'):
+            elif not clear_screen and (torneko_menu_kind(native) or state.get('menu_evidence')):
                 # Closing an already-open menu is recovery, not an exploration
                 # candidate. Never navigate or research its items outside.
                 mode='close_existing_menu';actions=[[cancel]] if cancel else []
-            elif (scene=='dialog' and any(sum(c.isalpha() for c in l.get('text',''))>=8 for l in native.get('lines',[]))) or ('はい' in text and 'いいえ' in text):
+            elif not clear_screen and ((scene=='dialog' and any(sum(c.isalpha() for c in l.get('text',''))>=8 for l in native.get('lines',[]))) or ('はい' in text and 'いいえ' in text)):
                 mode='advance_existing_dialog';actions=[[confirm]] if confirm else []
             else:
                 movement=[k for k in self.navigation.keys.values() if k]
