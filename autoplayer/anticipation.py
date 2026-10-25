@@ -104,6 +104,9 @@ class Anticipation:
         # Learn predictions for local navigation too. A replaced LLM action must
         # never be evaluated against the prediction of the original action.
         self.last=snapshot(state)
+        self.awaiting=bool(decision.keys) and decision.status=='continue'
+        if decision.forecast.get('first_expected'):self.expected=copy.deepcopy(decision.forecast['first_expected'])
+        if self.latest.get('context'):self.context_key=self.latest['context']
         if len(decision.keys)==1 and decision.keys[0] in MOVES:
             self.expected.setdefault('player_delta',list(MOVES[decision.keys[0]]))
     def feedback(self,before,after,row,ocr_before,ocr_after,neutral):

@@ -339,6 +339,9 @@ class ExperiencePolicy:
         next_q=max(0.,max((v['q'] for k,v in self.values(after).items() if k in MOVES and k in self.settings.allowed_keys),default=0.))
         new_q=current+.25*(reward+.85*next_q-current)
         event={'status':'trained','state':before['id'],'next_state':after['id'],'objective':before['objective'],'keys':keys,
+            'conditions':{key:before.get('metrics',{}).get(key,{}).get('values') for key in ('level','strength','sword','shield')},
+            'player_delta':([after['minimap']['player_cell'][i]-before['minimap']['player_cell'][i] for i in (0,1)] if before.get('eligible') and after.get('eligible') and before['metrics'].get('floor',{}).get('values')==after['metrics'].get('floor',{}).get('values') and not natural.get('position') and not natural.get('floor') else None),
+            'hp_delta':(after['metrics']['hp']['values'][0]-before['metrics']['hp']['values'][0] if before['metrics'].get('hp') and after['metrics'].get('hp') and before['metrics']['hp']['values'][1]==after['metrics']['hp']['values'][1] else None),
             'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'baseline_kind':row.get('policy_baseline_kind','neutral_observation'),'net_signals':net,
             'interface_response':interface_response,'interface_information_gain':interface_gain,'interface_gain_is_goal_progress':False,'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}

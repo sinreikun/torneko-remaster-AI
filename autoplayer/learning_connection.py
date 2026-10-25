@@ -4,7 +4,7 @@ import copy
 
 def candidate(choice,decision):
     choice=choice or {};selected=choice.get('selected') or {}
-    if choice.get('source') not in ('learned_policy','learned_interface_policy'):return {'offered':False,'source':choice.get('source')}
+    if choice.get('source') not in ('learned_policy','learned_interface_policy','learned_outcome_prediction'):return {'offered':False,'source':choice.get('source')}
     return {'offered':True,'source':choice['source'],'keys':list(decision.keys),
         'prior_trials':selected.get('trials',selected.get('samples',0)),'prior_q':selected.get('q'),
         'selection_basis':choice.get('selection_basis','interface_response'),

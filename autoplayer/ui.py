@@ -912,6 +912,12 @@ class Application:
             if value.get('learning_connection'):
                 from .learning_connection import summary as learning_summary
                 text+=learning_summary(value['learning_connection'])+'\n'
+            prediction=(value.get('learned_predictions') or {}).get('selected')
+            if prediction:
+                result=(value.get('learned_prediction_evaluation') or {}).get('status','未検証')
+                text+=f"経験予測: {prediction['trials']}件 / 観測済み{prediction['supported_horizon']}手先 / 期待評価 {prediction['expected_return']:.3f} / 照合 {result}\n"
+            combat=value.get('combat_evaluation') or {}
+            if combat.get('status')=='updated':text+=f"戦闘学習: 評価 {combat['reward']:.3f} / 予測誤差 {combat.get('prediction_error')}\n"
             visual=value.get('visual_response',{})
             if visual.get('status')=='observed':text+=f"画像反応: 大きな変化={visual.get('context_change')} / 変化未確認 {visual.get('stagnant_turns',0)}手 / 一時保留 {value.get('visual_action_evidence',{}).get('blocked_actions',[])}（攻略成果は未確認）\n"
         elif str(event).startswith('human_'):

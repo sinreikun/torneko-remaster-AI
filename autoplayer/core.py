@@ -513,7 +513,7 @@ class LocalLLM:
         prompt={'public_references':getattr(self,'public_references',{}),'retrieved_experiences':retrieved,'key_bindings':cfg.key_bindings,'_native_ocr':native,'scene_observation':{k:v for k,v in scene_observation.items() if k!='status'},'source_knowledge':compact_knowledge(knowledge_context),'goal':cfg.goal,'knowledge':select_knowledge(cfg.knowledge,cfg.goal+' '+str(compact[-1:]),limit=1000),'allowed_keys':cfg.allowed_keys,
             'limits':{'hold_ms':[1,cfg.max_hold_ms],'wait_ms':[0,cfg.max_wait_ms]},
             'recent_history':compact,'memory':context,'stalled':stalled,
-            'exploration_objective':'当面は未経験の画面・場所・操作結果への到達を優先。ゲーム内の危険は発見と損失の両面で評価し、既知の無益な反復より新しい候補を選ぶ。削除・初期化・課金などの制限は維持する。',
+            'exploration_objective':'全体目標のため、現在の画面に適合する実測経験と予測を使い、有効な進行を優先。未経験への探索は情報が不足する場面や既知の方法が無効なときに行い、総当たり自体を目的にしない。ゲーム内の危険は発見と損失の両面で評価する。削除・初期化・課金などの制限は維持する。',
             'instruction':'観察役の現在画像報告とOCRを照合し、履歴の説明をそのまま繰り返さないでください。行き詰まったら別の仮説と許可入力へ切り替えてください。無反応だけではBackend異常と判断できません。説明は必ず日本語。',
             'operator_guidance':self.context.get('operator_guidance',{}),
             'operator_guidance_rule':'利用者の作戦指示を目標・優先度の検討へ反映する。記述された状態は現在の画像・OCRと照合し、観測の代用にしない。キー・入力長・破壊的操作の制限は維持する。',
@@ -521,7 +521,7 @@ class LocalLLM:
             'spatial_observation':(self.context.get('learned_policy') or {}).get('spatial_observation',{'status':'unavailable'}),
             'input_mode':'text_planner_from_current_image_observer','output_language':'日本語（ja-JP）','fresh_assessment':reground,'self_improvement':self.context.get('self_improvement'),
             'information_exploration':self.context.get('information_exploration',{}),
-            'experience_review':self.context.get('experience_review',{}),
+            'experience_review':self.context.get('experience_review',{}),'learned_predictions':self.context.get('learned_predictions',{}),
             'visual_action_evidence':self.context.get('visual_action_evidence',{}),
             'action_principles':action_principles(is_torneko(cfg.window_title)),
             'planning_checks':'理由には全体目標を繰り返さず、今回のキーを選ぶ現在画面の根拠を短く記す。現在の根拠、対象の位置、選ぶキーを照合する。過去の仮説や作戦指示を観察した事実として引用しない。'}
@@ -751,7 +751,7 @@ class Controller:
         self.world=cached_world if cached_world and cached_world.session==journal.stem else WorldModel(memory,journal.stem)
         if memory:memory.runtime_world=self.world
         self.completed=False; self.feedback={};self.last_observed_floor=None
-        self.policy=None;self.improvement=None;self.map_visibility_attempted=False;self.combat=None;self.defeat_seen=False
+        self.policy=None;self.predictions=None;self.improvement=None;self.map_visibility_attempted=False;self.combat=None;self.defeat_seen=False
         from .novelty import NoveltyExplorer
         self.novelty=NoveltyExplorer(memory,cfg) if memory else None
         self.background_evidence=None
@@ -765,6 +765,8 @@ class Controller:
         if memory and is_torneko(cfg.window_title):
             from .policy import ExperiencePolicy
             self.policy=ExperiencePolicy(memory,cfg)
+            from .learned_predictions import LearnedPredictions
+            self.predictions=LearnedPredictions(self.policy)
             from .combat import CombatExperiments
             self.combat=CombatExperiments(memory,cfg)
             from .pacing import AdaptivePacing
@@ -829,6 +831,7 @@ class Controller:
         if self.cfg.fast_learning:
             from .map_sampling import MapSamplingPlan
             if not hasattr(self,'map_plan'):self.map_plan=MapSamplingPlan()
+            if phase=='map_observation' and self.combat and self.combat.pending:self.map_plan.invalid=True
             if not self.map_plan.due(state,getattr(self,'current_step',0),phase):
                 self._write({'event':'map_observation_deferred','phase':phase,'prediction':self.map_plan.context(),'learning':False});return None
         self._write({'event':'map_observation_requested','phase':phase,'keys':['num7'],'learning':False})
@@ -998,7 +1001,7 @@ class Controller:
                     if not self.control.checkpoint():break
                     continue
                 if hasattr(self.llm,'set_context'):
-                    self.llm.set_context({'white_frame_evidence':policy_state.get('white_frame_evidence',{}),'exterior_action_policy':exterior_context,'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
+                    self.llm.set_context({'white_frame_evidence':policy_state.get('white_frame_evidence',{}),'exterior_action_policy':exterior_context,'mapless_navigation':mapless_context,'visual_action_evidence':visual_evidence,'experience_review':experience_review.context(),'learned_predictions':self.predictions.context(policy_state) if self.predictions else {},'map_prediction':self.map_plan.context() if hasattr(self,'map_plan') else {'status':'unavailable'},'information_exploration':information.context(Decision('unknown','','','',0.,'continue',[],1,0),native,policy_state),'operator_guidance':guidance,'world_observation':self.world.context(),'anticipation':{**self.executive.latest,'last_reason':self.executive.reason},**(self.memory.context() if self.memory else {}),**({'input_timing':self.duration_learner.context()} if self.duration_learner else {}),**self.feedback,**({'self_improvement':self.improvement.context()} if self.improvement else {}),**({'_floor_observed':bool(policy_state['metrics'].get('floor'))} if policy_state else {}),**({'learned_policy':self.policy.context(policy_state,blocked_keys()),'minimap_observation':policy_state['minimap']} if self.policy else {}),**({'novelty_exploration':self.novelty.context()} if self.novelty else {}),**({'relative_contacts':relative_contacts(policy_state)} if policy_state else {}),**({'battle_experience':self.combat.experience()} if self.combat else {}),'unresponsive_actions':blocked_keys(),'neutral_observation':({'raw_change':neutral.raw_change,'duration_ms':neutral.duration_ms,'kind':neutral.kind,'attribution':'natural_or_external_uncontrolled'} if neutral else {'status':'not_sampled'})})
                 blocked=blocked_keys()
                 reassess=bool(self.improvement and (self.improvement.context().get('proposal') or {}).get('strategy')=='reassess')
                 fast=forecast_ready and not reassess and not local_learning and not learning_review
@@ -1036,7 +1039,7 @@ class Controller:
                     continue
                 exterior_context=exterior.observe(policy_state,native,decision.scene)
                 policy_state['exterior_action_policy']=exterior_context
-                policy_choice=({'source':'forecast_continuation'} if planned else None);llm_proposal=None;original_proposal=dict(decision.__dict__);combat_choice=None
+                policy_choice=({'source':'forecast_continuation'} if planned else None);llm_proposal=None;original_proposal=dict(decision.__dict__);combat_choice=None;prediction_context={}
                 if exterior_context.get('active'):policy_choice={'source':'exterior_exit_exploration'}
                 fresh_interface_proposal=bool(not local_learning and not planned and ((learning_review or {}).get('interface_decision') or torneko_menu_kind(native)) and decision.keys and decision.status=='continue' and decision.risk!='destructive')
                 novelty_choice=None;novelty_reconsideration=None
@@ -1055,6 +1058,12 @@ class Controller:
                         policy_choice={'source':'combat_experiment','context':self.policy.context(policy_state)}
                     else:
                         decision,policy_choice=self.policy.choose(decision,policy_state,blocked_keys(),policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']),interface_stable=bool(local_learning and state_before_neutral and policy_state.get('observable') and state_before_neutral.get('text_key')==policy_state.get('text_key')))
+                if self.predictions and not dry_run and not planned and not combat_choice and not guidance['text'] and policy_stable and not exterior_context.get('active'):
+                    decision,policy_choice,prediction_context=self.predictions.choose(decision,policy_state,policy_choice,blocked_keys())
+                selected_experience=(policy_choice or {}).get('selected') or {}
+                policy_state['experience_preference']=({'keys':list(decision.keys),'trials':selected_experience.get('trials',0),
+                    'expected_value':selected_experience.get('expected_return',selected_experience.get('q',0))}
+                    if (policy_choice or {}).get('source') in ('learned_policy','learned_outcome_prediction') else {})
                 from .learning_connection import candidate as learning_candidate
                 offered_policy=learning_candidate(policy_choice,decision)
                 if original_proposal.get('keys')!=decision.keys:decision.intent={}
@@ -1067,7 +1076,7 @@ class Controller:
                         self.llm.knowledge_engine.goal={'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'source':'action_grounding','status':'proposed_observation_goal'}
                 interface_model_action=bool(fresh_interface_proposal and decision.keys==original_proposal['keys'] and grounding.get('status')!='unverified_target')
                 visual_model_action=bool(learning_review and learning_review.get('visual_fallback') and original_proposal.get('keys') and original_proposal.get('status')=='continue' and original_proposal.get('risk')!='destructive' and decision.keys==original_proposal['keys'] and grounding.get('status')!='unverified_target')
-                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),scope_actions=exterior_context['actions'] if exterior_context.get('active') else None,preserve_proposal=bool(interface_model_action or visual_model_action or (policy_choice or {}).get('source')=='learned_interface_policy' or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
+                decision,active_choice=active_input.select(decision,native,policy_state,blocked,grounding.get('reason',''),scope_actions=exterior_context['actions'] if exterior_context.get('active') else None,preserve_proposal=bool(interface_model_action or visual_model_action or (policy_choice or {}).get('source') in ('learned_interface_policy','learned_outcome_prediction') or bool(combat_choice) or (not local_learning and {'はい','いいえ'}<={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])})))
                 if not dry_run and original_proposal.get('status')!='blocked' and original_proposal.get('risk')!='destructive' and not combat_choice and not visual_model_action and not interface_model_action and (policy_choice or {}).get('source')!='learned_interface_policy' and not (self.improvement and self.improvement.active):
                     decision,information_context=information.choose(decision,native,policy_state,blocked)
                     if information_context.get('selected'):
@@ -1100,6 +1109,7 @@ class Controller:
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
                 row['learning_candidate']=offered_policy
+                row['learned_predictions']=prediction_context
                 row['exterior_action_policy']=exterior_context
                 row['mapless_navigation']=mapless_context
                 row['visual_action_evidence']=visual_evidence
@@ -1129,7 +1139,7 @@ class Controller:
                     row.update(policy_choice=policy_choice,llm_proposal=llm_proposal,policy_state=policy_state,policy_baseline_kind='held_map_display_not_keyless' if policy_state.get('observation_mode')=='num7_held' else 'neutral_observation')
                     if policy_choice.get('source') in ('resource_inspection','navigation_inspection','navigation_reassessment_needed'):
                         row.update(learning=False,model_report_learning=False)
-                    if policy_choice.get('source')=='learned_policy' and decision.keys==offered_policy.get('keys') and (active_choice or {}).get('source') not in ('information_collection','active_input_trial','tentative_route','exterior_action_filter'):
+                    if policy_choice.get('source') in ('learned_policy','learned_outcome_prediction') and decision.keys==offered_policy.get('keys') and (active_choice or {}).get('source') not in ('information_collection','active_input_trial','tentative_route','exterior_action_filter'):
                         row['model_report_learning']=not fast and row.get('learning') is not False
                         row['learning']=True # Adopted pixel/HUD policy outcome, not the rejected model report.
                         row['autonomous_goal']={'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'source':'experience_policy','status':'proposed_observation_goal'}
@@ -1302,10 +1312,14 @@ class Controller:
                         elif self.cfg.fast_learning and hasattr(self,'map_plan') and row['executed']:self.map_plan.after_input(row['observed_keys'],after_state)
                         row['policy_learning']=self._timed('learning_save_ms',self.policy.learn,policy_state,after_state,row,state_before_neutral)
                         row['policy_after']=after_state
+                        if self.predictions:
+                            row['learned_prediction_evaluation']=self.predictions.evaluate((policy_choice or {}).get('prediction'),row['policy_learning'],row.get('observed_keys'))
+                            self.predictions.add(row['policy_learning'])
                         if self.combat:
                             import hashlib
                             row['battle_observations']=self.combat.observe_messages(row,native,[(after_native,hashlib.sha256(after_image).hexdigest())],after_state.get('battle_messages',[]))
                         if combat_choice:row['combat_evaluation']=self.combat.record(combat_choice,row,after_native)
+                        elif self.combat and row.get('executed'):self.combat.pending=None
                         if self.novelty:
                             row['novelty_learning']=self.novelty.record(row,native,after_native,state_before_neutral)
                         if pace_trial and hasattr(self.backend,'observe_turn'):
@@ -1347,7 +1361,7 @@ class Controller:
                 if self.cfg.fast_learning and self.memory:self.stage_ms['learning_batch_commit_ms']=self.memory.last_batch_commit_ms
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
                 row['performance'].update(total_ms=round((time.monotonic()-step_started)*1000),after_decision_ms=round((time.monotonic()-decision_finished)*1000))
-                if getattr(self.llm,'methods',None) and row.get('method_selection') and ((row.get('policy_choice') or {}).get('source')=='learned_policy' or novelty_choice or combat_choice):
+                if getattr(self.llm,'methods',None) and row.get('method_selection') and ((row.get('policy_choice') or {}).get('source') in ('learned_policy','learned_outcome_prediction') or novelty_choice or combat_choice):
                     row['method_learning']={'signal':None,'eligible':False,'reason':'model_action_replaced_by_combat_experiment' if combat_choice else 'model_action_replaced_by_novelty_exploration' if novelty_choice else 'model_action_replaced_by_map_policy','game_success_verified':False}
                 elif getattr(self.llm,'methods',None) and row.get('method_selection'):
                     from .strategies import progress_signal

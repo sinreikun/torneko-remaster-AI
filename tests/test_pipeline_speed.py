@@ -73,6 +73,15 @@ class PipelineSpeedTests(unittest.TestCase):
                 self.assertEqual(result['metrics']['hp']['values'],[15,15]);self.assertEqual(result['metrics_source'],'normal_capture_before_map_display')
                 self.assertNotEqual(result['metrics_source_frame_sha256'],result['frame_sha256'])
                 self.assertIsNone(a.map_sample(b'normal',normal,'map_result'));self.assertEqual(backend.capture_map_display.call_count,1)
+                # A pending tactical continuation requires a new current contact,
+                # even when the normal map interval has not elapsed.
+                a.combat.pending={'stage':'orient_trial'}
+                with patch('autoplayer.policy.read_grid',return_value=m):
+                    self.assertIsNotNone(a.map_sample(b'normal',normal,'map_observation'))
+                self.assertEqual(backend.capture_map_display.call_count,2)
+                menu=copy.deepcopy(normal);menu['menu_evidence']=True
+                self.assertIsNone(a.map_sample(b'normal',menu,'map_observation'))
+                self.assertEqual(backend.capture_map_display.call_count,2)
                 llm.ocr.read.assert_not_called()
             finally:memory.close()
     def test_neutral_sampling_is_short_but_retains_periodic_reference_window(self):

@@ -8,7 +8,7 @@ from .active_input import DANGEROUS
 
 class InformationExploration:
     def __init__(self,cfg,memory=None):
-        self.cfg=cfg;self.db=memory.db if memory else None;self.profile=memory.profile if memory else 'session';self.cache={}
+        self.cfg=cfg;self.db=memory.db if memory else None;self.profile=memory.profile if memory else 'session';self.cache={};self.reuse_counts={}
         if self.db:
             self.db.execute('CREATE TABLE IF NOT EXISTS input_coverage_v1(profile TEXT,situation TEXT,action TEXT,data TEXT,PRIMARY KEY(profile,situation,action))');self.db.commit()
     def actions(self):
@@ -56,6 +56,13 @@ class InformationExploration:
         if (state or {}).get('white_frame_evidence',{}).get('visible'):return decision,context
         if decision.status!='continue' or DANGEROUS.search(text) or result_screen(native) or re.search(r'はい|いいえ|ロード中|読み込み中',text):return decision,context
         if context['initial_coverage_ready']:return decision,context
+        preference=(state or {}).get('experience_preference',{})
+        if preference.get('keys')==decision.keys and decision.keys not in blocked and preference.get('trials',0)>=2 and preference.get('expected_value',0)>0:
+            situation=context['situation'];count=self.reuse_counts.get(situation,0)+1;self.reuse_counts[situation]=count
+            while len(self.reuse_counts)>128:self.reuse_counts.pop(next(iter(self.reuse_counts)))
+            if count%8:
+                context.update(retained_experience=preference,exploration_opportunity_in=8-count%8)
+                return decision,context
         candidates=[r for r in context['actions'] if r['observed']<r['required']]
         # Temporary no-response backoff changes priority, never removes all input.
         recent={tuple(k) for k in blocked}

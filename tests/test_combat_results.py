@@ -54,11 +54,11 @@ class CombatTests(unittest.TestCase):
         self.assertEqual(trial['stage'],'movement_trial');self.assertNotEqual(other.keys,['num1'])
         self.assertEqual(self.memory.db.execute('SELECT SUM(trials) FROM combat_actions').fetchone()[0],1)
 
-    def test_damage_during_turn_and_changed_target_do_not_trigger_blind_attack(self):
+    def test_turn_damage_is_retained_but_changed_target_requires_new_orientation(self):
         _,trial=self.combat.choose(self.decision,self.s,True)
         hurt=copy.deepcopy(self.s);hurt['metrics']['hp']['values']=[14,15]
         self.combat.record(trial,receipt_row(observed_keys=trial['keys'],policy_state=self.s,policy_after=hurt),native(['HP14/15']))
-        self.assertIsNone(self.combat.pending)
+        self.assertAlmostEqual(self.combat.pending['orientation_hp_loss_fraction'],1/15)
         right=copy.deepcopy(self.s);right['minimap']['enemies']=[(1,0)]
         fresh=CombatExperiments(self.memory,self.cfg);_,trial=fresh.choose(self.decision,right,True)
         self.assertEqual(trial['stage'],'orient_trial')
