@@ -8,7 +8,7 @@ from dataclasses import replace
 import hashlib
 import re
 from .controls import REFERENCE,is_torneko
-from .interfaces import choice_action,PROTECTED_CONFIRMATION
+from .interfaces import choice_action,PROTECTED_CONFIRMATION,ordinary_choice
 
 DANGEROUS=PROTECTED_CONFIRMATION
 
@@ -25,9 +25,11 @@ class ActiveInput:
         if not allowed:raise RuntimeError('現在の行動制限で許可された単独入力がありません。')
         match=lambda pattern:[k for k in allowed if re.search(pattern,bindings.get(k,''),re.I)]
         confirm=match(r'決定|confirm');cancel=match(r'キャンセル|cancel')
+        options_present=ordinary_choice(native) and not forbidden
+        if options_present:allowed=[k for k in allowed if k not in cancel]
         movement=match(r'^(上|下|左|右)|^(up|down|left|right)$')
         if not movement:movement=[k for k in ('w','a','s','d','up','left','down','right') if k in allowed]
-        candidates=list(dict.fromkeys(confirm+movement+cancel+allowed))
+        candidates=list(dict.fromkeys(confirm+movement+([] if options_present else cancel)+allowed))
         if forbidden:
             candidates=cancel or movement
             if not candidates:raise RuntimeError('破壊的な確認に対して許可された取消・方向キーがありません。')
@@ -38,7 +40,7 @@ class ActiveInput:
         proposal=decision.keys
         repeat=bool(proposal and (tuple(proposal) in recent or (counts[tuple(proposal)]>=3 and not preserve_proposal)))
         if decision.status=='complete' and not force:return decision,{}
-        ordinary=(decision.status=='continue' and proposal and set(proposal)<=set(cfg.allowed_keys) and not forbidden and not repeat and not force and (scope_actions is None or proposal in scope_actions))
+        ordinary=(decision.status=='continue' and proposal and set(proposal)<=set(cfg.allowed_keys) and not forbidden and not repeat and not force and (not options_present or not any(k in cancel for k in proposal)) and (scope_actions is None or proposal in scope_actions))
         if ordinary:
             if decision.confidence>=cfg.min_confidence and decision.risk=='normal':return decision,{}
             # Retain honest confidence; the action is an experiment, not a new

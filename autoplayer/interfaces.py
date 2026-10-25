@@ -21,6 +21,13 @@ def has_text_content(native):
     return bool(native and native.get('status')=='ok' and any(char.isalpha() for line in native.get('lines',[]) for char in compact_text(line.get('text',''))))
 
 
+def ordinary_choice(native):
+    """Require independent option labels; はい in prose is not a choice."""
+    if not native or native.get('status','ok')!='ok':return False
+    labels={compact_text(line.get('text','')).lstrip('▶►▷>→') for line in native.get('lines',[])}
+    return {'はい','いいえ'}<=labels or {'yes','no'}<={label.casefold() for label in labels}
+
+
 MAIN_MENU_LABELS={'道具','どうぐ','マップ','足元','その他','プレイ記録','倉庫','せってい','設定','中断'}
 
 def main_menu_context(native):
@@ -34,6 +41,7 @@ def torneko_menu_kind(native):
     labels={compact_text(line.get('text','')).lstrip('▶►▷>→') for line in native.get('lines',[])}
     text='\n'.join(labels)
     if re.search(r'削除|初期化|購入|課金|終了|はい|いいえ',text):return None
+    if '持ち出しアイテム' in labels and len(labels & {'詳細表示切替','整理','反映'})>=2:return 'carry_inventory'
     if len(labels & {'食べる','飲む','読む','振る','装備','外す','投げる','置く','説明'})>=3 and '投げる' in labels and '置く' in labels:
         return 'item_actions'
     if ('道具' in labels and '詳細表示切替' in text and '整理' in text

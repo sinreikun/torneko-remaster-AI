@@ -1055,6 +1055,8 @@ class Controller:
                         policy_choice={'source':'combat_experiment','context':self.policy.context(policy_state)}
                     else:
                         decision,policy_choice=self.policy.choose(decision,policy_state,blocked_keys(),policy_stable,self.improvement.adjustment(policy_state) if self.improvement and not dry_run else None,bool(guidance['text']),interface_stable=bool(local_learning and state_before_neutral and policy_state.get('observable') and state_before_neutral.get('text_key')==policy_state.get('text_key')))
+                from .learning_connection import candidate as learning_candidate
+                offered_policy=learning_candidate(policy_choice,decision)
                 if original_proposal.get('keys')!=decision.keys:decision.intent={}
                 from .grounding import reconcile
                 decision,grounding=reconcile(decision,world_observation,policy_state,native,self.cfg)
@@ -1097,6 +1099,7 @@ class Controller:
                 row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
+                row['learning_candidate']=offered_policy
                 row['exterior_action_policy']=exterior_context
                 row['mapless_navigation']=mapless_context
                 row['visual_action_evidence']=visual_evidence
@@ -1126,7 +1129,7 @@ class Controller:
                     row.update(policy_choice=policy_choice,llm_proposal=llm_proposal,policy_state=policy_state,policy_baseline_kind='held_map_display_not_keyless' if policy_state.get('observation_mode')=='num7_held' else 'neutral_observation')
                     if policy_choice.get('source') in ('resource_inspection','navigation_inspection','navigation_reassessment_needed'):
                         row.update(learning=False,model_report_learning=False)
-                    if policy_choice.get('source')=='learned_policy':
+                    if policy_choice.get('source')=='learned_policy' and decision.keys==offered_policy.get('keys') and (active_choice or {}).get('source') not in ('information_collection','active_input_trial','tentative_route','exterior_action_filter'):
                         row['model_report_learning']=not fast and row.get('learning') is not False
                         row['learning']=True # Adopted pixel/HUD policy outcome, not the rejected model report.
                         row['autonomous_goal']={'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'source':'experience_policy','status':'proposed_observation_goal'}
@@ -1291,7 +1294,10 @@ class Controller:
                         after_image=observation.image if hasattr(self.backend,'observe_turn') else after
                         after_native=self.read_policy_ocr(after_image)
                         after_state=self.policy.observe(after_image,after_native)
+                        pair_requested=bool(not dry_run and row['executed'] and row.get('turn_kind')!='aborted' and policy_state.get('observation_mode')=='num7_held' and policy_state.get('minimap',{}).get('status')=='observed')
+                        if pair_requested and hasattr(self,'map_plan'):self.map_plan.invalid=True
                         map_after=self.map_sample(after_image,after_state,'map_result') if not dry_run else None
+                        if pair_requested:row['map_pair_for_learning']={'requested':True,'observed':bool(map_after and map_after[0].get('minimap',{}).get('status')=='observed'),'reason':'pair_current_input_before_after_not_a_multi_input_sequence'}
                         if map_after:after_state=map_after[0]
                         elif self.cfg.fast_learning and hasattr(self,'map_plan') and row['executed']:self.map_plan.after_input(row['observed_keys'],after_state)
                         row['policy_learning']=self._timed('learning_save_ms',self.policy.learn,policy_state,after_state,row,state_before_neutral)
@@ -1365,6 +1371,8 @@ class Controller:
                     except (OSError,ValueError) as error:self._write({'event':'important_recording_error','reason':str(error),'learning':False})
                 if self.demonstrations:self.demonstrations.record_reuse(row)
                 row['experience_review']=experience_review.record(row,policy_state,after_state)
+                from .learning_connection import report as learning_report
+                row['learning_connection']=learning_report(row,policy_state,after_state)
                 if self.cfg.fast_learning and hasattr(self,'map_plan'):row['map_prediction']=self.map_plan.context()
                 self.stage_ms['ocr_ms']=self.ocr_observation_ms
                 self.stage_ms['decision_ms']=row['performance']['decision_ms']

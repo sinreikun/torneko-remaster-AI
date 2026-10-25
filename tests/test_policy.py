@@ -206,7 +206,11 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(result['observed_keys'],['w'])
         self.assertFalse(result['model_report_learning']);self.assertFalse(result['learning'])
         self.assertIn('黄色マーカー',result['observation'])
-        self.assertEqual(script.knowledge_engine.goal['source'],'experience_policy')
+        # Coverage selected the same key after policy ranking. Do not attribute
+        # that final decision to retained learned-policy experience.
+        self.assertIsNone(script.knowledge_engine.goal)
+        self.assertFalse(result['learning_connection']['policy_candidate_retained'])
+        self.assertEqual(result['learning_connection']['replacement_source'],'information_collection')
         script.methods.record.assert_not_called()
         self.assertEqual(result['method_learning']['reason'],'model_action_replaced_by_map_policy')
         self.assertEqual(result['adaptive_pacing']['wait_ms'],600)
