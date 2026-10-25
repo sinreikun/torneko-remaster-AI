@@ -859,6 +859,7 @@ class Controller:
 
     def run(self, dry_run=False):
         if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(self.cfg.fast_learning and not dry_run)
+        if hasattr(self.backend,'configure_scene_boundaries'):self.backend.configure_scene_boundaries(is_torneko(self.cfg.window_title) and not dry_run)
         if getattr(self.llm,'methods',None):self.llm.methods.read_only=dry_run
         self.journal.parent.mkdir(parents=True,exist_ok=True)
         repeats=0; previous=None; errors=0; stagnant=0
@@ -876,6 +877,9 @@ class Controller:
         visual_responses=VisualResponses()
         from .mapless_navigation import MaplessNavigation
         mapless=MaplessNavigation(self.cfg)
+        import hashlib
+        from .exterior_atlas import ExteriorAtlas
+        atlas=ExteriorAtlas(self.memory if not dry_run else None,path=self.journal.parent/'exterior-atlas.sqlite' if not dry_run else None,profile=hashlib.sha256((self.cfg.window_title+str(self.cfg.key_bindings)+str(self.cfg.allowed_keys)).encode()).hexdigest()) if is_torneko(self.cfg.window_title) else None
         from .exterior_actions import ExteriorActions
         exterior=ExteriorActions(self.cfg,mapless)
         visual_blocked=[]
@@ -962,8 +966,17 @@ class Controller:
                 policy_state['white_frame_evidence']=self._timed('white_frame_ms',white_frames,normal_observation_image) if is_torneko(self.cfg.window_title) else {}
                 exterior_context=exterior.observe(policy_state,native)
                 policy_state['exterior_action_policy']=exterior_context
+                if atlas and (exterior_context.get('location')=='dungeon' or world_observation.get('new_adventure') or mapless.revision is not None and mapless.revision!=revision):atlas.checkpoint(mapless)
                 mapless.locate(normal_observation_image)
                 mapless_context=mapless.prepare(policy_state,native,world_observation,revision)
+                if atlas and atlas.map_id and not dry_run and neutral and getattr(neutral,'scene_boundary',{}).get('dark_seen') and (getattr(neutral,'scene_boundary',{}).get('blackout_seen') or policy_state.get('white_frame_evidence',{}).get('visible') is not True) and not atlas.awaiting:atlas.start_boundary(neutral_image,image,mapless,{'trigger':'dark_during_neutral_observation'})
+                atlas_context=atlas.prepare(normal_observation_image,neutral_image,policy_state,mapless) if atlas and not dry_run else {}
+                mapless_context={**mapless.snapshot(),'atlas':atlas_context}
+                if atlas_context and not atlas_context.get('ready',True):
+                    self.executive.cancel('awaiting_external_scene_entry')
+                    self.emit({'event':'perception','policy_state':policy_state,'mapless_navigation':mapless_context})
+                    self._write({'event':'external_scene_wait','step':step+1,'atlas':atlas_context})
+                    continue
                 self.emit({'event':'perception','mapless_navigation':mapless_context,'policy_state':policy_state,'world_observation':world_observation,'anticipation':{'remaining':self.executive.remaining if self.executive.active else 0}})
                 learning_review=learning_gate.evaluate(step,native,policy_state,guidance,experience_review.context(),image_available=normal_observation_image.startswith(b'\x89PNG\r\n\x1a\n')) if self.cfg.fast_learning and not dry_run else None
                 visual_grid=self._timed('visual_evidence_ms',visual_responses.grid,normal_observation_image) if learning_review and learning_review.get('visual_fallback') else None
@@ -1212,6 +1225,10 @@ class Controller:
                         self.executive.cancel('white_frame_before_movement')
                         self._write({'event':'not_executed','reason':'white_frame_before_movement','step':step+1,'keys':decision.keys,'white_frame_evidence':latest_gate})
                         continue
+                    if atlas and atlas.before_input(fresh_input_image,mapless):
+                        self.executive.cancel('external_scene_boundary_before_input')
+                        self._write({'event':'not_executed','reason':'external_scene_boundary_before_input','step':step+1,'keys':decision.keys,'atlas':atlas.context()})
+                        continue
                     image=fresh_input_image;normal_observation_image=image;input_pair_valid=latest_gate.get('status')=='observed'
                     policy_state['white_frame_evidence']=latest_gate
                     mapless.prepare({**policy_state,'floor_confirmation':{}},native,{},revision)
@@ -1240,6 +1257,7 @@ class Controller:
                 if hasattr(self.backend,'observe_turn'):
                     observation=self._timed('input_response_observation_ms',self.backend.observe_turn,image,decision.scene,decision.wait_ms,self.control or self.stop)
                     if hasattr(self.backend,'record_frame'): self.backend.record_frame(observation.image,'result')
+                    row['temporal_scene_observation']=getattr(observation,'scene_boundary',{})
                     row.update(changed=observation.changed,turn_kind=observation.kind,raw_change=observation.raw_change,
                         masked_activity=observation.masked_activity,duration_ms=observation.duration_ms,settle_timing={'requested_ms':getattr(observation,'requested_minimum_ms',decision.wait_ms),'applied_ms':getattr(observation,'applied_minimum_ms',decision.wait_ms),'mode':getattr(observation,'timing_mode','standard')})
                 else:
@@ -1303,14 +1321,22 @@ class Controller:
                         row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,{},normal_observation_image,after_image)
                         self.executive.cancel('no_map_policy')
                     row['input_coverage']=self._timed('learning_save_ms',information.record,information_context,row,policy_state,after_state,native,after_native,after_image)
-                row['mapless_navigation']=mapless.record(image,after_image,input_neutral_image,row,input_pair_valid if input_pair_valid is not None else same_decision_frame) if not dry_run else mapless_context
+                scene_boundary=bool(atlas and not dry_run and atlas.after_input(image,after_image,row,mapless,row.get('temporal_scene_observation')))
+                if scene_boundary:
+                    self.executive.cancel('external_scene_boundary');row['exterior_scene_boundary']=atlas.context()
+                    row['mapless_navigation']=mapless.snapshot()
+                else:
+                    row['mapless_navigation']=mapless.record(image,after_image,input_neutral_image,row,input_pair_valid if input_pair_valid is not None else same_decision_frame) if not dry_run else mapless_context
+                if atlas and not dry_run:
+                    if not scene_boundary:atlas.checkpoint(mapless,row)
+                    row['mapless_navigation']['atlas']=atlas.context()
                 action_observation=row['mapless_navigation'].get('last',{})
                 if action_observation.get('step')==row['step']:
                     row['action_screen_observation']={'step':row['step'],'keys':action_observation.get('keys',[]),'action_kind':action_observation.get('action_kind'),
                         'before_sha256':action_observation.get('before_sha256'),'after_sha256':action_observation.get('after_sha256'),
                         'screen_change':action_observation.get('screen_change',{}),'white_frame_observation':action_observation.get('white_frame_observation',{})}
                     row['movement_result']=action_observation.get('movement',{'status':'not_evaluated','success':None})
-                else:row['movement_result']={'status':'not_evaluated','success':None}
+                else:row['movement_result']={'status':'scene_transition' if scene_boundary else 'not_evaluated','success':None}
                 if not dry_run:mapless.locate(after_image)
                 if self.cfg.fast_learning and self.memory:self.stage_ms['learning_batch_commit_ms']=self.memory.last_batch_commit_ms
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
@@ -1352,6 +1378,9 @@ class Controller:
             else: self.emit({'status':'limit','reason':'手数上限に達しました。'})
         finally:
             self.backend.release_all()
+            if atlas:
+                try:atlas.close(mapless)
+                except Exception as error:self._write({'event':'exterior_atlas_save_error','reason':str(error)})
             if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(False)
             if self.improvement and self.improvement.active:
                 result=self.improvement.finish(False,'実行終了で検証が中断。成功にも失敗にも確定せず調整を撤回。')

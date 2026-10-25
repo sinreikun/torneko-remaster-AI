@@ -119,6 +119,10 @@ class WindowsGame:
         from .observation import TurnObserver
         if not hasattr(self,'observer'):self.observer=TurnObserver()
         self.observer.fast_mode=bool(enabled)
+    def configure_scene_boundaries(self,enabled):
+        from .observation import TurnObserver
+        if not hasattr(self,'observer'):self.observer=TurnObserver()
+        self.observer.track_scene_boundaries=bool(enabled)
     def observe_turn(self,baseline,scene,wait_ms,stop):
         from .observation import TurnObserver
         if not hasattr(self,'observer'): self.observer=TurnObserver()

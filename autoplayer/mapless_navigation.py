@@ -51,7 +51,7 @@ class MaplessNavigation:
         self.confirm=next((k for k,v in bindings.items() if ('決定' in v or 'confirm' in v.lower()) and k in cfg.allowed_keys),None)
         self.face='num5' if is_torneko(cfg.window_title) and 'num5' in cfg.allowed_keys else None
     def reset(self,reason):
-        self.scope=uuid.uuid4().hex[:12];self.pose=(0,0);self.nodes={(0,0):{'visits':1}};self.edges={};self.trials={};self.obstacles=set();self.samples=[];self.pending=None;self.interacted=set();self.uncertain=False;self.mode='校正中';self.active=False;self.reason=reason;self.last={};self.landmarks={};self.assumed_mode=False;self.assumption_history=False;self.real_map_available=False;self.frame_evidence={};self.last_movement={};self.last_interaction={};self.region_label=None
+        self.scope=uuid.uuid4().hex[:12];self.pose=(0,0);self.nodes={(0,0):{'visits':1}};self.edges={};self.trials={};self.obstacles=set();self.samples=[];self.pending=None;self.interacted=set();self.uncertain=False;self.mode='校正中';self.active=False;self.reason=reason;self.last={};self.landmarks={};self.assumed_mode=False;self.assumption_history=False;self.real_map_available=False;self.frame_evidence={};self.last_movement={};self.last_interaction={};self.region_label=None;self.portal_edges={}
     @staticmethod
     def signature(png):
         try:
@@ -103,17 +103,22 @@ class MaplessNavigation:
             return [self.keys[direction]],'決定入力後の通過再確認'
         # BFS through observed edges to the nearest untried frontier. Revisit
         # only when it is transit to a frontier, never as an exploration reward.
-        queue=deque([(self.pose,[])]);seen={self.pose}
+        queue=deque([(self.pose,[])]);seen={self.pose};portals=[]
         while queue:
             node,path=queue.popleft()
+            for (origin,direction),data in self.portal_edges.items():
+                if origin==node and direction in self.keys:portals.append((data.get('visits',1),len(path),path,direction))
             for d,delta in DIRECTIONS.items():
                 dest=(node[0]+delta[0],node[1]+delta[1])
-                if dest not in self.nodes and self.trials.get((node,d),0)<3:
+                if dest not in self.nodes and self.trials.get((node,d),0)<3 and (node,d) not in self.portal_edges:
                     if path:self.mode='復路';return [self.keys[path[0]]],'未訪問分岐への既知経路（再訪）'
                     self.mode='未訪問優先';return [self.keys[d]],'出口探索のため未訪問方向を試す'
             for d,delta in DIRECTIONS.items():
                 dest=(node[0]+delta[0],node[1]+delta[1])
                 if (node,d) in self.edges and dest not in seen:seen.add(dest);queue.append((dest,path+[d]))
+        if portals:
+            visits,distance,path,direction=min(portals,key=lambda p:(p[0],p[1]))
+            self.mode='既知の場面切替へ';return [self.keys[path[0] if path else direction]],'未探索分岐を確認できないため、記録済みの別マップへの接続へ向かう'
         self.mode='再照合';return None
     def record(self,before,after,neutral,row,same_frame=True):
         keys=row.get('observed_keys',[])
@@ -239,4 +244,4 @@ class MaplessNavigation:
         if len(self.nodes)>1024:self.uncertain=True;self.reason='bounded_map_limit'
         return self.snapshot()
     def snapshot(self):
-        return {'source':'tentative_screen_route','active':self.active,'display_retained':self.assumption_history and not self.active and not self.real_map_available,'scope':self.scope,'pose':list(self.pose),'pose_uncertain':self.uncertain,'movement_basis':'user_assumption_screen_change' if self.assumption_history else 'background_translation','white_frame_evidence':self.frame_evidence,'unit':'移動入力1回＝仮の1マス' if self.assumption_history else '仮の入力移動単位（実マス未保証）','calibration':'利用者指定の仮定（校正不要）' if self.assumption_history else '校正中' if len(self.samples)<3 else '反復変位を照合済み','mode':'再定位が必要' if self.uncertain else self.mode,'local_goal':'現在領域の出口を探す（全体目標は維持）','reason':self.reason,'cells':[{'cell':list(c),'visits':v['visits'],'surface':v.get('surface','passage_hypothesis')} for c,v in self.nodes.items()],'obstacles':[list(c) for c in sorted(self.obstacles)],'edges':[{'from':list(c),'direction':d,**v} for (c,d),v in self.edges.items()],'last':self.last,'last_movement':self.last_movement,'last_interaction':self.last_interaction,'pending':list(self.pending) if self.pending else None}
+        return {'source':'tentative_screen_route','active':self.active,'display_retained':self.assumption_history and not self.active and not self.real_map_available,'scope':self.scope,'pose':list(self.pose),'pose_uncertain':self.uncertain,'movement_basis':'user_assumption_screen_change' if self.assumption_history else 'background_translation','white_frame_evidence':self.frame_evidence,'unit':'移動入力1回＝仮の1マス' if self.assumption_history else '仮の入力移動単位（実マス未保証）','calibration':'利用者指定の仮定（校正不要）' if self.assumption_history else '校正中' if len(self.samples)<3 else '反復変位を照合済み','mode':'再定位が必要' if self.uncertain else self.mode,'local_goal':'現在領域の出口を探す（全体目標は維持）','reason':self.reason,'cells':[{'cell':list(c),'visits':v['visits'],'surface':v.get('surface','passage_hypothesis')} for c,v in self.nodes.items()],'obstacles':[list(c) for c in sorted(self.obstacles)],'edges':[{'from':list(c),'direction':d,**v} for (c,d),v in self.edges.items()],'portals':[{'cell':list(c),'direction':d,**v} for (c,d),v in self.portal_edges.items()],'last':self.last,'last_movement':self.last_movement,'last_interaction':self.last_interaction,'pending':list(self.pending) if self.pending else None}

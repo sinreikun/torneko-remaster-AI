@@ -1,11 +1,13 @@
 """Image measurements for the user's explicit exterior movement assumption."""
 import io
+from functools import lru_cache
 from PIL import Image, ImageChops, ImageFilter
 
 
 def flat_pixels(image):
     return image.get_flattened_data() if hasattr(image,'get_flattened_data') else image.getdata()
 
+@lru_cache(maxsize=6)
 def white_frames(png):
     """Find near-white rectangular outlines with dark interiors, not text alone."""
     try:

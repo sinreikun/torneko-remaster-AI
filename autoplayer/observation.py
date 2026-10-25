@@ -1,7 +1,7 @@
 """Bounded settle detection adapted from the supplied TurnDetector/MotionMask design."""
 import io
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class TurnObservation:
@@ -15,9 +15,10 @@ class TurnObservation:
     requested_minimum_ms: int = 0
     applied_minimum_ms: int = 0
     timing_mode: str = "standard"
+    scene_boundary: dict = field(default_factory=dict)
 
 class TurnObserver:
-    def __init__(self): self.motion={};self.masks={};self.fast_mode=False;self.timing_samples={};self.failures={};self.neutral_calls=0;self.input_signature=()
+    def __init__(self): self.motion={};self.masks={};self.fast_mode=False;self.timing_samples={};self.failures={};self.neutral_calls=0;self.input_signature=();self.track_scene_boundaries=False
     @staticmethod
     def grid(png):
         from PIL import Image
@@ -37,12 +38,19 @@ class TurnObserver:
         if scene=='neutral_observation':self.neutral_calls+=1
         quick_neutral=fast and scene=='neutral_observation' and self.neutral_calls%8!=0
         mode='short_neutral' if quick_neutral else 'adaptive_margin' if calibrated else 'standard'
+        def is_dark(values):return bool(values) and sum(v<24 for v in values)/len(values)>.92 and sum(values)/len(values)<18
+        def is_black(values):return bool(values) and sum(v<8 for v in values)/len(values)>.985 and sum(values)/len(values)<6
+        boundary={'blackout_seen':self.track_scene_boundaries and is_black(initial),'sampled':self.track_scene_boundaries,'dark_seen':self.track_scene_boundaries and is_dark(initial),'dark_samples':0,'sample_count':0}
         previous=initial; anchor=initial
         mask=self.masks.get(scene,set());late=set();stable_since=None
         start=clock();maximum=max(1.2,min(8.,minimum_ms/1000+2.))
         image=baseline;changed=False;kind='timeout';current=initial
         while not stop.wait(.06 if fast else .1):
             image=capture();current=self.grid(image);now=clock();elapsed=now-start
+            if self.track_scene_boundaries:
+                boundary['sample_count']+=1
+                if is_dark(current):boundary['dark_seen']=True;boundary['dark_samples']+=1
+                if is_black(current):boundary['blackout_seen']=True
             raw=self.bits(initial,current)
             changed=changed or any(bit and i not in mask for i,bit in enumerate(raw))
             moving={i for i,bit in enumerate(self.bits(previous,current)) if bit}
@@ -50,8 +58,8 @@ class TurnObserver:
             if any(bit and i not in mask for i,bit in enumerate(self.bits(anchor,current))):
                 anchor=current;stable_since=now
             elif stable_since is None: stable_since=now
-            if quick_neutral and elapsed>=.3:kind='neutral_sample';break
-            if elapsed>=minimum_ms/1000 and changed and now-stable_since>=.25:
+            if quick_neutral and elapsed>=.3 and not (self.track_scene_boundaries and is_black(current)):kind='neutral_sample';break
+            if elapsed>=minimum_ms/1000 and changed and now-stable_since>=.25 and not (self.track_scene_boundaries and is_black(current)):
                 kind='normal';break
             if not changed and elapsed>=max(1.2,minimum_ms/1000): kind='no_change';break
             if elapsed>=maximum: break
@@ -67,9 +75,11 @@ class TurnObserver:
                 self.timing_samples[key]=(samples+[max(0,(stable_since-start)*1000)])[-12:]
                 self.failures[key]=max(0,self.failures.get(key,0)-1)
             elif kind in ('timeout','no_change'):self.failures[key]=min(10,self.failures.get(key,0)+1)
+        boundary['final_dark']=self.track_scene_boundaries and is_dark(current)
+        boundary['dark_recovered']=boundary['dark_seen'] and not boundary['final_dark']
         raw=self.bits(initial,current)
         return TurnObservation(image,kind,any(bit and i not in mask for i,bit in enumerate(raw)),sum(raw)/len(raw),sum(raw[i] for i in mask)/max(1,len(mask)),int((clock()-start)*1000),
-            max(0,int((stable_since-start)*1000)) if stable_since is not None else None,requested_minimum,minimum_ms,mode)
+            max(0,int((stable_since-start)*1000)) if stable_since is not None else None,requested_minimum,minimum_ms,mode,boundary)
 
 
 def image_color_facts(png):

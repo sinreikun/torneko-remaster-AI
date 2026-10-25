@@ -135,6 +135,21 @@ def export_diagnostics(data,destination,detailed=False):
                             entry['human_example_export']=export_human_examples(target,archive,folder)
                             remaining-=entry['human_example_export']['compressed_bytes']
                             entry['human_example_status_counts']=dict(target.execute('SELECT status,COUNT(*) FROM human_examples GROUP BY status'))
+                        if target.execute("SELECT 1 FROM sqlite_master WHERE name='exterior_maps_v1'").fetchone():
+                            maps=[{'profile':r[0],'map_id':r[1],'graph':json.loads(r[2])} for r in target.execute('SELECT profile,id,data FROM exterior_maps_v1 ORDER BY updated DESC LIMIT 8')]
+                            archive.writestr('exterior_maps/maps.json',json.dumps(maps,ensure_ascii=False));remaining-=len(json.dumps(maps).encode())
+                            entrances=[]
+                            entry_rows=[]
+                            for saved_map in maps:
+                                entry_rows.extend(target.execute('SELECT profile,map_id,id,pose,image FROM exterior_entries_v1 WHERE profile=? AND map_id=? ORDER BY updated DESC LIMIT 1',(saved_map['profile'],saved_map['map_id'])))
+                            for profile,mid,eid,pose,png in entry_rows:
+                                entry_image_name='exterior_maps/'+mid+'-'+eid+'.png'
+                                if len(png)>remaining:continue
+                                archive.writestr(entry_image_name,png);remaining-=len(png);entrances.append({'profile':profile,'map_id':mid,'entry_id':eid,'pose':json.loads(pose),'image':entry_image_name})
+                            archive.writestr('exterior_maps/entries.json',json.dumps(entrances,ensure_ascii=False))
+                            portals=[json.loads(r[0]) for r in target.execute('SELECT data FROM exterior_portals_v1 ORDER BY updated DESC LIMIT 32')]
+                            archive.writestr('exterior_maps/transitions.json',json.dumps(portals,ensure_ascii=False))
+                            entry['exterior_maps']={'maps':len(maps),'entrance_images':len(entrances),'portals':len(portals),'source':'bounded_local_atlas'}
                         for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','combat_observations','human_examples','human_reuse','human_example_scores','forecast_stats','world_events','item_use_stats'):
                             if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
                                 cursor=target.execute('SELECT * FROM '+table+(' ORDER BY id DESC' if table=='world_events' else '')+' LIMIT 40')

@@ -66,6 +66,12 @@ class RecognitionState:
             for c in t.get('obstacles',[]):
                 cell=project(c)
                 if valid(cell) and cell not in out:out[cell]='obstacle'
+            directions={'w':(0,-1),'d':(1,0),'s':(0,1),'a':(-1,0)}
+            for portal in t.get('portals',[]):
+                origin=portal.get('cell');delta=directions.get(portal.get('direction'))
+                if origin and delta:
+                    cell=project([origin[0]+delta[0],origin[1]+delta[1]])
+                    if valid(cell):out[cell]='portal'
             out[(27,16)]='uncertain_pose' if t.get('pose_uncertain') else 'estimated_pose'
             return out
         m=self.map
@@ -92,11 +98,14 @@ class RecognitionState:
         retained=' / '.join({'strength':'ちから','sword':'剣','shield':'盾','experience':'経験値','max_floor':'最深階','level':'Lv','gold':'所持金'}.get(k,k) for k,v in self.metrics.items() if v.get('retained'))
         note='\n保持値（未再確認）: '+retained if retained else ''
         if self.tentative.get('active') or self.tentative.get('display_retained'):note+='\n仮経路地図 / '+self.tentative.get('mode','')+' / '+self.tentative.get('calibration','')+(' / 白枠あり:地形更新停止' if self.tentative.get('white_frame_evidence',{}).get('visible') else '')+'\n'+self.tentative.get('unit','仮の移動単位・実マス未保証')+' / 黄枠:推定位置 橙:障害候補'
+        atlas=self.tentative.get('atlas',{})
+        if atlas.get('map_id'):note+='\n外部地図 '+atlas['map_id']+(' / 保存済み開始地点から再開' if atlas.get('reused') else ' / 新規地図')
+        if atlas.get('awaiting_entry'):note+='\n場面切替：開始地点の再観測待ち'
         return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'仮経路（実地図と別座標）' if self.tentative.get('active') or self.tentative.get('display_retained') else '確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') and not self.tentative.get('active') else ''}{note}"
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
-COLORS={'tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
+COLORS={'portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
 def paint_grid(canvas,cells,x=8,y=8,unit=6):
     # All 1,728 grid cells are drawn, including unknown ones.
@@ -105,6 +114,7 @@ def paint_grid(canvas,cells,x=8,y=8,unit=6):
             kind=cells.get((col,row));a=x+col*unit;b=y+row*unit
             canvas.create_rectangle(a,b,a+unit,b+unit,fill=COLORS['known'] if kind in ('enemy','item','stairs') else COLORS.get(kind,'#121c2b'),outline='#263346',width=1,tags='recognition')
             if kind in ('estimated_pose','uncertain_pose'):canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,outline='#ffe04b',tags='recognition')
+            elif kind=='portal':canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,outline='#cc8bff',tags='recognition')
             elif kind=='obstacle':canvas.create_line(a,b+unit,a+unit,b,fill='#ffbe63',tags='recognition')
             elif kind=='enemy':canvas.create_oval(a+1,b+1,a+unit-1,b+unit-1,fill=COLORS[kind],outline='',tags='recognition')
             elif kind=='item':canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill=COLORS[kind],tags='recognition')
@@ -121,7 +131,7 @@ class RecognitionPanel:
         self.label=ttk.Label(top,text='LLM待機');self.label.pack(side='left')
         self.canvas=tk.Canvas(self.frame,width=340,height=210,bg='#121c2b',highlightthickness=0);self.canvas.pack(fill='x')
         self.text=ttk.Label(self.frame,justify='left',wraplength=340);self.text.pack(anchor='w')
-        ttk.Label(self.frame,text='黄:自分  赤:敵  菱形:品  枠:階段  暗色:不明').pack(anchor='w')
+        ttk.Label(self.frame,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替').pack(anchor='w')
         self.last_revision=-1
     def refresh(self):
         if self.last_revision!=self.state.revision:
