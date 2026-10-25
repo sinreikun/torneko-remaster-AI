@@ -130,6 +130,34 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         d,_,_,_,op=self.select(n=native('やりなおしますか？','いいえ','▶はい'))
         self.assertEqual(d.keys,['num1']);self.assertEqual(op['selected_source'],'interface')
         d,*_=self.select(n=native('セーブデータを削除しますか？','▶はい','いいえ'));self.assertEqual(d.keys,['num2'])
+    def test_enemy_and_item_routes_beat_plan_to_inspect(self):
+        from autoplayer.policy import ExperiencePolicy
+        policy=ExperiencePolicy(self.memory,self.cfg)
+        p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
+        for kind,priority in [('enemy',70),('items',60),('frontier',50)]:
+            s=state();s['map_route_hint']={'key':'d','mode':'observed_grid_route','distance':2,'target_kind':kind}
+            d,_,_,_,op=self.select(s=s,plan=p,policy=policy)
+            self.assertEqual(d.keys,['d']);self.assertEqual(op['selected_priority'],priority)
+    def test_inspection_attempt_is_not_repeated_when_scope_changes(self):
+        p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
+        s=state();s['retained_state']={'revision':7,'refresh_reasons':['pickup']}
+        d,_,_,_,op=self.select(s=s,plan=p);self.assertEqual(op['selected_source'],'inventory_inspection')
+        self.actor.last_inspection_step=-1000 # Even after cooldown, same revision is already attempted.
+        d,_,_,_,op=self.select(s=s,plan=p);self.assertNotEqual(op['selected_source'],'inventory_inspection')
+    def test_checked_inventory_does_not_reopen_from_main_menu(self):
+        p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
+        self.select(n=native('道具','詳細表示切替','整理','3/20','▶薬草'),plan=p)
+        d,*_=self.select(n=native('▶道具','マップ','足元','その他'),plan=p)
+        self.assertEqual(d.keys,['num2'])
+
+    def test_purposeful_diagonal_route_dispatches_both_direction_keys(self):
+        s=state();s['map_route_hint']={'key':'s+d','keys':['s','d'],'diagonal':True,'mode':'observed_grid_route','distance':2,'target_kind':'items'}
+        d,choice,_,_,op=self.select(s=s)
+        self.assertEqual(d.keys,['s','d']);self.assertEqual(op['selected_priority'],60)
+        self.assertEqual(choice['exploration_route']['keys'],['s','d'])
+        self.assertEqual(self.effects.role(d.keys,s),'movement_candidate')
+        self.assertEqual(self.effects.role(d.keys,{**s,'_operational_interface':'main_menu'}),'chord')
+
     def test_explicit_floor_return_route_is_not_replaced_by_probe(self):
         s=state();s['minimap']['player_cell']=[43,4]
         s['map_route_hint']={'key':'a','mode':'backtrack_to_frontier','distance':66,'reason':'踏破済み経路で別の先端へ戻る'}

@@ -16,6 +16,7 @@ class ActionEffects:
         return [k for k,v in self.bindings.items() if k in self.cfg.allowed_keys and re.search(patterns[role],v,re.I)]
     def role(self,keys,state):
         if len(keys)==2 and any(k in self.keys('face') for k in keys) and any(k in self.keys('move') for k in keys):return 'orientation_candidate'
+        if len(keys)==2 and set(keys) in ({'w','a'},{'w','d'},{'s','a'},{'s','d'}) and not (state.get('_operational_interface') or state.get('interface_kind') or state.get('menu_evidence') or state.get('white_frame_evidence',{}).get('visible')):return 'movement_candidate'
         if len(keys)!=1:return 'chord'
         key=keys[0]
         white=state.get('white_frame_evidence',{})

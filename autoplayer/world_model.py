@@ -149,10 +149,13 @@ class Inventory:
             if name in self.identifications:row.update(self.identifications[name],name_status='identified_message_unverified_ocr')
             rows.append(row)
             if selected:self.selected=identifier;self.selected_age=self.age
+        empty=any(re.fullmatch(r'(?:道具|持ち物|所持品)?\s*[（(]?0\s*/\s*20[)）]?',s) for s in text)
+        if not rows and not empty:
+            return {'status':'unreadable_entries','rows':[],'last_observed_rows':copy.deepcopy(self.rows),'last_observed':self.last_seen,'complete':False}
         self.rows=rows;self.last_seen=(native or {}).get('captured_at')
         if page and 1<=page[0]<=page[1]<=100:self.pages[page[0]]={'total':page[1],'rows':copy.deepcopy(rows)}
         complete=bool(page and all(i in self.pages and self.pages[i]['total']==page[1] for i in range(1,page[1]+1)))
-        return {'status':'observed' if rows else 'unreadable_entries','rows':copy.deepcopy(rows),'page':page,
+        return {'status':'observed' if rows or empty else 'unreadable_entries','rows':copy.deepcopy(rows),'page':page,
             'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
             'rule':'表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。'}
     def learn(self,row,before,after,old_ocr,new_ocr,natural,before_png=None):
@@ -181,6 +184,8 @@ class WorldModel:
         self.appearances=AppearanceBank(self.db,self.profile)
         from .battle_appearance import BattleAppearanceMemory
         self.battle_appearances=BattleAppearanceMemory(self.db,self.profile)
+        from .state_snapshot import StateSnapshot
+        self.state_snapshot=StateSnapshot()
         self.memory=memory;self.last_known_metrics=copy.deepcopy(getattr(memory,'last_known_status',{}))
         self.scope=hashlib.sha256((self.profile+session).encode()).hexdigest()[:8]+'_'
         cfg=getattr(memory,'settings',getattr(memory,'cfg',None))
@@ -204,7 +209,7 @@ class WorldModel:
         if result_screen(native or {}):self.result_seen=True
         new_adventure=bool(self.result_seen and floor and state.get('eligible'))
         if new_adventure:
-            self.last_known_metrics={}
+            self.last_known_metrics={};self.state_snapshot=type(self.state_snapshot)()
             self.episode+=1;self.inventory=Inventory(self.scope+str(self.episode)+'_',self.confirm_key);self.pending_effects=[];self.delayed=[];self.result_seen=False
         if new_adventure or (floor and self.floor and floor!=self.floor):
             self.objects={};self.visited=set();self.visual=VisualSense();self.floor_navigation.reset()
@@ -270,6 +275,9 @@ class WorldModel:
         if self.memory:self.memory.last_known_status=self.last_known_metrics
         now_metrics=metrics(state);delta=changes(self.previous_metrics,now_metrics);self.previous_metrics=copy.deepcopy(now_metrics)
         inv=self.inventory.observe(native,png)
+        self.state_snapshot.observe(state.get('metrics',{}),inv,self.tick,bool(m.get('enemies')) if m.get('status')=='observed' else None)
+        state['retained_state']=self.state_snapshot.context()
+        self.floor_navigation.inventory_updated(self.state_snapshot.inventory_token)
         current_messages=[s for s in labels(native) if not re.search(r'HP|Lv|満腹|\d+\s*階|ちから|剣の強さ|盾の強さ|^\d+[GＧ%％]?$|^G$',s,re.I)]
         new_messages=[s for s in current_messages if s not in self.last_messages]
         self.last_messages=current_messages
@@ -300,6 +308,11 @@ class WorldModel:
         return accepted
 
     def feedback(self,before,after,row,old_ocr,new_ocr,natural,before_png,after_png):
+        after_map=after.get('minimap',{})
+        self.state_snapshot.observe(after.get('metrics',{}),{},self.tick+1,bool(after_map.get('enemies')) if after_map.get('status')=='observed' else None)
+        self.state_snapshot.feedback(before,after,old_ocr,new_ocr,row.get('step'))
+        after['retained_state']=self.state_snapshot.context()
+        row['retained_state']=copy.deepcopy(after['retained_state'])
         self.floor_navigation.record(before,after,row,natural)
         if self.floor_navigation._valid(after):self.navigation_hint(after)
         after['floor_exploration']=self.floor_navigation.context()
@@ -309,6 +322,7 @@ class WorldModel:
             self.visual.correlate(before_png,after_png,[b[i]-a[i] for i in (0,1)])
         effect=self.inventory.learn(row,before,after,old_ocr,new_ocr,natural,before_png)
         if effect:
+            self.state_snapshot.request('item_use_or_equipment_effect',row.get('step'))
             self.save('item_effect',effect)
             self.record_item_value(effect)
         later=[]
@@ -326,6 +340,7 @@ class WorldModel:
         visual_links=self.battle_appearances.record(self.latest,row,before,after,self.appearances)
         if combat_links:self.save('object_combat_association',combat_links)
         result={'visual_battle_links':visual_links,'combat_links':combat_links,'item_effect':effect,'delayed_effects':later,'screen_tile_pitch':self.visual.pitch}
+        after['retained_state']=self.state_snapshot.context();row['retained_state']=copy.deepcopy(after['retained_state'])
         self.save('turn',{'observation':self.latest,'result_metrics':metrics(after),'keys':row.get('observed_keys',[]),'effects':result})
         return result
     def record_item_value(self,effect):
@@ -357,6 +372,7 @@ class WorldModel:
     def context(self):
         l=self.latest
         return {k:l[k] for k in ('metrics','metric_changes','visual','exploration','inventory','identity_rule') if k in l}|{
+            'retained_state':self.state_snapshot.context(),
             'visual_battle_experience':self.battle_appearances.context(l.get('objects',[])),
             'floor_exploration':self.floor_navigation.context(),
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),

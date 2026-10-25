@@ -66,6 +66,7 @@ class StateLedger:
           'text_overlay_hypothesis':overlay,'metrics':copy.deepcopy(metrics),'last_known_metrics':copy.deepcopy((world or {}).get('last_known_metrics',{})),
           'visible_map_targets':{k:copy.deepcopy(m.get(k,[]))[:16] for k in ('items','stairs')} if map_current else {},
           'floor_exploration':{k:v for k,v in state.get('floor_exploration',{}).items() if not k.endswith('_cells')},
+          'retained_state':copy.deepcopy(state.get('retained_state',{})),
           'map_current':map_current,'player_cell':m.get('player_cell') if map_current else None,
           'contacts':copy.deepcopy(m.get('enemies',[]))[:16] if map_current else [],
           'frame_sha256':state.get('metrics_source_frame_sha256') or state.get('frame_sha256'),

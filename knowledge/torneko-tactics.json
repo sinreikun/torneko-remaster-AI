@@ -37,6 +37,14 @@
       "edition": "user_environment",
       "kind": "user_supplied",
       "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-priority-diagonal-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-行動優先度と斜め移動",
+      "title": "利用者提供：通常の優先度・状態保持/再確認・目的のある斜め移動",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
     }
   ],
   "rules": [
@@ -943,6 +951,27 @@
       "verify_or_revise": "実入力は現在キー割当を使う。通常場面のNum7長押しマップ表示とは別の作用。説明は現在カーソルの品と関連付け、仮名と本来名、所持と装備を分ける。印の見た目を勝手に決めず、装備前後の表示/能力とターン消費を確認する。",
       "sources": [
         "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "priority-and-purposeful-diagonal",
+      "when": [
+        "explore",
+        "combat",
+        "ranged",
+        "inventory",
+        "item"
+      ],
+      "roles": [
+        "move",
+        "item"
+      ],
+      "precondition": "通常の行動候補を比較するとき。",
+      "expected_effect": "おおむね1見えている敵に対処、2見えている品を取得、3未確認を探索、4ステータス/所持品を確認して装備/使用を判断する。状態は最新観測で上書きして保持し、戦闘前の欠測や取得/装備/能力変化時など必要な場合だけ再確認する。明確な目標への経路で手数を減らせる場合はWASDの直交2キー同時入力による斜め移動を積極的に使う。",
+      "verify_or_revise": "緊急回復や重要な欠測確認は例外。確認だけを反復せず、非表示の保持値を現在HPや所持の証明にしない。斜めは既知床の目標経路に限定し、壁の角や未知領域を通れると決めない。目的なしに斜めを試さない。",
+      "sources": [
+        "user-priority-diagonal-20261026"
       ],
       "applicability": "user_environment"
     }

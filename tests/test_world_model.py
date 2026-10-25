@@ -108,7 +108,7 @@ class ItemTests(unittest.TestCase):
         self.assertIn([2,2],r['exploration']['surveyed_cells']);self.assertEqual(r['exploration']['frontier_candidates'],[[6,2]])
         hint=w.navigation_hint(s);self.assertEqual(hint['key'],'d');self.assertEqual(hint['distance'],4)
         blocked=copy.deepcopy(s);blocked['minimap']['enemies']=[(3,0)]
-        self.assertIsNone(w.navigation_hint(blocked))
+        self.assertEqual(w.navigation_hint(blocked)['target_kind'],'enemy')
 
     def test_result_then_new_adventure_discards_aliases(self):
         w=WorldModel();s=state();w.inventory.observe(inventory('▶青い草'));w.inventory.observe(native('青い草は薬草だった'))

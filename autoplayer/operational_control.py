@@ -6,7 +6,7 @@ from .controls import is_torneko
 
 class OperationalControl:
     def __init__(self,cfg,effects):
-        self.cfg=cfg;self.effects=effects;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None
+        self.cfg=cfg;self.effects=effects;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
@@ -38,6 +38,10 @@ class OperationalControl:
             return self._decision(base,[key],'result_screen','現在の結果表示を1回進め、再挑戦画面を確認する。')
         kind=torneko_menu_kind(native)
         skill=plan['skill']
+        step=ledger.current['step']
+        if step<=self.inspection_until and skill!='recover':skill='inspect_inventory'
+        if kind=='inventory':self.inventory_seen_step=step;self.inspection_until=-1
+        if kind=='main_menu' and skill=='inspect_inventory' and (step-self.inventory_seen_step<24 or self.last_inspection_step>=0 and self.inspection_until<step<self.last_inspection_step+24):skill='explore'
         # A supervisor UI hint is a single, scoped role, never a macro. Exact
         # current text and quoted premise must still agree with the request.
         role=plan.get('interface_role','none');quote=plan.get('interface_quote','')
@@ -107,7 +111,8 @@ class OperationalControl:
         candidates=[];pc=None;combat_trial=None;prediction_context={};self.sequence+=1
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
-                candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'detail':detail or {}})
+                priority=100 if source=='interface' else 90 if source=='inventory_inspection' and skill=='recover' else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='items' else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
             complete=replace(base,status='complete',keys=[],goal_evidence=[quote],goal_success=quote,subgoal='現在の帰還/達成表示を独立に検証する')
@@ -131,17 +136,20 @@ class OperationalControl:
             if state.get('eligible') and combat:
                 d,trial=combat.choose(base,state,stable,blocked)
                 if trial:offer(d,'combat','combat',2.,{'trial':trial})
-            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
+            retained=state.get('retained_state',{});revision=retained.get('revision')
+            enemies=state.get('minimap',{}).get('enemies',[])
+            prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
+            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
-            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.inspections.get(inspection_scope,-1000)>=24:
-                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8)
+            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=24 and (urgent or revision is None or revision!=self.inspected_revision):
+                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat})
             hint=state.get('map_route_hint')
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
-                key=hint.get('key')
-                if key in self.cfg.allowed_keys:
-                    caption='観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '踏破済み経路で別の未処理先端へ戻る' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
-                    offer(replace(self._decision(base,[key],'floor_navigation',hint.get('reason','現在の階内目標への経路を1入力ずつ確認する。')),subgoal=caption),
-                        'floor_navigation','explore',1.85,{'route':hint})
+                keys=hint.get('keys') or [hint.get('key')]
+                if keys and all(k in self.cfg.allowed_keys for k in keys):
+                    caption='見えている敵へ対処する位置に向かう' if hint.get('target_kind')=='enemy' else '観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '踏破済み経路で別の未処理先端へ戻る' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
+                    offer(replace(self._decision(base,keys,'floor_navigation',hint.get('reason','現在の階内目標への経路を1入力ずつ確認する。')),subgoal=caption),
+                        'floor_navigation','combat' if hint.get('target_kind')=='enemy' else 'explore',1.85,{'route':hint})
             if policy and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 d,choice=policy.choose(base,state,blocked,stable,None,bool(guidance.get('text')))
                 if predictions:d,choice,prediction_context=predictions.choose(d,state,choice,blocked)
@@ -209,10 +217,11 @@ class OperationalControl:
         if not candidates:
             key=self._key('confirm') or self.cfg.allowed_keys[0]
             offer(self._decision(base,[key],'bounded_probe','進行可能な入力仮説を短く試して現在の反応を取得する。'),'bounded_probe','verify_action',0.)
-        chosen=max(candidates,key=lambda c:c['score']);d=chosen['decision'];source=chosen['source']
+        chosen=max(candidates,key=lambda c:(c['priority'],c['score']));d=chosen['decision'];source=chosen['source']
         self.trials[current['scope'],tuple(d.keys)]=self.trials.get((current['scope'],tuple(d.keys)),0)+1
         while len(self.trials)>256:self.trials.pop(next(iter(self.trials)))
-        if source=='inventory_inspection':self.inspections[inspection_scope]=current['step']
+        if source=='inventory_inspection':
+            self.inspections[inspection_scope]=current['step'];self.last_inspection_step=current['step'];self.inspected_revision=state.get('retained_state',{}).get('revision');self.inspection_until=current['step']+8
         while len(self.inspections)>64:self.inspections.pop(next(iter(self.inspections)))
         if source=='combat':combat_trial=chosen['detail']['trial'];pc={'source':'combat_experiment','context':policy.context(state) if policy else {}}
         elif source=='floor_navigation':
@@ -226,10 +235,10 @@ class OperationalControl:
         if pc.get('source')!='learned_outcome_prediction' and prediction_context.get('selected'):
             prediction_context['not_adopted']=prediction_context.pop('selected')
         operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':chosen['skill'],'selected_source':source,
-          'floor_exploration':copy.deepcopy(state.get('floor_exploration',{}).get('goal',{})),'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
+          'floor_exploration':copy.deepcopy(state.get('floor_exploration',{}).get('goal',{})),'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_priority':chosen['priority'],'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
           'expected_signal':plan['expected_signal'],'experiment':experiment if experiment_active else None,
           'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
-          'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'skill':c['skill']} for c in candidates][:12],
+          'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'priority':c['priority'],'skill':c['skill']} for c in candidates][:12],
           'selected_keys':list(d.keys),'scope':current['scope'],'selection_rule':'現在の条件を満たす候補を一度だけ比較。後段の総当たりで上書きしない。'}
         self.last_selection=operation
         return d,pc,combat_trial,prediction_context,operation
@@ -241,7 +250,7 @@ class OperationalControl:
         prepared=(row.get('combat_evaluation') or {}).get('status')=='awaiting_attack_trial'
         # Interface information may be useful without being dungeon progress.
         policy=row.get('policy_learning') or {};net=policy.get('net_signals') or {}
-        new_location=bool(values['position'] and policy.get('arrival_visits_before')==0)
+        new_location=bool(values['position'] and (policy.get('arrival_visits_before')==0 or (row.get('floor_navigation_outcome') or {}).get('moved') and row['floor_navigation_outcome'].get('arrival_visits_before')==0))
         nav=row.get('mapless_navigation') or {};pose=nav.get('pose')
         assumed_frontier=bool((row.get('movement_result') or {}).get('success') is True and not nav.get('pose_uncertain') and any(c.get('cell')==pose and c.get('visits')==1 for c in nav.get('cells',[])))
         floor_progress=bool(net.get('floor'));coverage_progress=bool(net.get('coverage'))
