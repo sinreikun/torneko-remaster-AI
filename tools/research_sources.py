@@ -1,7 +1,7 @@
 """Fetch public research pages; retrieved content is untrusted reference data."""
 import concurrent.futures, hashlib, html, json, re, urllib.request, urllib.parse
 from pathlib import Path
-URLS = ['https://www.google.com/search?q=トルネコ+ちょっとステキなリマスター+攻略', 'https://www.bing.com/search?q=トルネコ+ちょっとステキなリマスター+攻略', 'https://www.dragonquest.jp/torneko_re/', 'https://store.steampowered.com/app/4027450/?l=japanese', 'https://steamcommunity.com/app/4027450/guides/?l=japanese', 'https://torneko1.kouryaku.red/', 'https://dq1torneko.kouryaku.red/', 'https://game8.jp/torneko', 'https://kamikouryaku.com/torneko_re/', 'https://ja.wikipedia.org/wiki/トルネコの大冒険_不思議のダンジョン']
+URLS = ['https://html.duckduckgo.com/html/?q=トルネコ+リマスター+攻略', 'https://search.yahoo.co.jp/search?p=トルネコ+リマスター+攻略', 'https://www.google.com/search?gbv=1&q=%22トルネコ%22+%22リマスター%22+%22攻略%22', 'https://torneko.kouryaku.red/', 'https://wikiwiki.jp/torneko1/', 'https://d-navi.info/torneko/', 'https://www.silver-intention.com/Game/Torneko/', 'https://www.famitsu.com/article/202609/87296']
 
 def fetch(pair):
  i,url=pair
