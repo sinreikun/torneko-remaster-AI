@@ -318,7 +318,7 @@ class ExperiencePolicy:
         revisits=max(visit[0] if visit else 0,session_revisits)
         novelty=0. if revisits else 1.
         route=(row.get('policy_choice') or {}).get('exploration_route') or {}
-        route_transit=bool((row.get('policy_choice') or {}).get('source')=='learned_policy' and route.get('mode')=='observed_route'
+        route_transit=bool((row.get('policy_choice') or {}).get('source') in ('learned_policy','floor_navigation') and route.get('mode') in ('observed_route','observed_grid_route','backtrack_to_frontier')
             and route.get('distance',0)>0 and route.get('key')==action and net['position'])
         revisit_cost=.12*min(3,revisits) if net['position'] and not route_transit and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
         reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']-.04-revisit_cost

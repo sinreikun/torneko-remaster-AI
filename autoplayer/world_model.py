@@ -184,6 +184,8 @@ class WorldModel:
         cfg=getattr(memory,'settings',getattr(memory,'cfg',None))
         bindings=getattr(cfg,'key_bindings',{}) or {}
         self.confirm_key=next((k for k,v in bindings.items() if re.search(r'決定|confirm',v,re.I)),'num1')
+        from .floor_navigation import FloorNavigation
+        self.floor_navigation=FloorNavigation(self.confirm_key)
         self.visual=VisualSense();self.inventory=Inventory(self.scope+'0_',self.confirm_key);self.floor=None;self.objects={};self.serial=0;self.tick=0;self.visited=set();self.previous_metrics={};self.latest={};self.pending_effects=[];self.delayed=[];self.result_seen=False;self.episode=0;self.last_messages=[]
         if self.db:
             self.db.executescript('''CREATE TABLE IF NOT EXISTS world_events(id INTEGER PRIMARY KEY,profile TEXT,session TEXT,created REAL,kind TEXT,data TEXT);
@@ -203,8 +205,10 @@ class WorldModel:
             self.last_known_metrics={}
             self.episode+=1;self.inventory=Inventory(self.scope+str(self.episode)+'_',self.confirm_key);self.pending_effects=[];self.delayed=[];self.result_seen=False
         if new_adventure or (floor and self.floor and floor!=self.floor):
-            self.objects={};self.visited=set();self.visual=VisualSense()
+            self.objects={};self.visited=set();self.visual=VisualSense();self.floor_navigation.reset()
         if floor:self.floor=floor
+        self.floor_navigation.observe(state)
+        state['floor_exploration']=self.floor_navigation.context()
         player=m.get('player_cell');new_cell=bool(player and tuple(player) not in self.visited);observed=m.get('status')=='observed';new=[];seen=set();current_objects=[]
         if observed and player:
             self.visited.add(tuple(player))
@@ -255,7 +259,7 @@ class WorldModel:
             if patch['appearance'] not in obj['variants']:obj['variants']=(obj['variants']+[patch['appearance']])[-64:]
             visible=copy.deepcopy(obj);visible['appearance_variant_count']=len(visible.pop('variants',[]));current_objects.append(visible)
         known={tuple(c) for c in m.get('accumulated_cells',[])}
-        frontier={c for c in known if sum((c[0]+dx,c[1]+dy) in known for dx,dy in ((0,1),(0,-1),(1,0),(-1,0)))<=1}
+        frontier=self.floor_navigation.primary() if self.floor_navigation._valid(state) else set()
         targets={tuple(o['cell']) for o in current_objects if o.get('cell') and o['legend'] not in ('player',)}
         surveyed=known-frontier-targets
         for key,value in state.get('metrics',{}).items():
@@ -271,29 +275,13 @@ class WorldModel:
             'new_messages':new_messages[:12],'visual':vision,'scene_change':vision.get('scene_change',True),'objects':current_objects,'new_objects':new,
             'novelty':min(1.,len(new)/3+.15*new_cell+.25*(bool(player) and tuple(player) in frontier)),
             'exploration':{'known_cells':len(known),'visited_cells':len(self.visited),'frontier_cells':len(frontier),'frontier_candidates':[list(c) for c in sorted(frontier)[:40]],
-                'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'既知領域の行き止まり形状を探索候補とし、既知の部屋・通路は探索優先度を下げる。端点は壁・行き止まりの確定ではない。通行・回収の経路として再利用できる。'},
+                'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'未踏または未処理の先端を探索候補とし、探索完了の枝は優先度を下げる。探索不要は通行禁止ではなく、帰路・階段・回収のため再利用できる。'},
             'inventory':inv,'identity_rule':'数値IDは識別用。画像から正体・敵種・非敵対NPCを確定しない。姿の変化は別個体の証明ではない。'}
         return copy.deepcopy(self.latest)
-    def navigation_hint(self,state,preference='current_goal'):
-        """Route on observed floor cells, never assume unobserved cells are walls."""
-        m=(state or {}).get('minimap',{});player=m.get('player_cell')
-        known={tuple(c) for c in m.get('accumulated_cells',[])}
-        if not player or not known:return None
-        start=tuple(player);frontier={c for c in known if sum((c[0]+dx,c[1]+dy) in known for dx,dy in ((0,1),(0,-1),(1,0),(-1,0)))<=1}
-        items={(start[0]+dx,start[1]+dy) for dx,dy in m.get('items',[])}
-        stairs={(start[0]+dx,start[1]+dy) for dx,dy in m.get('stairs',[])}
-        enemy={(start[0]+dx,start[1]+dy) for dx,dy in m.get('enemies',[])}
-        preferred={'stairs':stairs,'items':items,'frontier':frontier}.get(preference,set())
-        targets=preferred or (items if (state or {}).get('objective')=='forage' and items else frontier) or items or stairs
-        if start in targets:return None
-        queue=deque([(start,None,0)]);seen={start}
-        while queue:
-            node,first,distance=queue.popleft()
-            if node in targets:return {'key':first,'mode':'observed_grid_route','target_cell':list(node),'distance':distance,'basis':'known_floor_connectivity_rechecked_each_input'}
-            for key,(dx,dy) in {'w':(0,-1),'a':(-1,0),'s':(0,1),'d':(1,0)}.items():
-                nxt=node[0]+dx,node[1]+dy
-                if nxt in known and nxt not in enemy and nxt not in seen:seen.add(nxt);queue.append((nxt,first or key,distance+1))
-        return None
+    def navigation_hint(self,state,preference='current_goal',mission='auto',plan_id=None):
+        hint=self.floor_navigation.hint(state,preference,mission,plan_id)
+        state['floor_exploration']=self.floor_navigation.context()
+        return hint
 
     def annotate(self,report,native):
         """Model names never become internal IDs or verified classifications."""
@@ -310,6 +298,10 @@ class WorldModel:
         return accepted
 
     def feedback(self,before,after,row,old_ocr,new_ocr,natural,before_png,after_png):
+        self.floor_navigation.record(before,after,row,natural)
+        if self.floor_navigation._valid(after):self.navigation_hint(after)
+        after['floor_exploration']=self.floor_navigation.context()
+        row['floor_exploration']=copy.deepcopy(after['floor_exploration'])
         a=(before or {}).get('minimap',{}).get('player_cell');b=(after or {}).get('minimap',{}).get('player_cell')
         if a and b and metrics(before).get('floor')==metrics(after).get('floor') and row.get('executed'):
             self.visual.correlate(before_png,after_png,[b[i]-a[i] for i in (0,1)])
@@ -362,6 +354,7 @@ class WorldModel:
     def context(self):
         l=self.latest
         return {k:l[k] for k in ('metrics','metric_changes','visual','exploration','inventory','identity_rule') if k in l}|{
+            'floor_exploration':self.floor_navigation.context(),
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],
             'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}

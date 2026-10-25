@@ -99,6 +99,15 @@ class PolicyTests(unittest.TestCase):
         self.assertNotEqual(old.profile,self.policy.profile)
         self.assertEqual(self.policy.values(state()),{})
         self.assertEqual(self.policy.db.execute('SELECT SUM(trials) FROM policy_actions WHERE profile=?',(old.profile,)).fetchone()[0],1)
+    def test_floor_backtracking_is_not_new_exploration_or_pointless_revisit(self):
+        a,b=state('A'),state('B',261.7)
+        self.policy.learn(a,b,receipt_row('d'),a)
+        for mode in ('backtrack_to_frontier','observed_grid_route'):
+            route={'source':'floor_navigation','exploration_route':{'mode':mode,'distance':5,'key':'a'}}
+            result=self.policy.learn(b,a,receipt_row('a',policy_choice=route),b)
+            self.assertTrue(result['route_transit']);self.assertEqual(result['revisit_cost'],0)
+            self.assertEqual(result['reward'],-.04)
+
     def test_observed_route_transit_is_not_rewarded_as_new_exploration_or_heavily_penalized(self):
         a,b=state('A'),state('B',261.7)
         self.policy.learn(a,b,receipt_row('d'),a)

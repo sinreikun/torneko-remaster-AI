@@ -4,7 +4,7 @@ import time
 
 class RecognitionState:
     def __init__(self):
-        self.map={};self.tentative={};self.metrics={};self.objects=[];self.floor_state={};self.remaining=None
+        self.floor_exploration={};self.map={};self.tentative={};self.metrics={};self.objects=[];self.floor_state={};self.remaining=None
         self.inference=set();self.observed_at=None;self.phase='待機';self.revision=0
     @property
     def thinking(self):return bool(self.inference)
@@ -21,7 +21,7 @@ class RecognitionState:
             self.remaining=0;self.phase='作戦指示の反映待ち';self.revision+=1;return
         if event in ('session_end','disconnected'):
             self.inference.clear();self.remaining=None;self.objects=[];self.phase='停止'
-            if event=='disconnected':self.tentative={};self.map={};self.metrics={};self.objects=[];self.observed_at=None
+            if event=='disconnected':self.floor_exploration={};self.tentative={};self.map={};self.metrics={};self.objects=[];self.observed_at=None
             self.revision+=1;return
         state=row.get('policy_after') if event=='result' else row.get('policy_state')
         world=row.get('world_observation') or {}
@@ -32,8 +32,9 @@ class RecognitionState:
             confirmation=state.get('floor_confirmation',{})
             old_floor=self.metrics.get('floor',{}).get('values');new_floor=state.get('metrics',{}).get('floor',{}).get('values')
             if confirmation.get('changed') or world.get('new_adventure') or (old_floor and new_floor and old_floor!=new_floor and confirmation.get('status') in ('initialized','confirmed','changed')):
-                self.map={};self.objects=[]
+                self.map={};self.objects=[];self.floor_exploration={}
             if world.get('new_adventure'):self.metrics={}
+            if state.get('floor_exploration',{}).get('status')=='observed_floor':self.floor_exploration=copy.deepcopy(state['floor_exploration'])
             observed_map=state.get('minimap',{})
             if observed_map.get('status')=='observed':self.map=copy.deepcopy(observed_map)
             elif self.map.get('status')=='observed':self.map['retained']=True
@@ -84,6 +85,9 @@ class RecognitionState:
             for offset in m.get('known_cells',[]):
                 cell=[player[i]+offset[i] for i in (0,1)]
                 if valid(cell):out[tuple(cell)]='known'
+            for field,kind in [('exploration_unnecessary_cells','surveyed'),('visited_cells','visited'),('exhausted_branch_cells','exhausted'),('frontier_cells','frontier'),('route_cells','route')]:
+                for cell in self.floor_exploration.get(field,[]):
+                    if valid(cell) and tuple(cell) in out:out[tuple(cell)]=kind
             for field,kind in [('stairs','stairs'),('items','item'),('enemies','enemy')]:
                 for offset in m.get(field,[]):
                     cell=[player[i]+offset[i] for i in (0,1)]
@@ -99,6 +103,11 @@ class RecognitionState:
         retained=' / '.join({'strength':'ちから','sword':'剣','shield':'盾','experience':'経験値','max_floor':'最深階','level':'Lv','gold':'所持金'}.get(k,k) for k,v in self.metrics.items() if v.get('retained'))
         note='\n保持値（未再確認）: '+retained if retained else ''
         if self.tentative.get('active') or self.tentative.get('display_retained'):note+='\n仮経路地図 / '+self.tentative.get('mode','')+' / '+self.tentative.get('calibration','')+(' / 白枠あり:地形更新停止' if self.tentative.get('white_frame_evidence',{}).get('visible') else '')+'\n'+self.tentative.get('unit','仮の移動単位・実マス未保証')+' / 黄枠:推定位置 橙:障害候補'
+        f=self.floor_exploration
+        if f.get('status')=='observed_floor' and not self.tentative.get('active'):
+            goal=f.get('goal',{});phase=goal.get('phase','')
+            title={'explore_frontier':'未処理先端を探索','reach_stairs':'観測済み階段へ','return_to_stairs':'帰還のため階段へ','collect_visible_items':'観測済みの品を確認','route_unavailable':'経路を再検討','review_exhausted_floor':'階内の次の目的を再検討','verify_objective':'所持品・目標を再確認','verify_stair_action':'階段の操作結果を再確認'}.get(phase,phase)
+            note+=f"\n階内目標: {title} {goal.get('target_cell') or ''}\n踏破 {f.get('visited_count',0)} / 既知 {f.get('known_count',0)} / 未処理先端 {f.get('primary_frontier_count',0)} / 完了枝 {len(f.get('exhausted_branch_cells',[]))}"
         atlas=self.tentative.get('atlas',{})
         if atlas.get('map_id'):note+='\n外部地図 '+atlas['map_id']+(' / 保存済み開始地点から再開' if atlas.get('reused') else ' / 新規地図')
         if atlas.get('awaiting_entry'):note+='\n場面切替：開始地点の再観測待ち'
@@ -106,7 +115,7 @@ class RecognitionState:
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
-COLORS={'portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
+COLORS={'visited':'#547d86','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
 def paint_grid(canvas,cells,x=8,y=8,unit=6):
     # All 1,728 grid cells are drawn, including unknown ones.
@@ -132,7 +141,7 @@ class RecognitionPanel:
         self.label=ttk.Label(top,text='LLM待機');self.label.pack(side='left')
         self.canvas=tk.Canvas(self.frame,width=340,height=210,bg='#121c2b',highlightthickness=0);self.canvas.pack(fill='x')
         self.text=ttk.Label(self.frame,justify='left',wraplength=340);self.text.pack(anchor='w')
-        ttk.Label(self.frame,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替').pack(anchor='w')
+        ttk.Label(self.frame,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未処理先端 青灰:踏破 薄青:経路 紫:完了枝').pack(anchor='w')
         self.last_revision=-1
     def refresh(self):
         if self.last_revision!=self.state.revision:

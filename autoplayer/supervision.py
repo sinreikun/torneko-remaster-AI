@@ -1,5 +1,6 @@
 """Asynchronous, scoped operational plans. Worker never touches game, OCR or DB."""
 from collections import deque
+from .floor_navigation import MISSIONS
 import copy,hashlib,json,queue,re,threading,time
 from .interfaces import compact_text,ordinary_choice,torneko_menu_kind,result_screen
 
@@ -10,11 +11,12 @@ PLAN_SCHEMA={'type':'object','additionalProperties':False,'properties':{
  'objective':{'type':'string'},'skill':{'type':'string','enum':list(SKILLS)},'reason':{'type':'string'},
  'budget_turns':{'type':'integer','minimum':2,'maximum':32},'exploration_fraction':{'type':'number','minimum':0,'maximum':.5},
  'strategy':{'type':'string','enum':['advance','compare_alternatives','avoid_repetition','gather_information']},
+ 'floor_objective':{'type':'string','enum':list(MISSIONS)},
  'navigation':{'type':'string','enum':['current_goal','frontier','stairs','items']},
  'hypothesis':{'type':'string'},'test':{'type':'string','enum':list(TESTS)},'test_attempts':{'type':'integer','minimum':1,'maximum':4},
  'expected_signal':{'type':'string','enum':list(SIGNALS)},
  'interface_role':{'type':'string','enum':['none','confirm','cancel','up','left','down','right']},'interface_quote':{'type':'string'}},
- 'required':['objective','skill','reason','budget_turns','exploration_fraction','strategy','navigation','hypothesis','test','test_attempts','expected_signal','interface_role','interface_quote']}
+ 'required':['objective','skill','reason','budget_turns','exploration_fraction','strategy','navigation','floor_objective','hypothesis','test','test_attempts','expected_signal','interface_role','interface_quote']}
 
 def validate_plan(value):
     if not isinstance(value,dict) or set(value)!=set(PLAN_SCHEMA['required']):raise ValueError('Invalid supervision plan fields')
@@ -22,7 +24,7 @@ def validate_plan(value):
         if not isinstance(value[key],str) or len(value[key])>240:raise ValueError('Invalid supervision text')
     if not value['objective'].strip():raise ValueError('Empty operational objective')
     if any(not re.search(r'[\u3040-\u30ff\u3400-\u9fff]',value[key]) for key in ('objective','reason')):raise ValueError('Supervisor explanations must be Japanese')
-    for key in ('skill','test','expected_signal','interface_role','strategy','navigation'):
+    for key in ('skill','test','expected_signal','interface_role','strategy','navigation','floor_objective'):
         if value[key] not in PLAN_SCHEMA['properties'][key]['enum']:raise ValueError('Unknown operational function')
     for key,lo,hi in (('budget_turns',2,32),('test_attempts',1,4)):
         if type(value[key]) is not int or not lo<=value[key]<=hi:raise ValueError('Invalid operational budget')
@@ -63,6 +65,7 @@ class StateLedger:
         self.current={'step':step,'epoch':self.epoch,'scope':scope,'region':region,'floor':floor,'interface':kind,
           'text_overlay_hypothesis':overlay,'metrics':copy.deepcopy(metrics),'last_known_metrics':copy.deepcopy((world or {}).get('last_known_metrics',{})),
           'visible_map_targets':{k:copy.deepcopy(m.get(k,[]))[:16] for k in ('items','stairs')} if map_current else {},
+          'floor_exploration':{k:v for k,v in state.get('floor_exploration',{}).items() if not k.endswith('_cells')},
           'map_current':map_current,'player_cell':m.get('player_cell') if map_current else None,
           'contacts':copy.deepcopy(m.get('enemies',[]))[:16] if map_current else [],
           'frame_sha256':state.get('metrics_source_frame_sha256') or state.get('frame_sha256'),
@@ -91,7 +94,7 @@ class Supervisor:
         hp=current.get('metrics',{}).get('hp',{}).get('values');food=current.get('metrics',{}).get('fullness',{}).get('values')
         skill='interface' if current.get('interface') else 'exit' if current.get('region')=='outside' else 'recover' if hp and hp[0]/max(1,hp[1])<.3 or food and food[0]<=15 else 'combat' if any(max(map(abs,e))<=1 for e in current.get('contacts',[])) else 'explore'
         return {'objective':'現在の観測と経験から全体目標へ進める','skill':skill,'reason':'監督回答までの観測に基づく暫定運用',
-          'budget_turns':8,'exploration_fraction':.125,'strategy':'advance','navigation':'current_goal','hypothesis':'','test':'none','test_attempts':1,'expected_signal':'damage_dealt' if skill=='combat' else 'interface_change' if skill=='interface' else 'food_gain' if skill=='recover' and food and food[0]<=15 else 'hp_gain' if skill=='recover' else 'position',
+          'budget_turns':8,'exploration_fraction':.125,'strategy':'advance','navigation':'current_goal','floor_objective':'auto','hypothesis':'','test':'none','test_attempts':1,'expected_signal':'damage_dealt' if skill=='combat' else 'interface_change' if skill=='interface' else 'food_gain' if skill=='recover' and food and food[0]<=15 else 'hp_gain' if skill=='recover' else 'position',
           'interface_role':'none','interface_quote':'','origin':'local_bootstrap','scope':current['scope'],'adopted_step':current['step'],
           'expires_step':current['step']+8,'request_selection':current.get('selection_key'),'request_text_key':current['text_key'],'request_frame':current.get('frame_sha256'),'id':'bootstrap-'+str(current['epoch']),'anchor_floor':copy.deepcopy(current.get('floor'))}
     def tick(self,ledger,extra=None,image=None):
@@ -131,6 +134,8 @@ class Supervisor:
         signature=(scope,self.plan['id'])
         if self.stall>=4 and signature!=self.last_signature and step-self.last_request>=4:
             self.next_review=min(self.next_review,step);self.last_signature=signature;self.last_reason='prediction_or_progress_review'
+        if current.get('floor_exploration',{}).get('goal',{}).get('needs_review') and step-self.last_request>=4:
+            self.next_review=min(self.next_review,step);self.last_reason='floor_objective_review'
         known_fast_ui=current.get('interface') in ('choice','defeat_result','high_scores','main_menu','inventory','item_actions','carry_inventory')
         ui_review_due=not known_fast_ui or step-self.last_request>=8
         if not self.inflight and step>=self.next_review and ui_review_due:

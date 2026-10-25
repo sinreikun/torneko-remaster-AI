@@ -17,7 +17,7 @@ from test_policy import state,receipt_row
 from test_agent import Backend,Script,change
 
 def proposal(**kw):
-    return dict(objective='現在の観測から目的への経路を進む',skill='explore',reason='実測を優先する',budget_turns=16,exploration_fraction=.125,strategy='advance',navigation='current_goal',hypothesis='',test='none',test_attempts=2,expected_signal='position',interface_role='none',interface_quote='',**kw)
+    return dict(objective='現在の観測から目的への経路を進む',skill='explore',reason='実測を優先する',budget_turns=16,exploration_fraction=.125,strategy='advance',navigation='current_goal',floor_objective='auto',hypothesis='',test='none',test_attempts=2,expected_signal='position',interface_role='none',interface_quote='',**kw)
 def native(*lines):return {'status':'ok','lines':[{'text':t,'confidence':.99} for t in lines]}
 def ledger(s=None,step=0,revision=0,guidance=0):
     l=StateLedger();l.observe(native('1階 HP15/15'),s or state(),{'location':'dungeon'},{},{'revision':guidance,'text':''},revision,step);return l
@@ -130,6 +130,16 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         d,_,_,_,op=self.select(n=native('やりなおしますか？','いいえ','▶はい'))
         self.assertEqual(d.keys,['num1']);self.assertEqual(op['selected_source'],'interface')
         d,*_=self.select(n=native('セーブデータを削除しますか？','▶はい','いいえ'));self.assertEqual(d.keys,['num2'])
+    def test_explicit_floor_return_route_is_not_replaced_by_probe(self):
+        s=state();s['minimap']['player_cell']=[43,4]
+        s['map_route_hint']={'key':'a','mode':'backtrack_to_frontier','distance':66,'reason':'踏破済み経路で別の先端へ戻る'}
+        s['floor_exploration']={'exhausted_branch_cells':[[44,4]],'goal':{'phase':'explore_frontier'}}
+        from autoplayer.policy import ExperiencePolicy
+        policy=ExperiencePolicy(self.memory,self.cfg)
+        d,choice,_,_,op=self.select(s=s,policy=policy)
+        self.assertEqual(d.keys,['a']);self.assertEqual(op['selected_source'],'floor_navigation')
+        self.assertEqual(choice['source'],'floor_navigation');self.assertEqual(choice['exploration_route']['distance'],66)
+
     def test_policy_route_is_not_replaced_by_coverage_sweep(self):
         from autoplayer.policy import ExperiencePolicy
         policy=ExperiencePolicy(self.memory,self.cfg)

@@ -131,10 +131,17 @@ class OperationalControl:
             if state.get('eligible') and combat:
                 d,trial=combat.choose(base,state,stable,blocked)
                 if trial:offer(d,'combat','combat',2.,{'trial':trial})
-            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent
+            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
             if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.inspections.get(inspection_scope,-1000)>=24:
                 offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8)
+            hint=state.get('map_route_hint')
+            if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
+                key=hint.get('key')
+                if key in self.cfg.allowed_keys:
+                    caption='観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '踏破済み経路で別の未処理先端へ戻る' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
+                    offer(replace(self._decision(base,[key],'floor_navigation',hint.get('reason','現在の階内目標への経路を1入力ずつ確認する。')),subgoal=caption),
+                        'floor_navigation','explore',1.85,{'route':hint})
             if policy and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 d,choice=policy.choose(base,state,blocked,stable,None,bool(guidance.get('text')))
                 if predictions:d,choice,prediction_context=predictions.choose(d,state,choice,blocked)
@@ -172,7 +179,14 @@ class OperationalControl:
                 for c in relevant:c['score']+=.25
             else:experiment_active=False
         preferred=plan['skill']
+        floor=state.get('floor_exploration',{});pos=state.get('minimap',{}).get('player_cell')
+        exhausted={tuple(p) for p in floor.get('exhausted_branch_cells',[])}
+        route_key=(state.get('map_route_hint') or {}).get('key')
         for c in candidates:
+            keys=c['decision'].keys
+            if c['source'] in ('policy','movement_alternative','targeted_probe') and len(keys)==1 and pos and keys[0]!=route_key:
+                delta={'w':(0,-1),'d':(1,0),'s':(0,1),'a':(-1,0)}.get(keys[0])
+                if delta and (pos[0]+delta[0],pos[1]+delta[1]) in exhausted:c['score']-=.9
             if c['skill']==preferred:c['score']+=.15
             if c['decision'].keys in blocked:c['score']-=1.
             c['estimate']=self.effects.estimate(state,c['decision'].keys)
@@ -201,6 +215,10 @@ class OperationalControl:
         if source=='inventory_inspection':self.inspections[inspection_scope]=current['step']
         while len(self.inspections)>64:self.inspections.pop(next(iter(self.inspections)))
         if source=='combat':combat_trial=chosen['detail']['trial'];pc={'source':'combat_experiment','context':policy.context(state) if policy else {}}
+        elif source=='floor_navigation':
+            context=policy.context(state) if policy else {}
+            pc={'source':'floor_navigation','exploration_route':chosen['detail']['route'],'context':context,
+                'selected':next((v for v in context.get('ranking',[]) if v.get('keys')==d.keys),{}),'selection_basis':'floor_task_route'}
         elif source=='policy':pc=chosen['detail']['choice']
         elif source=='movement_alternative':pc={'source':'learned_policy','selected':chosen['detail']['rank'],'context':chosen['detail']['context'],'selection_basis':'operational_relative_comparison'}
         else:pc={'source':'operational_'+source}
@@ -208,7 +226,7 @@ class OperationalControl:
         if pc.get('source')!='learned_outcome_prediction' and prediction_context.get('selected'):
             prediction_context['not_adopted']=prediction_context.pop('selected')
         operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':chosen['skill'],'selected_source':source,
-          'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
+          'floor_exploration':copy.deepcopy(state.get('floor_exploration',{}).get('goal',{})),'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
           'expected_signal':plan['expected_signal'],'experiment':experiment if experiment_active else None,
           'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
           'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'skill':c['skill']} for c in candidates][:12],

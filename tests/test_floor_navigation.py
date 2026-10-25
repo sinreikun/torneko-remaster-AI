@@ -1,0 +1,87 @@
+"""Numerical graph and observation contracts. No game or simulated gameplay."""
+import copy,json,unittest
+from pathlib import Path
+from autoplayer.floor_navigation import FloorNavigation
+from autoplayer.telemetry import RecognitionState
+from test_policy import state,receipt_row
+
+def observed(pos,known,floor=1,stairs=(),items=(),enemies=()):
+    s=state();s['metrics']['floor']['values']=[floor]
+    s['minimap'].update(player_cell=list(pos),grid_size=[54,32],accumulated_cells=[list(c) for c in known],known_cells=[],
+      stairs=[[x-pos[0],y-pos[1]] for x,y in stairs],items=[[x-pos[0],y-pos[1]] for x,y in items],enemies=[[x-pos[0],y-pos[1]] for x,y in enemies])
+    return s
+
+class FloorNavigationTests(unittest.TestCase):
+    def test_dead_end_is_retired_but_floor_remains_a_return_route(self):
+        known={(x,4) for x in range(40,45)};nav=FloorNavigation();s=observed((43,4),known)
+        nav.observe(s);end=observed((44,4),known);nav.record(s,end,receipt_row('d'))
+        for key in ('d','w','s'):nav.record(end,end,receipt_row(key))
+        hint=nav.hint(end,'frontier');self.assertEqual(hint['key'],'a');self.assertEqual(hint['target_cell'],[40,4])
+        back=observed((43,4),known);nav.record(end,back,receipt_row('a'))
+        hint=nav.hint(back,'frontier');self.assertEqual(hint['key'],'a');self.assertNotEqual(hint['target_cell'],[44,4])
+        self.assertIn([44,4],nav.context()['exhausted_branch_cells']);self.assertIn((44,4),nav.known)
+        # A later objective can require crossing a completed branch.
+        stairs=observed((43,4),known,stairs=[(44,4)])
+        hint=nav.hint(stairs);self.assertEqual(hint['key'],'d');self.assertEqual(hint['target_kind'],'stairs')
+    def test_unknown_probes_are_bounded_not_permanent_walls(self):
+        known={(1,1),(2,1),(3,1)};nav=FloorNavigation();s=observed((3,1),known)
+        nav.observe(s)
+        for key in ('w','d','s'):nav.record(s,s,receipt_row(key))
+        self.assertFalse(nav.unknown_keys((3,1)))
+        grown=observed((3,1),known|{(3,0)})
+        nav.observe(grown);self.assertIn('d',nav.unknown_keys((3,1)))
+        self.assertEqual(nav.failures[(3,1),'w'],0)
+    def test_enemy_neutral_backend_and_wrong_key_do_not_complete_probe(self):
+        known={(1,1),(2,1)}
+        cases=[(receipt_row('num1'),{},()),(receipt_row('w'),{'position':1},()),
+          (receipt_row('w',executed=False),{},()),(receipt_row('w',input_receipt={'os_submission':'rejected'}),{},()),
+          (receipt_row('w'),{},[(2,0)])]
+        for row,natural,enemies in cases:
+            nav=FloorNavigation();s=observed((2,1),known,enemies=enemies);nav.observe(s);nav.record(s,s,row,natural)
+            self.assertEqual(nav.failures[(2,1),'w'],0)
+    def test_menu_and_pending_floor_retain_but_confirmed_floor_resets(self):
+        nav=FloorNavigation();s=observed((2,1),{(1,1),(2,1)});nav.observe(s)
+        nav.record(s,s,receipt_row('d'));before=nav.context()
+        menu={'eligible':False,'minimap':{'status':'unavailable'},'metrics':{}}
+        self.assertIsNone(nav.hint(menu));self.assertEqual(nav.context(),before)
+        pending=copy.deepcopy(s);pending['metrics']['floor']['values']=[2];pending['floor_confirmation']={'status':'pending'}
+        self.assertFalse(nav.observe(pending));self.assertEqual(nav.floor,(1,))
+        nav.observe(observed((9,9),{(9,9)},floor=2));self.assertEqual(nav.floor,(2,));self.assertNotIn((2,1),nav.visited)
+    def test_stairs_default_and_model_objectives_are_distinct(self):
+        known={(x,1) for x in range(1,6)};s=observed((3,1),known,stairs=[(5,1)],items=[(2,1)])
+        nav=FloorNavigation();self.assertEqual(nav.hint(s)['key'],'d')
+        self.assertEqual(nav.hint(s,mission='collect_visible_items',plan_id='p1')['key'],'a')
+        nav.hint(s);self.assertEqual(nav.goal['mission'],'collect_visible_items')
+        self.assertEqual(nav.hint(s,mission='return_with_objective',plan_id='p2')['key'],'d')
+        self.assertEqual(nav.goal['phase'],'return_to_stairs')
+    def test_stair_trial_does_not_claim_progress_or_repeat_forever(self):
+        s=observed((2,1),{(1,1),(2,1)},stairs=[(2,1)]);nav=FloorNavigation()
+        for _ in range(2):
+            self.assertEqual(nav.hint(s)['key'],'num1');nav.record(s,s,receipt_row('num1'))
+        self.assertIsNone(nav.hint(s));self.assertTrue(nav.goal['needs_review']);self.assertEqual(nav.goal['phase'],'verify_stair_action')
+    def test_enemy_blocks_route_without_retargeting_room_corners(self):
+        known={(x,y) for x in range(5) for y in range(5)}|{(5,2),(6,2)}
+        nav=FloorNavigation();s=observed((2,2),known,enemies=[(5,2)])
+        self.assertIsNone(nav.hint(s));s['minimap']['enemies']=[];self.assertEqual(nav.hint(s)['key'],'d')
+    def test_monitor_marks_are_retained_in_menu_and_icons_win(self):
+        nav=FloorNavigation();s=observed((2,1),{(1,1),(2,1)},stairs=[(1,1)]);nav.hint(s)
+        s['floor_exploration']=nav.context();monitor=RecognitionState();monitor.update({'event':'perception','policy_state':s})
+        self.assertEqual(monitor.grid()[(2,1)],'player');self.assertEqual(monitor.grid()[(1,1)],'stairs')
+        monitor.update({'event':'perception','policy_state':{'minimap':{'status':'unavailable'},'metrics':{}}})
+        self.assertEqual(monitor.floor_exploration,s['floor_exploration']);self.assertIn('階内目標',monitor.summary())
+
+    def test_supplied_real_log_no_longer_targets_completed_end(self):
+        rows=json.loads((Path(__file__).parent/'fixtures/floor-dead-end-1792936483410881100.json').read_text())['rows']
+        nav=FloorNavigation()
+        for row in rows:
+            nav.observe(row['before']);nav.record(row['before'],row['after'],row)
+        last=rows[-1]['after'];hint=nav.hint(last,'frontier')
+        self.assertEqual(last['minimap']['player_cell'],[43,4])
+        self.assertEqual(hint['key'],'a');self.assertNotEqual(hint['target_cell'],[44,4])
+        self.assertIn([44,4],nav.context()['exhausted_branch_cells'])
+        stairs=nav.hint(last)
+        self.assertEqual(stairs['target_kind'],'stairs');self.assertEqual(stairs['target_cell'],[18,5])
+
+    def test_missing_floor_cells_do_not_invent_a_navigation_goal(self):
+        nav=FloorNavigation();s=state()
+        self.assertIsNone(nav.hint(s));self.assertEqual(nav.context()['status'],'unavailable')
