@@ -85,7 +85,7 @@ class RecognitionState:
             for offset in m.get('known_cells',[]):
                 cell=[player[i]+offset[i] for i in (0,1)]
                 if valid(cell):out[tuple(cell)]='known'
-            for field,kind in [('exploration_unnecessary_cells','surveyed'),('visited_cells','visited'),('exhausted_branch_cells','exhausted'),('frontier_cells','frontier'),('route_cells','route')]:
+            for field,kind in [('exploration_unnecessary_cells','surveyed'),('visited_cells','visited'),('exhausted_branch_cells','exhausted'),('disputed_cached_cells','disputed'),('frontier_cells','frontier'),('route_cells','route')]:
                 for cell in self.floor_exploration.get(field,[]):
                     if valid(cell) and tuple(cell) in out:out[tuple(cell)]=kind
             for field,kind in [('stairs','stairs'),('items','item'),('enemies','enemy')]:
@@ -115,7 +115,7 @@ class RecognitionState:
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
-COLORS={'visited':'#547d86','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
+COLORS={'disputed':'#633e40','visited':'#547d86','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
 def paint_grid(canvas,cells,x=8,y=8,unit=6):
     # All 1,728 grid cells are drawn, including unknown ones.
@@ -141,7 +141,7 @@ class RecognitionPanel:
         self.label=ttk.Label(top,text='LLM待機');self.label.pack(side='left')
         self.canvas=tk.Canvas(self.frame,width=340,height=210,bg='#121c2b',highlightthickness=0);self.canvas.pack(fill='x')
         self.text=ttk.Label(self.frame,justify='left',wraplength=340);self.text.pack(anchor='w')
-        ttk.Label(self.frame,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未処理先端 青灰:踏破 薄青:経路 紫:完了枝').pack(anchor='w')
+        ttk.Label(self.frame,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未処理先端 青灰:踏破 薄青:経路 紫:完了枝 赤茶:再確認待ち').pack(anchor='w')
         self.last_revision=-1
     def refresh(self):
         if self.last_revision!=self.state.revision:

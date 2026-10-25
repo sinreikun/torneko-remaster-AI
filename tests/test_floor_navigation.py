@@ -117,3 +117,35 @@ class FloorNavigationTests(unittest.TestCase):
         for known in ({(1,1),(2,2)},{(1,1)}):
             h=FloorNavigation().hint(observed((1,1),known,items=[(2,2)] if len(known)>1 else []))
             self.assertIsNotNone(h);self.assertNotIn('+',h['key']);self.assertEqual(h['mode'],'frontier_probe')
+
+    def test_stale_cached_frontier_in_supplied_log_is_not_retargeted(self):
+        rows=json.loads((Path(__file__).parent/'fixtures/stale-frontier-1792958227411834200.json').read_text())['rows']
+        nav=FloorNavigation()
+        for r in rows:
+            nav.observe(r['before']);nav.record(r['before'],r['after'],r)
+            hint=nav.hint(r['after'])
+            self.assertIn((14,16),nav.disputed())
+            self.assertNotEqual((hint or {}).get('target_cell'),[14,16])
+            self.assertNotIn([14,16],(hint or {}).get('route_cells',[]))
+        self.assertIn([14,16],nav.context()['disputed_cached_cells'])
+        self.assertIn((14,16),nav.known) # History remains; it is not a wall declaration.
+    def test_failed_edge_is_not_reenabled_by_observation_ticks(self):
+        known={(1,1),(2,1),(3,1)};nav=FloorNavigation();s=observed((2,1),known,stairs=[(3,1)])
+        nav.observe(s)
+        for _ in range(2):nav.record(s,s,receipt_row('d'))
+        for _ in range(40):nav.observe(s)
+        self.assertIsNone(nav._path({(3,1)}))
+        self.assertIn(['d'],nav.context()['ineffective_actions_here'])
+        arrived=observed((3,1),known,stairs=[(3,1)]);nav.record(s,arrived,receipt_row('d'))
+        self.assertEqual(nav.failures[(2,1),'d'],0)
+    def test_only_independent_current_maps_dispute_cache_and_fresh_floor_restores_it(self):
+        s=observed((1,1),{(1,1),(2,1)});s['minimap']['known_cells']=[[0,0]];s['frame_sha256']='f1'
+        nav=FloorNavigation()
+        for _ in range(5):nav.observe(s)
+        self.assertNotIn((2,1),nav.disputed())
+        s['frame_sha256']='f2';nav.observe(s);self.assertIn((2,1),nav.disputed())
+        nav.failures[(1,1),'d']=2
+        s['frame_sha256']='f3';s['minimap']['known_cells'].append([1,0]);nav.observe(s)
+        self.assertIn((2,1),nav.disputed())
+        s['frame_sha256']='f4';nav.observe(s);self.assertNotIn((2,1),nav.disputed())
+        self.assertEqual(nav.failures[(1,1),'d'],0)

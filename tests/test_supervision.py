@@ -158,6 +158,13 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         self.assertEqual(self.effects.role(d.keys,s),'movement_candidate')
         self.assertEqual(self.effects.role(d.keys,{**s,'_operational_interface':'main_menu'}),'chord')
 
+    def test_ineffective_movement_is_not_reintroduced_by_other_candidates(self):
+        from autoplayer.policy import ExperiencePolicy
+        policy=ExperiencePolicy(self.memory,self.cfg);s=state()
+        s['floor_exploration']={'ineffective_actions_here':[['w'],['s'],['a'],['d']]}
+        d,_,_,_,op=self.select(s=s,policy=policy)
+        self.assertEqual(op['selected_source'],'bounded_probe');self.assertEqual(d.keys,['num1'])
+
     def test_explicit_floor_return_route_is_not_replaced_by_probe(self):
         s=state();s['minimap']['player_cell']=[43,4]
         s['map_route_hint']={'key':'a','mode':'backtrack_to_frontier','distance':66,'reason':'踏破済み経路で別の先端へ戻る'}

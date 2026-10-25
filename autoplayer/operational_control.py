@@ -214,6 +214,8 @@ class OperationalControl:
                 route_cost=policy.routes.penalty(state,key) if policy and key in ('w','a','s','d') else 0
                 if estimate['samples']<2:
                     offer(self._decision(base,[key],'targeted_probe','未解決の移動作用を、現在の通路と実績を確認して1回検証する。'),'targeted_probe','verify_action',.95-route_cost,estimate)
+        ineffective={frozenset(k) for k in state.get('floor_exploration',{}).get('ineffective_actions_here',[])}
+        candidates=[c for c in candidates if c['source'] not in ('policy','movement_alternative','targeted_probe','floor_navigation') or frozenset(c['decision'].keys) not in ineffective]
         if not candidates:
             key=self._key('confirm') or self.cfg.allowed_keys[0]
             offer(self._decision(base,[key],'bounded_probe','進行可能な入力仮説を短く試して現在の反応を取得する。'),'bounded_probe','verify_action',0.)

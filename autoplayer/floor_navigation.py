@@ -13,9 +13,9 @@ class FloorNavigation:
     def __init__(self,confirm_key='num1'):
         self.confirm_key=confirm_key;self.reset()
     def reset(self):
-        self.floor=None;self.space=None;self.known=set();self.visited=Counter();self.failures=Counter();self.failure_tick={};self.neighbors={}
+        self.floor=None;self.space=None;self.known=set();self.visited=Counter();self.failures=Counter();self.neighbors={}
         self.stairs=set();self.items=set();self.enemies=set();self.position=None;self.tick=0;self.last_direction=None;self.mission='auto';self.plan_id=None
-        self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None
+        self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None;self.fresh_floor=set();self.missing_floor=Counter();self.last_map_frame=None;self.positive_floor=Counter()
     def _valid(self,state):
         m=state.get('minimap',{});f=state.get('metrics',{}).get('floor',{})
         confirmation=state.get('floor_confirmation',{})
@@ -35,6 +35,23 @@ class FloorNavigation:
         self.items={(pos[0]+x,pos[1]+y) for x,y in m.get('items',[]) if valid((pos[0]+x,pos[1]+y))}
         self.enemies={(pos[0]+x,pos[1]+y) for x,y in m.get('enemies',[]) if valid((pos[0]+x,pos[1]+y))}
         self.known.update(self.stairs|self.items)
+        # Accumulation preserves history, including old recognition errors. Two
+        # independent current-map frames can dispute an unvisited cached cell,
+        # without deleting history or declaring a physical wall.
+        fresh={(pos[0]+x,pos[1]+y) for x,y in m.get('known_cells',[])}|{pos}|self.items|self.enemies|set((pos[0]+x,pos[1]+y) for x,y in m.get('stairs',[]))
+        frame=state.get('frame_sha256')
+        if m.get('known_cells') and frame and frame!=self.last_map_frame:
+            previously_disputed=self.disputed()
+            for cell in self.known:
+                if cell in fresh:
+                    self.positive_floor[cell]+=1
+                    if self.missing_floor[cell]<2 or self.positive_floor[cell]>=2:self.missing_floor.pop(cell,None)
+                else:self.missing_floor[cell]+=1;self.positive_floor.pop(cell,None)
+            reopened=previously_disputed-self.disputed()
+            for (origin,key) in list(self.failures):
+                relevant=[self._add(origin,ROUTE_MOVES[key])]+[self._add(origin,MOVES[k]) for k in key.split('+')]
+                if any(c in reopened for c in relevant):self.failures.pop((origin,key),None)
+            self.fresh_floor=fresh;self.last_map_frame=frame
         for cell in self.known:
             signature=tuple(self._add(cell,d) in self.known for d in MOVES.values())
             old=self.neighbors.get(cell)
@@ -55,10 +72,11 @@ class FloorNavigation:
             if self.dims and not (0<=p[0]<self.dims[0] and 0<=p[1]<self.dims[1]):continue
             if p not in self.known and self.failures[cell,key]==0:out.append(key)
         return out
+    def disputed(self):return {c for c,n in self.missing_floor.items() if n>=2 and not self.visited[c]}
     def primary(self):
-        leaves={c for c in self.known if self.degree(c)<=1 and (not self.visited[c] or self.unknown_keys(c)) and c not in self.stairs and c not in self.items}
+        leaves={c for c in self.known-self.disputed() if self.degree(c)<=1 and (not self.visited[c] or self.unknown_keys(c)) and c not in self.stairs and c not in self.items}
         if leaves:return leaves
-        return {c for c in self.known if self.degree(c)==2 and not self.visited[c] and self.unknown_keys(c)}
+        return {c for c in self.known-self.disputed() if self.degree(c)==2 and not self.visited[c] and self.unknown_keys(c)}
     def retired(self):
         # Prune a visited dead branch for exploration only. Its floor cells stay
         # in the graph and may be used for another objective or necessary return.
@@ -89,25 +107,26 @@ class FloorNavigation:
         if b==self._add(a,delta):
             if [b[0]-a[0],b[1]-a[1]] in [list(p) for p in before['minimap'].get('items',[])]:self.item_attempts[b]+=1
             self.last_direction=key;self.failures.pop((a,key),None)
-        elif a==b and not any(max(abs(x),abs(y))<=1 for x,y in before['minimap'].get('enemies',[])):
-            self.failures[a,key]+=1;self.failure_tick[a,key]=self.tick
+        elif (a==b or '+' in key) and not any(max(abs(x),abs(y))<=1 for x,y in before['minimap'].get('enemies',[])):
+            self.failures[a,key]+=1
     def inventory_updated(self,token):
         if token and self.inventory_token and token!=self.inventory_token:self.item_attempts.clear()
         if token:self.inventory_token=token
     def _path(self,targets):
         if not targets:return None
-        start=self.position;queue=deque([(start,[])]);seen={start}
+        disputed=self.disputed();start=self.position;queue=deque([(start,[])]);seen={start}
         while queue:
             node,path=queue.popleft()
             if node in targets:return node,path
             for key,d in ROUTE_MOVES.items():
                 if '+' in key:
                     sides=[self._add(node,MOVES[k]) for k in key.split('+')]
-                    if any(p not in self.known or p in self.enemies for p in sides):continue
+                    if any(p not in self.known or p in self.enemies or p in disputed for p in sides) or any(self.failures[node,k]>=2 for k in key.split('+')):continue
                 nxt=self._add(node,d)
-                if nxt not in self.known or nxt in seen or nxt in self.enemies:continue
-                # Two failures suppress a route edge temporarily, never prove a wall.
-                if self.failures[node,key]>=2 and self.tick-self.failure_tick.get((node,key),self.tick)<16:continue
+                if nxt not in self.known or nxt in seen or nxt in self.enemies or nxt in disputed:continue
+                # No timer-based retry: repeated failures need new topology or a
+                # successful traversal, not observation calls, to be reconsidered.
+                if self.failures[node,key]>=2:continue
                 seen.add(nxt);queue.append((nxt,path+[key]))
         return None
     def hint(self,state,preference='current_goal',mission='auto',plan_id=None):
@@ -118,7 +137,7 @@ class FloorNavigation:
         selected_mission=self.mission
         if selected_mission=='auto':
             selected_mission='collect_visible_items' if preference=='items' else 'reach_stairs' if preference=='stairs' and self.stairs else 'find_stairs'
-        primary=self.primary();secondary={c for c in self.known if self.unknown_keys(c)}
+        primary=self.primary();secondary={c for c in self.known-self.disputed() if self.unknown_keys(c)}
         target_kind='frontier';targets=primary
         if selected_mission in ('reach_stairs','return_with_objective') and self.stairs:targets=self.stairs;target_kind='stairs'
         elif selected_mission in ('collect_visible_items','search_objective') and {p for p in self.items if not self.item_attempts[p] and p!=self.position}:targets={p for p in self.items if not self.item_attempts[p] and p!=self.position};target_kind='items'
@@ -132,6 +151,14 @@ class FloorNavigation:
             if options and self._path(options) is not None:
                 targets=options;target_kind=kind;break
         path=self._path(targets);self.last_hint=None
+        deferred_unreachable=False
+        if path is None and target_kind in ('frontier','boundary_recheck'):
+            alternatives=[('stairs',self.stairs)] if selected_mission!='search_objective' else []
+            alternatives.append(('boundary_recheck',secondary))
+            for kind,options in alternatives:
+                alternate=self._path(options)
+                if alternate is not None:
+                    targets=options;target_kind=kind;path=alternate;deferred_unreachable=True;break
         phase='handle_visible_enemy' if target_kind=='enemy' else 'return_to_stairs' if target_kind=='stairs' and selected_mission=='return_with_objective' else 'reach_stairs' if target_kind=='stairs' else 'collect_visible_items' if target_kind=='items' else 'explore_frontier'
         reason='見えている敵に対処するため既知床上の隣接位置へ向かう' if target_kind=='enemy' else '見えている品の位置へ向かい取得結果を確認する' if target_kind=='items' else '現在の観測から未確認の探索先へ進む'
         if not targets:
@@ -157,6 +184,7 @@ class FloorNavigation:
                 self.last_hint={'key':steps[0],'keys':steps[0].split('+'),'diagonal':len(steps[0].split('+'))==2,'mode':'backtrack_to_frontier' if backtrack and target_kind!='stairs' else 'observed_grid_route',
                     'target_cell':list(target),'distance':len(steps),'target_kind':target_kind,'route_cells':route[:1728]}
                 if backtrack:reason='踏破済みの床を必要な帰路として使い、別の探索先または現在の目的へ向かう'
+        if deferred_unreachable:reason='到達できない先端を保留し、到達可能な別の目的へ進む。'+reason
         self.goal={'priority_order':['visible_enemies','visible_items','unexplored','status_inventory_review'],'item_recheck_needed':bool(self.items and (self.position in self.items or any(self.item_attempts[p] for p in self.items))), 'mission':selected_mission,'phase':phase,'reason':reason,'target_cell':self.last_hint.get('target_cell') if self.last_hint else None,
           'needs_review':phase in ('route_unavailable','review_exhausted_floor','verify_stair_action','verify_objective'),
           'stairs_seen_type_unknown':bool(self.stairs),'instruction':'これは階内の局所目標。階段の上下・箱の所持・帰還成功を推定で確定しない。'}
@@ -165,7 +193,9 @@ class FloorNavigation:
     def context(self):
         if self.position is None:return {'status':'unavailable','goal':copy.deepcopy(self.goal)}
         primary=self.primary();retired=self.retired();interior={c for c in self.known if self.degree(c)==4}
-        return {'status':'observed_floor','floor':list(self.floor),'position':list(self.position),'goal':copy.deepcopy(self.goal),
+        return {'status':'observed_floor','disputed_cached_cells':[list(p) for p in self.disputed()],
+          'ineffective_actions_here':[k.split('+') for k in ROUTE_MOVES if self.failures[self.position,k]>=2],
+          'suppressed_edge_count':sum(v>=2 for v in self.failures.values()),'floor':list(self.floor),'position':list(self.position),'goal':copy.deepcopy(self.goal),
           'known_count':len(self.known),'visited_count':len(self.visited),'primary_frontier_count':len(primary),'exhausted_branch_count':len(retired),
           'visited_cells':[list(p) for p in self.visited],'exploration_unnecessary_cells':[list(p) for p in interior|retired],
           'exhausted_branch_cells':[list(p) for p in retired],'frontier_cells':[list(p) for p in primary],
