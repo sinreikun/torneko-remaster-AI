@@ -1,19 +1,13 @@
 """Fetch public research pages; retrieved content is untrusted reference data."""
 import concurrent.futures, hashlib, html, json, re, urllib.request, urllib.parse
 from pathlib import Path
-URLS = [
- 'https://www.dragonquest.jp/torneko_re/',
- 'https://www.jp.square-enix.com/topics/detail/4172/',
- 'https://store.steampowered.com/app/4027450/?l=japanese',
- 'https://store.steampowered.com/app/4483340/?l=japanese',
- 'https://torneko1.kouryaku.red/',
- 'https://dq1torneko.kouryaku.red/',
-]
+URLS = ['https://www.google.com/search?q=トルネコ+ちょっとステキなリマスター+攻略', 'https://www.bing.com/search?q=トルネコ+ちょっとステキなリマスター+攻略', 'https://www.dragonquest.jp/torneko_re/', 'https://store.steampowered.com/app/4027450/?l=japanese', 'https://steamcommunity.com/app/4027450/guides/?l=japanese', 'https://torneko1.kouryaku.red/', 'https://dq1torneko.kouryaku.red/', 'https://game8.jp/torneko', 'https://kamikouryaku.com/torneko_re/', 'https://ja.wikipedia.org/wiki/トルネコの大冒険_不思議のダンジョン']
 
 def fetch(pair):
  i,url=pair
  record={'url':url}
  try:
+  url=urllib.parse.quote(url,safe=":/?=&+%")
   request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (public game reference research)'})
   with urllib.request.urlopen(request,timeout=45) as response:
    data=response.read(2000000);record.update(status=response.status,final_url=response.url,sha256=hashlib.sha256(data).hexdigest())
