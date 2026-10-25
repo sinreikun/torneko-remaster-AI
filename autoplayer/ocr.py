@@ -13,7 +13,7 @@ class WindowsOCR:
     def __init__(self): self.last_hash=None; self.last=None
     def read(self,png):
         digest=hashlib.sha256(png).hexdigest()
-        if digest==self.last_hash and self.last.get('status')=='ok': return copy.deepcopy(self.last)
+        if digest==self.last_hash and self.last.get('status')=='ok' and not getattr(self,'force_fresh',False): return copy.deepcopy(self.last)
         record={'frame_sha256':digest,'captured_at':time.time(),'status':'unavailable','engine':'windows.media.ocr','lines':[],'confidence':None}
         if not png.startswith(b'\x89PNG\r\n\x1a\n'): record['reason']='OCR requires a PNG capture'
         elif os.name!='nt': record['reason']='Windows OCR is available on Windows only'

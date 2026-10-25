@@ -161,9 +161,9 @@ def export_diagnostics(data,destination,detailed=False):
                             portals=[json.loads(r[0]) for r in target.execute('SELECT data FROM exterior_portals_v1 ORDER BY updated DESC LIMIT 32')]
                             archive.writestr('exterior_maps/transitions.json',json.dumps(portals,ensure_ascii=False))
                             entry['exterior_maps']={'maps':len(maps),'entrance_images':len(entrances),'portals':len(portals),'source':'bounded_local_atlas'}
-                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','combat_observations','human_examples','human_reuse','human_example_scores','forecast_stats','world_events','item_use_stats'):
+                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','combat_observations','combat_message_reads','battle_appearance_links','human_examples','human_reuse','human_example_scores','forecast_stats','world_events','item_use_stats'):
                             if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
-                                cursor=target.execute('SELECT * FROM '+table+(' ORDER BY id DESC' if table=='world_events' else '')+' LIMIT 40')
+                                cursor=target.execute('SELECT * FROM '+table+(' ORDER BY id DESC' if table in ('world_events','combat_message_reads') else ' ORDER BY created DESC' if table=='battle_appearance_links' else '')+' LIMIT 40')
                                 labels=[column[0] for column in cursor.description]
                                 entry[table]=[dict(zip(labels,row)) for row in cursor]
                     report['databases'][name]=entry

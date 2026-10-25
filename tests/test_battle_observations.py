@@ -76,3 +76,50 @@ class CurrentBoundaryTests(unittest.TestCase):
         self.assertEqual(prompt['current_evidence']['metrics']['hp']['values'],[43,43])
         self.assertNotIn('10/15',json.dumps(prompt,ensure_ascii=False))
         self.assertEqual(client.take_state()['current_evidence']['frame_sha256'],hashlib.sha256(png).hexdigest())
+
+class ForcedCombatOCRTests(unittest.TestCase):
+    setUp=combat_tests.CombatTests.setUp
+
+    def test_forced_result_ocr_bypasses_fast_cache_and_restores_flags(self):
+        from types import SimpleNamespace
+        from pathlib import Path
+        from autoplayer.core import Controller,Settings
+        seen=[];png=b'combat-result'
+        ocr=SimpleNamespace(force_fresh=False,fast_mode=True)
+        def read(image):
+            seen.append((image,ocr.force_fresh,ocr.fast_mode))
+            return native(['トルネコの攻撃はスライムに当たらなかった'],image)
+        ocr.read=read
+        agent=Controller.__new__(Controller);agent.llm=SimpleNamespace(ocr=ocr);agent.policy=None;agent.cfg=Settings(fast_learning=True);agent.journal=Path('test-session.jsonl')
+        row=receipt_row('num1',step=12)
+        result=agent.read_action_result_ocr(png,row,{'eligible':True})
+        self.assertEqual(seen,[(png,True,False)]);self.assertFalse(ocr.force_fresh);self.assertTrue(ocr.fast_mode)
+        self.assertTrue(row['combat_message_ocr']['frame_linked']);self.assertEqual(row['combat_message_ocr']['step'],12)
+        row.update(policy_learning={'status':'trained','reward':-.04},policy_state=self.s)
+        events=self.combat.observe_messages(row,{},[(result,hashlib.sha256(png).hexdigest())])
+        self.assertEqual(events[0]['kind'],'miss');self.assertEqual(events[0]['step'],12)
+        saved=json.loads(self.memory.db.execute('SELECT data FROM combat_message_reads').fetchone()[0])
+        self.assertEqual(saved['ocr']['lines'],result['lines']);self.assertEqual(saved['policy_learning']['reward'],-.04)
+    def test_unparsed_and_failed_reads_are_preserved_without_hit_learning(self):
+        for reading in (native(['戦闘文のOCRが崩れて読めない']),{'status':'unavailable','reason':'reader failed','lines':[]}):
+            row=receipt_row('num1',combat_message_ocr={'step':3,'ocr':reading,'source_frame_sha256':'frame','frame_linked':False})
+            self.assertEqual(self.combat.observe_messages(row,{},[(reading,'frame')]),[])
+        self.assertEqual(self.memory.db.execute('SELECT COUNT(*) FROM combat_message_reads').fetchone()[0],2)
+        self.assertEqual(self.memory.db.execute('SELECT COUNT(*) FROM combat_observations').fetchone()[0],0)
+    def test_message_ocr_covers_contacts_and_item_actions_but_not_empty_movement(self):
+        from autoplayer.combat import requires_message_ocr
+        from autoplayer.core import Settings
+        cfg=Settings();row=receipt_row('w')
+        self.assertTrue(requires_message_ocr(row,{'minimap':{'enemies':[[1,0]]}},cfg))
+        self.assertFalse(requires_message_ocr(row,{'eligible':True},cfg))
+        self.assertTrue(requires_message_ocr(receipt_row('num1',ocr=native(['飲む','投げる','置く','説明'])),{'menu_evidence':True},cfg))
+        self.assertFalse(requires_message_ocr(receipt_row('num1',dry_run=True),self.s,cfg))
+
+    def test_windows_reader_also_honors_force_fresh_without_invoking_os(self):
+        from autoplayer.ocr import WindowsOCR
+        ocr=WindowsOCR();png=b'non-png-cache-contract';ocr.last_hash=hashlib.sha256(png).hexdigest()
+        ocr.last={'status':'ok','lines':[{'text':'cached'}]}
+        self.assertEqual(ocr.read(png)['status'],'ok')
+        ocr.force_fresh=True
+        result=ocr.read(png)
+        self.assertEqual(result['status'],'unavailable');self.assertEqual(result['reason'],'OCR requires a PNG capture')

@@ -179,6 +179,8 @@ class WorldModel:
         self.db=memory.db if memory else None;self.profile=memory.profile if memory else 'session';self.session=session
         from .appearance import AppearanceBank
         self.appearances=AppearanceBank(self.db,self.profile)
+        from .battle_appearance import BattleAppearanceMemory
+        self.battle_appearances=BattleAppearanceMemory(self.db,self.profile)
         self.memory=memory;self.last_known_metrics=copy.deepcopy(getattr(memory,'last_known_status',{}))
         self.scope=hashlib.sha256((self.profile+session).encode()).hexdigest()[:8]+'_'
         cfg=getattr(memory,'settings',getattr(memory,'cfg',None))
@@ -321,8 +323,9 @@ class WorldModel:
         if later:self.save('delayed_item_effect',later);self.delayed=(self.delayed+later)[-8:]
         adjacent=[o for o in self.latest.get('objects',[]) if o.get('legend')=='enemy_indicator' and max(abs(v) for v in o.get('offset',[99,99]))==1]
         combat_links=[{'object_candidate':adjacent[0]['id'] if len(adjacent)==1 else None,'message':event,'status':'message_association_unverified','orientation':'unknown'} for event in row.get('battle_observations',[])]
+        visual_links=self.battle_appearances.record(self.latest,row,before,after,self.appearances)
         if combat_links:self.save('object_combat_association',combat_links)
-        result={'combat_links':combat_links,'item_effect':effect,'delayed_effects':later,'screen_tile_pitch':self.visual.pitch}
+        result={'visual_battle_links':visual_links,'combat_links':combat_links,'item_effect':effect,'delayed_effects':later,'screen_tile_pitch':self.visual.pitch}
         self.save('turn',{'observation':self.latest,'result_metrics':metrics(after),'keys':row.get('observed_keys',[]),'effects':result})
         return result
     def record_item_value(self,effect):
@@ -354,6 +357,7 @@ class WorldModel:
     def context(self):
         l=self.latest
         return {k:l[k] for k in ('metrics','metric_changes','visual','exploration','inventory','identity_rule') if k in l}|{
+            'visual_battle_experience':self.battle_appearances.context(l.get('objects',[])),
             'floor_exploration':self.floor_navigation.context(),
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],

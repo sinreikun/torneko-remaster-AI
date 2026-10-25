@@ -25,6 +25,21 @@ def relative_contacts(state):
         'instruction':'隣接する敵を会話相手と仮定しない。Num1は決定・攻撃でありHP回復キーではない。向き変更も攻撃も入力結果を確認し、被ダメージと敵位置の変化を別々に評価する。'}
 
 
+def requires_message_ocr(row,state,cfg):
+    if row.get('dry_run') or not row.get('executed') or row.get('turn_kind')=='aborted':return False
+    if row.get('combat_experiment') or (row.get('operation') or {}).get('skill')=='combat':return True
+    state=state or {}
+    if state.get('minimap',{}).get('enemies'):return True
+    from .interfaces import torneko_menu_kind
+    if torneko_menu_kind(row.get('ocr') or {})=='item_actions':return True
+    if not state.get('eligible') or state.get('menu_evidence'):return False
+    import re
+    from .controls import REFERENCE
+    bindings=cfg.key_bindings or REFERENCE['keys']
+    attacks={k for k,v in bindings.items() if re.search(r'攻撃|矢|attack|arrow',v,re.I)}
+    return bool(attacks.intersection(row.get('observed_keys',[])))
+
+
 class CombatExperiments:
     def __init__(self,memory,cfg):
         self.db=memory.db;self.profile=memory.profile;self.cfg=cfg;self.pending=None;self.recent_losses={}
@@ -32,11 +47,18 @@ class CombatExperiments:
             trials INTEGER,reward REAL,PRIMARY KEY(profile,context,action))''');self.db.commit()
         self.db.execute('''CREATE TABLE IF NOT EXISTS combat_observations(id INTEGER PRIMARY KEY,
             profile TEXT,created REAL,kind TEXT,enemy TEXT,damage INTEGER,data TEXT)''');self.db.commit()
+        self.db.execute('CREATE TABLE IF NOT EXISTS combat_message_reads(id INTEGER PRIMARY KEY,profile TEXT,created REAL,data TEXT)');self.db.commit()
         self.last_messages=set()
 
     def observe_messages(self,row,before_native,samples,extra_events=()):
         from .battle_messages import read_messages
         if row.get('dry_run') or not row.get('executed') or row.get('turn_kind')=='aborted' or (row.get('input_receipt') or {}).get('os_submission')!='accepted':return []
+        audit=row.get('combat_message_ocr')
+        if audit:
+            audit['policy_learning']={k:v for k,v in (row.get('policy_learning') or {}).items() if k in ('status','reward','net_signals','reason')}
+            audit['status_evidence']={side:{k:v for k,v in (row.get(side) or {}).get('metrics',{}).items() if k in ('hp','level','strength','sword','shield')} for side in ('policy_state','policy_after')}
+            with self.db:self.db.execute('INSERT INTO combat_message_reads(profile,created,data) VALUES(?,?,?)',
+                (self.profile,time.time(),json.dumps(audit,ensure_ascii=False)))
         previous={e['quote'] for e in read_messages(before_native,(row.get('ocr') or {}).get('frame_sha256'))}|self.last_messages
         observed={}
         for native,digest in samples:
@@ -50,7 +72,9 @@ class CombatExperiments:
         self.last_messages=set(observed)
         events=[]
         for quote,event in observed.items():
-            event={**event,'new_message':quote not in previous,'observed_keys':row.get('observed_keys',[]),
+            event={**event,'new_message':quote not in previous,'observed_keys':row.get('observed_keys',[]),'step':row.get('step'),
+                'session':(audit or {}).get('session'),'action_result_frame_sha256':(audit or {}).get('source_frame_sha256'),
+                'status_evidence':{k:v for k,v in (row.get('policy_state') or {}).get('metrics',{}).items() if k in ('hp','level','strength','sword','shield')},
                 'equipment':{'strength':None,'sword':None,'shield':None},
                 'note':'画面メッセージの読取り。装備条件・敵の残HP・因果は未確認。同文の継続表示は追加試行に数えない。'}
             events.append(event)

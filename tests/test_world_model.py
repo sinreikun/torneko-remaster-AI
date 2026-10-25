@@ -127,3 +127,20 @@ class ItemTests(unittest.TestCase):
             result=w.feedback(s,s,{**row,'observed_keys':['w']},native(),native(),{},image,image)
             lags.extend(e['lag_turns'] for e in result['delayed_effects'])
         self.assertEqual(lags,[1,2,3,4]);self.assertFalse(w.pending_effects)
+
+    def test_feedback_links_pre_action_appearance_and_retrieves_battle_experience(self):
+        import hashlib
+        w=WorldModel();w.visual.pitch=.08
+        s=state();s['minimap']['enemies']=[[1,0]];image=png((40,70,90))
+        observation=w.observe(image,native(),s)
+        enemy=next(o for o in observation['objects'] if o['legend']=='enemy_indicator')
+        self.assertIn('appearance_memory',enemy)
+        row={'step':3,'executed':True,'observed_keys':['num1'],'input_receipt':{'os_submission':'accepted'},
+            'input_source_frame_sha256':hashlib.sha256(image).hexdigest(),
+            'battle_observations':[{'new_message':True,'kind':'damage_dealt','enemy':'スライム','damage':4,
+              'quote':'トルネコはスライムに4ポイントのダメージを与えた','source_frame_sha256':'result'}]}
+        result=w.feedback(s,s,row,native(),native(),{},image,image)
+        self.assertEqual(result['visual_battle_links'][0]['candidates'][0]['object_id'],enemy['id'])
+        memory=w.context()['visual_battle_experience']['current_candidates'][0]
+        self.assertEqual(memory['name_candidates'],{'スライム':1});self.assertFalse(memory['identity_verified'])
+        self.assertIsNone(w.objects[enemy['id']]['name'])

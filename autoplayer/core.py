@@ -852,20 +852,36 @@ class Controller:
             'note':'表示中と検出したため確認済み手順を1回実行。ゲーム側の設定値は未読取。'})
         return after
 
-    def read_policy_ocr(self,image):
+    def read_policy_ocr(self,image,full=False):
         ocr=getattr(self.llm,'ocr',None)
         if ocr is None:return None
         gate=getattr(self.policy,'floor_confirmation',None)
         # A cached OCR response is not an independent confirmation of a new floor.
         pending=bool(gate and gate.pending is not None)
         if pending and hasattr(ocr,'cache'):ocr.cache.clear()
-        previous_force=getattr(ocr,'force_fresh',False);ocr.force_fresh=pending
-        ocr.fast_mode=self.cfg.fast_learning
+        previous_force=getattr(ocr,'force_fresh',False);previous_fast=getattr(ocr,'fast_mode',False);ocr.force_fresh=pending or full
+        ocr.fast_mode=self.cfg.fast_learning and not full
         started=time.monotonic()
         try:return ocr.read(image)
         finally:
-            ocr.force_fresh=previous_force
+            ocr.force_fresh=previous_force;ocr.fast_mode=previous_fast
             self.ocr_observation_ms=getattr(self,'ocr_observation_ms',0)+(time.monotonic()-started)*1000
+
+    def read_action_result_ocr(self,image,row,state):
+        """Read the normal action result before any held-map display replaces it."""
+        from .combat import requires_message_ocr
+        full=requires_message_ocr(row,state,self.cfg)
+        native=self.read_policy_ocr(image,full=full)
+        if full:
+            import copy,hashlib
+            digest=hashlib.sha256(image).hexdigest()
+            row['combat_message_ocr']={'session':self.journal.stem,'step':row.get('step'),
+                'observed_keys':list(row.get('observed_keys',[])),'source_frame_sha256':digest,
+                'read_policy':'fresh_full_normal_frame_before_map_sampling',
+                'ocr':copy.deepcopy(native or {'status':'unavailable','reason':'OCR reader unavailable','lines':[]}),
+                'frame_linked':bool(native and native.get('frame_sha256')==digest),
+                'attribution':'observed_after_input_not_proof_of_causality'}
+        return native
 
     def map_sample(self,image,state,phase,baseline=False):
         # A currently read floor permits the user-confirmed display request. Never
@@ -1040,7 +1056,7 @@ class Controller:
                     operational_native=self._operational_ocr(native,normal_observation_image,world_observation)
                     ledger.observe(operational_native,policy_state,exterior_context,{'last_known_metrics':self.world.last_known_metrics},guidance,revision,step)
                     ledger.current['tentative_navigation']={k:mapless_context[k] for k in ('scope','pose','pose_uncertain','movement_basis','local_goal') if k in mapless_context}
-                    extra=lambda:{'human_examples':self.demonstrations.retrieve(normal_observation_image,native)[:1] if self.demonstrations else [],'last_observed_inventory':{'status':'past_observation_not_current_confirmation','observed_at':self.world.inventory.last_seen,'rows':self.world.inventory.rows[:20]},'world_knowledge':{k:v for k,v in self.world.context().items() if k in ('inventory','item_effects','delayed_item_effects','item_value_estimates')},'learned_predictions':self.predictions.context(policy_state) if self.predictions else {},
+                    extra=lambda:{'human_examples':self.demonstrations.retrieve(normal_observation_image,native)[:1] if self.demonstrations else [],'last_observed_inventory':{'status':'past_observation_not_current_confirmation','observed_at':self.world.inventory.last_seen,'rows':self.world.inventory.rows[:20]},'world_knowledge':{k:v for k,v in self.world.context().items() if k in ('inventory','item_effects','delayed_item_effects','item_value_estimates','visual_battle_experience')},'learned_predictions':self.predictions.context(policy_state) if self.predictions else {},
                         'battle_experience':self.combat.experience() if self.combat else {},'action_effects':[{
                             'keys':[k],**{name:value for name,value in effects.estimate(policy_state,[k]).items() if name in ('role','samples','mean_observed_value','move_rate','no_effect_rate')}} for k in self.cfg.allowed_keys if k not in ('num3','num5','num7')],
                         'experience_review':{'retained':experience_review.context()['retained_observations'],'recent':experience_review.context()['recent_observations'][-3:]},
@@ -1360,6 +1376,7 @@ class Controller:
                     row['visual_response']={'status':'not_observed','reason':'frame_changed_during_inference'}
                 information_context=information.context(decision,native,policy_state)
                 if not dry_run and decision.keys:
+                    row['input_source_frame_sha256']=hashlib.sha256(normal_observation_image).hexdigest()
                     row['input_receipt']=self.backend.act(decision.keys,decision.hold_ms,self.control or self.stop)
                     receipt=row['input_receipt']
                     row['executed']=any(event.get('message')=='WM_KEYDOWN' for event in receipt.get('events',[])) if isinstance(receipt,dict) else True
@@ -1404,7 +1421,7 @@ class Controller:
                 with self.memory.learning_batch() if self.cfg.fast_learning and self.memory else nullcontext():
                     if self.policy and policy_state:
                         after_image=observation.image if hasattr(self.backend,'observe_turn') else after
-                        after_native=self.read_policy_ocr(after_image)
+                        after_native=self.read_action_result_ocr(after_image,row,policy_state)
                         after_state=self.policy.observe(after_image,after_native)
                         pair_requested=bool(not dry_run and row['executed'] and row.get('turn_kind')!='aborted' and policy_state.get('observation_mode')=='num7_held' and policy_state.get('minimap',{}).get('status')=='observed')
                         if pair_requested and hasattr(self,'map_plan'):self.map_plan.invalid=True
@@ -1438,7 +1455,7 @@ class Controller:
                         row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,natural_signals,normal_observation_image,after_image)
                     else:
                         after_image=observation.image if hasattr(self.backend,'observe_turn') else after
-                        after_native=self.read_policy_ocr(after_image)
+                        after_native=self.read_action_result_ocr(after_image,row,policy_state)
                         after_state={'metrics':KnowledgeEngine().reconcile(after_native or {'status':'unavailable'})['metrics'],'minimap':{'status':'unavailable'},'eligible':False}
                         row['world_learning']=self.world.feedback(policy_state,after_state,row,native,after_native,{},normal_observation_image,after_image)
                         self.executive.cancel('no_map_policy')
