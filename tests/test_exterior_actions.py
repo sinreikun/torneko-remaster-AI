@@ -24,11 +24,35 @@ class ExteriorTests(unittest.TestCase):
         cfg,nav,p=self.make();p.observe({}, {},'gameplay')
         for keys in (['num0','w'],['num5'],['num1','num0'],['w','d'],['num5','w'],['num5','a'],['num5','s'],['num5','d']):
             d,_=p.enforce(self.decision(keys));self.assertIn(d.keys,p.context['actions'])
-    def test_dungeon_and_ocr_dropout_remain_unrestricted(self):
+    def test_current_display_absence_reclassifies_previous_dungeon(self):
         cfg,nav,p=self.make();p.observe({}, {},'gameplay')
         self.assertFalse(p.observe({'metrics':{'floor':{'values':[1]}}},{},'gameplay')['active'])
-        self.assertFalse(p.observe({}, {},'gameplay')['active'])
-        d,_=p.enforce(self.decision(['num0']));self.assertEqual(d.keys,['num0'])
+        self.assertTrue(p.observe({}, {},'gameplay')['active'])
+        d,_=p.enforce(self.decision(['num0']));self.assertNotIn('num0',d.keys)
+    def test_current_map_alone_means_dungeon(self):
+        cfg,nav,p=self.make();c=p.observe({'minimap':{'status':'observed'}},{},'unknown')
+        self.assertEqual(c['location'],'dungeon');self.assertTrue(c['scene_evidence']['map_present'])
+    def test_old_retained_floor_map_do_not_count_as_current_displays(self):
+        cfg,nav,p=self.make();c=p.observe({'metrics':{'floor':{'values':[1],'retained':True}},'minimap':{'status':'observed','retained':True}}, {},'gameplay')
+        self.assertEqual(c['location'],'outside');self.assertFalse(c['scene_evidence']['floor_present']);self.assertFalse(c['scene_evidence']['map_present'])
+    def test_floor_display_presence_does_not_require_floor_change_confirmation(self):
+        cfg,nav,p=self.make();c=p.observe({'floor_confirmation':{'status':'pending','observed':1,'confirmed':None}}, {},'gameplay')
+        self.assertEqual(c['location'],'dungeon')
+        c=p.observe({'floor_confirmation':{'status':'unreadable','observed':None,'confirmed':1}}, {},'gameplay')
+        self.assertEqual(c['location'],'outside')
+    def test_region_and_actionable_white_frame_are_separate(self):
+        cfg,nav,p=self.make();c=p.observe({'white_frame_evidence':{'visible':False}}, {},'gameplay')
+        self.assertTrue(c['scene_evidence']['outside_actionable'])
+        c=p.observe({'white_frame_evidence':{'visible':True}}, {},'gameplay')
+        self.assertEqual(c['location'],'outside');self.assertFalse(c['scene_evidence']['outside_actionable'])
+    def test_region_switch_does_not_reuse_external_route_in_dungeon(self):
+        cfg,nav,p=self.make()
+        outside={'metrics':{},'white_frame_evidence':{'visible':False}}
+        c=p.observe(outside,{},'gameplay');nav.prepare({**outside,'exterior_action_policy':c},{},{},0)
+        nav.nodes[(0,-1)]={'visits':1,'surface':'floor'};old_scope=nav.scope
+        dungeon={'metrics':{'floor':{'values':[1]}}}
+        c=p.observe(dungeon,{},'gameplay');nav.prepare({**dungeon,'exterior_action_policy':c},{},{},0)
+        self.assertNotEqual(nav.scope,old_scope);self.assertFalse(nav.active);self.assertIsNone(nav.propose(False))
     def test_title_loading_and_results_are_not_exterior_exploration(self):
         cfg,nav,p=self.make()
         for scene in ('title','loading','defeat','victory'):

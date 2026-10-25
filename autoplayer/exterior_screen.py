@@ -51,6 +51,7 @@ def white_frames(png):
         for bottom,l,r in horizontal[index+1:]:
             if bottom-top<12 or abs(l-left)>3 or abs(r-right)>3:continue
             if bottom-top>height*.88:break
+            if (right-left)*(bottom-top)<width*height*.01:continue
             def edge(x):
                 return sum(any(mask[y*width+u] for u in range(max(0,x-2),min(width,x+3))) for y in range(top,bottom+1))/(bottom-top+1)
             if min(edge(left),edge(right))<.75:continue

@@ -557,7 +557,7 @@ class LocalLLM:
         exterior=ExteriorActions(cfg,MaplessNavigation(cfg))
         previous_exterior=self.context.get('exterior_action_policy',{})
         exterior.location=previous_exterior.get('location','unclassified')
-        action_scope=exterior.observe({'white_frame_evidence':self.context.get('white_frame_evidence',{})},native,scene_observation.get('scene_type','unknown'))
+        action_scope=exterior.observe({'white_frame_evidence':self.context.get('white_frame_evidence',{}),'display_evidence':previous_exterior.get('scene_evidence',{}),'metrics':(knowledge_context or {}).get('metrics',{})},native,scene_observation.get('scene_type','unknown'))
         if action_scope.get('active'):
             prompt['exterior_action_policy']=action_scope
             prompt['information_exploration']={'actions':[{'keys':a} for a in action_scope['actions']],'rule':action_scope['rule']}

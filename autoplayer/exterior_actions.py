@@ -10,19 +10,23 @@ class ExteriorActions:
     def observe(self,state,native,scene='unknown'):
         state=state or {};native=native or {}
         if not is_torneko(self.cfg.window_title):self.context={'active':False};return self.context
-        # A missing minimap alone never establishes an exterior: a current
-        # scene hypothesis or independently read town menu is required. Retain dungeon evidence across
-        # OCR dropouts until an explicit title/result/episode boundary.
-        if result_screen(native) or scene in ('title','defeat','victory'):
+        # Current displays decide the region. A previous dungeon label or a
+        # retained floor value is not evidence of a display on this frame.
+        floor=state.get('metrics',{}).get('floor',{})
+        confirmation=state.get('floor_confirmation',{})
+        supplied=state.get('display_evidence',{})
+        floor_present=bool((floor.get('values') and not floor.get('retained')) or
+            (confirmation.get('observed') is not None and not confirmation.get('rejected_low_confidence')) or supplied.get('floor_present'))
+        minimap=state.get('minimap',{})
+        map_present=bool((minimap.get('status')=='observed' and not minimap.get('retained')) or supplied.get('map_present'))
+        evidence={'floor_present':floor_present,'map_present':map_present,
+            'white_frame_visible':state.get('white_frame_evidence',{}).get('visible'),'basis':'current_display_presence'}
+        if floor_present or map_present:self.location='dungeon'
+        elif result_screen(native) or scene in ('title','loading','defeat','victory'):
             self.location='unclassified';self.attempts.clear()
-        elif state.get('minimap',{}).get('status')=='observed' or state.get('metrics',{}).get('floor',{}).get('values'):
-            self.location='dungeon'
-        elif self.location!='dungeon' and (scene=='gameplay' or torneko_menu_kind(native)=='main_menu' or
-                scene in ('unknown','menu') and (native.get('frame_sha256') or state.get('frame_sha256'))):
-            # Unknown image classifications are exploration hypotheses, not
-            # permission to research menus. Explicit title/result/loading
-            # classifications and independently read interfaces take priority.
+        elif scene=='gameplay' or torneko_menu_kind(native)=='main_menu' or native.get('frame_sha256') or state.get('frame_sha256') or native.get('lines'):
             self.location='outside'
+        else:self.location='unclassified'
         active=self.location=='outside' and scene not in ('title','loading','defeat','victory')
         actions=[];mode='exit_exploration'
         text='\n'.join(l.get('text','') for l in native.get('lines',[]))
@@ -42,8 +46,8 @@ class ExteriorActions:
                 movement=[k for k in self.navigation.keys.values() if k]
                 actions=[[k] for k in movement]
                 if confirm:actions.append([confirm])
-        self.context={'active':active,'location':self.location,'mode':mode,'actions':actions,
-            'rule':'ダンジョン外の固定地形では出口への移動が唯一の局所目標。探索候補は移動・通過を確認する決定入力だけ。その場での方向転換（Num5＋方向キー）を試さない。メニュー・射撃・ダッシュ・足踏み・地図表示を試さない。既に開いたメニューと保護確認は取消で閉じる。全体目標は維持する。'}
+        self.context={'active':active,'location':self.location,'mode':mode,'actions':actions,'scene_evidence':{**evidence,'outside_actionable':active and mode=='exit_exploration' and clear_screen},
+            'rule':'ダンジョン外の固定地形では出口への移動が唯一の局所目標。探索候補は移動・通過を確認する決定入力だけ。その場での方向転換（Num5＋方向キー）を試さない。メニュー・射撃・ダッシュ・足踏み・地図表示を試さない。既に開いたメニューと保護確認は取消で閉じる。外部の固定地形には複数種類があり、出口の個数や形状は断定しない。全体目標は維持する。'}
         return self.context
     def enforce(self,decision,blocked=()):
         context=self.context

@@ -51,7 +51,7 @@ class MaplessNavigation:
         self.confirm=next((k for k,v in bindings.items() if ('決定' in v or 'confirm' in v.lower()) and k in cfg.allowed_keys),None)
         self.face='num5' if is_torneko(cfg.window_title) and 'num5' in cfg.allowed_keys else None
     def reset(self,reason):
-        self.scope=uuid.uuid4().hex[:12];self.pose=(0,0);self.nodes={(0,0):{'visits':1}};self.edges={};self.trials={};self.obstacles=set();self.samples=[];self.pending=None;self.interacted=set();self.uncertain=False;self.mode='校正中';self.active=False;self.reason=reason;self.last={};self.landmarks={};self.assumed_mode=False;self.assumption_history=False;self.real_map_available=False;self.frame_evidence={};self.last_movement={};self.last_interaction={}
+        self.scope=uuid.uuid4().hex[:12];self.pose=(0,0);self.nodes={(0,0):{'visits':1}};self.edges={};self.trials={};self.obstacles=set();self.samples=[];self.pending=None;self.interacted=set();self.uncertain=False;self.mode='校正中';self.active=False;self.reason=reason;self.last={};self.landmarks={};self.assumed_mode=False;self.assumption_history=False;self.real_map_available=False;self.frame_evidence={};self.last_movement={};self.last_interaction={};self.region_label=None
     @staticmethod
     def signature(png):
         try:
@@ -72,6 +72,10 @@ class MaplessNavigation:
         if self.revision is not None and revision!=self.revision:self.reset('manual_control_or_pause')
         self.revision=revision
         if (state or {}).get('floor_confirmation',{}).get('changed') or world.get('new_adventure'):self.reset('confirmed_region_change')
+        region=(state or {}).get('exterior_action_policy',{}).get('location')
+        if self.region_label in ('outside','dungeon') and region in ('outside','dungeon') and region!=self.region_label:
+            self.reset('current_displays_region_changed')
+        self.region_label=region
         text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]))
         # Any independent text outside the HUD can be dialogue. Suspend routing,
         # not the game; the existing interface/LLM policy remains responsible.
@@ -87,6 +91,7 @@ class MaplessNavigation:
             self.reason='user_assumption_ready' if self.active else 'white_frame_or_image_unavailable'
         if is_torneko(self.cfg.window_title) and self.frame_evidence.get('visible'):
             self.active=False;self.reason='white_frame_geometry_suspended'
+        if region=='dungeon':self.active=False
         if not self.active:self.pending=None
         return self.snapshot()
     def propose(self,allow_facing=True):

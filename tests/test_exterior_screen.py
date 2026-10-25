@@ -23,6 +23,9 @@ class ScreenMeasurementTests(unittest.TestCase):
         image=block_image();d=ImageDraw.Draw(image);d.rectangle((80,80,300,230),fill='white');d.text((20,20),'HP 10/15',fill='white')
         self.assertFalse(white_frames(png(image))['visible'])
         self.assertFalse(white_frames(png(Image.new('RGB',(640,360),'white')))['visible'])
+    def test_tiny_rectangle_like_logged_false_frame_is_not_interface(self):
+        image=block_image();ImageDraw.Draw(image).rectangle((283,120,330,138),fill='black',outline='white',width=2)
+        self.assertFalse(white_frames(png(image))['visible'])
     def test_white_frame_on_either_side_excludes_geometry_update(self):
         clear=png(block_image());image=block_image();ImageDraw.Draw(image).rectangle((40,60,400,200),fill='black',outline='white',width=3);framed=png(image)
         for before,after in ((clear,framed),(framed,clear)):
