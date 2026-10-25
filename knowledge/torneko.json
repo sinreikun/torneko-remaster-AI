@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-19",
+  "updated": "2026-10-25",
   "sources": [
     {
       "id": "sfc-wiki",
@@ -43,6 +43,13 @@
       "title": "ユーザー提供 source.zip の対象・入力プロファイル",
       "url": "reference/README.md",
       "accessed": "2026-10-19",
+      "kind": "user_supplied"
+    },
+    {
+      "id": "user-controls-20261025",
+      "title": "利用者提示の現在キー配置",
+      "url": "knowledge/SOURCES.md#利用者提供の操作と観測",
+      "accessed": "2026-10-25",
       "kind": "user_supplied"
     }
   ],
@@ -468,7 +475,7 @@
     },
     {
       "id": "input-profile",
-      "summary": "提供ソースの対象はTornekosMysteryDungeon-Win64-Shipping。入力はWASD・テンキー1〜7/0だが意味は未定義。画面の操作案内と操作結果から意味を学ぶ。",
+      "summary": "提供ソースの対象はTornekosMysteryDungeon-Win64-Shipping。現在の操作の意味は利用者提示のキー配置に従う。古い初期キーや他版のボタンを使わず、実行時に渡される現在の割当と画面・結果を照合する。",
       "terms": [
         "操作",
         "キー",
@@ -478,7 +485,8 @@
         "remaster"
       ],
       "sources": [
-        "uploaded-profile"
+        "uploaded-profile",
+        "user-controls-20261025"
       ],
       "priority": 80,
       "authority": "source_report_not_game_verified"

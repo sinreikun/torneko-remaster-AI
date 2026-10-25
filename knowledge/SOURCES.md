@@ -1,3 +1,25 @@
+# 2026-10-25 追加収集と具体的な操作ガイド
+
+新規の状況別知識は `torneko-tactics.json`、人間向け一覧は [TORNEKO-PLAYBOOK.md](TORNEKO-PLAYBOOK.md)。原文・画像・攻略表の転載ではなく、条件・効果・照合手順の独自要約。30項目を現在画面に応じて最大4項目だけ注入する。
+
+|資料|確認できた内容|扱い|
+|---|---|---|
+|[リマスターSteam公式説明](https://store.steampowered.com/app/4027450/?l=japanese)|ターン制、ランダム地形、敗北と再挑戦、店の成長、ゲームバランス調整|リマスターの一般仕様。詳細なアイテム数値や敵挙動は確認していない|
+|[初代Wikipedia](https://ja.wikipedia.org/wiki/トルネコの大冒険_不思議のダンジョン)|ターン・空腹・道具の効果と用法・一部敵特性|二次資料。項目中に出典不足の注意もあり、リマスターには照合候補として用いる|
+|[リマスター公式サイト](https://www.dragonquest.jp/torneko_re/)|取得時はメンテナンス告知のみ|今回の攻略情報としては不採用|
+|[Steamガイド一覧](https://steamcommunity.com/app/4027450/guides/?l=japanese)|取得できた一覧は翻訳・改造関連が中心|ゲーム攻略の効果根拠には不採用|
+|[ファミ通のリマスター紹介](https://www.famitsu.com/article/202609/87296)|製品紹介|詳細攻略の根拠には不採用|
+
+取得記録は [evidence/research-40187795438](https://github.com/sinreikun/torneko-remaster-AI/tree/evidence/research-40187795438/research-evidence) と [evidence/research-40187885012](https://github.com/sinreikun/torneko-remaster-AI/tree/evidence/research-40187885012/research-evidence)。取得日・本文バイトのSHA-256・URLはJSONのsourcesへ保存。検索の無関係な結果、bot確認、空ページ、HTTPエラー、TLS検証に失敗した候補は採用していない。TLS検証は無効化していない。リマスターの詳細攻略サイトを網羅したとは扱わない。
+
+## 利用者提供の操作と観測
+
+現在のWASD・テンキー配置、マップ凡例、ダンジョン外の目的、ドアの決定操作、死亡後の通常選択肢の扱いは本会話の利用者提供情報。ネット資料の標準コントローラボタンをそのまま使わず、実行時の `key_bindings` と許可キーへ対応付ける。ボタンの意味と、ゲーム内のターン消費・有効押下時間・各画面での結果は別の確認事項。
+
+攻略上の使うタイミング・位置取り・無駄な反復を避ける手順は、取得できた機構と利用者情報から組み立てた編集上の提案。`editorial_application` として、原文に実証済みの攻略手順だと偽装しない。敵種別・アイテム別の詳細も `sfc_reference` とし、名称の一致は所持・対象個体・効果の証明ではない。
+
+## 既存カタログの取得履歴
+
 # 攻略知識の出典と照合方法
 
 2026-10-19に公開ページを取得して確認した内容を、独自に要約して `torneko.json` に登録した。本文・画像・攻略表そのものは配布しない。URL、取得日、取得ページのSHA-256、対象版、資料の種類を保持する。

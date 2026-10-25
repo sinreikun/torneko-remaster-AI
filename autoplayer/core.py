@@ -294,6 +294,8 @@ def ocr_heading_scene(lines):
 class LocalLLM:
     def __init__(self, cfg: Settings):
         self.cfg=cfg.validate();self.context={};self.ocr=ScreenOCR(cfg.ocr_engine);self.knowledge_engine=KnowledgeEngine();self.observation_state={};self.request_metrics=[]
+        from .game_guide import GameGuide
+        self.game_guide=GameGuide(self.cfg)
     def take_state(self): return self.observation_state
     def set_context(self,context): self.context=context
     def _request(self,png,system,prompt,schema=None):
@@ -525,6 +527,8 @@ class LocalLLM:
             'visual_action_evidence':self.context.get('visual_action_evidence',{}),
             'action_principles':action_principles(is_torneko(cfg.window_title)),
             'planning_checks':'理由には全体目標を繰り返さず、今回のキーを選ぶ現在画面の根拠を短く記す。現在の根拠、対象の位置、選ぶキーを照合する。過去の仮説や作戦指示を観察した事実として引用しない。'}
+        guide=self.game_guide.context(native,scene_observation.get('scene_type','unknown'),self.context,(knowledge_context or {}).get('metrics',{}))
+        if guide.get('status')=='curated_reference':prompt['game_guide']=guide
         if selection:
             prompt['method_selection']=selection
             prompt['temporal_evidence']=[{k:r.get(k) for k in ('observed_keys','executed','neutral_before','raw_change','transition_attribution')} for r in history[-2:]]
@@ -622,6 +626,7 @@ class LocalLLM:
                 goal_success='現在の画像に基づく具体的な観察と行動候補を取得する。')
         if (applicable or cfg.profile_id) and not decision.goal_success.strip(): raise ValueError('Set a specific visible success condition for your autonomous subgoal.')
         self.observation_state=self.knowledge_engine.accept(decision,knowledge_context) if knowledge_context else {'autonomous_goal':{'objective':decision.subgoal,'success_condition':decision.goal_success,'reason':decision.reason,'status':'model_proposal_unverified'}}
+        if guide.get('status')=='curated_reference':self.observation_state['game_guide']={'catalog_sha256':guide['catalog_sha256'],'selected_ids':guide['selected_ids']}
         self.observation_state['inference_metrics']=list(self.request_metrics)
         self.observation_state['scene_observation']=scene_observation
         if selection:self.observation_state['method_selection']=selection
