@@ -1,0 +1,4 @@
+{
+  "url": "https://torneko.kouryaku.red/",
+  "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'torneko.kouryaku.red'. (_ssl.c:1000)>"
+}

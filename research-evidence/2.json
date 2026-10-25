@@ -1,0 +1,10 @@
+{
+  "url": "https://www.google.com/search?gbv=1&q=%22トルネコ%22+%22リマスター%22+%22攻略%22",
+  "status": 200,
+  "final_url": "https://www.google.com/search?gbv=1&q=%22%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%22+%22%E3%83%AA%E3%83%9E%E3%82%B9%E3%82%BF%E3%83%BC%22+%22%E6%94%BB%E7%95%A5%22",
+  "sha256": "867f723db3fec4b85d71e4ad64fd8dc4bdf842f9645e19e3a73f8cfb70d6213e",
+  "text": " Google Search Please click here if you are not redirected within a few seconds. If you're having trouble accessing Google Search, please click here , or send feedback . ",
+  "links": [
+    "https://support.google.com/websearch"
+  ]
+}
