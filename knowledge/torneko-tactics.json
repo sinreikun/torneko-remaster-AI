@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-25",
+  "updated": "2026-10-26",
   "sources": [
     {
       "id": "steam-remaster-20261025",
@@ -29,6 +29,14 @@
       "edition": "user_environment",
       "kind": "user_supplied",
       "accessed": "2026-10-25"
+    },
+    {
+      "id": "user-mechanics-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-利用者提供の基礎知識",
+      "title": "利用者提供：道具運用・戦闘・能力補正・命中と所持品操作",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
     }
   ],
   "rules": [
@@ -817,6 +825,126 @@
     "menu": "メニューを開き状態・道具を確認する。開閉自体とダンジョン探索の進行は別。現在項目を読み、必要な品へカーソルを動かして決定する。",
     "arrow": "矢を撃つ。現在の方向・射線・残弾が必要。反応がない理由を空撃ち・壁・向き・処理待ち等に分ける。",
     "step": "移動せずターンを進める足踏み。敵や空腹がある場面では損失になり得る。無入力観測とは異なる。",
-    "item": "メニュー→道具項目→品→使用法の順に現在表示を確認する。各画面で1回ずつ方向/決定し、飲む・投げる・読む・置く等を選び分ける。固定のカーソル位置やキー列を盲目的に再生しない。"
-  }
+    "item": "メニュー→道具項目→品→使用法の順に現在表示を確認する。各画面で1回ずつ方向/決定し、飲む・投げる・読む・置く等を選び分ける。固定のカーソル位置やキー列を盲目的に再生しない。",
+    "item_details": "持ち物画面では選択中の品の説明枠を切り替える。通常場面の同じキーのマップ表示とは区別し、現在画面での1回の入力結果を確認する。"
+  },
+  "foundations": [
+    {
+      "id": "item-value-policy",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "goal"
+      ],
+      "roles": [
+        "move",
+        "item"
+      ],
+      "precondition": "道具の回収・使用・装備・保持・交換を検討するとき。",
+      "expected_effect": "可能な限り拾い、経験に基づいて使用/装備する。目的達成に必要な品は保持する。所持上限は20個で満杯では拾えない。拾えない場合は現在所持品と床の品の利用価値を比較し、有用な方へ交換する候補を立てる。",
+      "verify_or_revise": "目標品、回復、食料、残弾、将来の用途、装備効果と不確実性を比較する。説明や所持を未確認のまま品名/効果を断定しない。交換時は現在の品・個数・カーソルを確認し、必要品を捨てない。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "enemy-threat-policy",
+      "when": [
+        "combat",
+        "ranged",
+        "explore"
+      ],
+      "roles": [
+        "face",
+        "attack",
+        "move",
+        "item"
+      ],
+      "precondition": "敵の現在位置・自分の能力・戦闘経験から処理優先度を決めるとき。",
+      "expected_effect": "敵の放置は後で不利になり得る。脅威度、現在HP/能力、与被ダメージ、必要攻撃回数から十分な余裕をもって倒せる敵は優先して処理する。",
+      "verify_or_revise": "「確実」は命中100%や無傷を意味しない。外れによる反撃、複数敵、未知の特性も含めて余裕を見積もる。現在の敵表示と過去の敵種の推測を混同せず、無条件に追い回さない。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "status-combat-model",
+      "when": [
+        "combat",
+        "ranged",
+        "inventory",
+        "status"
+      ],
+      "roles": [],
+      "precondition": "攻撃/防御の予測と装備比較をするとき。",
+      "expected_effect": "レベル上昇に応じ、画面に出ない基礎攻撃力が上昇する。攻撃力には装備中の剣の強さと「ちから」、防御力には盾の強さの補正が入る。",
+      "verify_or_revise": "剣の強さだけを総攻撃力にしない。未知の内部値や計算式を作らない。現在レベル・ちから・装備値・敵の識別確度と与被ダメージを対応付け、経験から予測を更新する。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "full-hp-herbs",
+      "when": [
+        "inventory",
+        "item",
+        "status"
+      ],
+      "roles": [
+        "item"
+      ],
+      "precondition": "本来名と所持を確認した薬草/弟切草の使用を検討するとき。",
+      "expected_effect": "現在HPが最大HPと等しい状態で薬草を使用すると最大HPが1、弟切草なら2上がる。緊急回復用に保持する価値と最大HP強化の価値を比較する。",
+      "verify_or_revise": "仮名の草を薬草/弟切草と決めない。使用直前の現在HP/最大HPを確認し、使用後の最大HPを照合する。満HP時のこの効果を負傷時の使用へ流用しない。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "attack-methods-and-accuracy",
+      "when": [
+        "combat",
+        "ranged",
+        "inventory",
+        "item"
+      ],
+      "roles": [
+        "face",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "通常攻撃・矢・投擲・杖を比較するとき。",
+      "expected_effect": "通常攻撃は敵の方向を向き、攻撃ボタンで隣接マスを攻撃する。装備中の矢は矢ボタンで所持矢を消費し現在の方向へ射撃する。矢の装備は1ターン消費するが、道具で矢を選び「うつ」なら装備ターンを経由せず射撃できる。通常攻撃・矢・「なげる」は各攻撃で1/8の確率で外れる。「ふる」による杖の遠隔攻撃は必ず命中する。",
+      "verify_or_revise": "7/8は事前の命中確率で「8回ごとの固定周期」ではない。向き・射線・所持・残数・使用回数・対象と効果を確認する。杖の命中保証は壁越しの到達や全対象への効果保証ではない。新しい命中/外れ/撃破の文章で実測を別に記録する。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "inventory-description-equipment",
+      "when": [
+        "inventory",
+        "item",
+        "status"
+      ],
+      "roles": [
+        "item",
+        "item_details"
+      ],
+      "precondition": "現在の持ち物・説明・装備状態を調べるとき。",
+      "expected_effect": "持ち物画面のNum7は選択中の品の説明枠の表示切替。ゲーム内説明テキストから効果と使い方を学ぶ。剣・盾・指輪・矢は各1つ装備可能で、装備中の品は名前の先頭に印が付く。装備コマンドは1ターン消費する。状況に応じ有利な装備へ切り替える。",
+      "verify_or_revise": "実入力は現在キー割当を使う。通常場面のNum7長押しマップ表示とは別の作用。説明は現在カーソルの品と関連付け、仮名と本来名、所持と装備を分ける。印の見た目を勝手に決めず、装備前後の表示/能力とターン消費を確認する。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    }
+  ]
 }

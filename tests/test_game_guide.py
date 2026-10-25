@@ -53,3 +53,26 @@ class GameGuideTests(unittest.TestCase):
         client.decide(png,[],False)
         guide=client._request.call_args.args[2]['game_guide'];self.assertIn('recovery',guide['selected_ids'])
         self.assertEqual(client.take_state()['game_guide']['catalog_sha256'],guide['catalog_sha256'])
+    def test_user_combat_basics_reach_model_with_source_and_uncertainty(self):
+        g=GameGuide(Settings());c=g.context({},'gameplay',{'relative_contacts':{'contacts':[{'adjacent':True}]}},{'floor':{'values':[1]},'hp':{'values':[15,15]}})
+        f={r['id']:r for r in c['foundations']}
+        self.assertIn('enemy-threat-policy',f);self.assertIn('status-combat-model',f)
+        attack=f['attack-methods-and-accuracy']
+        self.assertIn('1/8',attack['expected_effect']);self.assertIn('必ず命中',attack['expected_effect']);self.assertIn('固定周期',attack['verify_or_revise'])
+        self.assertIn('うつ',attack['expected_effect']);self.assertIn('装備ターン',attack['expected_effect'])
+        self.assertEqual(attack['applicability'],'user_environment')
+        self.assertTrue(any(s['id']=='user-mechanics-20261026' and s['kind']=='user_supplied' for s in c['sources']))
+    def test_user_inventory_knowledge_includes_full_hp_and_equipment_rules(self):
+        c=GameGuide(Settings()).context({'status':'ok','lines':[{'text':t} for t in ('道具','薬草','弟切草','装備','うつ')]},'inventory',{}, {})
+        f={r['id']:r for r in c['foundations']}
+        self.assertIn('20個',f['item-value-policy']['expected_effect']);self.assertIn('交換',f['item-value-policy']['expected_effect'])
+        self.assertIn('薬草を使用すると最大HPが1、弟切草なら2',f['full-hp-herbs']['expected_effect'])
+        self.assertIn('各1つ',f['inventory-description-equipment']['expected_effect'])
+        self.assertEqual(c['current_keys']['item_details'],['num7'])
+        self.assertIn('通常場面',f['inventory-description-equipment']['verify_or_revise'])
+    def test_description_role_uses_current_binding_and_is_not_outside_exploration(self):
+        cfg=Settings(allowed_keys=['a','d'],key_bindings={'a':'品の詳細表示','d':'決定／攻撃'})
+        g=GameGuide(cfg);n={'status':'ok','lines':[{'text':'道具 装備'}]}
+        self.assertEqual(g.context(n,'inventory',{}, {})['current_keys']['item_details'],['a'])
+        outside=g.context({},'gameplay',{'exterior_action_policy':{'mode':'exit_exploration'}},{})
+        self.assertEqual(outside['foundations'],[])
