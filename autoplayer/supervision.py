@@ -112,7 +112,10 @@ class Supervisor:
                 self.errors+=1;self.last_error=result['error'];self.last_reason='review_error';self.next_review=step+min(32,4*2**min(3,self.errors-1))
             else:
                 self.review_ms=result.get('elapsed_ms')
-                try:plan=validate_plan(result['plan'])
+                try:
+                    plan=validate_plan(result['plan'])
+                    if plan['skill']=='interface' and current.get('map_current') and not current.get('interface'):
+                        raise ValueError('現在は地図を観測した通常画面で、会話/選択肢/メニューの根拠がないため画面操作計画を採用しない。')
                 except (ValueError,KeyError,TypeError) as error:
                     self.errors+=1;self.last_error=str(error);self.last_reason='invalid_review';self.next_review=step+8
                 else:
@@ -129,7 +132,7 @@ class Supervisor:
             if compatible:self.plan['scope']=scope
         if not self.plan or self.plan['scope']!=scope or step>=self.plan['expires_step']:
             self.plan=self.bootstrap(current)
-            if self.last_reason!='review_error' and step-self.last_request>=2:self.next_review=min(step,self.next_review)
+            if self.last_reason not in ('review_error','invalid_review') and step-self.last_request>=2:self.next_review=min(step,self.next_review)
         # State mismatch is handled locally immediately. Reviews are bounded,
         # with one active request and no backlog of old screenshots.
         signature=(scope,self.plan['id'])
@@ -140,7 +143,7 @@ class Supervisor:
         known_fast_ui=current.get('interface') in ('choice','defeat_result','high_scores','main_menu','inventory','item_actions','carry_inventory')
         ui_review_due=not known_fast_ui or step-self.last_request>=8
         if not self.inflight and step>=self.next_review and ui_review_due:
-            snapshot=ledger.snapshot();snapshot.update(copy.deepcopy((extra() if callable(extra) else extra) or {}));snapshot['active_plan']=copy.deepcopy(self.plan);snapshot['plan_performance']=copy.deepcopy(list(self.plan_stats.values())[-8:])
+            snapshot=ledger.snapshot();snapshot.update(copy.deepcopy((extra() if callable(extra) else extra) or {}));snapshot['review_feedback']={'last_error':self.last_error,'reason':self.last_reason};snapshot['active_plan']=copy.deepcopy(self.plan);snapshot['plan_performance']=copy.deepcopy(list(self.plan_stats.values())[-8:])
             request={'scope':scope,'step':step,'text_key':current['text_key'],'selection_key':current.get('selection_key'),'frame_sha256':current.get('frame_sha256'),'cancel':threading.Event()}
             self.inflight=request;self.requests+=1;self.last_request=step
             def work():

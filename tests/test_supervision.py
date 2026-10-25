@@ -48,6 +48,14 @@ class SupervisorTests(unittest.TestCase):
         for step in range(1,6):l.current['step']=step;self.assertIsNotNone(sup.tick(l))
         self.assertEqual(len(calls),1);release.set();reply_ready(sup);sup.tick(l)
         self.assertEqual(sup.plan['origin'],'llm_supervisor');self.assertEqual(sup.adoptions,1)
+    def test_interface_plan_is_rejected_without_current_ui_evidence(self):
+        def review(*args):
+            value=proposal();value.update(skill='interface');return value
+        sup=Supervisor(review,threading.Event());self.addCleanup(sup.close)
+        l=ledger();sup.tick(l);reply_ready(sup);plan=sup.tick(l)
+        self.assertEqual(sup.adoptions,0);self.assertEqual(plan['origin'],'local_bootstrap')
+        self.assertIn('根拠がない',sup.last_error)
+
     def test_late_floor_or_guidance_reply_is_discarded(self):
         release=threading.Event()
         def review(*args):release.wait(2);return proposal()
@@ -164,6 +172,27 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         s['floor_exploration']={'ineffective_actions_here':[['w'],['s'],['a'],['d']]}
         d,_,_,_,op=self.select(s=s,policy=policy)
         self.assertEqual(op['selected_source'],'bounded_probe');self.assertEqual(d.keys,['num1'])
+
+    def test_supplied_interface_plan_does_not_replace_visible_item_route(self):
+        from autoplayer.world_model import WorldModel
+        fixture=json.loads((Path(__file__).parent/'fixtures/unfounded-interface-1792963799451305500.json').read_text())
+        s=fixture['state'];s['map_route_hint']=WorldModel().navigation_hint(s)
+        self.assertEqual(s['map_route_hint']['target_kind'],'items')
+        d,_,_,_,op=self.select(s=s,n=fixture['native'],plan=fixture['plan'])
+        self.assertEqual(op['selected_source'],'floor_navigation');self.assertNotEqual(d.keys,['num1'])
+    def test_actual_dialogue_still_uses_confirm_even_with_explore_plan(self):
+        s=state();s['eligible']=False;s['white_frame_evidence']={'visible':True}
+        d,_,_,_,op=self.select(s=s,n=native('ここは不思議のダンジョンです。'))
+        self.assertEqual(op['selected_source'],'interface');self.assertEqual(d.keys,['num1'])
+
+    def test_unknown_screen_role_hint_is_once_without_unobserved_dialogue_fallback(self):
+        s=state();s.update(eligible=False,frame_sha256='frame');s['minimap']={'status':'unavailable'}
+        n=native('不明な案内');n['frame_sha256']='frame';l=ledger(s)
+        l.observe(n,s,{'location':'unclassified'},{},{},0,0)
+        p=copy.deepcopy(self.plan);p.update(skill='interface',interface_role='confirm',interface_quote='不明な案内',request_text_key=l.current['text_key'],request_frame='frame')
+        first=self.actor.interface(self.base(),n,s,p,l,[])
+        self.assertEqual(first.keys,['num1']);self.assertTrue(p['hint_consumed'])
+        self.assertIsNone(self.actor.interface(self.base(),n,s,p,l,[]))
 
     def test_explicit_floor_return_route_is_not_replaced_by_probe(self):
         s=state();s['minimap']['player_cell']=[43,4]

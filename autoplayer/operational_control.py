@@ -50,7 +50,8 @@ class OperationalControl:
             hint_current=hint_current and plan.get('request_selection')==ledger.current['selection_key']
         else:hint_current=hint_current and plan.get('request_frame')==ledger.current.get('frame_sha256')
         if not text:hint_current=plan.get('request_frame')==ledger.current.get('frame_sha256') and role!='none'
-        if kind or ledger.current.get('interface') or plan['skill']=='interface':
+        current_interface=bool(kind or ledger.current.get('interface'))
+        if current_interface or hint_current and role!='none' and not state.get('eligible'):
             if hint_current and not plan.get('hint_consumed'):
                 patterns={'up':r'^上|^up$','left':r'^左|^left$','down':r'^下|^down$','right':r'^右|^right$'}
                 key=self._key(role) if role in ('confirm','cancel') else next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and re.search(patterns.get(role,r'(?!)'),v,re.I)),None)
@@ -64,7 +65,7 @@ class OperationalControl:
                 target=self._recovery_item(native,state,kind,ledger.current)
                 if target:return self._decision(base,[target],'recovery_item','現在読めた品名・カーソル・使用法から回復/食料の操作を1段階だけ進める。')
             if kind and cancel:return self._decision(base,[cancel],'close_known_menu','必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')
-            if confirm and not kind:return self._decision(base,[confirm],'dialogue_advance','現在の文章枠を決定入力で1回進め、次の表示を確認する。')
+            if confirm and not kind and current_interface:return self._decision(base,[confirm],'dialogue_advance','現在の文章枠を決定入力で1回進め、次の表示を確認する。')
         return None
     def _cursor_toward(self,native,target):
         lines=(native or {}).get('lines',[]);selected=[];targets=[]
