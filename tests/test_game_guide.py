@@ -42,6 +42,17 @@ class GameGuideTests(unittest.TestCase):
         for phrase in ('上下（現在キーW/S）','左右（現在キーA/D）','ページ'):
             self.assertIn(phrase,flow['expected_effect'])
 
+    def test_rest_hunger_food_and_strength_rules_keep_conditions_distinct(self):
+        ctx=GameGuide(Settings()).context({},'gameplay',{}, {'floor':{'values':[1]},'hp':{'values':[4,15]},'fullness':{'values':[10]}})
+        rules={r['id']:r for r in ctx['foundations']}
+        rest=rules['rest-turn-hunger-budget'];food=rules['bread-and-strength-recovery']
+        for term in ('10ターン','20ターン','皮の盾','通路','敵も行動'):
+            self.assertIn(term,rest['expected_effect'])
+        self.assertIn('装備状態が不明',rest['verify_or_revise'])
+        for term in ('50ポイント','100ポイント','ちからが1ポイント','毒けし草'):
+            self.assertIn(term,food['expected_effect'])
+        self.assertIn('現在のちから',food['expected_effect']);self.assertIn('未提示',food['verify_or_revise'])
+
     def test_low_hp_and_food_references_remain_cross_edition(self):
         ctx=GameGuide(Settings()).context({},'gameplay',{}, {'hp':{'values':[3,15]},'fullness':{'values':[0]},'floor':{'values':[1]}})
         selected={r['id']:r for r in ctx['rules']}

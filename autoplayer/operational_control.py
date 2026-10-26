@@ -106,7 +106,7 @@ class OperationalControl:
         hp=state.get('metrics',{}).get('hp',{}).get('values');food=state.get('metrics',{}).get('fullness',{}).get('values')
         lines=[compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (native or {}).get('lines',[])]
         if kind=='inventory':
-            names=('パン','大きいパン') if food and food[0]<=15 else ('薬草','弟切草') if hp and hp[0]/max(1,hp[1])<.4 else ()
+            names=('パン','大きいパン','大きなパン') if food and food[0]<=15 else ('薬草','弟切草') if hp and hp[0]/max(1,hp[1])<.4 else ()
             for name in names:
                 # Exact visible name only, including its displayed quantity.
                 label=next((compact_text(r['quote']).lstrip('▶►▷>→') for r in (native or {}).get('_current_inventory_rows',[]) if r.get('display_name')==name),None) or next((x for x in lines if re.fullmatch(re.escape(name)+r'(?:[×x]\d+|\(\d+\))?',x)),None)
@@ -118,7 +118,7 @@ class OperationalControl:
         else:
             item=self.item_context
             if not item or item['phase']!='actions' or current['step']-item['step']>3 or item['control']!=current['control_revision'] or item['guidance']!=current['operator_guidance'].get('revision',0) or item['floor'] and current['floor'] and item['floor']!=current['floor']:return None
-            action='食べる' if item['name'] in ('パン','大きいパン') else '飲む'
+            action='食べる' if item['name'] in ('パン','大きいパン','大きなパン') else '飲む'
             target=self._cursor_toward(native,action)
             if target:
                 if target=='selected':item['phase']='using'
@@ -134,7 +134,7 @@ class OperationalControl:
         scope=json.dumps([floor,m['player_cell'],current['control_revision'],current['operator_guidance'].get('revision',0)])
         trial=json.dumps([scope,hp])
         if scope in self.healing_unsafe or self.healing_trials.get(trial,0)>=8:return None
-        d=self._decision(base,[key],'natural_recovery','現在の観測に敵がなく満腹度に余裕がある。回復品を温存し足踏みを1回入力、HP・敵の接近・満腹度を読み直す。',{'player_delta':[0,0]})
+        d=self._decision(base,[key],'natural_recovery','現在の観測に敵がなく満腹度に余裕がある。満腹度を消費して回復品を温存する足踏みを1回入力。敵の手番も進むため、HP・敵の接近・満腹度を読み直す。',{'player_delta':[0,0]})
         return d,{'scope':scope,'trial':trial,'hp_before':list(hp),'accepted_without_gain_limit':8}
 
     def select(self,base,state,native,ledger,plan,policy,predictions,combat,mapless,exterior,blocked,stable,guidance):

@@ -223,6 +223,14 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         value['lines'][1]['words']=[{'box':[300,100,40,20]}]
         self.assertIsNone(self.actor._recovery_item(value,low,'inventory',current))
 
+    def test_large_bread_name_uses_eat_action_not_drink(self):
+        hungry=state();hungry['metrics']['fullness']={'values':[10]};current=ledger(hungry).current
+        n=native('道具','詳細表示切替','整理','1/20','▶大きなパン')
+        self.assertEqual(self.actor._recovery_item(n,hungry,'inventory',current),'num1')
+        self.actor.item_context['phase']='actions'
+        self.assertEqual(self.actor._recovery_item(native('▶食べる','投げる','置く'),hungry,'item_actions',current),'num1')
+        self.assertEqual(self.actor.item_context['phase'],'using')
+
     def test_checked_inventory_does_not_reopen_from_main_menu(self):
         p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
         self.select(n=native('道具','詳細表示切替','整理','3/20','▶薬草'),plan=p)
