@@ -87,17 +87,22 @@ class Inventory:
         found=[]
         try:
             with Image.open(io.BytesIO(png)) as source:im=source.convert('RGB')
+            from .interfaces import torneko_menu_kind, MAIN_MENU_LABELS, compact_text
+            main_menu=torneko_menu_kind(native)=='main_menu'
+            pixels=im.load()
             for line in (native or {}).get('lines',[]):
+                if main_menu and compact_text(line.get('text','')).lstrip('▶►▷>→') not in MAIN_MENU_LABELS:continue
                 boxes=[w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
                 if not boxes:continue
                 x=min(b[0] for b in boxes);y=min(b[1] for b in boxes);h=max(b[1]+b[3] for b in boxes)-y
                 if h<8:continue
                 left=max(0,round(x-h*2));right=min(im.width,round(x));top=max(0,round(y));bottom=min(im.height,round(y+h))
-                pts={(xx,yy) for yy in range(top,bottom) for xx in range(left,right) if min(im.getpixel((xx,yy)))>180 and max(im.getpixel((xx,yy)))-min(im.getpixel((xx,yy)))<50}
+                pts={(xx,yy) for yy in range(top,bottom) for xx in range(left,right) if min(pixels[xx,yy])>180 and max(pixels[xx,yy])-min(pixels[xx,yy])<50}
                 for region in components(pts):
                     xs=[p[0] for p in region];ys=[p[1] for p in region];rw=max(xs)-min(xs)+1;rh=max(ys)-min(ys)+1
                     if rh<h*.55 or not .35<=rw/rh<=1.5 or not .3<=len(region)/(rw*rh)<=.75:continue
-                    rows=[sum(yy==cy for xx,yy in region) for cy in range(min(ys),max(ys)+1)]
+                    rows=[0]*rh
+                    for xx,yy in region:rows[yy-min(ys)]+=1
                     center=max(1,len(rows)//3)
                     if sum(rows[center:-center])/max(1,len(rows)-2*center)>max(sum(rows[:center]),sum(rows[-center:]))/center*1.35:
                         found.append(line.get('text',''));break

@@ -183,7 +183,7 @@ class OperationalControl:
             prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
             wants_inventory=(plan['skill']=='inspect_inventory' or plan['skill']=='recover' and bool(hp and hp[0]<hp[1] or food and food[0]<=15)) or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
-            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=24 and (urgent or revision is None or revision!=self.inspected_revision):
+            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(4 if urgent else 24) and (urgent or revision is None or revision!=self.inspected_revision):
                 offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat,'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
             hint=state.get('map_route_hint')
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
@@ -271,7 +271,7 @@ class OperationalControl:
         self.trials[current['scope'],tuple(d.keys)]=self.trials.get((current['scope'],tuple(d.keys)),0)+1
         while len(self.trials)>256:self.trials.pop(next(iter(self.trials)))
         if source=='inventory_inspection' and chosen['skill']=='recover':
-            self.recovery_request={'until':current['step']+8,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':current['floor']}
+            self.recovery_request={'until':current['step']+20,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':current['floor']}
         if source=='inventory_inspection':
             self.inspections[inspection_scope]=current['step'];self.last_inspection_step=current['step'];self.inspected_revision=state.get('retained_state',{}).get('revision');self.inspection_until=current['step']+8
         while len(self.inspections)>64:self.inspections.pop(next(iter(self.inspections)))

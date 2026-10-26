@@ -173,6 +173,14 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         d,*_=self.select(s=menu,n=data['menu']);self.assertEqual(d.keys,['num2'])
         self.assertIn('回復は未完了',d.reason)
 
+    def test_starvation_retries_inventory_before_normal_24_turn_cooldown(self):
+        hungry=state();hungry['metrics']['fullness']={'values':[0]}
+        self.actor.last_inspection_step=0
+        l=ledger(hungry,step=5)
+        d,_,_,_,op=self.actor.select(self.base(),hungry,native('1階 HP15/15'),l,self.plan,None,None,None,self.mapless,self.exterior,[],True,{})
+        self.assertEqual(d.keys,['num0']);self.assertEqual(op['skill'],'recover')
+        self.assertGreaterEqual(self.actor.recovery_request['until'],25)
+
     def test_recovery_continues_to_current_selected_inventory_entry(self):
         low=state();low['metrics']['hp']['values']=[4,15]
         self.select(s=low)

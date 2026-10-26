@@ -1,5 +1,6 @@
 """Image measurements for the user's explicit exterior movement assumption."""
 import io
+import re
 from functools import lru_cache
 from PIL import Image, ImageChops, ImageFilter
 
@@ -24,8 +25,10 @@ def white_frames(png):
         # Preserve 1-2px outlines before reducing the capture. RGB averaging
         # alone can erase white borders whose pixels fall between samples.
         kernel=min(9,max(3,2*int(source.width/width)//2+1))
-        white=white.filter(ImageFilter.MaxFilter(kernel))
-    mask=[v>=64 for v in flat_pixels(white.resize((width,height),Image.Resampling.BOX))]
+        # A square maximum is separable across repeated radius-one maxima.
+        # This preserves exactly the same pixels while avoiding a large kernel.
+        for _ in range((kernel-1)//2):white=white.filter(ImageFilter.MaxFilter(3))
+    mask=white.resize((width,height),Image.Resampling.BOX).point(lambda v:255 if v>=64 else 0).tobytes()
     horizontal=[];minimum=max(36,int(width*.065))
     def add_line(y,left,right):
         # Broad bright surfaces (beds, blank captures) are not frame edges.
@@ -38,15 +41,12 @@ def white_frames(png):
                     return
 
     for y in range(3,height-3):
-        start=None;last=None
-        for x in range(3,width-3):
-            if mask[y*width+x]:
-                if start is None:start=x
-                last=x
-            elif start is not None and x-last>2:
-                if last-start>=minimum:add_line(y,start,last)
-                start=last=None
-        if start is not None and last-start>=minimum:add_line(y,start,last)
+        # Find exactly the same near-contiguous white runs in C rather than
+        # visiting every screenshot pixel in the Python interpreter.
+        row=mask[y*width+3:y*width+width-3]
+        for run in re.finditer(b'\xff(?:\x00{0,2}\xff)*',row):
+            left=run.start()+3;right=run.end()+2
+            if right-left>=minimum:add_line(y,left,right)
         if len(horizontal)>192:return {'status':'ambiguous','visible':None,'rectangles':[]}
     rectangles=[]
     for index,(top,left,right) in enumerate(horizontal):

@@ -20,7 +20,8 @@ class ExperienceCycle:
         self.effects=effects;self.db=effects.db;self.profile=effects.profile;self.cache={};self.last_timing=None;self.questions=deque(maxlen=24)
         self.planned_failures=0;self.recent=deque(maxlen=32)
         self.db.executescript('''CREATE TABLE IF NOT EXISTS experience_rules_v1(profile TEXT,rule_key TEXT,data TEXT,updated REAL,PRIMARY KEY(profile,rule_key));
-            CREATE TABLE IF NOT EXISTS experience_checks_v1(id INTEGER PRIMARY KEY,profile TEXT,created REAL,data TEXT);''');self.db.commit()
+            CREATE TABLE IF NOT EXISTS experience_checks_v1(id INTEGER PRIMARY KEY,profile TEXT,created REAL,data TEXT);
+            CREATE INDEX IF NOT EXISTS experience_checks_profile ON experience_checks_v1(profile,id);''');self.db.commit()
         self.recent.extend(json.loads(r[0]) for r in reversed(self.db.execute('SELECT data FROM experience_checks_v1 WHERE profile=? ORDER BY id DESC LIMIT 32',(self.profile,)).fetchall()))
         for row in self.recent:
             if row.get('resolved_local_key'):self.questions=deque((q for q in self.questions if q.get('local_key')!=row['resolved_local_key']),maxlen=24)

@@ -57,7 +57,7 @@ def append_text(widget,text):
     top=widget.index('@0,0');horizontal=widget.xview()[0]
     widget.configure(state='normal');widget.insert('end',text)
     lines=int(widget.index('end-1c').split('.')[0])
-    if lines>5000 and int(top.split('.')[0])>lines-4500:
+    if lines>5000:
         removed=lines-4500;widget.delete('1.0',f'{removed+1}.0');top=f'{max(1,int(top.split(".")[0])-removed)}.0'
     widget.yview(top);widget.xview_moveto(horizontal);widget.configure(state='disabled')
 

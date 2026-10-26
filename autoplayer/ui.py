@@ -281,6 +281,9 @@ class Application:
         if self.overlay:self.overlay.close();self.overlay=None
         self.draw_learning_graph()
     def draw_learning_graph(self):
+        signature=(getattr(self,'shown_frame',None),self.traces.turn,self.overlay_enabled.get(),tuple((k,v.get()) for k,v in self.overlay_layers.items()),getattr(self,'preview_bounds',None))
+        if getattr(self,'_graph_signature',None)==signature:return
+        self._graph_signature=signature
         self.live.delete('learning_graph')
         if not self.overlay_enabled.get() or not getattr(self,'preview_bounds',None):return
         x,y,w,h=self.preview_bounds

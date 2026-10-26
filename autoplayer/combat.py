@@ -3,6 +3,7 @@
 Facing is not inferred from the last movement. A turn combination is a trial,
 followed by a fresh observation and a single attack trial, never an assumed hit.
 """
+import copy
 import json
 import math
 import time
@@ -55,7 +56,9 @@ class CombatExperiments:
         self.db.execute('''CREATE TABLE IF NOT EXISTS combat_observations(id INTEGER PRIMARY KEY,
             profile TEXT,created REAL,kind TEXT,enemy TEXT,damage INTEGER,data TEXT)''');self.db.commit()
         self.db.execute('CREATE TABLE IF NOT EXISTS combat_message_reads(id INTEGER PRIMARY KEY,profile TEXT,created REAL,data TEXT)');self.db.commit()
-        self.last_messages=set();self.approach_waits={}
+        self.last_messages=set();self.approach_waits={};self._experience=None
+        self.db.execute("CREATE INDEX IF NOT EXISTS combat_observations_profile ON combat_observations(profile,id)")
+        self.db.commit()
 
     def observe_messages(self,row,before_native,samples,extra_events=()):
         from .battle_messages import read_messages
@@ -87,15 +90,19 @@ class CombatExperiments:
                 'note':'画面メッセージの読取り。装備条件・敵の残HP・因果は未確認。同文の継続表示は追加試行に数えない。'}
             events.append(event)
             if not event['new_message']:continue
+            self._experience=None
             with self.db:self.db.execute('INSERT INTO combat_observations(profile,created,kind,enemy,damage,data) VALUES(?,?,?,?,?,?)',
                 (self.profile,time.time(),event['kind'],event['enemy'],event.get('damage'),json.dumps(event,ensure_ascii=False)))
         return events
 
     def experience(self):
+        if self._experience is not None:return copy.deepcopy(self._experience)
         rows=self.db.execute('SELECT enemy,kind,COUNT(*),AVG(damage),MIN(damage),MAX(damage) FROM combat_observations WHERE profile=? GROUP BY enemy,kind ORDER BY MAX(id) DESC LIMIT 12',(self.profile,)).fetchall()
         actions=self.db.execute('SELECT context,action,trials,reward FROM combat_actions WHERE profile=? ORDER BY trials DESC LIMIT 12',(self.profile,)).fetchall()
-        return {'source':'historical_battle_messages','action_values':[{'context':c,'action':a,'trials':n,'mean_observed_reward':r/max(1,n)} for c,a,n,r in actions],'observations':[dict(zip(('enemy','event','samples','mean_damage','min_damage','max_damage'),r)) for r in rows],
+        self._experience={'source':'historical_battle_messages','action_values':[{'context':c,'action':a,'trials':n,'mean_observed_reward':r/max(1,n)} for c,a,n,r in actions],'observations':[dict(zip(('enemy','event','samples','mean_damage','min_damage','max_damage'),r)) for r in rows],
             'note':'過去のメッセージ別の記述統計。現在の敵種・残HP・装備・勝率・命中率を確定しない。未確認の攻撃を命中や空振りとして数えない。'}
+
+        return copy.deepcopy(self._experience)
 
     def approach_wait(self,decision,state,blocked):
         from .controls import is_torneko,REFERENCE
@@ -195,6 +202,7 @@ class CombatExperiments:
         loss_key=(trial['context'],trial['action'])
         self.recent_losses[loss_key]=self.recent_losses.get(loss_key,0)+1 if reward<0 else 0
         while len(self.recent_losses)>64:self.recent_losses.pop(next(iter(self.recent_losses)))
+        self._experience=None
         with self.db:self.db.execute('INSERT INTO combat_actions VALUES(?,?,?,1,?) ON CONFLICT(profile,context,action) DO UPDATE SET trials=trials+1,reward=reward+excluded.reward',
             (self.profile,trial['context'],trial['action'],reward))
         # A newly read hit allows another single attack only while a fresh map
