@@ -79,30 +79,63 @@ class Inventory:
     def __init__(self,scope='',confirm_key='num1'):self.confirm_key=confirm_key;self.scope=scope;self.rows=[];self.pages={};self.selected=None;self.serial=0;self.last_seen=None;self.effects=[];self.identifications={};self.age=0;self.selected_age=0;self.was_inventory=False
     @staticmethod
     def cursor_line(native,png=None):
-        explicit=[s for s in labels(native) if re.match(r'^[▶►▷>●]',s)]
+        from .interfaces import torneko_menu_kind, MAIN_MENU_LABELS, ITEM_ACTION_LABELS, compact_text, ordinary_choice
+        lines=(native or {}).get('lines',[])
+        clean=lambda text:compact_text(text).lstrip('▶►▷>●→')
+        visible={clean(line.get('text','')) for line in lines}
+        kind=torneko_menu_kind(native)
+        # Focus an active choice/action popup rather than a cursor left visible
+        # on the underlying item list or main menu. No screen coordinates here.
+        targets={'はい','いいえ','Yes','No','yes','no'} if ordinary_choice(native) else ITEM_ACTION_LABELS if kind=='item_actions' or {'投げる','置く'}<=visible else MAIN_MENU_LABELS if kind=='main_menu' else None
+        candidates=[line for line in lines if clean(line.get('text','')) and (targets is None or clean(line.get('text','')) in targets)]
+        explicit=[line.get('text','') for line in candidates if re.match(r'^[▶►▷>●→]',compact_text(line.get('text','')))]
         if len(explicit)==1:return explicit[0]
-        if explicit or not png:return None
+        if explicit:return None
+        def bounds(line):
+            boxes=[w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
+            return (min(b[0] for b in boxes),min(b[1] for b in boxes),max(b[0]+b[2] for b in boxes),max(b[1]+b[3] for b in boxes)) if boxes else None
+        # OCR sometimes emits the triangle as its own line, detached from its
+        # label. Associate only a nearby item to its right at the same height.
+        detached=[]
+        for arrow in lines:
+            if compact_text(arrow.get('text','')) not in ('▶','►','▷','>','→'):continue
+            a=bounds(arrow)
+            if not a:continue
+            near=[]
+            for line in candidates:
+                b=bounds(line)
+                if not b:continue
+                h=max(a[3]-a[1],b[3]-b[1]);gap=b[0]-a[2]
+                if h>0 and -h*.2<=gap<=h*2 and abs((a[1]+a[3]-b[1]-b[3])/2)<=h*.4:near.append((max(0,gap),line.get('text','')))
+            near.sort()
+            if near and (len(near)==1 or near[0][0]+2<near[1][0]):detached.append(near[0][1])
+        if len(detached)==1:return detached[0]
+        if detached or not png:return None
         from PIL import Image
         from .minimap import components
         found=[]
         try:
             with Image.open(io.BytesIO(png)) as source:im=source.convert('RGB')
-            from .interfaces import torneko_menu_kind, MAIN_MENU_LABELS, compact_text
-            main_menu=torneko_menu_kind(native)=='main_menu'
             pixels=im.load()
-            for line in (native or {}).get('lines',[]):
-                if main_menu and compact_text(line.get('text','')).lstrip('▶►▷>→') not in MAIN_MENU_LABELS:continue
+            for line in candidates:
                 boxes=[w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
                 if not boxes:continue
                 x=min(b[0] for b in boxes);y=min(b[1] for b in boxes);h=max(b[1]+b[3] for b in boxes)-y
                 if h<8:continue
-                left=max(0,round(x-h*2));right=min(im.width,round(x));top=max(0,round(y));bottom=min(im.height,round(y+h))
+                # OCR can merge the triangle into the selected label's box.
+                # Include its leading portion; geometry must still identify a
+                # unique triangle, never infer selection from the box alone.
+                left=max(0,round(x-h*2));right=min(im.width,round(x+h*.8));top=max(0,round(y));bottom=min(im.height,round(y+h))
                 pts={(xx,yy) for yy in range(top,bottom) for xx in range(left,right) if min(pixels[xx,yy])>180 and max(pixels[xx,yy])-min(pixels[xx,yy])<50}
                 for region in components(pts):
                     xs=[p[0] for p in region];ys=[p[1] for p in region];rw=max(xs)-min(xs)+1;rh=max(ys)-min(ys)+1
                     if rh<h*.55 or not .35<=rw/rh<=1.5 or not .3<=len(region)/(rw*rh)<=.75:continue
+                    # A right-pointing cursor has a mostly straight left edge;
+                    # text fragments inside an expanded OCR box do not suffice.
+                    left_edge=min(xs);top_edge=min(ys)
+                    if sum((left_edge,yy) in region for yy in range(top_edge,top_edge+rh))/rh<.7:continue
                     rows=[0]*rh
-                    for xx,yy in region:rows[yy-min(ys)]+=1
+                    for xx,yy in region:rows[yy-top_edge]+=1
                     center=max(1,len(rows)//3)
                     if sum(rows[center:-center])/max(1,len(rows)-2*center)>max(sum(rows[:center]),sum(rows[-center:]))/center*1.35:
                         found.append(line.get('text',''));break

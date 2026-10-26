@@ -89,7 +89,7 @@ class OperationalControl:
         observed=compact_text(visual.get('text','')) if visual.get('frame_sha256') and visual['frame_sha256']==(native or {}).get('frame_sha256') else ''
         for line in lines:
             label=compact_text(line.get('text',''));prefix=bool(re.match(r'^[▶►▷>→]',label));clean=label.lstrip('▶►▷>→')
-            if prefix or observed and label==observed:selected.append(line)
+            if (label==observed if observed else prefix):selected.append(line)
             if clean==target or clean.startswith(target+'('):targets.append(line)
         if len(selected)!=1 or len(targets)!=1:return None
         if selected[0] is targets[0]:return 'selected'

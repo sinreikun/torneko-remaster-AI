@@ -1,5 +1,5 @@
 """UI bounds and cache contracts; no simulated game or Windows input."""
-import copy,io,tempfile,unittest
+import copy,io,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import Mock
 from PIL import Image,ImageFilter,ImageDraw
@@ -21,6 +21,30 @@ class LongRunningTests(unittest.TestCase):
         lines=[{'text':t,'words':[{'box':[80,y,40,20]}]} for t,y in [('HP15/15',20),('道具',90),('マップ',120),('足元',150),('その他',180)]]
         stream=io.BytesIO();image.save(stream,format='PNG')
         self.assertEqual(Inventory.cursor_line({'status':'ok','lines':lines},stream.getvalue()),'道具')
+    def test_recorded_cursor_inside_ocr_box_is_detected_and_moves_toward_tools(self):
+        from autoplayer.operational_control import OperationalControl
+        folder=Path(__file__).parent/'fixtures'
+        data=json.loads((folder/'menu-cursor-1793055833910841700.json').read_text())
+        image=(folder/'menu-cursor-1793055833910841700.png').read_bytes()
+        self.assertEqual(Inventory.cursor_line(data['ocr'],image),data['expected'])
+        # Full path from the current visual selection to one directional input.
+        import hashlib
+        native=copy.deepcopy(data['ocr']);native['frame_sha256']=hashlib.sha256(image).hexdigest()
+        native['_visual_selection']={'text':data['expected'],'frame_sha256':native['frame_sha256']}
+        from autoplayer.controls import REFERENCE
+        actor=OperationalControl(Settings(),Mock(bindings=REFERENCE['keys']),Mock())
+        self.assertEqual(actor._cursor_toward(native,'道具'),'w')
+        without_cursor=Image.open(io.BytesIO(image)).copy()
+        ImageDraw.Draw(without_cursor).rectangle((20,65,40,100),fill='black')
+        negative=io.BytesIO();without_cursor.save(negative,format='PNG')
+        self.assertIsNone(Inventory.cursor_line(data['ocr'],negative.getvalue()))
+        # The same recorded pixels at another capture scale remain detectable.
+        resized=Image.open(io.BytesIO(image)).resize((560,220));stream=io.BytesIO();resized.save(stream,format='PNG')
+        enlarged=copy.deepcopy(data['ocr'])
+        for line in enlarged['lines']:
+            for word in line['words']:word['box']=[v*2 for v in word['box']]
+        self.assertEqual(Inventory.cursor_line(enlarged,stream.getvalue()),data['expected'])
+
     def test_radius_one_dilation_preserves_larger_kernel_pixels(self):
         image=Image.frombytes('L',(47,31),bytes((x*37)%256 for x in range(47*31)))
         for kernel in (3,5,7,9):

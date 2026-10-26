@@ -812,7 +812,11 @@ class Controller:
         if not native or native.get('status')!='ok' or native.get('frame_sha256')!=hashlib.sha256(image).hexdigest():return native
         from .world_model import Inventory
         from .interfaces import ordinary_choice
-        if not (torneko_menu_kind(native) or ordinary_choice(native)):return native
+        if not (torneko_menu_kind(native) or ordinary_choice(native)):
+            from .exterior_screen import white_frames
+            # Unknown framed menus may also carry cursors. Measuring a cursor
+            # does not grant permission to confirm an unknown operation.
+            if not white_frames(image).get('visible'):return native
         selected=Inventory.cursor_line(native,image)
         result=dict(native)
         if selected:result['_visual_selection']={'text':selected,'frame_sha256':native['frame_sha256'],'source':'current_cursor_geometry_hypothesis'}
