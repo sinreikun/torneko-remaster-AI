@@ -159,6 +159,27 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         d,_,_,_,op=self.select(s=s,plan=p);self.assertEqual(op['selected_source'],'inventory_inspection')
         self.actor.last_inspection_step=-1000 # Even after cooldown, same revision is already attempted.
         d,_,_,_,op=self.select(s=s,plan=p);self.assertNotEqual(op['selected_source'],'inventory_inspection')
+    def test_urgent_recovery_survives_plan_change_and_bounds_unknown_cursor_probes(self):
+        from pathlib import Path
+        data=json.loads((Path(__file__).parent/'fixtures/short-battle-1793010980478938000.json').read_text())
+        low=state();low['metrics']['hp']['values']=[4,15]
+        opened,*_=self.select(s=low);self.assertEqual(opened.keys,['num0'])
+        self.assertIsNotNone(self.actor.recovery_request)
+        # Planner may return to exploration as interface scope changes.
+        menu=copy.deepcopy(low);menu['eligible']=False;menu['menu_evidence']=True
+        for expected in ('a','w'):
+            d,*_=self.select(s=menu,n=data['menu']);self.assertEqual(d.keys,[expected])
+            self.assertNotEqual(d.keys,['num1'])
+        d,*_=self.select(s=menu,n=data['menu']);self.assertEqual(d.keys,['num2'])
+        self.assertIn('回復は未完了',d.reason)
+
+    def test_recovery_continues_to_current_selected_inventory_entry(self):
+        low=state();low['metrics']['hp']['values']=[4,15]
+        self.select(s=low)
+        menu=copy.deepcopy(low);menu['eligible']=False;menu['menu_evidence']=True
+        d,*_=self.select(s=menu,n=native('▶道具','マップ','足元','その他'))
+        self.assertEqual(d.keys,['num1'])
+
     def test_checked_inventory_does_not_reopen_from_main_menu(self):
         p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
         self.select(n=native('道具','詳細表示切替','整理','3/20','▶薬草'),plan=p)

@@ -73,6 +73,7 @@ class CombatExperiments:
         for event in extra_events:observed.setdefault(event['quote'],event)
         names={e['enemy'] for e in observed.values() if e['kind']=='defeated_enemy'}
         for event in observed.values():
+            if not isinstance(event.get('enemy'),str):continue
             candidate=event['enemy'].lstrip('ー')
             if event['enemy']!=candidate and candidate in names:
                 event['raw_enemy']=event['enemy'];event['enemy']=candidate;event['name_evidence']='同じ操作後に読めた撃破名と一致する先頭のOCR揺れだけを統合'
@@ -123,7 +124,7 @@ class CombatExperiments:
         if not enemies:
             self.pending=None;return self.approach_wait(decision,state,blocked)
         target=sorted(enemies)[0];direction=next(k for k,v in ROUTE_MOVES.items() if v==target);facing=['num5']+direction.split('+')
-        context=json.dumps(['eight-way-contact-v1' if '+' in direction else 'cardinal-contact-v2',direction,sorted(self.cfg.allowed_keys)])
+        context=json.dumps(['eight-way-contact-v2-short-messages' if '+' in direction else 'cardinal-contact-v3-short-messages',direction,sorted(self.cfg.allowed_keys)])
         cell=list(state['minimap']['player_cell'])
         stage=None;action=None;keys=None;orientation_cost=0.;continuation_basis=None
         if self.pending:

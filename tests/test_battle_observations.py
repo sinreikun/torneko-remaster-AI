@@ -12,6 +12,27 @@ from test_policy import receipt_row
 
 class BattleObservationTests(unittest.TestCase):
     setUp=combat_tests.CombatTests.setUp
+    def test_supplied_short_damage_messages_are_learned_without_inventing_enemy_name(self):
+        from pathlib import Path
+        data=json.loads((Path(__file__).parent/'fixtures/short-battle-1793010980478938000.json').read_text())
+        self.s['metrics']['hp']['values']=data['before_hp'];self.s['minimap']['player_cell']=data['trial']['cell']
+        self.s['minimap']['source_size']=data['trial']['frame_size'];self.s['minimap']['enemies']=[data['trial']['target']]
+        after=copy.deepcopy(self.s);after['metrics']['hp']['values']=data['after_hp']
+        row=receipt_row(observed_keys=['num1'],policy_state=self.s,policy_after=after,input_receipt=data['input_receipt'])
+        events=self.combat.observe_messages(row,data['before'],[(data['after'],data['after']['frame_sha256'])])
+        self.assertEqual([(e['kind'],e['damage']) for e in events],[('damage_dealt',2),('damage_received',3)])
+        self.assertIsNone(events[0]['enemy']);self.assertEqual(events[1]['enemy'],'ゴースト')
+        row['battle_observations']=events;result=self.combat.record(data['trial'],row,data['after'])
+        self.assertGreater(result['reward'],-.44);self.assertIsNotNone(self.combat.pending)
+        self.assertFalse(any(e['new_message'] for e in self.combat.observe_messages(row,data['after'],[(data['after'],data['after']['frame_sha256'])])))
+        self.assertEqual(self.memory.db.execute('SELECT COUNT(*) FROM combat_observations').fetchone()[0],2)
+
+    def test_short_grammar_does_not_duplicate_named_messages_or_read_other_actors(self):
+        value=native(['トルネコはスライムに','2ポイントのダメージを与えた。','トルネコはスライムから','3ポイントのダメージを受けた。'])
+        self.assertEqual(len(read_messages(value,value['frame_sha256'])),2)
+        other=native(['スライムは2ポイントのダメージを与えた。'])
+        self.assertEqual(read_messages(other,other['frame_sha256']),[])
+
     def test_explicit_kill_survives_unread_hp_and_missing_map(self):
         _,trial=self.combat.choose(self.decision,self.s,True)
         trial.update(stage='attack_trial',keys=['num1'])
@@ -43,7 +64,7 @@ class BattleObservationTests(unittest.TestCase):
         context=json.dumps(['cardinal-contact-v1','a',sorted(self.cfg.allowed_keys)])
         with self.memory.db:self.memory.db.execute('INSERT INTO combat_actions VALUES(?,?,?,100,1000)',(self.memory.profile,context,'step_a'))
         _,trial=self.combat.choose(self.decision,self.s,True)
-        self.assertEqual(trial['stage'],'orient_trial');self.assertIn('v2',trial['context'])
+        self.assertEqual(trial['stage'],'orient_trial');self.assertIn('v3-short-messages',trial['context'])
 
 class CurrentBoundaryTests(unittest.TestCase):
     def test_historical_values_removed_without_mutating_saved_experience(self):

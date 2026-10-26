@@ -6,7 +6,7 @@ from .controls import is_torneko
 
 class OperationalControl:
     def __init__(self,cfg,effects,cycle=None):
-        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000
+        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
@@ -33,12 +33,16 @@ class OperationalControl:
             key=choice['key'] if choice else confirm
             if key:return self._decision(base,[key],'ordinary_choice',choice['reason'] if choice else '通常の選択肢を確認。取消で戻らず決定を1回試し、選択結果を確認する。')
         outcome=result_screen(native)
+        if outcome:self.recovery_request=None;self.item_context=None
         if outcome and confirm:
             key=confirm if [confirm] not in blocked else cancel or confirm
             return self._decision(base,[key],'result_screen','現在の結果表示を1回進め、再挑戦画面を確認する。')
         kind=torneko_menu_kind(native)
         skill=plan['skill']
-        step=ledger.current['step']
+        step=ledger.current['step'];request=self.recovery_request;current=ledger.current
+        if request and (step>request['until'] or request['control']!=current['control_revision'] or request['guidance']!=current['operator_guidance'].get('revision',0) or request['floor'] and current['floor'] and request['floor']!=current['floor']):
+            self.recovery_request=None;request=None
+        if request:skill='recover'
         if step<=self.inspection_until and skill!='recover':skill='inspect_inventory'
         if kind=='inventory':self.inventory_seen_step=step;self.inspection_until=-1
         if kind=='main_menu' and skill=='inspect_inventory' and (step-self.inventory_seen_step<24 or self.last_inspection_step>=0 and self.inspection_until<step<self.last_inspection_step+24):skill='explore'
@@ -61,11 +65,23 @@ class OperationalControl:
             if kind=='main_menu' and skill in ('inspect_inventory','recover'):
                 target=self._cursor_toward(native,'道具')
                 if target and confirm:return self._decision(base,[confirm if target=='selected' else target],'inventory_navigation','現在のメニュー項目とカーソルから道具へ1段階進める。')
+                if skill=='recover':
+                    probe=self._recovery_cursor_probe(ledger)
+                    if probe:return self._decision(base,[probe],'recovery_cursor_probe','回復は未完了。現在のメニューで方向入力を1回試し、カーソルを再観測する。未確認項目は決定しない。')
             if kind in ('inventory','item_actions') and skill=='recover':
                 target=self._recovery_item(native,state,kind,ledger.current)
                 if target:return self._decision(base,[target],'recovery_item','現在読めた品名・カーソル・使用法から回復/食料の操作を1段階だけ進める。')
-            if kind and cancel:return self._decision(base,[cancel],'close_known_menu','必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')
+            if kind and cancel:
+                if skill=='recover':self.recovery_request=None
+                return self._decision(base,[cancel],'close_known_menu','回復は未完了。現在の品・使用法・カーソルを確定できず、盲目的に使用せずメニューを閉じて再検討する。' if skill=='recover' else '必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')
             if confirm and not kind and current_interface:return self._decision(base,[confirm],'dialogue_advance','現在の文章枠を決定入力で1回進め、次の表示を確認する。')
+        return None
+    def _recovery_cursor_probe(self,ledger):
+        scope=ledger.current['scope']
+        # Two distinct navigation probes per scope, not blind confirmation/use.
+        for direction in ('左','上'):
+            key=next((k for k,v in self.effects.bindings.items() if k in self.effects.keys('move') and v.startswith(direction)),None)
+            if key and self.trials.get((scope,(key,)),0)==0:return key
         return None
     def _cursor_toward(self,native,target):
         lines=(native or {}).get('lines',[]);selected=[];targets=[]
@@ -225,6 +241,8 @@ class OperationalControl:
         chosen=max(candidates,key=lambda c:(c['priority'],c['score']));d=chosen['decision'];source=chosen['source']
         self.trials[current['scope'],tuple(d.keys)]=self.trials.get((current['scope'],tuple(d.keys)),0)+1
         while len(self.trials)>256:self.trials.pop(next(iter(self.trials)))
+        if source=='inventory_inspection' and chosen['skill']=='recover':
+            self.recovery_request={'until':current['step']+8,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':current['floor']}
         if source=='inventory_inspection':
             self.inspections[inspection_scope]=current['step'];self.last_inspection_step=current['step'];self.inspected_revision=state.get('retained_state',{}).get('revision');self.inspection_until=current['step']+8
         while len(self.inspections)>64:self.inspections.pop(next(iter(self.inspections)))
