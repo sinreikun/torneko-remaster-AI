@@ -27,7 +27,8 @@ class ExteriorTests(unittest.TestCase):
     def test_current_display_absence_reclassifies_previous_dungeon(self):
         cfg,nav,p=self.make();p.observe({}, {},'gameplay')
         self.assertFalse(p.observe({'metrics':{'floor':{'values':[1]}}},{},'gameplay')['active'])
-        self.assertTrue(p.observe({}, {},'gameplay')['active'])
+        self.assertFalse(p.observe({}, {'frame_sha256':'outside1'},'gameplay')['active'])
+        self.assertTrue(p.observe({}, {'frame_sha256':'outside2'},'gameplay')['active'])
         d,_=p.enforce(self.decision(['num0']));self.assertNotIn('num0',d.keys)
     def test_current_map_alone_means_dungeon(self):
         cfg,nav,p=self.make();c=p.observe({'minimap':{'status':'observed'}},{},'unknown')
@@ -39,7 +40,7 @@ class ExteriorTests(unittest.TestCase):
         cfg,nav,p=self.make();c=p.observe({'floor_confirmation':{'status':'pending','observed':1,'confirmed':None}}, {},'gameplay')
         self.assertEqual(c['location'],'dungeon')
         c=p.observe({'floor_confirmation':{'status':'unreadable','observed':None,'confirmed':1}}, {},'gameplay')
-        self.assertEqual(c['location'],'outside')
+        self.assertEqual(c['location'],'unclassified');self.assertTrue(c['scene_evidence']['region_pending'])
     def test_region_and_actionable_white_frame_are_separate(self):
         cfg,nav,p=self.make();c=p.observe({'white_frame_evidence':{'visible':False}}, {},'gameplay')
         self.assertTrue(c['scene_evidence']['outside_actionable'])
@@ -150,3 +151,26 @@ class ExteriorPlannerTests(unittest.TestCase):
         for branch in schema['oneOf']:
             if branch['properties']['status']['enum']!=['complete']:
                 self.assertEqual(branch['properties']['action']['properties']['keys']['enum'],expected)
+
+class RegionTransitionTests(unittest.TestCase):
+    make=ExteriorTests.make
+
+    def test_single_missing_dungeon_frame_does_not_create_exterior_map(self):
+        cfg,nav,p=self.make();dungeon={'metrics':{'floor':{'values':[1]}},'minimap':{'status':'observed'}}
+        p.observe(dungeon,{},'gameplay')
+        absent={'metrics':{},'minimap':{'status':'unavailable'},'white_frame_evidence':{'visible':False},'frame_sha256':'missing'}
+        for _ in range(3):
+            c=p.observe(absent,{},'gameplay');self.assertFalse(c['active']);self.assertTrue(c['scene_evidence']['region_pending'])
+            nav.prepare({**absent,'exterior_action_policy':c},{},{},0)
+            self.assertFalse(nav.active);self.assertFalse(nav.assumed_mode)
+        self.assertEqual(p.observe(dungeon,{},'gameplay')['location'],'dungeon')
+        self.assertFalse(p.absence_frames)
+
+    def test_supplied_missing_floor_frame_is_not_confirmed_as_outside(self):
+        from pathlib import Path
+        f=json.loads((Path(__file__).parent/'fixtures/transient-region-1792968463145098400.json').read_text())
+        cfg,nav,p=self.make();p.observe({'metrics':{'floor':{'values':[1]}}},{},'gameplay')
+        c=p.observe(f['state'],f['native'],'gameplay')
+        self.assertFalse(c['active']);self.assertTrue(c['scene_evidence']['region_pending'])
+        nav.prepare({**f['state'],'exterior_action_policy':c},f['native'],{},0)
+        self.assertFalse(nav.active)

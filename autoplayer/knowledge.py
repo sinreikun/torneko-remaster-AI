@@ -40,7 +40,7 @@ class KnowledgeEngine:
             'strength':r'(?:ちから|力)[ \t:：]*(\d{1,3})[ \t]*/[ \t]*(\d{1,3})',
             'sword':r'剣の強さ[ \t:：]*(\d{1,3})',
             'shield':r'盾の強さ[ \t:：]*(\d{1,3})',
-            'floor':r'(\d(?:[ \t]*\d){0,2})[ \t]*(?:階|F\b)',
+            'floor':r'(?<![A-Za-z\d])(\d(?:[ \t]*\d){0,2})[ \t]*(?:階|F\b)',
             'max_floor':r'最深階[ \t:：]*(\d{1,3})',
             'experience':r'経験値[ \t:：]*(\d{1,9})',
             'gold':r'(?<![A-Za-z\d])(\d{1,9})[ \t]*G\b',

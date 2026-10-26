@@ -27,6 +27,13 @@ class KnowledgeTests(unittest.TestCase):
         self.assertIn('幸せの箱',rule['screen_match'])
         self.assertEqual(context['ocr']['lines'][0]['text'],'ちょっとステキ な リマスター 幸 せ の 箱')
         self.assertEqual(context['edition'],'remaster')
+    def test_long_ocr_noise_does_not_supply_a_suffix_as_floor(self):
+        from pathlib import Path
+        data=json.loads((Path(__file__).parent/'fixtures/transient-region-1792968463145098400.json').read_text())
+        self.assertEqual(KnowledgeEngine().reconcile(data['native'])['metrics']['floor']['values'],[1])
+        self.assertNotIn('floor',KnowledgeEngine().reconcile(ocr('1013181108F'))['metrics'])
+        self.assertNotIn('floor',KnowledgeEngine().reconcile(ocr('1階 2F'))['metrics'])
+
     def test_ambiguous_or_impossible_ocr_not_current_statistics(self):
         for text in ['HP 3/30 HP 9/30','HP 35/30','HP 3/0','満腹度 130%']:
             self.assertFalse(KnowledgeEngine().reconcile(ocr(text))['metrics'])

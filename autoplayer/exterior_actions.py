@@ -6,7 +6,7 @@ from .interfaces import torneko_menu_kind, result_screen, PROTECTED_CONFIRMATION
 
 class ExteriorActions:
     def __init__(self,cfg,navigation):
-        self.cfg=cfg;self.navigation=navigation;self.location='unclassified';self.attempts=Counter();self.context={}
+        self.cfg=cfg;self.navigation=navigation;self.location='unclassified';self.attempts=Counter();self.context={};self.region_anchor=None;self.absence_frames=[]
     def observe(self,state,native,scene='unknown'):
         state=state or {};native=native or {}
         if not is_torneko(self.cfg.window_title):self.context={'active':False};return self.context
@@ -21,12 +21,21 @@ class ExteriorActions:
         map_present=bool((minimap.get('status')=='observed' and not minimap.get('retained')) or supplied.get('map_present'))
         evidence={'floor_present':floor_present,'map_present':map_present,
             'white_frame_visible':state.get('white_frame_evidence',{}).get('visible'),'basis':'current_display_presence'}
-        if floor_present or map_present:self.location='dungeon'
+        pending_region=False
+        if floor_present or map_present:
+            self.location='dungeon';self.region_anchor='dungeon';self.absence_frames=[]
         elif result_screen(native) or scene in ('title','loading','defeat','victory'):
-            self.location='unclassified';self.attempts.clear()
+            self.location='unclassified';self.region_anchor=None;self.absence_frames=[];self.attempts.clear()
         elif scene=='gameplay' or torneko_menu_kind(native)=='main_menu' or native.get('frame_sha256') or state.get('frame_sha256') or native.get('lines'):
-            self.location='outside'
+            frame=native.get('frame_sha256') or state.get('metrics_source_frame_sha256') or state.get('frame_sha256')
+            if self.region_anchor=='dungeon':
+                if frame and frame not in self.absence_frames:self.absence_frames=(self.absence_frames+[frame])[-2:]
+                pending_region=len(self.absence_frames)<2
+            self.location='unclassified' if pending_region else 'outside'
+            if not pending_region:self.region_anchor='outside'
         else:self.location='unclassified'
+        evidence['region_pending']=pending_region
+        evidence['independent_absent_frames']=len(self.absence_frames)
         active=self.location=='outside' and scene not in ('title','loading','defeat','victory')
         actions=[];mode='exit_exploration'
         text='\n'.join(l.get('text','') for l in native.get('lines',[]))

@@ -91,6 +91,8 @@ class MaplessNavigation:
             self.reason='user_assumption_ready' if self.active else 'white_frame_or_image_unavailable'
         if is_torneko(self.cfg.window_title) and self.frame_evidence.get('visible'):
             self.active=False;self.reason='white_frame_geometry_suspended'
+        if scope.get('scene_evidence',{}).get('region_pending'):
+            self.active=False;self.reason='region_transition_unconfirmed'
         if region=='dungeon':self.active=False
         if not self.active:self.pending=None
         return self.snapshot()
