@@ -1,11 +1,26 @@
 """UI presentation and activity/strategy boundaries, not game emulation."""
 import json,unittest
 from unittest.mock import Mock
-from autoplayer.telemetry import RecognitionState,paint_grid
+from autoplayer.telemetry import RecognitionState,paint_grid,grid_layout,grid_cell
 from autoplayer.guidance import OperatorGuidance
 from autoplayer.core import LocalLLM,Settings
 
 class TelemetryTests(unittest.TestCase):
+    def test_resized_grid_fits_and_clicks_keep_cell_coordinates(self):
+        for width,height in ((180,110),(340,210),(710,440),(1000,220)):
+            layout=grid_layout(width,height);x,y,unit=layout
+            self.assertGreater(unit,0);self.assertGreaterEqual(x,0);self.assertGreaterEqual(y,0)
+            self.assertLessEqual(x+54*unit,width);self.assertLessEqual(y+32*unit,height)
+            for col,row in ((0,0),(27,16),(53,31)):
+                self.assertEqual(grid_cell(x+(col+.5)*unit,y+(row+.5)*unit,layout),(col,row))
+            self.assertIsNone(grid_cell(x-1,y,layout))
+            self.assertIsNone(grid_cell(x+54*unit,y,layout))
+
+    def test_status_and_runtime_are_separate_logical_wrappable_lines(self):
+        lines=RecognitionState().summary().splitlines()
+        self.assertIn('階 ',lines[0]);self.assertIn('所持金 ',lines[0])
+        self.assertTrue(lines[1].startswith('次のLLM：'));self.assertIn('地図：',lines[1])
+
     def test_fixed_grid_accumulates_known_and_preserves_icon_priority(self):
         s=RecognitionState();m={'status':'observed','grid_size':[54,32],'player_cell':[2,3],'accumulated_cells':[[1,3],[2,3]],'known_cells':[[0,0],[1,0]],'items':[[1,0]],'stairs':[[0,1]],'enemies':[[-1,0]]}
         s.update({'event':'perception','policy_state':{'minimap':m,'metrics':{'hp':{'values':[9,15]}}},'anticipation':{'remaining':3}})

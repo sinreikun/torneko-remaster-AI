@@ -115,17 +115,26 @@ class Application:
         self.tabs.add(dashboard,text='攻略・観測・検証');self.tabs.add(config_tab,text='目標・攻略知識・接続設定');self.tabs.add(self.setup_tab,text='セットアップ')
         split=ttk.Panedwindow(dashboard,orient='horizontal');split.pack(fill='both',expand=True)
         left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=3);split.add(right,weight=2)
-        self.live=tk.Canvas(left,bg='black',highlightthickness=0,height=390);self.live.pack(fill='both',expand=True)
+        self.capture_log_split=ttk.Panedwindow(left,orient='vertical');self.capture_log_split.pack(fill='both',expand=True)
+        capture_host=ttk.Frame(self.capture_log_split);log_host=ttk.Frame(self.capture_log_split)
+        self.capture_log_split.add(capture_host,weight=3);self.capture_log_split.add(log_host,weight=2)
+        from .dashboard import split_fraction
+        self.capture_log_ratio=split_fraction(self.ui_state.get('capture_log_ratio',.62))
+        self.capture_log_dragging=False;self.capture_log_pending=False
+        self.capture_log_split.bind('<Configure>',self.resize_capture_log)
+        self.capture_log_split.bind('<ButtonPress-1>',lambda event:setattr(self,'capture_log_dragging',True))
+        self.capture_log_split.bind('<ButtonRelease-1>',self.save_capture_log)
+        self.live=tk.Canvas(capture_host,bg='black',highlightthickness=0,height=390);self.live.pack(fill='both',expand=True)
         self.live.create_text(280,180,text='ゲームに接続していません',fill='white',tags='image')
         self.live.bind('<Configure>',lambda event:self.draw_frame(force=True))
         self.live_info=tk.StringVar(value='画面の記録は実機実行時のみ。架空ゲームは使用しません。')
-        ttk.Label(left,textvariable=self.live_info).pack(fill='x')
-        ttk.Label(left,text='ターンの要約・介入・観測結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
-        logtools=ttk.Frame(left);logtools.pack(anchor='e')
+        ttk.Label(capture_host,textvariable=self.live_info).pack(fill='x')
+        ttk.Label(log_host,text='ターンの要約・介入・観測結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
+        logtools=ttk.Frame(log_host);logtools.pack(anchor='e')
         ttk.Button(logtools,text='ログの最新へ',command=lambda:self.log.see('end')).pack(side='left')
         self.log_follow_latest=tk.BooleanVar(value=self.ui_state.get('log_follow_latest',False))
         ttk.Checkbutton(logtools,text='最新で固定',variable=self.log_follow_latest,command=self.follow_log_latest).pack(side='left',padx=(8,0))
-        logbox=ttk.Frame(left);logbox.pack(fill='both',expand=True)
+        logbox=ttk.Frame(log_host);logbox.pack(fill='both',expand=True)
         self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         from .telemetry import RecognitionPanel
@@ -219,6 +228,7 @@ class Application:
         style.configure('TCheckbutton',background=background,foreground=foreground,indicatorbackground='#34485f',indicatorforeground=foreground)
         style.map('TCheckbutton',background=[('active','#283449')],foreground=[('disabled','#8898ac')])
         style.configure('TSpinbox',fieldbackground=well,foreground=foreground,arrowcolor=foreground)
+        style.configure('Sash',sashthickness=7,gripcount=0)
         style.configure('TScrollbar',background='#34485f',troughcolor=well,arrowcolor=foreground)
         style.configure('TEntry',fieldbackground=well,foreground=foreground,insertcolor=foreground)
         style.configure('TCombobox',fieldbackground=well,foreground=foreground,arrowcolor=foreground)
@@ -318,9 +328,29 @@ class Application:
             apply();persist();window.withdraw()
         window.protocol('WM_DELETE_WINDOW',hide)
 
+    def resize_capture_log(self,event=None):
+        if not self.capture_log_pending:
+            self.capture_log_pending=True;self.root.after_idle(self.apply_capture_log_ratio)
+    def apply_capture_log_ratio(self):
+        self.capture_log_pending=False
+        if self.capture_log_dragging or not self.capture_log_split.winfo_exists():return
+        height=self.capture_log_split.winfo_height()
+        if height>1:
+            minimum=min(70,height*.2)
+            self.capture_log_split.sashpos(0,round(max(minimum,min(height-minimum,height*self.capture_log_ratio))))
+    def save_capture_log(self,event=None):
+        self.capture_log_dragging=False
+        height=self.capture_log_split.winfo_height()
+        if height>1:
+            from .dashboard import split_fraction
+            self.capture_log_ratio=split_fraction(self.capture_log_split.sashpos(0)/height)
+            self.apply_capture_log_ratio()
+            try:self.save_ui()
+            except OSError as error:self.status.set('表示設定の保存に失敗: '+str(error))
+
     def save_ui(self):
         self.placement.track()
-        self.ui_state.update(log_follow_latest=self.log_follow_latest.get(),duration=self.duration.get(),compat=self.compat.get(),preview_graph_enabled=self.overlay_enabled.get(),graph_series={k:v.get() for k,v in self.overlay_layers.items()})
+        self.ui_state.update(capture_log_ratio=self.capture_log_ratio,log_follow_latest=self.log_follow_latest.get(),duration=self.duration.get(),compat=self.compat.get(),preview_graph_enabled=self.overlay_enabled.get(),graph_series={k:v.get() for k,v in self.overlay_layers.items()})
         DATA.mkdir(parents=True,exist_ok=True);temporary=DATA/'ui-settings.json.tmp'
         temporary.write_text(json.dumps(self.ui_state,ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'ui-settings.json')
 

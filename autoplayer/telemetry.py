@@ -124,27 +124,36 @@ class RecognitionState:
         atlas=self.tentative.get('atlas',{})
         if atlas.get('map_id'):note+='\n外部地図 '+atlas['map_id']+(' / 保存済み開始地点から再開' if atlas.get('reused') else ' / 新規地図')
         if atlas.get('awaiting_entry'):note+='\n場面切替：開始地点の再観測待ち'
-        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}\n満腹度 {val('fullness')}   ちから {val('strength')}\n剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}\n最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count}\n{self.phase} / 最終観測 {age}\n地図：{'仮経路（実地図と別座標）' if self.tentative.get('active') or self.tentative.get('display_retained') else '確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') and not self.tentative.get('active') else ''}{note}"
+        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}   満腹度 {val('fullness')}   ちから {val('strength')}   剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}   最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count} / {self.phase} / 最終観測 {age} / 地図：{'仮経路（実地図と別座標）' if self.tentative.get('active') or self.tentative.get('display_retained') else '確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') and not self.tentative.get('active') else ''}{note}"
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
 COLORS={'unknown_marker':'#b9a4ed','item_pending':'#ffcd70','item_full':'#f29a59','item_deferred':'#a0a6b5','disputed':'#633e40','visited':'#547d86','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
+def grid_layout(width,height):
+    width=max(1,float(width));height=max(1,float(height));pad=min(8,width/4,height/4)
+    unit=min((width-2*pad)/54,(height-2*pad)/32)
+    return ((width-54*unit)/2,(height-32*unit)/2,unit)
+
+def grid_cell(px,py,layout):
+    x,y,unit=layout;col=int((px-x)//unit);row=int((py-y)//unit)
+    return (col,row) if x<=px<x+54*unit and y<=py<y+32*unit and valid((col,row)) else None
+
 def paint_grid(canvas,cells,x=8,y=8,unit=6):
     # All 1,728 grid cells are drawn, including unknown ones.
     for row in range(32):
         for col in range(54):
-            kind=cells.get((col,row));a=x+col*unit;b=y+row*unit
+            kind=cells.get((col,row));a=x+col*unit;b=y+row*unit;inset=min(1,unit*.2);mark=min(2,unit*.3)
             canvas.create_rectangle(a,b,a+unit,b+unit,fill=COLORS['known'] if kind in ('enemy','item','stairs','unknown_marker','item_pending','item_full','item_deferred') else COLORS.get(kind,'#121c2b'),outline='#263346',width=1,tags='recognition')
-            if kind in ('estimated_pose','uncertain_pose'):canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,outline='#ffe04b',tags='recognition')
-            elif kind=='portal':canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,outline='#cc8bff',tags='recognition')
+            if kind in ('estimated_pose','uncertain_pose'):canvas.create_rectangle(a+inset,b+inset,a+unit-inset,b+unit-inset,outline='#ffe04b',tags='recognition')
+            elif kind=='portal':canvas.create_rectangle(a+inset,b+inset,a+unit-inset,b+unit-inset,outline='#cc8bff',tags='recognition')
             elif kind=='obstacle':canvas.create_line(a,b+unit,a+unit,b,fill='#ffbe63',tags='recognition')
-            elif kind=='enemy':canvas.create_oval(a+1,b+1,a+unit-1,b+unit-1,fill=COLORS[kind],outline='',tags='recognition')
+            elif kind=='enemy':canvas.create_oval(a+inset,b+inset,a+unit-inset,b+unit-inset,fill=COLORS[kind],outline='',tags='recognition')
             elif kind=='item':canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill=COLORS[kind],tags='recognition')
             elif kind in ('unknown_marker','item_pending','item_full','item_deferred'):
                 canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill='' if kind!='item_full' else COLORS[kind],outline=COLORS[kind],tags='recognition')
-                if kind=='unknown_marker':canvas.create_line(a+unit/2,b+2,a+unit/2,b+unit-2,fill=COLORS[kind],tags='recognition')
-            elif kind=='stairs':canvas.create_rectangle(a+1,b+1,a+unit-1,b+unit-1,fill='#121c2b',outline=COLORS[kind],tags='recognition')
+                if kind=='unknown_marker':canvas.create_line(a+unit/2,b+mark,a+unit/2,b+unit-mark,fill=COLORS[kind],tags='recognition')
+            elif kind=='stairs':canvas.create_rectangle(a+inset,b+inset,a+unit-inset,b+unit-inset,fill='#121c2b',outline=COLORS[kind],tags='recognition')
 
 class RecognitionPanel:
     def __init__(self,parent,state):
@@ -155,20 +164,35 @@ class RecognitionPanel:
         self.lamp=tk.Canvas(top,width=20,height=20,highlightthickness=0);self.lamp.pack(side='left')
         self.lamp.create_oval(3,3,17,17,fill='#394654',outline='',tags='lamp')
         self.label=ttk.Label(top,text='LLM待機');self.label.pack(side='left')
-        self.canvas=tk.Canvas(self.frame,width=340,height=210,bg='#121c2b',highlightthickness=0);self.canvas.pack(fill='x')
-        self.text=ttk.Label(self.frame,justify='left',wraplength=340);self.text.pack(anchor='w')
-        ttk.Label(self.frame,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未処理先端 青灰:踏破 薄青:経路 紫:完了枝 赤茶:再確認待ち\n品: 橙=満杯 黄枠=取得未確認 灰=保留 紫枠=未分類').pack(anchor='w')
+        self.canvas=tk.Canvas(self.frame,width=1,height=210,bg='#121c2b',highlightthickness=0);self.canvas.pack(fill='x')
+        self.text=ttk.Label(self.frame,justify='left',wraplength=340);self.text.pack(fill='x')
+        self.legend=ttk.Label(self.frame,wraplength=340,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未処理先端 青灰:踏破 薄青:経路 紫:完了枝 赤茶:再確認待ち\n品: 橙=満杯 黄枠=取得未確認 灰=保留 紫枠=未分類');self.legend.pack(fill='x')
         self.selected_cell=None
-        self.detail=ttk.Label(self.frame,text='マスをクリックすると品/マークの状態と理由を表示',wraplength=340,justify='left');self.detail.pack(anchor='w')
+        self.detail=ttk.Label(self.frame,text='マスをクリックすると品/マークの状態と理由を表示',wraplength=340,justify='left');self.detail.pack(fill='x')
         self.canvas.bind('<Button-1>',self.select_cell)
-        self.last_revision=-1
+        self.last_revision=-1;self.last_layout=None;self.last_width=None;self.redraw_pending=False
+        self.canvas.bind('<Configure>',self.resize_canvas)
+        self.frame.bind('<Configure>',self.resize_text)
+    def resize_text(self,event):
+        width=max(1,event.width-16)
+        for widget in (self.text,self.legend,self.detail):widget.configure(wraplength=width)
+    def resize_canvas(self,event):
+        if event.width!=self.last_width:
+            self.last_width=event.width
+            self.canvas.configure(height=max(1,round(max(1,event.width-16)*32/54+16)))
+        if not self.redraw_pending:
+            self.redraw_pending=True;self.canvas.after_idle(self.redraw)
+    def redraw(self):
+        self.redraw_pending=False
+        if self.canvas.winfo_exists():self.refresh()
     def select_cell(self,event):
-        cell=((event.x-8)//6,(event.y-8)//6)
-        if valid(cell):self.selected_cell=cell;self.detail.configure(text=self.state.item_detail(cell))
+        cell=grid_cell(event.x,event.y,grid_layout(self.canvas.winfo_width(),self.canvas.winfo_height()))
+        if cell is not None:self.selected_cell=cell;self.detail.configure(text=self.state.item_detail(cell))
     def refresh(self):
-        if self.last_revision!=self.state.revision:
+        layout=grid_layout(self.canvas.winfo_width(),self.canvas.winfo_height())
+        if self.last_revision!=self.state.revision or self.last_layout!=layout:
             if self.selected_cell is not None:self.detail.configure(text=self.state.item_detail(self.selected_cell))
-            self.canvas.delete('recognition');paint_grid(self.canvas,self.state.grid())
+            self.canvas.delete('recognition');paint_grid(self.canvas,self.state.grid(),*layout);self.last_layout=layout
             self.last_revision=self.state.revision
         self.lamp.itemconfigure('lamp',fill='#6dff80' if self.state.thinking else '#394654')
         self.label.configure(text='LLM使用中' if self.state.thinking else 'LLM待機')

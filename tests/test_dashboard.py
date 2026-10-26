@@ -13,6 +13,22 @@ from autoplayer.world_model import WorldModel
 from autoplayer.memory import MemoryStore
 
 class DashboardTests(unittest.TestCase):
+    def test_splitter_remembers_fraction_and_defers_resize_while_dragging(self):
+        from autoplayer.dashboard import split_fraction
+        for value in (None,True,'invalid',float('nan'),float('inf')):
+            self.assertEqual(split_fraction(value),.62)
+        self.assertEqual(split_fraction(.45),.45)
+        self.assertEqual(split_fraction(2),.9)
+        app=Application.__new__(Application);app.capture_log_pending=True
+        app.capture_log_dragging=True;app.capture_log_ratio=.45
+        app.capture_log_split=Mock();app.capture_log_split.winfo_height.return_value=600
+        Application.apply_capture_log_ratio(app);app.capture_log_split.sashpos.assert_not_called()
+        app.capture_log_dragging=False;Application.apply_capture_log_ratio(app)
+        app.capture_log_split.sashpos.assert_called_with(0,270)
+        app.capture_log_split.sashpos.return_value=240;app.save_ui=Mock()
+        Application.save_capture_log(app)
+        self.assertEqual(app.capture_log_ratio,.4);app.save_ui.assert_called_once()
+
     def test_graphs_are_bounded_and_use_observed_zero_without_inventing_missing_values(self):
         traces=LearningTraces()
         for _ in range(245):traces.update({'event':'result','confidence':.5,'policy_learning':{'reward':0}})

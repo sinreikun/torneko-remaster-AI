@@ -106,3 +106,11 @@ def flow_frame_class():
                 if int(self.cget('height'))!=height:self.configure(height=height)
             except TclError:pass
     return FlowFrame
+
+
+def split_fraction(value,default=.62):
+    import math
+    if isinstance(value,bool):return default
+    try:ratio=float(value)
+    except (TypeError,ValueError):return default
+    return max(.1,min(.9,ratio)) if math.isfinite(ratio) else default
