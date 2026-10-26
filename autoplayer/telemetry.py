@@ -85,7 +85,7 @@ class RecognitionState:
             for offset in m.get('known_cells',[]):
                 cell=[player[i]+offset[i] for i in (0,1)]
                 if valid(cell):out[tuple(cell)]='known'
-            for field,kind in [('exploration_unnecessary_cells','surveyed'),('visited_cells','visited'),('exhausted_branch_cells','exhausted'),('disputed_cached_cells','disputed'),('frontier_cells','frontier'),('route_cells','route')]:
+            for field,kind in [('exploration_unnecessary_cells','surveyed'),('visited_cells','visited'),('exhausted_branch_cells','exhausted'),('disputed_cached_cells','disputed'),('route_cells','route'),('frontier_cells','frontier')]:
                 for cell in self.floor_exploration.get(field,[]):
                     if valid(cell) and tuple(cell) in out:out[tuple(cell)]=kind
             for field,kind in [('stairs','stairs'),('items','item'),('uncertain_marks','unknown_marker'),('enemies','enemy')]:

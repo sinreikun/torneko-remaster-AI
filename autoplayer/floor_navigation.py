@@ -77,10 +77,19 @@ class FloorNavigation:
             if p not in self.known and self.failures[cell,key]==0:out.append(key)
         return out
     def disputed(self):return {c for c,n in self.missing_floor.items() if n>=2 and not self.visited[c]}
+    def area_cell(self,cell):
+        # A filled 2x2 floor patch is area evidence, not a corridor endpoint.
+        # In particular a rectangular room corner has degree two as well.
+        x,y=cell
+        return any({cell,(x+dx,y),(x,y+dy),(x+dx,y+dy)}<=self.known for dx in (-1,1) for dy in (-1,1))
     def primary(self):
-        leaves={c for c in self.known-self.disputed() if self.degree(c)<=1 and (not self.visited[c] or self.unknown_keys(c)) and c not in self.stairs and c not in self.items}
-        if leaves:return leaves
-        return {c for c in self.known-self.disputed() if self.degree(c)==2 and not self.visited[c] and self.unknown_keys(c)}
+        # Keep untraversed narrow connections even while leaves exist elsewhere.
+        # Planning a route never visits a cell; only observed positions do.
+        return {c for c in self.known-self.disputed()-self.stairs-self.items if not self.area_cell(c)
+                and (not self.visited[c] or self.degree(c)<=1 and self.unknown_keys(c))}
+    def boundaries(self):
+        # Rechecks are bounded corridor hypotheses, never every room perimeter.
+        return {c for c in self.known-self.disputed()-self.stairs-self.items if not self.area_cell(c) and self.unknown_keys(c)}
     def retired(self):
         # Prune a visited dead branch for exploration only. Its floor cells stay
         # in the graph and may be used for another objective or necessary return.
@@ -149,7 +158,7 @@ class FloorNavigation:
         selected_mission=self.mission
         if selected_mission=='auto':
             selected_mission='collect_visible_items' if preference=='items' else 'reach_stairs' if preference=='stairs' and self.stairs else 'find_stairs'
-        primary=self.primary();secondary={c for c in self.known-self.disputed() if self.unknown_keys(c)}
+        primary=self.primary();secondary=self.boundaries()
         target_kind='frontier';targets=primary
         if selected_mission in ('reach_stairs','return_with_objective') and self.stairs:targets=self.stairs;target_kind='stairs'
         elif selected_mission in ('collect_visible_items','search_objective') and self.item_tasks.goals(self.position):targets=self.item_tasks.goals(self.position);target_kind='items'
@@ -245,4 +254,5 @@ class FloorNavigation:
           'visited_cells':[list(p) for p in self.visited],'exploration_unnecessary_cells':[list(p) for p in interior|retired],
           'exhausted_branch_cells':[list(p) for p in retired],'frontier_cells':[list(p) for p in primary],
           'stairs_cells':[list(p) for p in self.stairs],'route_cells':copy.deepcopy((self.last_hint or {}).get('route_cells',[])),
+          'frontier_rule':'未踏の細い床接続と未完了の先端を同時に候補にする。2×2の床領域に属する角を先端にしない。経路設定は踏破や処理完了ではない。',
           'note':'無移動の方向は今回の探索試行を一旦完了するだけで永久の壁とは確定しない。探索不要は現在の探索先の優先度。通行禁止や永久の壁ではない。新しい床・目標・階で見直す。'}

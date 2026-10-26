@@ -14,7 +14,7 @@ def observed(pos,known,floor=1,stairs=(),items=(),enemies=()):
 class FloorNavigationTests(unittest.TestCase):
     def test_remote_frontier_survives_new_nearby_frontier_and_menu(self):
         known={(x,2) for x in range(1,9)};nav=FloorNavigation();start=observed((2,2),known)
-        nav.observe(start);nav.visited[(1,2)]=1
+        nav.observe(start);nav.visited.update({(x,2):1 for x in range(1,8)})
         for key in ('a','w','s'):nav.failures[(1,2),key]=1
         first=nav.hint(start);self.assertEqual(first['target_cell'],[8,2])
         expanded=known|{(3,1)};next_state=observed((3,2),expanded)
@@ -27,7 +27,7 @@ class FloorNavigationTests(unittest.TestCase):
 
     def test_higher_priority_item_interrupts_then_resumes_remote_task(self):
         known={(x,2) for x in range(1,9)};nav=FloorNavigation();start=observed((2,2),known)
-        nav.observe(start);nav.visited[(1,2)]=1
+        nav.observe(start);nav.visited.update({(x,2):1 for x in range(1,8)})
         for key in ('a','w','s'):nav.failures[(1,2),key]=1
         self.assertEqual(nav.hint(start)['target_cell'],[8,2])
         item=observed((3,2),known,items=[(2,2)])
@@ -40,7 +40,7 @@ class FloorNavigationTests(unittest.TestCase):
 
     def test_blocked_remote_task_seeks_target_side_boundary_without_unblocking_edge(self):
         known={(x,2) for x in range(1,9)};nav=FloorNavigation();s=observed((2,2),known)
-        nav.observe(s);nav.visited[(1,2)]=1
+        nav.observe(s);nav.visited.update({(x,2):1 for x in range(1,8)})
         for key in ('a','w','s'):nav.failures[(1,2),key]=1
         self.assertEqual(nav.hint(s)['target_cell'],[8,2])
         nav.failures[(4,2),'d']=2
@@ -60,7 +60,8 @@ class FloorNavigationTests(unittest.TestCase):
         data=json.loads((Path(__file__).parent/'fixtures/remote-frontier-1792987820475716400.json').read_text())
         nav=FloorNavigation();s=data['state'];nav.observe(s)
         nav.visited.update({tuple(p):1 for p in data['visited_cells']})
-        self.assertEqual(nav.primary(),{(32,27)})
+        self.assertIn((32,27),nav.primary())
+        nav.exploration_task={'target_cell':[32,27],'status':'navigating'}
         # Export lacks suppressed edge origins; do not manufacture that history.
         self.assertEqual(data['reported_suppressed_edge_count'],1)
         self.assertEqual(nav.hint(s)['target_cell'],[32,27])
@@ -73,11 +74,56 @@ class FloorNavigationTests(unittest.TestCase):
             self.assertEqual(hint['target_cell'],[32,27])
             self.assertEqual(nav.exploration_task['target_cell'],[32,27])
 
+    def test_area_corners_never_become_frontiers_or_boundary_rechecks(self):
+        known={(x,y) for x in range(1,6) for y in range(1,6)}
+        nav=FloorNavigation();s=observed((3,3),known)
+        self.assertIsNone(nav.hint(s))
+        self.assertEqual(nav.primary(),set());self.assertEqual(nav.boundaries(),set())
+        self.assertEqual(nav.goal['phase'],'review_exhausted_floor')
+
+    def test_unvisited_narrow_connection_remains_candidate_alongside_other_leaf(self):
+        ring={(x,y) for x in range(1,4) for y in range(1,4)}-{(2,2)}
+        known=ring|{(4,2),(5,2),(6,2)};nav=FloorNavigation();s=observed((2,1),known)
+        nav.observe(s);nav.visited.update({c:1 for c in known-{(3,1),(6,2)}})
+        self.assertEqual(nav.degree((3,1)),2)
+        self.assertEqual(nav.primary(),{(3,1),(6,2)})
+        hint=nav.hint(s);self.assertEqual(hint['key'],'d');self.assertEqual(hint['target_cell'],[3,1])
+        self.assertEqual(nav.visited[(3,1)],0)
+        self.assertEqual(nav.hint(s)['target_cell'],[3,1])
+        self.assertEqual(nav.visited[(3,1)],0) # Planning/replanning is not a visit.
+        # Reaching a tip reveals a connection back into known floor: continue
+        # across the newly revealed cell rather than returning to a distant leaf.
+        nav=FloorNavigation();initial=observed((3,2),known-{(2,1)})
+        nav.observe(initial);nav.visited.update({c:1 for c in known-{(2,1),(3,1),(6,2)}})
+        self.assertEqual(nav.hint(initial)['target_cell'],[3,1])
+        after=observed((3,1),known);nav.record(initial,after,receipt_row('w'))
+        continued=nav.hint(after)
+        self.assertEqual(continued['key'],'a');self.assertEqual(continued['target_cell'],[2,1])
+
+    def test_supplied_twenty_four_corners_are_area_not_corridor_endpoints(self):
+        data=json.loads((Path(__file__).parent/'fixtures/room-corners-1792990699719325000.json').read_text())
+        nav=FloorNavigation();s=data['state'];nav.observe(s)
+        nav.visited.update({tuple(p):1 for p in data['visited_cells']})
+        old={tuple(c) for c in data['old_frontier_cells']}
+        self.assertEqual(len(old),24);self.assertTrue(all(nav.area_cell(c) for c in old))
+        self.assertFalse(old&nav.primary());self.assertFalse(old&nav.boundaries())
+        nav.exploration_task=copy.deepcopy(data['old_task']);nav.hint(s)
+        self.assertNotEqual((nav.exploration_task or {}).get('target_cell'),data['old_task']['target_cell'])
+
+    def test_planned_route_does_not_cover_frontier_or_mark_it_visited(self):
+        nav=FloorNavigation();s=observed((2,2),{(1,2),(2,2),(3,2)})
+        hint=nav.hint(s);target=tuple(hint['target_cell'])
+        s['floor_exploration']=nav.context();monitor=RecognitionState()
+        monitor.update({'event':'perception','policy_state':s})
+        self.assertIn(list(target),s['floor_exploration']['route_cells'])
+        self.assertEqual(nav.visited[target],0)
+        self.assertEqual(monitor.grid()[target],'frontier')
+
     def test_dead_end_is_retired_but_floor_remains_a_return_route(self):
         known={(x,4) for x in range(40,45)};nav=FloorNavigation();s=observed((43,4),known)
         nav.observe(s);end=observed((44,4),known);nav.record(s,end,receipt_row('d'))
         for key in ('d','w','s'):nav.record(end,end,receipt_row(key))
-        hint=nav.hint(end,'frontier');self.assertEqual(hint['key'],'a');self.assertEqual(hint['target_cell'],[40,4])
+        hint=nav.hint(end,'frontier');self.assertEqual(hint['key'],'a');self.assertEqual(hint['target_cell'],[42,4])
         back=observed((43,4),known);nav.record(end,back,receipt_row('a'))
         hint=nav.hint(back,'frontier');self.assertEqual(hint['key'],'a');self.assertNotEqual(hint['target_cell'],[44,4])
         self.assertIn([44,4],nav.context()['exhausted_branch_cells']);self.assertIn((44,4),nav.known)

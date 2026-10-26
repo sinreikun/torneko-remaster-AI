@@ -105,8 +105,8 @@ class ItemTests(unittest.TestCase):
         known={(x,y) for x in range(5) for y in range(5)}|{(5,2),(6,2)}
         s['minimap']['accumulated_cells']=[list(c) for c in known]
         r=w.observe(png('black'),native(),s)
-        self.assertIn([2,2],r['exploration']['surveyed_cells']);self.assertEqual(r['exploration']['frontier_candidates'],[[6,2]])
-        hint=w.navigation_hint(s);self.assertEqual(hint['key'],'d');self.assertEqual(hint['distance'],4)
+        self.assertIn([2,2],r['exploration']['surveyed_cells']);self.assertEqual(r['exploration']['frontier_candidates'],[[5,2],[6,2]])
+        hint=w.navigation_hint(s);self.assertEqual(hint['key'],'d');self.assertEqual(hint['target_cell'],[5,2]);self.assertEqual(hint['distance'],3)
         blocked=copy.deepcopy(s);blocked['minimap']['enemies']=[(3,0)]
         self.assertEqual(w.navigation_hint(blocked)['target_kind'],'enemy')
 
