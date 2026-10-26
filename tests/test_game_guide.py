@@ -19,6 +19,16 @@ class GameGuideTests(unittest.TestCase):
             self.assertIn('8方向',rule['expected_effect']);self.assertIn('Num6',rule['expected_effect'])
             self.assertIn('倍速',rule['verify_or_revise']);self.assertEqual(ctx['current_keys']['step'],['num6'])
 
+    def test_inventory_command_flow_and_equipment_requirement_reach_current_menu(self):
+        ctx=GameGuide(Settings()).context({'status':'ok','lines':[{'text':s} for s in ('道具','マップ','足元','その他')]},'menu',{}, {})
+        foundations={r['id']:r for r in ctx['foundations']}
+        flow=foundations['inventory-selection-command-flow']
+        for term in ('左右','20個','左側','Num1'):
+            self.assertIn(term,flow['expected_effect'])
+        self.assertIn('所持しているだけでは',foundations['inventory-description-equipment']['expected_effect'])
+        self.assertEqual(ctx['current_keys']['menu'],['num0']);self.assertEqual(ctx['current_keys']['confirm'],['num1'])
+        self.assertTrue(any(s['id']=='user-inventory-flow-20261026' for s in ctx['sources']))
+
     def test_low_hp_and_food_references_remain_cross_edition(self):
         ctx=GameGuide(Settings()).context({},'gameplay',{}, {'hp':{'values':[3,15]},'fullness':{'values':[0]},'floor':{'values':[1]}})
         selected={r['id']:r for r in ctx['rules']}
