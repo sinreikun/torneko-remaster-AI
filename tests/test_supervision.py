@@ -293,6 +293,13 @@ class SupervisedDispatchTests(unittest.TestCase):
                 self.assertTrue(all(r['operation']['authority']=='operational_control' for r in results))
                 self.assertTrue(all(not r['performance']['llm_requested'] for r in results));self.assertTrue(all('action_effect_learning' in r for r in results))
                 self.assertFalse(any(r.get('active_input',{}).get('source')=='information_collection' for r in results))
+                predictions=[r for r in rows if r.get('event')=='action_prediction']
+                self.assertEqual(len(predictions),3)
+                self.assertTrue(all('action_prediction' in r and 'prediction_validation' in r for r in results))
+                for r in results:
+                    frozen=next(p for p in predictions if p['step']==r['step'])
+                    self.assertEqual(frozen['prediction']['keys'],r['observed_keys'])
+                    self.assertLess(rows.index(frozen),next(i for i,v in enumerate(rows) if v.get('event')=='sent' and v['step']==r['step']))
                 self.assertEqual(backend.releases,1)
             finally:release.set();memory.close()
     def test_settings_can_restore_legacy_mode_and_reject_invalid_flag(self):
@@ -350,7 +357,12 @@ class SupervisorRequestTests(unittest.TestCase):
             folder=Path(t);m=MemoryStore(folder/'memory.sqlite',Settings());effects=ActionEffects(m,Settings())
             effects.record(receipt_row('w'),state(),state())
             effects.experiment(dict(proposal(),test='movement_response',hypothesis='移動作用を確認'),state())
+            from autoplayer.experience_cycle import ExperienceCycle
+            cycle=ExperienceCycle(effects);s=state();r=receipt_row('w',action_prediction=cycle.predict(s,['w']))
+            r['action_effect_learning']=effects.record(r,s,s);cycle.record(r,s,s)
             m.close();destination=folder/'report.zip';export_diagnostics(folder,destination)
             with zipfile.ZipFile(destination) as z:
                 exported=json.loads(z.read('supervision/learning.json'));self.assertEqual(exported['action_effects_v1']['total'],1)
                 self.assertEqual(exported['action_effects_v1']['recent'][0]['action'],['w'])
+                self.assertTrue(exported['experience_rules_v1']['recent'])
+                cycle=json.loads(z.read('supervision/experience-cycle.json'));self.assertTrue(cycle['rules']);self.assertTrue(cycle['recent_checks'])

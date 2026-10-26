@@ -27,7 +27,7 @@ class ActionEffects:
         for role in ('menu','arrow','step'):
             if key in self.keys(role):return role+'_candidate'
         return 'unclassified_input'
-    def context_key(self,state,keys):
+    def context_features(self,state,keys):
         role=self.role(keys,state);m=state.get('minimap',{});metrics=state.get('metrics',{})
         interface=role in ('cursor_candidate','confirmation_candidate','cancel_candidate')
         direction=keys[-1] if keys else ''
@@ -39,7 +39,9 @@ class ActionEffects:
           'layout':(state.get('interface_layout_group') or {}).get('id') if interface else None}
         # Unclassified UI states do not share outcomes just because they have a box.
         if interface and not feature['layout']:feature['text']=state.get('text_key')
-        return hashlib.sha256(json.dumps(feature,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:24]
+        return feature
+    def context_key(self,state,keys):
+        return hashlib.sha256(json.dumps(self.context_features(state,keys),sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:24]
     def samples(self,state,keys):
         context=self.context_key(state,keys);action=json.dumps(keys);key=(context,action)
         if key not in self.cache:

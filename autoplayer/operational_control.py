@@ -5,8 +5,8 @@ from .interfaces import PROTECTED_CONFIRMATION,choice_action,ordinary_choice,tor
 from .controls import is_torneko
 
 class OperationalControl:
-    def __init__(self,cfg,effects):
-        self.cfg=cfg;self.effects=effects;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000
+    def __init__(self,cfg,effects,cycle=None):
+        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
@@ -199,6 +199,8 @@ class OperationalControl:
             if c['skill']==preferred:c['score']+=.15
             if c['decision'].keys in blocked:c['score']-=1.
             c['estimate']=self.effects.estimate(state,c['decision'].keys)
+            if self.cycle:
+                adjustment,c['rule_evidence']=self.cycle.adjustment(state,c['decision'].keys);c['score']+=adjustment
             # Recent empirical no-effect changes relative priority; no positive
             # reward threshold is required to use the least bad known option.
             if c['estimate']['samples']>=2:c['score']+=max(-.3,min(.3,c['estimate']['mean_observed_value']))
@@ -240,7 +242,7 @@ class OperationalControl:
         operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':chosen['skill'],'selected_source':source,
           'floor_exploration':copy.deepcopy(state.get('floor_exploration',{}).get('goal',{})),'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_priority':chosen['priority'],'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
           'expected_signal':plan['expected_signal'],'experiment':experiment if experiment_active else None,
-          'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
+          'rule_evidence':chosen.get('rule_evidence'),'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
           'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'priority':c['priority'],'skill':c['skill']} for c in candidates][:12],
           'selected_keys':list(d.keys),'scope':current['scope'],'selection_rule':'現在の条件を満たす候補を一度だけ比較。後段の総当たりで上書きしない。'}
         self.last_selection=operation

@@ -137,6 +137,20 @@ def export_diagnostics(data,destination,detailed=False):
                                 column='action' if table=='action_effects_v1' else 'test'
                                 operational[table]={'total':target.execute('SELECT COUNT(*) FROM '+table).fetchone()[0],
                                     'recent':[{'profile':r[0],'context':r[1],column:json.loads(r[2]) if column=='action' else r[2],'data':json.loads(r[3])} for r in target.execute('SELECT profile,context,'+column+',data FROM '+table+' ORDER BY updated DESC LIMIT 12')]}
+                        if target.execute("SELECT 1 FROM sqlite_master WHERE name='experience_rules_v1'").fetchone():
+                            operational['experience_rules_v1']={'recent':[{'rule_key':r[0],'data':json.loads(r[1])} for r in target.execute('SELECT rule_key,data FROM experience_rules_v1 ORDER BY updated DESC LIMIT 12')]}
+                        if target.execute("SELECT 1 FROM sqlite_master WHERE name='experience_rules_v1'").fetchone():
+                            from .experience_cycle import maturity
+                            rules=[]
+                            for profile,key,raw in target.execute('SELECT profile,rule_key,data FROM experience_rules_v1 ORDER BY updated DESC LIMIT 8'):
+                                value=json.loads(raw)
+                                rules.append({'profile':profile,'rule_key':key,**{k:value[k] for k in ('revision','samples','scope_kind','observed_conditions') if k in value},
+                                    'fields':{k:{'status':maturity(v),'recent_values':v.get('values',[])[-6:],'recent_checks':v.get('checks',[])[-12:],'counterexamples':v.get('counterexamples',0)} for k,v in value.get('fields',{}).items()}})
+                            checks=[json.loads(r[0]) for r in target.execute('SELECT data FROM experience_checks_v1 ORDER BY id DESC LIMIT 12')]
+                            projection=json.dumps({'rules':rules,'recent_checks':checks,'bounded_projection':True,'full_data_retained_locally':True},ensure_ascii=False).encode()
+                            if len(projection)<min(128000,remaining):
+                                archive.writestr('supervision/experience-cycle.json',projection);remaining-=len(projection)
+                                entry['experience_cycle_export']={'path':'supervision/experience-cycle.json','bytes':len(projection),'depends_on_raw_database':False}
                         if operational:
                             encoded=json.dumps(operational,ensure_ascii=False).encode()
                             if len(encoded)<min(256000,remaining):
@@ -161,9 +175,9 @@ def export_diagnostics(data,destination,detailed=False):
                             portals=[json.loads(r[0]) for r in target.execute('SELECT data FROM exterior_portals_v1 ORDER BY updated DESC LIMIT 32')]
                             archive.writestr('exterior_maps/transitions.json',json.dumps(portals,ensure_ascii=False))
                             entry['exterior_maps']={'maps':len(maps),'entrance_images':len(entrances),'portals':len(portals),'source':'bounded_local_atlas'}
-                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','combat_observations','combat_message_reads','battle_appearance_links','human_examples','human_reuse','human_example_scores','forecast_stats','world_events','item_use_stats'):
+                        for table in ('method_stats','background_evidence','game_hypotheses','input_durations','novelty_states','novelty_actions','novelty_outcomes','combat_actions','combat_observations','combat_message_reads','battle_appearance_links','human_examples','human_reuse','human_example_scores','forecast_stats','world_events','experience_checks_v1','item_use_stats'):
                             if target.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():
-                                cursor=target.execute('SELECT * FROM '+table+(' ORDER BY id DESC' if table in ('world_events','combat_message_reads') else ' ORDER BY created DESC' if table=='battle_appearance_links' else '')+' LIMIT 40')
+                                cursor=target.execute('SELECT * FROM '+table+(' ORDER BY id DESC' if table in ('world_events','combat_message_reads','experience_checks_v1') else ' ORDER BY created DESC' if table=='battle_appearance_links' else '')+' LIMIT 40')
                                 labels=[column[0] for column in cursor.description]
                                 entry[table]=[dict(zip(labels,row)) for row in cursor]
                     report['databases'][name]=entry

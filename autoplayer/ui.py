@@ -959,7 +959,7 @@ class Application:
         if event=='result':
             if value.get('supervision'):
                 self.set_panel('運用計画',value['supervision'])
-                self.set_panel('行動学習',{'作用の学習':value.get('action_effect_learning'),'計画の照合':value.get('operation_evaluation'),'仮説検証':value.get('operational_experiment')})
+                self.set_panel('行動学習',{'入力前の予測':value.get('action_prediction'),'予測と実測の検証':value.get('prediction_validation'),'作用の学習':value.get('action_effect_learning'),'計画の照合':value.get('operation_evaluation'),'仮説検証':value.get('operational_experiment')})
                 self.set_panel('候補と評価',value.get('operation',{}))
             if value.get('policy_choice') and not value.get('supervision'):
 

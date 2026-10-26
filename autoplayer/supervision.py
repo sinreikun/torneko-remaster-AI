@@ -78,7 +78,7 @@ class StateLedger:
         self.recent.append({'step':row.get('step'),'keys':row.get('observed_keys'),
           'role':(row.get('action_effect_learning') or {}).get('role'),'effects':(row.get('action_effect_learning') or {}).get('effects'),
           'source':(row.get('operation') or {}).get('selected_source'),'progress':(row.get('operation_evaluation') or {}).get('progress'),
-          'prediction':(row.get('forecast_evaluation') or {}).get('status'),'experiment':copy.deepcopy(row.get('operational_experiment')),'ms':row.get('performance',{}).get('total_ms')})
+          'prediction':(row.get('forecast_evaluation') or {}).get('status'),'experiment':copy.deepcopy(row.get('operational_experiment')),'prediction_validation':{k:v for k,v in (row.get('prediction_validation') or {}).items() if k in ('status','needs_review','checks','rule_updates')},'ms':row.get('performance',{}).get('total_ms')})
     def snapshot(self):return {'current':copy.deepcopy(self.current),'recent':copy.deepcopy(list(self.recent))}
 
 class Cancel:
@@ -167,6 +167,8 @@ class Supervisor:
             statistics['total_ms']+=row.get('performance',{}).get('total_ms',0)
             while len(self.plan_stats)>12:self.plan_stats.pop(next(iter(self.plan_stats)))
             self.stall=0 if evaluation.get('progress') else self.stall+1
+            if not self.errors and (row.get('prediction_validation') or {}).get('needs_review') and row.get('step',0)-self.last_request>=4:
+                self.next_review=min(self.next_review,row.get('step',0));self.last_reason='empirical_rule_review'
             if not self.errors and (row.get('forecast_evaluation') or {}).get('status')=='mismatch':self.next_review=min(self.next_review,row.get('step',0));self.last_reason='prediction_mismatch'
     def context(self,current):
         return {'enabled':True,'plan':copy.deepcopy(self.plan),'remaining':max(0,(self.plan or {}).get('expires_step',0)-current['step']),
