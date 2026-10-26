@@ -53,6 +53,7 @@ class FloorNavigationTests(unittest.TestCase):
         self.assertEqual(nav.hint(s,mission='collect_visible_items',plan_id='p1')['key'],'a')
         nav.hint(s);self.assertEqual(nav.goal['mission'],'collect_visible_items')
         s['minimap']['items']=[]
+        nav.item_tasks.decide([{'cell':[2,1],'decision':'defer','reason':'帰還のため明示的に保留','revisit':'inventory_changed'}])
         self.assertEqual(nav.hint(s,mission='return_with_objective',plan_id='p2')['key'],'d')
         self.assertEqual(nav.goal['phase'],'return_to_stairs')
     def test_stair_trial_does_not_claim_progress_or_repeat_forever(self):

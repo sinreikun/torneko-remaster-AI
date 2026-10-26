@@ -12,11 +12,12 @@ PLAN_SCHEMA={'type':'object','additionalProperties':False,'properties':{
  'budget_turns':{'type':'integer','minimum':2,'maximum':32},'exploration_fraction':{'type':'number','minimum':0,'maximum':.5},
  'strategy':{'type':'string','enum':['advance','compare_alternatives','avoid_repetition','gather_information']},
  'floor_objective':{'type':'string','enum':list(MISSIONS)},
+ 'item_decisions':{'type':'array','maxItems':4,'items':{'type':'object','additionalProperties':False,'properties':{'cell':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'decision':{'type':'string','enum':['collect','defer']},'reason':{'type':'string'},'revisit':{'type':'string','enum':['inventory_changed','after_combat','goal_changed']}},'required':['cell','decision','reason','revisit']}},
  'navigation':{'type':'string','enum':['current_goal','frontier','stairs','items']},
  'hypothesis':{'type':'string'},'test':{'type':'string','enum':list(TESTS)},'test_attempts':{'type':'integer','minimum':1,'maximum':4},
  'expected_signal':{'type':'string','enum':list(SIGNALS)},
  'interface_role':{'type':'string','enum':['none','confirm','cancel','up','left','down','right']},'interface_quote':{'type':'string'}},
- 'required':['objective','skill','reason','budget_turns','exploration_fraction','strategy','navigation','floor_objective','hypothesis','test','test_attempts','expected_signal','interface_role','interface_quote']}
+ 'required':['objective','skill','reason','budget_turns','exploration_fraction','strategy','navigation','floor_objective','item_decisions','hypothesis','test','test_attempts','expected_signal','interface_role','interface_quote']}
 
 def validate_plan(value):
     if not isinstance(value,dict) or set(value)!=set(PLAN_SCHEMA['required']):raise ValueError('Invalid supervision plan fields')
@@ -31,6 +32,14 @@ def validate_plan(value):
     x=value['exploration_fraction']
     if type(x) not in (int,float) or not 0<=x<=.5:raise ValueError('Invalid exploration budget')
     if value['test']!='none' and not value['hypothesis'].strip():raise ValueError('Experiment needs a question')
+    decisions=value['item_decisions']
+    if not isinstance(decisions,list) or len(decisions)>4:raise ValueError('Invalid item decisions')
+    for d in decisions:
+        if not isinstance(d,dict) or set(d)!={'cell','decision','reason','revisit'}:raise ValueError('Invalid item decision fields')
+        cell=d['cell']
+        if not isinstance(cell,list) or len(cell)!=2 or any(type(v) is not int for v in cell) or not (0<=cell[0]<54 and 0<=cell[1]<32):raise ValueError('Invalid item cell')
+        if d['decision'] not in ('collect','defer') or d['revisit'] not in ('inventory_changed','after_combat','goal_changed'):raise ValueError('Invalid item disposition')
+        if not isinstance(d['reason'],str) or not d['reason'].strip() or len(d['reason'])>240:raise ValueError('Item disposition needs a reason')
     return copy.deepcopy(value)
 
 class StateLedger:
@@ -65,7 +74,7 @@ class StateLedger:
         self.current={'step':step,'epoch':self.epoch,'scope':scope,'region':region,'floor':floor,'interface':kind,
           'text_overlay_hypothesis':overlay,'metrics':copy.deepcopy(metrics),'last_known_metrics':copy.deepcopy((world or {}).get('last_known_metrics',{})),
           'visible_map_targets':{k:copy.deepcopy(m.get(k,[]))[:16] for k in ('items','stairs')} if map_current else {},
-          'floor_exploration':{k:v for k,v in state.get('floor_exploration',{}).items() if not k.endswith('_cells')},
+          'floor_exploration':{k:copy.deepcopy(v) for k,v in state.get('floor_exploration',{}).items() if not k.endswith('_cells')},
           'retained_state':copy.deepcopy(state.get('retained_state',{})),
           'map_current':map_current,'player_cell':m.get('player_cell') if map_current else None,
           'contacts':copy.deepcopy(m.get('enemies',[]))[:16] if map_current else [],
@@ -73,6 +82,12 @@ class StateLedger:
           'selection_key':selection_key,'text':text,'text_key':hashlib.sha256(compact_text(text).encode()).hexdigest()[:20],
           'operator_guidance':copy.deepcopy(guidance),'control_revision':revision,
           'fact_rule':'現在の数値/位置は今回の観測。last_knownは過去の参考。敵種/所持/向き/因果は未確認。'}
+        floor=self.current.get('floor_exploration',{});items=floor.get('item_tasks',{})
+        if items:
+            pos=m.get('player_cell') or [0,0]
+            rank={'planned':0,'arrival_unverified':1,'awaiting_inventory_check':1,'capacity_blocked':1,'marker_unclassified':2,'deferred':3,'pickup_confirmed':9,'marker_resolved':9}
+            tasks=sorted(items.get('tasks',[]),key=lambda t:(rank.get(t['status'],4),abs(t['cell'][0]-pos[0])+abs(t['cell'][1]-pos[1])))
+            floor['item_tasks']={**items,'tasks':tasks[:8],'total_tasks':len(tasks),'summary_limited':len(tasks)>8}
         return self.current
     def record(self,row):
         self.recent.append({'step':row.get('step'),'keys':row.get('observed_keys'),
@@ -95,7 +110,7 @@ class Supervisor:
         hp=current.get('metrics',{}).get('hp',{}).get('values');food=current.get('metrics',{}).get('fullness',{}).get('values')
         skill='interface' if current.get('interface') else 'exit' if current.get('region')=='outside' else 'recover' if hp and hp[0]/max(1,hp[1])<.3 or food and food[0]<=15 else 'combat' if any(max(map(abs,e))<=1 for e in current.get('contacts',[])) else 'explore'
         return {'objective':'現在の観測と経験から全体目標へ進める','skill':skill,'reason':'監督回答までの観測に基づく暫定運用',
-          'budget_turns':8,'exploration_fraction':.125,'strategy':'advance','navigation':'current_goal','floor_objective':'auto','hypothesis':'','test':'none','test_attempts':1,'expected_signal':'damage_dealt' if skill=='combat' else 'interface_change' if skill=='interface' else 'food_gain' if skill=='recover' and food and food[0]<=15 else 'hp_gain' if skill=='recover' else 'position',
+          'budget_turns':8,'exploration_fraction':.125,'strategy':'advance','navigation':'current_goal','floor_objective':'auto','item_decisions':[],'hypothesis':'','test':'none','test_attempts':1,'expected_signal':'damage_dealt' if skill=='combat' else 'interface_change' if skill=='interface' else 'food_gain' if skill=='recover' and food and food[0]<=15 else 'hp_gain' if skill=='recover' else 'position',
           'interface_role':'none','interface_quote':'','origin':'local_bootstrap','scope':current['scope'],'adopted_step':current['step'],
           'expires_step':current['step']+8,'request_selection':current.get('selection_key'),'request_text_key':current['text_key'],'request_frame':current.get('frame_sha256'),'id':'bootstrap-'+str(current['epoch']),'anchor_floor':copy.deepcopy(current.get('floor'))}
     def tick(self,ledger,extra=None,image=None):

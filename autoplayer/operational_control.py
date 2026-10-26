@@ -112,7 +112,7 @@ class OperationalControl:
         candidates=[];pc=None;combat_trial=None;prediction_context={};self.sequence+=1
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
-                priority=100 if source=='interface' else 90 if source=='inventory_inspection' and skill=='recover' else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='items' else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=100 if source=='interface' else 90 if source=='inventory_inspection' and skill=='recover' else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 55 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
@@ -140,15 +140,15 @@ class OperationalControl:
             retained=state.get('retained_state',{});revision=retained.get('revision')
             enemies=state.get('minimap',{}).get('enemies',[])
             prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
-            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
+            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
             if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=24 and (urgent or revision is None or revision!=self.inspected_revision):
-                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat})
+                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat,'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
             hint=state.get('map_route_hint')
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 keys=hint.get('keys') or [hint.get('key')]
                 if keys and all(k in self.cfg.allowed_keys for k in keys):
-                    caption='見えている敵へ対処する位置に向かう' if hint.get('target_kind')=='enemy' else '観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '踏破済み経路で別の未処理先端へ戻る' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
+                    caption='未分類マークを確認する' if hint.get('target_kind')=='inspect_marker' else '見えている敵へ対処する位置に向かう' if hint.get('target_kind')=='enemy' else '観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '踏破済み経路で別の未処理先端へ戻る' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
                     offer(replace(self._decision(base,keys,'floor_navigation',hint.get('reason','現在の階内目標への経路を1入力ずつ確認する。')),subgoal=caption),
                         'floor_navigation','combat' if hint.get('target_kind')=='enemy' else 'explore',1.85,{'route':hint})
             if policy and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):

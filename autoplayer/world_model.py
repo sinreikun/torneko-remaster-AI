@@ -133,7 +133,7 @@ class Inventory:
             # arbitrary dialogue must never become possessions.
             m=re.match(r'^([▶►▷>●]|[a-zA-Z][).:：]|[0-9]+[).:：]|[EＥ]\s+)[ \t]*(.+)$',raw)
             if not m:
-                if not line.get('words') or re.search(r'道具|詳細表示|整理|持ち物|装備|HP|Lv|満腹|ちから|剣の強さ|盾の強さ|ページ|所持金|[0-9]+\s*/\s*[0-9]+',raw) or raw in ('投げる','置く','食べる','飲む','読む','振る','説明','外す') or not re.search(r'[ぁ-んァ-ン一-龥]',raw):continue
+                if not line.get('words') or re.search(r'道具|詳細表示|整理|持ち物|装備|HP|Lv|満腹|ちから|剣の強さ|盾の強さ|ページ|所持金|[0-9]+\s*/\s*[0-9]+',raw) or re.fullmatch(r'\d+\s*階|\d+\s*[GＧ]',raw) or raw in ('投げる','置く','食べる','飲む','読む','振る','説明','外す') or not re.search(r'[ぁ-んァ-ン一-龥]',raw):continue
                 name=raw;prefix=''
             else:name=m[2].strip();prefix=m[1]
             if not name or name in ('装備','道具','持ち物','使う','食べる','投げる','置く'):continue
@@ -149,6 +149,15 @@ class Inventory:
             if name in self.identifications:row.update(self.identifications[name],name_status='identified_message_unverified_ocr')
             rows.append(row)
             if selected:self.selected=identifier;self.selected_age=self.age
+        occupancy=None;counts=set();height=int.from_bytes(png[20:24],'big') if png and png.startswith(b'\x89PNG') and len(png)>=24 else None
+        for line in (native or {}).get('lines',[]):
+            value=line.get('text','')
+            if re.search(r'HP|Lv|ちから|満腹',value,re.I):continue
+            boxes=[w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
+            if height and boxes and max(b[1]+b[3] for b in boxes)<height*.18:continue
+            for match in re.finditer(r'(?<!\d)(\d{1,2})\s*/\s*20(?!\d)',value):
+                if int(match[1])<=20:counts.add(int(match[1]))
+        if len(counts)==1:occupancy={'count':next(iter(counts)),'capacity':20,'source':'current_inventory_ocr','unverified_ocr':True}
         empty=any(re.fullmatch(r'(?:道具|持ち物|所持品)?\s*[（(]?0\s*/\s*20[)）]?',s) for s in text)
         if not rows and not empty:
             return {'status':'unreadable_entries','rows':[],'last_observed_rows':copy.deepcopy(self.rows),'last_observed':self.last_seen,'complete':False}
@@ -156,7 +165,7 @@ class Inventory:
         if page and 1<=page[0]<=page[1]<=100:self.pages[page[0]]={'total':page[1],'rows':copy.deepcopy(rows)}
         complete=bool(page and all(i in self.pages and self.pages[i]['total']==page[1] for i in range(1,page[1]+1)))
         return {'status':'observed' if rows or empty else 'unreadable_entries','rows':copy.deepcopy(rows),'page':page,
-            'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
+            'occupancy':occupancy,'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
             'rule':'表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。'}
     def learn(self,row,before,after,old_ocr,new_ocr,natural,before_png=None):
         text=labels(new_ocr);old_text=labels(old_ocr)
@@ -277,7 +286,10 @@ class WorldModel:
         inv=self.inventory.observe(native,png)
         self.state_snapshot.observe(state.get('metrics',{}),inv,self.tick,bool(m.get('enemies')) if m.get('status')=='observed' else None)
         state['retained_state']=self.state_snapshot.context()
-        self.floor_navigation.inventory_updated(self.state_snapshot.inventory_token)
+        self.floor_navigation.inventory_updated(self.state_snapshot.inventory_token,(self.state_snapshot.inventory or {}).get('occupancy'),inv.get('status')=='observed')
+        item_state=self.floor_navigation.item_tasks.context()
+        if item_state['needs_inventory_check']:self.state_snapshot.request('floor_item_needs_check',item_state['scope']+item_state['check_token'])
+        state['retained_state']=self.state_snapshot.context()
         current_messages=[s for s in labels(native) if not re.search(r'HP|Lv|満腹|\d+\s*階|ちから|剣の強さ|盾の強さ|^\d+[GＧ%％]?$|^G$',s,re.I)]
         new_messages=[s for s in current_messages if s not in self.last_messages]
         self.last_messages=current_messages
@@ -288,8 +300,8 @@ class WorldModel:
                 'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'未踏または未処理の先端を探索候補とし、探索完了の枝は優先度を下げる。探索不要は通行禁止ではなく、帰路・階段・回収のため再利用できる。'},
             'inventory':inv,'identity_rule':'数値IDは識別用。画像から正体・敵種・非敵対NPCを確定しない。姿の変化は別個体の証明ではない。'}
         return copy.deepcopy(self.latest)
-    def navigation_hint(self,state,preference='current_goal',mission='auto',plan_id=None):
-        hint=self.floor_navigation.hint(state,preference,mission,plan_id)
+    def navigation_hint(self,state,preference='current_goal',mission='auto',plan_id=None,item_decisions=None):
+        hint=self.floor_navigation.hint(state,preference,mission,plan_id,item_decisions)
         state['floor_exploration']=self.floor_navigation.context()
         return hint
 
@@ -314,6 +326,12 @@ class WorldModel:
         after['retained_state']=self.state_snapshot.context()
         row['retained_state']=copy.deepcopy(after['retained_state'])
         self.floor_navigation.record(before,after,row,natural)
+        self.floor_navigation.item_tasks.feedback(row,before,after,old_ocr,new_ocr)
+        item_state=self.floor_navigation.item_tasks.context()
+        if item_state['needs_inventory_check']:self.state_snapshot.request('floor_item_needs_check',item_state['scope']+item_state['check_token'])
+        marker=(item_state['scope'],item_state['revision'])
+        if getattr(self,'saved_item_marker',None)!=marker:
+            self.save('floor_item_tasks',item_state);self.saved_item_marker=marker
         if self.floor_navigation._valid(after):self.navigation_hint(after)
         after['floor_exploration']=self.floor_navigation.context()
         row['floor_exploration']=copy.deepcopy(after['floor_exploration'])

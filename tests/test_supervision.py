@@ -17,7 +17,7 @@ from test_policy import state,receipt_row
 from test_agent import Backend,Script,change
 
 def proposal(**kw):
-    return dict(objective='現在の観測から目的への経路を進む',skill='explore',reason='実測を優先する',budget_turns=16,exploration_fraction=.125,strategy='advance',navigation='current_goal',floor_objective='auto',hypothesis='',test='none',test_attempts=2,expected_signal='position',interface_role='none',interface_quote='',**kw)
+    return dict(objective='現在の観測から目的への経路を進む',skill='explore',reason='実測を優先する',budget_turns=16,exploration_fraction=.125,strategy='advance',navigation='current_goal',floor_objective='auto',item_decisions=[],hypothesis='',test='none',test_attempts=2,expected_signal='position',interface_role='none',interface_quote='',**kw)
 def native(*lines):return {'status':'ok','lines':[{'text':t,'confidence':.99} for t in lines]}
 def ledger(s=None,step=0,revision=0,guidance=0):
     l=StateLedger();l.observe(native('1階 HP15/15'),s or state(),{'location':'dungeon'},{},{'revision':guidance,'text':''},revision,step);return l
@@ -30,6 +30,13 @@ class SupervisorTests(unittest.TestCase):
         for patch in ({'budget_turns':999},{'exploration_fraction':float('nan')},{'skill':'run_code'},{'interface_role':'alt_tab'},{'test':'movement_response'},{'test_attempts':0},{'budget_turns':True},{'keys':['w']}):
             v=proposal();v.update(patch)
             with self.assertRaises(ValueError):validate_plan(v)
+    def test_item_disposition_needs_reason_and_cannot_claim_pickup_or_capacity(self):
+        v=proposal();v['item_decisions']=[{'cell':[2,1],'decision':'defer','reason':'所持品の交換候補を確認する','revisit':'inventory_changed'}]
+        self.assertEqual(validate_plan(v)['item_decisions'][0]['decision'],'defer')
+        for change in ({'decision':'pickup_confirmed'},{'reason':''},{'cell':[100,1]},{'revisit':'never'}):
+            bad=copy.deepcopy(v);bad['item_decisions'][0].update(change)
+            with self.assertRaises(ValueError):validate_plan(bad)
+
     def test_cell_animation_does_not_change_domain_but_floor_controls_and_contact_do(self):
         l=ledger();scope=l.current['scope'];s=state();s['minimap']['player_cell']=[100,100]
         l.observe(native('1階 HP15/15'),s,{'location':'dungeon'},{},{'revision':0},0,1);self.assertEqual(l.current['scope'],scope)

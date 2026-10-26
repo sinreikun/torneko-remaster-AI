@@ -30,6 +30,12 @@ def requires_message_ocr(row,state,cfg):
     if row.get('combat_experiment') or (row.get('operation') or {}).get('skill')=='combat':return True
     state=state or {}
     if state.get('minimap',{}).get('enemies'):return True
+    from .floor_navigation import ROUTE_MOVES
+    m=state.get('minimap',{});keys=row.get('observed_keys',[])
+    delta=next((d for k,d in ROUTE_MOVES.items() if len(k.split('+'))==len(keys) and set(k.split('+'))==set(keys)),None)
+    hint=state.get('map_route_hint') or {};pos=m.get('player_cell')
+    if delta and pos and hint.get('target_kind') in ('items','inspect_marker') and hint.get('target_cell')==[pos[0]+delta[0],pos[1]+delta[1]]:return True
+    if delta and list(delta) in [list(p) for p in m.get('items',[])+m.get('uncertain_marks',[])]:return True
     from .interfaces import torneko_menu_kind
     if torneko_menu_kind(row.get('ocr') or {})=='item_actions':return True
     if not state.get('eligible') or state.get('menu_evidence'):return False
