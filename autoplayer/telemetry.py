@@ -119,6 +119,10 @@ class RecognitionState:
             goal=f.get('goal',{});phase=goal.get('phase','')
             title={'inspect_unclassified_marker':'未分類マークを確認','handle_visible_enemy':'見えている敵に対処','explore_frontier':'未処理先端を探索','reach_stairs':'観測済み階段へ','return_to_stairs':'帰還のため階段へ','collect_visible_items':'観測済みの品を確認','route_unavailable':'経路を再検討','review_exhausted_floor':'階内の次の目的を再検討','verify_objective':'所持品・目標を再確認','verify_stair_action':'階段の操作結果を再確認'}.get(phase,phase)
             note+=f"\n階内目標: {title} {goal.get('target_cell') or ''}\n踏破 {f.get('visited_count',0)} / 既知 {f.get('known_count',0)} / 未処理先端 {f.get('primary_frontier_count',0)} / 完了枝 {len(f.get('exhausted_branch_cells',[]))}"
+        task=f.get('exploration_task')
+        if task and not (self.tentative.get('active') or self.tentative.get('display_retained')):
+            status={'navigating':'移動中','probing':'先端を確認','detour_search':'迂回探索','interrupted':'割込み後に再検討','blocked':'到達不能・再検討'}.get(task.get('status'),task.get('status',''))
+            note+=f"\n継続探索目標: {task.get('target_cell')} / {status}"
         counts=f.get('item_tasks',{}).get('counts',{})
         if counts and not (self.tentative.get('active') or self.tentative.get('display_retained')):note+=f"\n品/マーク: 未分類 {sum(t['kind']=='unclassified_marker' and t['status'] not in ('pickup_confirmed','marker_resolved') for t in f.get('item_tasks',{}).get('tasks',[]))} 取得未確認 {counts.get('arrival_unverified',0)+counts.get('awaiting_inventory_check',0)} 満杯 {counts.get('capacity_blocked',0)} 保留 {counts.get('deferred',0)}"
         atlas=self.tentative.get('atlas',{})

@@ -12,6 +12,67 @@ def observed(pos,known,floor=1,stairs=(),items=(),enemies=()):
     return s
 
 class FloorNavigationTests(unittest.TestCase):
+    def test_remote_frontier_survives_new_nearby_frontier_and_menu(self):
+        known={(x,2) for x in range(1,9)};nav=FloorNavigation();start=observed((2,2),known)
+        nav.observe(start);nav.visited[(1,2)]=1
+        for key in ('a','w','s'):nav.failures[(1,2),key]=1
+        first=nav.hint(start);self.assertEqual(first['target_cell'],[8,2])
+        expanded=known|{(3,1)};next_state=observed((3,2),expanded)
+        self.assertEqual(nav.hint(next_state)['target_cell'],[8,2])
+        saved=copy.deepcopy(nav.exploration_task)
+        self.assertIsNone(nav.hint({'eligible':False,'minimap':{},'metrics':{}}))
+        self.assertEqual(nav.exploration_task,saved)
+        nav.hint(observed((3,2),expanded,floor=2))
+        self.assertNotEqual(nav.exploration_task,saved)
+
+    def test_higher_priority_item_interrupts_then_resumes_remote_task(self):
+        known={(x,2) for x in range(1,9)};nav=FloorNavigation();start=observed((2,2),known)
+        nav.observe(start);nav.visited[(1,2)]=1
+        for key in ('a','w','s'):nav.failures[(1,2),key]=1
+        self.assertEqual(nav.hint(start)['target_cell'],[8,2])
+        item=observed((3,2),known,items=[(2,2)])
+        self.assertEqual(nav.hint(item)['target_kind'],'items')
+        self.assertEqual(nav.exploration_task['status'],'interrupted')
+        self.assertEqual(nav.exploration_task['target_cell'],[8,2])
+        nav.item_tasks.decide([{'cell':[2,2],'decision':'defer','reason':'明示的に保留','revisit':'inventory_changed'}])
+        self.assertEqual(nav.hint(observed((3,2),known))['target_cell'],[8,2])
+        self.assertEqual(nav.exploration_task['status'],'navigating')
+
+    def test_blocked_remote_task_seeks_target_side_boundary_without_unblocking_edge(self):
+        known={(x,2) for x in range(1,9)};nav=FloorNavigation();s=observed((2,2),known)
+        nav.observe(s);nav.visited[(1,2)]=1
+        for key in ('a','w','s'):nav.failures[(1,2),key]=1
+        self.assertEqual(nav.hint(s)['target_cell'],[8,2])
+        nav.failures[(4,2),'d']=2
+        hint=nav.hint(s)
+        self.assertEqual(hint['target_kind'],'boundary_recheck')
+        self.assertEqual(hint['target_cell'],[4,2])
+        self.assertEqual(nav.exploration_task['target_cell'],[8,2])
+        self.assertEqual(nav.exploration_task['status'],'detour_search')
+        self.assertIsNone(nav._path({(8,2)}))
+        self.assertEqual(nav.context()['suppressed_edges'],[{'origin':[4,2],'keys':['d'],'failures':2}])
+        # New accepted successful traversal, not elapsed ticks, reopens the edge.
+        nav.record(observed((4,2),known),observed((5,2),known),receipt_row('d'))
+        self.assertEqual(nav.hint(observed((5,2),known))['target_cell'],[8,2])
+        self.assertEqual(nav.exploration_task['status'],'navigating')
+
+    def test_supplied_topology_keeps_distant_frontier_without_missing_failure_history(self):
+        data=json.loads((Path(__file__).parent/'fixtures/remote-frontier-1792987820475716400.json').read_text())
+        nav=FloorNavigation();s=data['state'];nav.observe(s)
+        nav.visited.update({tuple(p):1 for p in data['visited_cells']})
+        self.assertEqual(nav.primary(),{(32,27)})
+        # Export lacks suppressed edge origins; do not manufacture that history.
+        self.assertEqual(data['reported_suppressed_edge_count'],1)
+        self.assertEqual(nav.hint(s)['target_cell'],[32,27])
+        for logged in data['logged_choices']:
+            updated=copy.deepcopy(s);old=s['minimap']['player_cell'];pos=logged['position']
+            updated['minimap']['player_cell']=pos
+            for field in ('known_cells','stairs','enemies','items','uncertain_marks'):
+                updated['minimap'][field]=[[x+old[0]-pos[0],y+old[1]-pos[1]] for x,y in s['minimap'].get(field,[])]
+            hint=nav.hint(updated)
+            self.assertEqual(hint['target_cell'],[32,27])
+            self.assertEqual(nav.exploration_task['target_cell'],[32,27])
+
     def test_dead_end_is_retired_but_floor_remains_a_return_route(self):
         known={(x,4) for x in range(40,45)};nav=FloorNavigation();s=observed((43,4),known)
         nav.observe(s);end=observed((44,4),known);nav.record(s,end,receipt_row('d'))

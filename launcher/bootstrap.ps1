@@ -17,7 +17,7 @@ if ($IntegrationTest -or $DownloadSelfTest) {
     $BaseDir = [IO.Path]::GetFullPath($TestBaseDir)
 }
 $payloadHash = (Get-FileHash -LiteralPath $Payload -Algorithm SHA256).Hash.Substring(0,12)
-$AppDir = Join-Path $BaseDir ('app-0.22.2-' + $payloadHash)
+$AppDir = Join-Path $BaseDir ('app-0.22.3-' + $payloadHash)
 
 # This block runs in a dedicated runspace. UI updates are polled on the UI thread.
 $InstallWorker = {
@@ -30,7 +30,7 @@ $InstallWorker = {
     function Get-Json($Url, $Body = $null) {
         Check-Cancel
         $request = [Net.HttpWebRequest]::Create($Url)
-        $request.UserAgent = 'LocalGamePilot/0.22.2'
+        $request.UserAgent = 'LocalGamePilot/0.22.3'
         if ($request.Address.IsLoopback) { $request.Proxy = $null }
         $request.Timeout = 30000
         $request.ReadWriteTimeout = 30000
@@ -51,7 +51,7 @@ $InstallWorker = {
         Check-Cancel
         if (-not $Url.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unsupported release metadata origin' }
         $request = [Net.HttpWebRequest]::Create($Url)
-        $request.UserAgent = 'LocalGamePilot/0.22.2'; $request.Timeout=30000; $request.ReadWriteTimeout=30000
+        $request.UserAgent = 'LocalGamePilot/0.22.3'; $request.Timeout=30000; $request.ReadWriteTimeout=30000
         $response = $request.GetResponse()
         try {
             if (-not $response.ResponseUri.AbsoluteUri.StartsWith('https://github.com/ollama/ollama/releases/')) { throw 'Unexpected release metadata redirect' }
@@ -102,7 +102,7 @@ $InstallWorker = {
             $response = $null
             try {
                 $request = [Net.HttpWebRequest]::Create($Url)
-                $request.UserAgent = 'LocalGamePilot/0.22.2'
+                $request.UserAgent = 'LocalGamePilot/0.22.3'
                 $request.Timeout = 30000; $request.ReadWriteTimeout = 30000
                 [long]$offset = 0
                 if ((Test-Path $part) -and (Test-Path $metadataFile)) {
