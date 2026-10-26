@@ -74,6 +74,61 @@ class FloorNavigationTests(unittest.TestCase):
             self.assertEqual(hint['target_cell'],[32,27])
             self.assertEqual(nav.exploration_task['target_cell'],[32,27])
 
+    def blocked_traversed_connection(self):
+        known={(x,1) for x in range(1,5)}
+        def fresh(pos,frame):
+            value=observed(pos,known);value['frame_sha256']=frame
+            value['minimap']['known_cells']=[[x-pos[0],y-pos[1]] for x,y in known]
+            return value
+        nav=FloorNavigation();left=fresh((1,1),'left');right=fresh((2,1),'right')
+        nav.observe(right);nav.record(right,left,receipt_row('a'))
+        for key in ('a','w','s'):nav.failures[(1,1),key]=1
+        for _ in range(2):nav.record(left,left,receipt_row('d'))
+        return nav,left,right
+
+    def test_exhausted_component_rechecks_only_observed_traversal_not_wall_guesses(self):
+        nav,left,right=self.blocked_traversed_connection()
+        hint=nav.hint(left)
+        self.assertEqual(hint['mode'],'traversed_edge_recheck')
+        self.assertEqual(hint['edge_target'],[2,1]);self.assertEqual(hint['keys'],['d'])
+        self.assertEqual(nav.failures[(1,1),'d'],2)
+        self.assertIsNone(nav._path({(4,1)})) # A proposed check never reopens an edge.
+        left['map_route_hint']=hint
+        row=receipt_row('d');nav.record(left,right,row)
+        self.assertEqual(row['route_recheck_outcome']['status'],'traversal_observed')
+        self.assertIsNotNone(nav._path({(4,1)}))
+
+    def test_accepted_unsuccessful_recheck_is_not_repeated_by_ticks(self):
+        nav,left,right=self.blocked_traversed_connection();left['map_route_hint']=nav.hint(left)
+        nav.record(left,left,receipt_row('d',executed=False))
+        self.assertIsNotNone(nav.recheck_hint())
+        row=receipt_row('d');nav.record(left,left,row)
+        self.assertEqual(row['route_recheck_outcome']['status'],'not_traversed')
+        for _ in range(40):nav.observe(left)
+        self.assertIsNone(nav.recheck_hint())
+        self.assertEqual(nav.failures[(1,1),'d'],3)
+        nav.crossings.clear();nav.rechecked_edges.clear()
+        self.assertIsNone(nav.recheck_hint())
+
+    def test_accepted_recheck_with_missing_map_is_used_but_not_declared_success(self):
+        nav,left,right=self.blocked_traversed_connection();left['map_route_hint']=nav.hint(left)
+        row=receipt_row('d');nav.record(left,{'eligible':False,'minimap':{},'metrics':{}},row)
+        self.assertEqual(row['route_recheck_outcome']['status'],'sent_outcome_unverified')
+        self.assertIsNone(nav.recheck_hint());self.assertEqual(nav.failures[(1,1),'d'],2)
+
+    def test_supplied_conflicting_traversal_has_reachable_recheck_origin(self):
+        data=json.loads((Path(__file__).parent/'fixtures/blocked-traversal-1792998242432400800.json').read_text())
+        self.assertEqual(data['app_version'],'0.22.4');self.assertEqual(data['logged_phase'],'route_unavailable')
+        nav=FloorNavigation();nav.observe(data['state'])
+        nav.visited.update({tuple(p):1 for p in data['visited_cells']})
+        nav.missing_floor.update({tuple(p):2 for p in data['disputed_cells']})
+        for edge in data['suppressed_edges']:nav.failures[tuple(edge['origin']),'+'.join(edge['keys'])]=edge['failures']
+        for sample in data['crossing_observations']:nav.crossings[nav.edge_pair(sample['beforepos'],sample['after'])]+=1
+        hint=nav.recheck_hint()
+        self.assertEqual(hint['mode'],'approach_edge_recheck');self.assertEqual(hint['edge_origin'],[1,9])
+        self.assertEqual(hint['edge_target'],[1,10]);self.assertEqual(hint['traversal_evidence'],2)
+        self.assertIsNone(nav._path({(1,10)}))
+
     def test_area_corners_never_become_frontiers_or_boundary_rechecks(self):
         known={(x,y) for x in range(1,6) for y in range(1,6)}
         nav=FloorNavigation();s=observed((3,3),known)

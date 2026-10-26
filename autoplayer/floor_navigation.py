@@ -16,7 +16,7 @@ class FloorNavigation:
         from .item_tasks import ItemTasks
         self.item_tasks=ItemTasks()
         self.floor=None;self.space=None;self.known=set();self.visited=Counter();self.failures=Counter();self.neighbors={}
-        self.stairs=set();self.items=set();self.enemies=set();self.position=None;self.tick=0;self.last_direction=None;self.mission='auto';self.plan_id=None
+        self.crossings=Counter();self.rechecked_edges={};self.stairs=set();self.items=set();self.enemies=set();self.position=None;self.tick=0;self.last_direction=None;self.mission='auto';self.plan_id=None
         self.exploration_task=None;self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None;self.fresh_floor=set();self.missing_floor=Counter();self.last_map_frame=None;self.positive_floor=Counter()
     def _valid(self,state):
         m=state.get('minimap',{});f=state.get('metrics',{}).get('floor',{})
@@ -104,8 +104,37 @@ class FloorNavigation:
                 degree[p]-=1
                 if degree[p]<=1 and self.visited[p] and self.degree(p)<=2 and p not in self.stairs|self.items:queue.append(p)
         return retired
+    @staticmethod
+    def edge_pair(a,b):return tuple(sorted((tuple(a),tuple(b))))
+    def recheck_hint(self):
+        # Past traversal is conflicting evidence, not proof of present passage.
+        # Only one accepted recheck per traversal evidence version, never a timer.
+        if any(max(abs(x),abs(y))<=1 for x,y in self.enemies):return None
+        choices=[]
+        for (origin,key),failures in sorted(self.failures.items()):
+            if failures<2 or key not in MOVES:continue
+            dest=self._add(origin,MOVES[key]);evidence=self.crossings[self.edge_pair(origin,dest)]
+            if not evidence or self.rechecked_edges.get((origin,key))==evidence:continue
+            if origin not in self.fresh_floor or dest not in self.fresh_floor or origin in self.disputed() or dest in self.disputed():continue
+            path=self._path({origin})
+            if path is not None:choices.append((len(path[1]),origin,key,dest,evidence,path[1]))
+        if not choices:return None
+        _,origin,key,dest,evidence,steps=min(choices)
+        route=[list(self.position)];node=self.position
+        for move in steps:node=self._add(node,ROUTE_MOVES[move]);route.append(list(node))
+        return {'key':steps[0] if steps else key,'keys':(steps[0] if steps else key).split('+'),
+          'mode':'approach_edge_recheck' if steps else 'traversed_edge_recheck','target_kind':'route_recheck',
+          'target_cell':list(origin) if steps else list(dest),'route_cells':route,'distance':len(steps),
+          'edge_origin':list(origin),'edge_target':list(dest),'edge_key':key,'traversal_evidence':evidence}
     def record(self,before,after,row,natural=None):
         if not row.get('executed') or row.get('dry_run') or row.get('turn_kind')=='aborted' or (row.get('input_receipt') or {}).get('os_submission')!='accepted' or row.get('kind') in ('compatibility','separation') or str(row.get('event','')).startswith('diagnostic'):return
+        hint=before.get('map_route_hint') or {}
+        if hint.get('mode')=='traversed_edge_recheck' and self._valid(before) and before['metrics']['floor']['values']==list(self.floor or ()) and before['minimap']['player_cell']==hint.get('edge_origin') and row.get('observed_keys')==[hint.get('edge_key')]:
+            edge=(tuple(hint['edge_origin']),hint['edge_key'])
+            evidence=self.crossings[self.edge_pair(hint['edge_origin'],hint['edge_target'])]
+            if evidence and evidence==hint.get('traversal_evidence'):
+                self.rechecked_edges[edge]=evidence
+                row['route_recheck_outcome']={'status':'sent_outcome_unverified','origin':hint['edge_origin'],'target':hint['edge_target'],'traversal_evidence':evidence}
         if not self._valid(before) or not self._valid(after):return
         if before.get('observation_mode','normal')!=after.get('observation_mode','normal') or (natural or {}).get('position') or (natural or {}).get('floor'):return
         if before['metrics']['floor']['values']!=after['metrics']['floor']['values']:return
@@ -117,7 +146,9 @@ class FloorNavigation:
         if key is None:return
         delta=ROUTE_MOVES[key]
         row['floor_navigation_outcome']={'expected_delta':list(delta),'observed_delta':[b[0]-a[0],b[1]-a[1]],'moved':b==self._add(a,delta),'arrival_visits_before':arrival_visits}
+        if 'route_recheck_outcome' in row:row['route_recheck_outcome']['status']='traversal_observed' if b==self._add(a,delta) else 'not_traversed' if a==b else 'different_displacement'
         if b==self._add(a,delta):
+            self.crossings[self.edge_pair(a,b)]+=1
             if [b[0]-a[0],b[1]-a[1]] in [list(p) for p in before['minimap'].get('items',[])]:self.item_attempts[b]+=1
             if b in self.item_tasks.tasks:self.item_tasks.arrive(b,row.get('step'))
             self.last_direction=key;self.failures.pop((a,key),None)
@@ -224,6 +255,11 @@ class FloorNavigation:
                 self.last_hint={'key':steps[0],'keys':steps[0].split('+'),'diagonal':len(steps[0].split('+'))==2,'mode':'backtrack_to_frontier' if backtrack and target_kind!='stairs' else 'observed_grid_route',
                     'target_cell':list(target),'distance':len(steps),'target_kind':target_kind,'route_cells':route[:1728]}
                 if backtrack:reason='踏破済みの床を必要な帰路として使い、別の探索先または現在の目的へ向かう'
+        if self.last_hint is None and phase in ('route_unavailable','review_exhausted_floor'):
+            recheck=self.recheck_hint()
+            if recheck:
+                self.last_hint=recheck;phase='verify_failed_route'
+                reason='代替経路がなく、現在も床表示がある過去の通過接続を1回だけ再検証する。通れるとは仮定しない'
         if self.exploration_task:
             task=self.exploration_task
             if target_kind=='frontier' and path is not None and list(path[0])==task['target_cell']:
@@ -247,7 +283,7 @@ class FloorNavigation:
     def context(self):
         if self.position is None:return {'status':'unavailable','goal':copy.deepcopy(self.goal)}
         primary=self.primary();retired=self.retired();interior={c for c in self.known if self.degree(c)==4}
-        return {'exploration_task':copy.deepcopy(self.exploration_task),'suppressed_edges':[{'origin':list(p),'keys':k.split('+'),'failures':v} for (p,k),v in sorted(self.failures.items()) if v>=2], 'item_tasks':self.item_tasks.context(),'status':'observed_floor','disputed_cached_cells':[list(p) for p in self.disputed()],
+        return {'route_rechecks':[{'origin':list(p),'keys':k.split('+'),'traversal_evidence':v} for (p,k),v in sorted(self.rechecked_edges.items())], 'exploration_task':copy.deepcopy(self.exploration_task),'suppressed_edges':[{'origin':list(p),'keys':k.split('+'),'failures':v} for (p,k),v in sorted(self.failures.items()) if v>=2], 'item_tasks':self.item_tasks.context(),'status':'observed_floor','disputed_cached_cells':[list(p) for p in self.disputed()],
           'ineffective_actions_here':[k.split('+') for k in ROUTE_MOVES if self.failures[self.position,k]>=2],
           'suppressed_edge_count':sum(v>=2 for v in self.failures.values()),'floor':list(self.floor),'position':list(self.position),'goal':copy.deepcopy(self.goal),
           'known_count':len(self.known),'visited_count':len(self.visited),'primary_frontier_count':len(primary),'exhausted_branch_count':len(retired),

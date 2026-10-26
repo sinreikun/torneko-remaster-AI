@@ -359,8 +359,8 @@ class WorldModel:
         if combat_links:self.save('object_combat_association',combat_links)
         result={'visual_battle_links':visual_links,'combat_links':combat_links,'item_effect':effect,'delayed_effects':later,'screen_tile_pitch':self.visual.pitch}
         after['retained_state']=self.state_snapshot.context();row['retained_state']=copy.deepcopy(after['retained_state'])
-        self.save('turn',{'observation':self.latest,'result_metrics':metrics(after),'keys':row.get('observed_keys',[]),'effects':result,
-            'navigation_after':{k:copy.deepcopy(after['floor_exploration'].get(k)) for k in ('position','goal','exploration_task','frontier_cells','suppressed_edges','frontier_rule')}})
+        self.save('turn',{'observation':self.latest,'result_metrics':metrics(after),'keys':row.get('observed_keys',[]),'effects':result,'route_recheck':copy.deepcopy(row.get('route_recheck_outcome')),
+            'navigation_after':{k:copy.deepcopy(after['floor_exploration'].get(k)) for k in ('position','goal','exploration_task','frontier_cells','suppressed_edges','route_rechecks','frontier_rule')}})
         return result
     def record_item_value(self,effect):
         if not self.db:return

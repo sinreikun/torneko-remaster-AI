@@ -117,7 +117,7 @@ class RecognitionState:
         f=self.floor_exploration
         if f.get('status')=='observed_floor' and not self.tentative.get('active'):
             goal=f.get('goal',{});phase=goal.get('phase','')
-            title={'inspect_unclassified_marker':'未分類マークを確認','handle_visible_enemy':'見えている敵に対処','explore_frontier':'未処理先端を探索','reach_stairs':'観測済み階段へ','return_to_stairs':'帰還のため階段へ','collect_visible_items':'観測済みの品を確認','route_unavailable':'経路を再検討','review_exhausted_floor':'階内の次の目的を再検討','verify_objective':'所持品・目標を再確認','verify_stair_action':'階段の操作結果を再確認'}.get(phase,phase)
+            title={'inspect_unclassified_marker':'未分類マークを確認','handle_visible_enemy':'見えている敵に対処','explore_frontier':'未処理先端を探索','reach_stairs':'観測済み階段へ','return_to_stairs':'帰還のため階段へ','collect_visible_items':'観測済みの品を確認','verify_failed_route':'通過実績のある経路を再検証','route_unavailable':'経路を再検討','review_exhausted_floor':'階内の次の目的を再検討','verify_objective':'所持品・目標を再確認','verify_stair_action':'階段の操作結果を再確認'}.get(phase,phase)
             note+=f"\n階内目標: {title} {goal.get('target_cell') or ''}\n踏破 {f.get('visited_count',0)} / 既知 {f.get('known_count',0)} / 未処理先端 {f.get('primary_frontier_count',0)} / 完了枝 {len(f.get('exhausted_branch_cells',[]))}"
         task=f.get('exploration_task')
         if task and not (self.tentative.get('active') or self.tentative.get('display_retained')):
