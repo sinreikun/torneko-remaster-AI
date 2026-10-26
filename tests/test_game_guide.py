@@ -11,6 +11,14 @@ class GameGuideTests(unittest.TestCase):
         guide=GameGuide(Settings());ctx=guide.context({'status':'ok','lines':[]},'gameplay',{'relative_contacts':{'contacts':[{'adjacent':True}]}},{'floor':{'values':[1]},'hp':{'values':[9,15]}})
         self.assertIn('adjacent-attack',ctx['selected_ids']);self.assertEqual(ctx['current_keys']['attack'],['num1']);self.assertEqual(ctx['current_keys']['face'],['num5'])
         self.assertLessEqual(len(ctx['rules']),4);self.assertIn('仮説',ctx['instruction'])
+    def test_eight_way_and_one_gap_tactics_reach_adjacent_and_ranged_context(self):
+        guide=GameGuide(Settings())
+        for adjacent in (True,False):
+            ctx=guide.context({},'gameplay',{'relative_contacts':{'contacts':[{'adjacent':adjacent}]}},{'floor':{'values':[1]}})
+            rule=next(r for r in ctx['foundations'] if r['id']=='eight-way-and-first-strike')
+            self.assertIn('8方向',rule['expected_effect']);self.assertIn('Num6',rule['expected_effect'])
+            self.assertIn('倍速',rule['verify_or_revise']);self.assertEqual(ctx['current_keys']['step'],['num6'])
+
     def test_low_hp_and_food_references_remain_cross_edition(self):
         ctx=GameGuide(Settings()).context({},'gameplay',{}, {'hp':{'values':[3,15]},'fullness':{'values':[0]},'floor':{'values':[1]}})
         selected={r['id']:r for r in ctx['rules']}

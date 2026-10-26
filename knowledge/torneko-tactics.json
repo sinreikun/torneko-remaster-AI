@@ -45,6 +45,14 @@
       "edition": "user_environment",
       "kind": "user_supplied",
       "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-eight-way-combat-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-斜め攻撃と接近の手番",
+      "title": "利用者提供：8方向の隣接攻撃と1マス空きからの接近リスク",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
     }
   ],
   "rules": [
@@ -81,12 +89,13 @@
         "attack",
         "move"
       ],
-      "precondition": "現在の地図で敵表示が隣接。敵の個体名・向きは未確認。",
-      "expected_effect": "必要なら方向転換してから決定/攻撃を1回。新しい命中表示があり同じ隣接表示が残るなら再攻撃を候補にする。",
+      "precondition": "現在の地図で敵が縦横斜め8方向のいずれかに隣接。",
+      "expected_effect": "対象方向へNum5+方向キー（斜めは縦横2キー）で向き直しNum1で攻撃する。斜めから攻撃できるため縦横へ並び直す移動は不要。新しい命中表示と現在の接触を確認して再攻撃を比較する。",
       "verify_or_revise": "向き変更だけで撃破を期待しない。HP変化・命中/撃破の新しい文章・敵位置を照合。無反応だけで命中・空振りを断定しない。",
       "sources": [
         "steam-remaster-20261025",
-        "user-controls"
+        "user-controls",
+        "user-eight-way-combat-20261026"
       ],
       "applicability": "editorial_application",
       "priority": 100
@@ -972,6 +981,27 @@
       "verify_or_revise": "緊急回復や重要な欠測確認は例外。確認だけを反復せず、非表示の保持値を現在HPや所持の証明にしない。斜めは既知床の目標経路に限定し、壁の角や未知領域を通れると決めない。目的なしに斜めを試さない。",
       "sources": [
         "user-priority-diagonal-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "eight-way-and-first-strike",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "roles": [
+        "face",
+        "move",
+        "attack",
+        "step",
+        "item"
+      ],
+      "precondition": "現在のダンジョン地図で敵が見える。隣接と間に1マスある距離2を区別する。",
+      "expected_effect": "通常攻撃は縦横と斜めを含む8方向の隣接マス（相対座標の最大絶対値が1）に届く。斜めの敵でもその方向を向いてNum1で攻撃でき、縦横に並ぶための移動は不要。右上はNum5+W+D、左上はNum5+W+A、右下はNum5+S+D、左下はNum5+S+Aで移動せず向き直す。その後Num1で攻撃し新しい戦闘メッセージを確認する。間に1マス空いた距離2の敵に自分から近づくと、敵は移動をせずその手番に攻撃できる。通常速度で接近する近接敵ならNum6の足踏みで1ターンを渡して敵に隣接まで移動させ、次の自分の手番で先に攻撃する候補を比較する。",
+      "verify_or_revise": "接近待ちは無入力ではなくNum6を1回入力する。遠隔・倍速・不動・複数敵・低HP・地形等では成立/安全を仮定せず、回復・退避・遠隔攻撃・道具を比較。1回ごとに現在の敵位置とHPを読み直し、動かない敵に同じ足踏みを繰り返さない。方向転換が成功したことや命中、敵の個体・種別、壁越しの攻撃可否は推測で確定しない。",
+      "sources": [
+        "user-eight-way-combat-20261026"
       ],
       "applicability": "user_environment"
     }

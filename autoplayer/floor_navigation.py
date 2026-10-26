@@ -177,7 +177,7 @@ class FloorNavigation:
             targets={tuple(self.exploration_task['target_cell'])}
         # Visible threats first, then visible items. Only route on observed floor;
         # enemy markers themselves are occupied, not walkable destinations.
-        enemy_goals={self._add(e,d) for e in self.enemies for d in MOVES.values()}&self.known-self.enemies
+        enemy_goals={self._add(e,d) for e in self.enemies for d in ROUTE_MOVES.values()}&self.known-self.enemies
         item_goals=self.item_tasks.goals(self.position)
         for kind,options in (('enemy',enemy_goals),('items',item_goals),('inspect_marker',self.item_tasks.goals(self.position,'unclassified_marker'))):
             if options and self._path(options) is not None:

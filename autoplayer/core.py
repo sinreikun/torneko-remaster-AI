@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from .knowledge import KnowledgeEngine
 from .ocr import ScreenOCR
-from .controls import KEYS as PROFILE_KEYS,REFERENCE,is_torneko
+from .controls import KEYS as PROFILE_KEYS,REFERENCE,is_torneko,valid_key_count
 from .combat import relative_contacts
 from .interfaces import compact_text,torneko_menu_kind
 from .principles import LEGACY_GOAL,TORNEKO_GOAL,action_principles
@@ -132,7 +132,7 @@ def parse_decision(raw: str, cfg: Settings) -> Decision:
     aliases={'return':'enter','spacebar':'space','esc':'escape','arrowup':'up','arrowdown':'down','arrowleft':'left','arrowright':'right'}
     if isinstance(keys,list) and all(isinstance(k,str) for k in keys):
         keys=[aliases.get(k.strip().lower(),k.strip().lower()) for k in keys]
-    if not isinstance(keys,list) or len(keys) > 2 or any(type(k) is not str or k not in cfg.allowed_keys or k not in KEYS for k in keys) or len(set(keys)) != len(keys):
+    if not valid_key_count(keys) or any(type(k) is not str or k not in cfg.allowed_keys or k not in KEYS for k in keys) or len(set(keys)) != len(keys):
         raise ValueError('invalid or forbidden keys: '+repr(keys))
     if v['status']=='complete' and keys: raise ValueError('Complete requires keys=[]: use status continue while any action is pending. Status is the entire user goal, not finding the next key.')
     for k, lo, hi in (('hold_ms',1,cfg.max_hold_ms),('wait_ms',0,cfg.max_wait_ms)):
@@ -228,7 +228,7 @@ def _decision_object_schema(cfg):
                 'first_expected':expected_schema(),
                 'continuations':{'type':'array','maxItems':7,'items':{'type':'object','additionalProperties':False,
                     'required':['keys','hold_ms','wait_ms','expected'],'properties':{
-                        'keys':{'type':'array','minItems':1,'maxItems':2,'items':{'type':'string','enum':cfg.allowed_keys}},
+                        'keys':{'type':'array','minItems':1,'maxItems':3,'items':{'type':'string','enum':cfg.allowed_keys}},
                         'hold_ms':{'type':'integer','minimum':1,'maximum':cfg.max_hold_ms},
                         'wait_ms':{'type':'integer','minimum':0,'maximum':cfg.max_wait_ms},'expected':expected_schema()}}}}},
             'goal_evidence':{'type':'array','items':text,'maxItems':8},
@@ -241,7 +241,7 @@ def _decision_object_schema(cfg):
             'memory_updates':{'type':'array','maxItems':8,'items':{'type':'object','additionalProperties':False,
                 'required':['key','value','confidence'],'properties':{'key':text,'value':text,'confidence':{'type':'number','minimum':0,'maximum':1}}}},
             'action':{'type':'object','additionalProperties':False,'required':['keys','hold_ms','wait_ms'],'properties':{
-                'keys':{'type':'array','maxItems':2,'items':{'type':'string','enum':cfg.allowed_keys}},
+                'keys':{'type':'array','maxItems':3,'items':{'type':'string','enum':cfg.allowed_keys}},
                 'hold_ms':{'type':'integer','minimum':1,'maximum':cfg.max_hold_ms},
                 'wait_ms':{'type':'integer','minimum':0,'maximum':cfg.max_wait_ms}}}}}
 

@@ -1,4 +1,5 @@
 """Bounded, interruptible receding-horizon control; no multi-key macro playback."""
+from .controls import valid_key_count
 import copy
 import json
 from dataclasses import replace
@@ -16,7 +17,7 @@ def validate_forecast(value,cfg):
     for step in steps:
         if not isinstance(step,dict):raise ValueError('invalid forecast step')
         keys=step.get('keys')
-        if not isinstance(keys,list) or len(keys)>2 or any(not isinstance(k,str) or k not in cfg.allowed_keys for k in keys) or len(set(keys))!=len(keys):raise ValueError('invalid forecast keys')
+        if not valid_key_count(keys) or any(not isinstance(k,str) or k not in cfg.allowed_keys for k in keys) or len(set(keys))!=len(keys):raise ValueError('invalid forecast keys')
         if any(set(keys)>=set(pair) for pair in [('w','s'),('a','d'),('up','down'),('left','right')]):raise ValueError('opposite forecast keys')
         if type(step.get('hold_ms')) is not int or not 1<=step['hold_ms']<=cfg.max_hold_ms:raise ValueError('invalid forecast hold')
         if type(step.get('wait_ms')) is not int or not 0<=step['wait_ms']<=cfg.max_wait_ms:raise ValueError('invalid forecast wait')

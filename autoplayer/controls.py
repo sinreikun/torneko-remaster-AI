@@ -22,3 +22,8 @@ REFERENCE["minimap"]["menu_toggle"]="通常メニュー初期位置からnum0→
 
 # User preference for ordinary conversations; destructive confirmations stay blocked.
 REFERENCE['dialogue_policy']='会話・ダイアログの決定待ちはnum1を1回押して進める。通常の選択肢は基本的に「はい」を選ぶ。「はい」が選択済みならnum1、未選択なら現在のカーソルと選択肢の配置に基づく方向キー(w/a/s/d)を1回だけ送り、次の画面で選択を確認してからnum1。選択肢の存在・配置・現在選択を推測しない。未読の会話を無差別に取消で飛ばさない。ただし「もう一度聞く」など同じ説明への復帰が観測され、全体目標へ進まない反復になった場合は、現在の選択肢を確認して「いいえ」や取消で説明を終えることを検討する。「はい」を基本とすることは反復を続ける命令ではない。セーブ削除・初期化・購入・ゲーム終了など既存の破壊的操作禁止は維持する。'
+
+
+def valid_key_count(keys):
+    """Existing two-key chords plus only the three-key diagonal facing chord."""
+    return isinstance(keys,list) and (len(keys)<=2 or len(keys)==3 and all(isinstance(k,str) for k in keys) and 'num5' in keys and len(set(keys)&{'w','s'})==1 and len(set(keys)&{'a','d'})==1)

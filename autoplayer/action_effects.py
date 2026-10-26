@@ -15,7 +15,7 @@ class ActionEffects:
         patterns={'move':r'^(上|左|下|右)移動|^(up|left|down|right)$','face':r'方向転換','attack':r'攻撃|attack','confirm':r'決定|confirm','cancel':r'キャンセル|cancel','menu':r'メニュー|menu','step':r'足踏み','arrow':r'矢|shoot'}
         return [k for k,v in self.bindings.items() if k in self.cfg.allowed_keys and re.search(patterns[role],v,re.I)]
     def role(self,keys,state):
-        if len(keys)==2 and any(k in self.keys('face') for k in keys) and any(k in self.keys('move') for k in keys):return 'orientation_candidate'
+        if len(keys) in (2,3) and sum(k in self.keys('face') for k in keys)==1 and all(k in self.keys('face')+self.keys('move') for k in keys):return 'orientation_candidate'
         if len(keys)==2 and set(keys) in ({'w','a'},{'w','d'},{'s','a'},{'s','d'}) and not (state.get('_operational_interface') or state.get('interface_kind') or state.get('menu_evidence') or state.get('white_frame_evidence',{}).get('visible')):return 'movement_candidate'
         if len(keys)!=1:return 'chord'
         key=keys[0]

@@ -66,13 +66,52 @@ class CombatTests(unittest.TestCase):
         changed=copy.deepcopy(right);changed['metrics']['floor']['values']=[2]
         self.assertNotEqual(fresh.choose(self.decision,changed,True)[1]['stage'],'attack_trial')
 
-    def test_unknown_diagonal_dialog_blocked_and_unsent_inputs_are_not_forced(self):
+    def test_unknown_dialog_blocked_and_unsent_inputs_are_not_forced(self):
         self.assertIsNone(self.combat.choose(self.decision,self.s,False)[1])
         diagonal=copy.deepcopy(self.s);diagonal['minimap']['enemies']=[(1,1)]
-        self.assertIsNone(self.combat.choose(self.decision,diagonal,True)[1])
+        chosen,trial=self.combat.choose(self.decision,diagonal,True)
+        self.assertEqual(chosen.keys,['num5','s','d']);self.assertEqual(trial['stage'],'orient_trial')
         self.decision.scene='dialog';self.assertIsNone(self.combat.choose(self.decision,self.s,True)[1])
         self.decision.scene='gameplay';_,trial=self.combat.choose(self.decision,self.s,True)
         self.assertEqual(self.combat.record(trial,receipt_row(executed=False),{})['status'],'not_updated')
+
+    def test_parser_accepts_only_facing_as_three_key_chord(self):
+        value=change(scene='gameplay',action={'keys':['num5','w','d'],'hold_ms':80,'wait_ms':0})
+        self.assertEqual(parse_decision(json.dumps(value),self.cfg).keys,['num5','w','d'])
+        for invalid in (['w','a','num1'],['num5','w','s'],['num5',{},'d']):
+            value['action']['keys']=invalid
+            with self.assertRaises(ValueError):parse_decision(json.dumps(value),self.cfg)
+        from autoplayer.action_effects import ActionEffects
+        self.assertEqual(ActionEffects(self.memory,self.cfg).role(['num5','w','d'],self.s),'orientation_candidate')
+
+    def test_all_four_diagonals_orient_without_moving_then_attack(self):
+        for target,directions in (((-1,-1),['w','a']),((1,-1),['w','d']),((-1,1),['s','a']),((1,1),['s','d'])):
+            self.combat.pending=None;self.s['minimap']['enemies']=[target]
+            chosen,trial=self.combat.choose(self.decision,self.s,True)
+            self.assertEqual(chosen.keys,['num5']+directions)
+            self.assertEqual(chosen.forecast['first_expected']['player_delta'],[0,0])
+            self.combat.record(trial,receipt_row(observed_keys=chosen.keys,policy_state=self.s,policy_after=self.s),native([]))
+            self.assertEqual(self.combat.choose(self.decision,self.s,True)[0].keys,['num1'])
+
+    def test_one_gap_footstep_is_single_accepted_trial_then_current_adjacent_attack(self):
+        self.s['minimap']['enemies']=[(2,0)]
+        chosen,trial=self.combat.choose(self.decision,self.s,True)
+        self.assertEqual(chosen.keys,['num6']);self.assertEqual(trial['stage'],'approach_trial')
+        self.combat.record(trial,receipt_row(executed=False),{})
+        self.assertIsNotNone(self.combat.choose(self.decision,self.s,True)[1])
+        row=receipt_row(observed_keys=['num6'],policy_state=self.s,policy_after=self.s)
+        self.combat.record(trial,row,native([]))
+        self.assertIsNone(self.combat.choose(self.decision,self.s,True)[1])
+        adjacent=copy.deepcopy(self.s);adjacent['minimap']['enemies']=[(1,0)]
+        self.assertEqual(self.combat.choose(self.decision,adjacent,True)[0].keys,['num5','d'])
+
+    def test_one_gap_does_not_wait_in_dialog_or_low_hp_or_missing_binding(self):
+        self.s['minimap']['enemies']=[(2,0)];self.decision.scene='dialog'
+        self.assertIsNone(self.combat.choose(self.decision,self.s,True)[1])
+        self.decision.scene='gameplay';self.s['metrics']['hp']['values']=[1,15]
+        self.assertIsNone(self.combat.choose(self.decision,self.s,True)[1])
+        self.s['metrics']['hp']['values']=[15,15]
+        self.assertIsNone(self.combat.choose(self.decision,self.s,True,blocked=[['num6']])[1])
 
 
 class ResultTests(unittest.TestCase):
