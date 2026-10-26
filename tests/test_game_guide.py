@@ -29,6 +29,13 @@ class GameGuideTests(unittest.TestCase):
         self.assertEqual(ctx['current_keys']['menu'],['num0']);self.assertEqual(ctx['current_keys']['confirm'],['num1'])
         self.assertTrue(any(s['id']=='user-inventory-flow-20261026' for s in ctx['sources']))
 
+    def test_safe_recovery_knowledge_preserves_consumables_and_uses_real_turn_input(self):
+        ctx=GameGuide(Settings()).context({},'gameplay',{}, {'floor':{'values':[1]},'hp':{'values':[4,15]}})
+        rule=next(r for r in ctx['foundations'] if r['id']=='natural-recovery-before-consumables')
+        for word in ('薬草','弟切草','Num6','温存'):
+            self.assertIn(word,rule['expected_effect'])
+        self.assertIn('満腹度',rule['verify_or_revise']);self.assertEqual(ctx['current_keys']['step'],['num6'])
+
     def test_low_hp_and_food_references_remain_cross_edition(self):
         ctx=GameGuide(Settings()).context({},'gameplay',{}, {'hp':{'values':[3,15]},'fullness':{'values':[0]},'floor':{'values':[1]}})
         selected={r['id']:r for r in ctx['rules']}

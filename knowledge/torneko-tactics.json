@@ -61,6 +61,14 @@
       "edition": "user_environment",
       "kind": "user_supplied",
       "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-natural-recovery-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-足踏みによる回復と回復品の温存",
+      "title": "利用者提供：敵が周囲にいない場合の足踏み回復優先",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
     }
   ],
   "rules": [
@@ -1032,6 +1040,28 @@
       "verify_or_revise": "現在のカーソル・表示中の品・使用方法を各入力後に確認する。見えていないページの品や、まだ見ていない使用方法を作らない。各ページの件数や左右操作後の配置を固定で推測せず、表示内容の変化で確認する。読み終えた表示への循環で確認を反復しない。取消やメニュー終了を使用成功にしない。",
       "sources": [
         "user-inventory-flow-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "natural-recovery-before-consumables",
+      "when": [
+        "low_hp",
+        "explore",
+        "combat",
+        "ranged",
+        "inventory"
+      ],
+      "roles": [
+        "step",
+        "item",
+        "move"
+      ],
+      "precondition": "HPが減っており回復方法を選ぶ。現在の周囲の敵と満腹度を確認する。",
+      "expected_effect": "HP回復には薬草か弟切草を使える。周囲に敵がいない状況では、HP回復目的のために直ちに薬草/弟切草を消費せず、複数回の足踏みによる自然回復を優先して回復品を温存する。現在キーはNum6で足踏みする。無入力の実時間待機はゲーム内の手番を進める足踏みとは異なる。",
+      "verify_or_revise": "足踏みは1入力ごとにHP・敵の出現/接近・満腹度を再観測する。満HPならHP回復目的の足踏みを終了する。敵が周囲にいる、空腹、HP低下、回復が観測できない時は薬草/弟切草・退避・他の方法を比較する。自然回復の必要手数や回復量を固定ルールとして捏造しない。満HPで草を使い最大HPを上げる別目的とは区別する。",
+      "sources": [
+        "user-natural-recovery-20261026"
       ],
       "applicability": "user_environment"
     }

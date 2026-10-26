@@ -1,12 +1,12 @@
 """Single decision authority for bounded skills; fresh evidence before every input."""
 from dataclasses import replace
-import copy,math,re
+import copy,json,math,re
 from .interfaces import PROTECTED_CONFIRMATION,choice_action,ordinary_choice,torneko_menu_kind,result_screen,compact_text
 from .controls import is_torneko
 
 class OperationalControl:
     def __init__(self,cfg,effects,cycle=None):
-        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None
+        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None;self.healing_trials={};self.healing_unsafe={}
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
@@ -33,7 +33,7 @@ class OperationalControl:
             key=choice['key'] if choice else confirm
             if key:return self._decision(base,[key],'ordinary_choice',choice['reason'] if choice else '通常の選択肢を確認。取消で戻らず決定を1回試し、選択結果を確認する。')
         outcome=result_screen(native)
-        if outcome:self.recovery_request=None;self.item_context=None
+        if outcome:self.recovery_request=None;self.item_context=None;self.healing_trials.clear();self.healing_unsafe.clear()
         if outcome and confirm:
             key=confirm if [confirm] not in blocked else cancel or confirm
             return self._decision(base,[key],'result_screen','現在の結果表示を1回進め、再挑戦画面を確認する。')
@@ -124,11 +124,23 @@ class OperationalControl:
                 else:item['_navigation']=True
                 return self._key('confirm') if target=='selected' else target
         return None
+    def natural_recovery(self,base,state,current,stable,blocked):
+        m=state.get('minimap',{});metrics=state.get('metrics',{})
+        hp=metrics.get('hp',{}).get('values');food=metrics.get('fullness',{}).get('values');floor=metrics.get('floor',{}).get('values')
+        key=self._key('step')
+        if not (stable and state.get('eligible') and m.get('status')=='observed' and not m.get('retained') and m.get('player_cell') is not None and floor and hp and food and 0<hp[0]<hp[1] and food[0]>15 and key and [key] not in blocked):return None
+        if m.get('enemies') or current.get('interface') or state.get('menu_evidence') or state.get('white_frame_evidence',{}).get('visible') or any(metrics.get(k,{}).get('retained') for k in ('hp','fullness','floor')):return None
+        scope=json.dumps([floor,m['player_cell'],current['control_revision'],current['operator_guidance'].get('revision',0)])
+        trial=json.dumps([scope,hp])
+        if scope in self.healing_unsafe or self.healing_trials.get(trial,0)>=8:return None
+        d=self._decision(base,[key],'natural_recovery','現在の観測に敵がなく満腹度に余裕がある。回復品を温存し足踏みを1回入力、HP・敵の接近・満腹度を読み直す。',{'player_delta':[0,0]})
+        return d,{'scope':scope,'trial':trial,'hp_before':list(hp),'accepted_without_gain_limit':8}
+
     def select(self,base,state,native,ledger,plan,policy,predictions,combat,mapless,exterior,blocked,stable,guidance):
         candidates=[];pc=None;combat_trial=None;prediction_context={};self.sequence+=1
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
-                priority=100 if source=='interface' else 90 if source=='inventory_inspection' and skill=='recover' else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 55 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 55 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
@@ -150,13 +162,16 @@ class OperationalControl:
         elif not interface:
             hp=state.get('metrics',{}).get('hp',{}).get('values');food=state.get('metrics',{}).get('fullness',{}).get('values')
             urgent=bool(hp and hp[0]/max(1,hp[1])<.3 or food and food[0]<=15)
+            if plan['skill']=='recover' or urgent:
+                natural=self.natural_recovery(base,state,current,stable,blocked)
+                if natural:offer(natural[0],'natural_recovery','recover',2.4,natural[1])
             if state.get('eligible') and combat:
                 d,trial=combat.choose(base,state,stable,blocked)
                 if trial:offer(d,'combat','combat',2.,{'trial':trial})
             retained=state.get('retained_state',{});revision=retained.get('revision')
             enemies=state.get('minimap',{}).get('enemies',[])
             prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
-            wants_inventory=plan['skill'] in ('inspect_inventory','recover') or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
+            wants_inventory=(plan['skill']=='inspect_inventory' or plan['skill']=='recover' and bool(hp and hp[0]<hp[1] or food and food[0]<=15)) or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
             if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=24 and (urgent or revision is None or revision!=self.inspected_revision):
                 offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat,'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
@@ -259,7 +274,7 @@ class OperationalControl:
             prediction_context['not_adopted']=prediction_context.pop('selected')
         operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':chosen['skill'],'selected_source':source,
           'floor_exploration':copy.deepcopy(state.get('floor_exploration',{}).get('goal',{})),'preferred_skill':plan['skill'],'strategy':plan.get('strategy'),'navigation':plan.get('navigation'),'selected_priority':chosen['priority'],'selected_score':round(chosen['score'],4),'candidate_count':len(candidates),
-          'expected_signal':plan['expected_signal'],'experiment':experiment if experiment_active else None,
+          'healing_check':copy.deepcopy(chosen['detail']) if source=='natural_recovery' else None,'expected_signal':'hp_gain' if source=='natural_recovery' else plan['expected_signal'],'experiment':experiment if experiment_active else None,
           'rule_evidence':chosen.get('rule_evidence'),'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
           'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'priority':c['priority'],'skill':c['skill']} for c in candidates][:12],
           'selected_keys':list(d.keys),'scope':current['scope'],'selection_rule':'現在の条件を満たす候補を一度だけ比較。後段の総当たりで上書きしない。'}
@@ -280,6 +295,14 @@ class OperationalControl:
         progress=new_location or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
 
         actual=row.get('observed_keys',[]);applied=actual==op.get('selected_keys') and row.get('executed') and (row.get('input_receipt') or {}).get('os_submission')=='accepted' and row.get('turn_kind')!='aborted'
+        healing=op.get('healing_check')
+        if healing and applied and op.get('selected_source')=='natural_recovery':
+            self.healing_trials[healing['trial']]=self.healing_trials.get(healing['trial'],0)+1
+            hp=(row.get('policy_after') or {}).get('metrics',{}).get('hp',{})
+            value=hp.get('values');old=healing['hp_before']
+            if value and not hp.get('retained') and value[1]==old[1] and value[0]<old[0]:self.healing_unsafe[healing['scope']]=True
+            for cache in (self.healing_trials,self.healing_unsafe):
+                while len(cache)>64:cache.pop(next(iter(cache)))
         evaluation={'progress':bool(progress and applied),'comparable':bool(e.get('comparable') and applied and not prepared),
           'expected_signal_observed':bool(values.get(op.get('expected_signal')) and applied), 'signals':values,'new_location':new_location,'assumed_frontier':assumed_frontier,'preparation':prepared,
           'sequence_evaluation':copy.deepcopy(row.get('combat_evaluation')),'scope':'observed_effects_not_goal_success','selection_applied':bool(applied)}

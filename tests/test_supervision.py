@@ -180,6 +180,39 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         d,*_=self.select(s=menu,n=native('▶道具','マップ','足元','その他'))
         self.assertEqual(d.keys,['num1'])
 
+    def test_safe_natural_recovery_precedes_opening_consumable_menu(self):
+        low=state();low['metrics']['hp']['values']=[4,15];low['metrics']['fullness']={'values':[90]}
+        d,_,_,_,op=self.select(s=low)
+        self.assertEqual(d.keys,['num6']);self.assertEqual(op['selected_source'],'natural_recovery')
+        self.assertEqual(op['expected_signal'],'hp_gain')
+        low['minimap']['enemies']=[(1,0)]
+        self.assertNotEqual(self.select(s=low)[4]['selected_source'],'natural_recovery')
+        low['minimap']['enemies']=[];low['metrics']['fullness']['values']=[0]
+        self.assertNotEqual(self.select(s=low)[4]['selected_source'],'natural_recovery')
+
+    def test_natural_recovery_stops_at_full_hp_and_rechecks_after_no_gain(self):
+        low=state();low['metrics']['hp']['values']=[4,15];low['metrics']['fullness']={'values':[90]}
+        for _ in range(8):
+            d,_,_,_,op=self.select(s=low)
+            self.assertEqual(d.keys,['num6'])
+            self.actor.feedback(receipt_row('num6',operation=op,policy_after=low))
+        self.assertNotEqual(self.select(s=low)[4]['selected_source'],'natural_recovery')
+        self.actor.last_inspection_step=-1000
+        full=copy.deepcopy(low);full['metrics']['hp']['values']=[15,15]
+        plan=copy.deepcopy(self.plan);plan['skill']='recover'
+        self.assertNotEqual(self.select(s=full,plan=plan)[4]['selected_source'],'natural_recovery')
+
+    def test_natural_recovery_damage_and_stale_metrics_prevent_continuation(self):
+        low=state();low['metrics']['hp']['values']=[4,15];low['metrics']['fullness']={'values':[90]}
+        d,_,_,_,op=self.select(s=low)
+        self.actor.feedback(receipt_row('num6',executed=False,operation=op,policy_after=low))
+        self.assertEqual(self.actor.healing_trials,{})
+        hurt=copy.deepcopy(low);hurt['metrics']['hp']['values']=[3,15]
+        self.actor.feedback(receipt_row('num6',operation=op,policy_after=hurt))
+        self.assertNotEqual(self.select(s=hurt)[4]['selected_source'],'natural_recovery')
+        self.actor.healing_unsafe.clear();low['metrics']['hp']['retained']=True
+        self.assertNotEqual(self.select(s=low)[4]['selected_source'],'natural_recovery')
+
     def test_checked_inventory_does_not_reopen_from_main_menu(self):
         p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
         self.select(n=native('道具','詳細表示切替','整理','3/20','▶薬草'),plan=p)
