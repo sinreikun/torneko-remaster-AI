@@ -15,7 +15,7 @@ def brief(row):
     return value
 
 class ImportantEvents:
-    def __init__(self,folder,slots=12,limit=8*1024*1024):
+    def __init__(self,folder,slots=16,limit=8*1024*1024):
         self.folder=Path(folder);self.slots=slots;self.limit=limit;self.sequence=0
         self.previous=deque(maxlen=2);self.last_floor=None;self.pending=None;self.kind_counts={}
     def observe(self,row,before,after):
@@ -25,6 +25,9 @@ class ImportantEvents:
         reasons=[]
         if floor and self.last_floor and floor!=self.last_floor:reasons.append('floor_changed')
         if food0 and food1 and food1[0]>food0[0]:reasons.append('fullness_increased')
+        if row.get('combat_evidence_frame_role'):reasons.append('battle_text_recovered')
+        if (row.get('combat_message_ocr') or {}).get('text_status')=='required_text_unconfirmed':reasons.append('battle_text_unconfirmed')
+        if (row.get('floor_exploration') or {}).get('cycle_status',{}).get('detected'):reasons.append('navigation_cycle')
         if any(e.get('new_message') and e['kind']=='defeated_enemy' for e in row.get('battle_observations',[])):reasons.append('defeat_message')
         labels={compact_text(l.get('text','')).lstrip('▶►▷>→') for l in (row.get('ocr') or {}).get('lines',[])}
         if row.get('scene')=='dialog' or {'はい','いいえ'}<=labels:reasons.append('dialogue_or_choice')
@@ -34,14 +37,14 @@ class ImportantEvents:
             self.pending=None
         if reasons:
             self.sequence+=1;kind=reasons[0];self.kind_counts[kind]=self.kind_counts.get(kind,0)+1
-            buckets={'floor_changed':(0,4),'fullness_increased':(4,3),'defeat_message':(7,3),'dialogue_or_choice':(10,2)}
-            start,count=buckets[kind] if self.slots==12 else (0,self.slots)
+            buckets={'floor_changed':(0,4),'fullness_increased':(4,3),'defeat_message':(7,3),'dialogue_or_choice':(10,2),'battle_text_unconfirmed':(12,2),'battle_text_recovered':(12,2),'navigation_cycle':(14,2)}
+            start,count=buckets[kind] if self.slots>=16 or self.slots==12 and kind not in ('battle_text_unconfirmed','battle_text_recovered','navigation_cycle') else (0,self.slots)
             slot=self.folder/('event-%02d'%(start+(self.kind_counts[kind]-1)%count));slot.mkdir(parents=True,exist_ok=True)
             for f in slot.iterdir():f.unlink()
             data={'sequence':self.sequence,'reasons':reasons,'previous_actions':[item[0] for item in self.previous],
                 'action':brief(row),'floor_before':self.last_floor or b.get('floor',{}).get('values'),'floor_after':floor,
                 'food_before':food0,'food_after':food1,'capacity_events':self.slots,'limit_bytes':self.limit,
-                'images_are_resized_target_captures':True,'frames':[]}
+                'images_are_resized_target_captures':True,'after_evidence_role':row.get('combat_evidence_frame_role','current_result'),'current_result_frame_sha256':row.get('current_result_frame_sha256'),'combat_text_status':(row.get('combat_message_ocr') or {}).get('text_status'),'cycle_status':(row.get('floor_exploration') or {}).get('cycle_status'),'frames':[]}
             pairs=([('preceding',self.previous[-1][1])] if self.previous else [])+[('before',before),('after',after)]
             from PIL import Image
             for phase,png in pairs:

@@ -101,8 +101,9 @@ class Cancel:
     def is_set(self):return any(e is not None and e.is_set() for e in self.events)
 
 class Supervisor:
-    def __init__(self,review,stop,emit=None):
+    def __init__(self,review,stop,emit=None,review_interval=None):
         self.review=review;self.stop=stop;self.emit=emit or (lambda _:None)
+        self.review_interval=max(2,int(review_interval)) if review_interval is not None else None
         self.closed=threading.Event();self.inflight=None;self.result=queue.Queue(maxsize=1);self.plan=None
         self.next_review=0;self.errors=0;self.requests=0;self.adoptions=0;self.discarded=0;self.last_reason='initial';self.last_error=None
         self.last_request=-100;self.last_signature=None;self.stall=0;self.history=deque(maxlen=12);self.last_completed=None;self.plan_stats={};self.review_ms=None
@@ -137,7 +138,7 @@ class Supervisor:
                     self.errors=0;self.last_error=None;self.adoptions+=1;self.stall=0
                     self.plan={**plan,'origin':'llm_supervisor','scope':scope,'adopted_step':step,'expires_step':step+plan['budget_turns'],
                       'request_selection':request.get('selection_key'),'request_text_key':request['text_key'],'request_frame':request.get('frame_sha256'),'id':'plan-'+str(self.adoptions),'anchor_floor':copy.deepcopy(current.get('floor'))}
-                    self.next_review=step+max(2,plan['budget_turns']//2);self.last_reason='review_adopted'
+                    self.next_review=step+(self.review_interval or max(2,plan['budget_turns']//2));self.last_reason='review_adopted'
                     self.history.append({'event':'adopted','id':self.plan['id'],'step':step,'skill':plan['skill']});self.emit({'event':'supervisor_plan','plan':copy.deepcopy(self.plan)})
         if self.plan and self.plan['scope']!=scope and self.plan['skill'] in ('recover','inspect_inventory'):
             old=json.loads(self.plan['scope']);new=json.loads(scope)
@@ -146,12 +147,13 @@ class Supervisor:
             compatible=old[-2:]==new[-2:] and (new[1] is None or anchor is None or anchor==new[1]) and (new[2] in known_ui or old[2] in known_ui and new[2] is None)
             if compatible:self.plan['scope']=scope
         if not self.plan or self.plan['scope']!=scope or step>=self.plan['expires_step']:
+            changed_domain=not self.plan or self.plan['scope']!=scope
             self.plan=self.bootstrap(current)
-            if self.last_reason not in ('review_error','invalid_review') and step-self.last_request>=2:self.next_review=min(step,self.next_review)
+            if (changed_domain or self.review_interval is None) and self.last_reason not in ('review_error','invalid_review') and step-self.last_request>=2:self.next_review=min(step,self.next_review)
         # State mismatch is handled locally immediately. Reviews are bounded,
         # with one active request and no backlog of old screenshots.
         signature=(scope,self.plan['id'])
-        if self.stall>=4 and signature!=self.last_signature and step-self.last_request>=4:
+        if self.stall>=(8 if self.plan['skill']=='recover' and not current.get('contacts') else 4) and signature!=self.last_signature and step-self.last_request>=4:
             self.next_review=min(self.next_review,step);self.last_signature=signature;self.last_reason='prediction_or_progress_review'
         if current.get('floor_exploration',{}).get('goal',{}).get('needs_review') and step-self.last_request>=4:
             self.next_review=min(self.next_review,step);self.last_reason='floor_objective_review'
@@ -186,7 +188,7 @@ class Supervisor:
                 self.next_review=min(self.next_review,row.get('step',0));self.last_reason='empirical_rule_review'
             if not self.errors and (row.get('forecast_evaluation') or {}).get('status')=='mismatch':self.next_review=min(self.next_review,row.get('step',0));self.last_reason='prediction_mismatch'
     def context(self,current):
-        return {'enabled':True,'plan':copy.deepcopy(self.plan),'remaining':max(0,(self.plan or {}).get('expires_step',0)-current['step']),
+        return {'review_interval':self.review_interval,'enabled':True,'plan':copy.deepcopy(self.plan),'remaining':max(0,(self.plan or {}).get('expires_step',0)-current['step']),
           'review_in':max(0,self.next_review-current['step']),'review_running':self.inflight is not None,'requests':self.requests,'adoptions':self.adoptions,
           'review_elapsed_ms':self.review_ms,'plan_performance':copy.deepcopy(self.plan_stats.get((self.plan or {}).get('id'),{})),
           'discarded':self.discarded,'unproductive_inputs':self.stall,'reason':self.last_reason,'error':self.last_error}

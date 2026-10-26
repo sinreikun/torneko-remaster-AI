@@ -125,6 +125,15 @@ class OperationalControl:
                 else:item['_navigation']=True
                 return self._key('confirm') if target=='selected' else target
         return None
+    @staticmethod
+    def authorized_recheck(state,candidate):
+        if candidate.get('source')!='floor_navigation':return False
+        route=candidate.get('detail',{}).get('route',{});pos=state.get('minimap',{}).get('player_cell')
+        if not isinstance(pos,(list,tuple)) or len(pos)!=2 or any(type(v) is not int for v in pos):return False
+        if route.get('mode')!='traversed_edge_recheck' or route.get('target_kind')!='route_recheck' or route.get('edge_origin')!=pos or type(route.get('traversal_evidence')) is not int or route['traversal_evidence']<=0:return False
+        key=route.get('edge_key');d={'w':(0,-1),'s':(0,1),'a':(-1,0),'d':(1,0)}.get(key)
+        return bool(d and candidate['decision'].keys==[key] and route.get('edge_target')==[pos[0]+d[0],pos[1]+d[1]])
+
     def natural_recovery(self,base,state,current,stable,blocked):
         m=state.get('minimap',{});metrics=state.get('metrics',{})
         hp=metrics.get('hp',{}).get('values');food=metrics.get('fullness',{}).get('values');floor=metrics.get('floor',{}).get('values')
@@ -237,6 +246,10 @@ class OperationalControl:
             # reward threshold is required to use the least bad known option.
             if c['estimate']['samples']>=2:c['score']+=max(-.3,min(.3,c['estimate']['mean_observed_value']))
             if plan.get('strategy')=='avoid_repetition' and c['estimate']['samples']>=2 and c['estimate']['no_effect_rate'] is not None:c['score']-=.4*c['estimate']['no_effect_rate']
+            cycle=state.get('floor_exploration',{}).get('cycle_status',{})
+            if cycle.get('detected') and c['source'] in ('policy','movement_alternative','targeted_probe') and pos:
+                delta={'w':(0,-1),'s':(0,1),'a':(-1,0),'d':(1,0)}.get(keys[0]) if len(keys)==1 else None
+                if delta and [pos[0]+delta[0],pos[1]+delta[1]] in cycle.get('positions',[]):c['score']-=1.5
             if plan.get('strategy')=='gather_information' and c['estimate']['samples']<2:c['score']+=.1
         # Purposeful exploration compares legal single moves; never forces a
         # menu, facing or diagonal sweep just to complete key coverage.
@@ -250,7 +263,7 @@ class OperationalControl:
                 if estimate['samples']<2:
                     offer(self._decision(base,[key],'targeted_probe','未解決の移動作用を、現在の通路と実績を確認して1回検証する。'),'targeted_probe','verify_action',.95-route_cost,estimate)
         ineffective={frozenset(k) for k in state.get('floor_exploration',{}).get('ineffective_actions_here',[])}
-        candidates=[c for c in candidates if c['source'] not in ('policy','movement_alternative','targeted_probe','floor_navigation') or frozenset(c['decision'].keys) not in ineffective]
+        candidates=[c for c in candidates if c['source'] not in ('policy','movement_alternative','targeted_probe','floor_navigation') or frozenset(c['decision'].keys) not in ineffective or self.authorized_recheck(state,c)]
         if not candidates:
             key=self._key('confirm') or self.cfg.allowed_keys[0]
             offer(self._decision(base,[key],'bounded_probe','進行可能な入力仮説を短く試して現在の反応を取得する。'),'bounded_probe','verify_action',0.)

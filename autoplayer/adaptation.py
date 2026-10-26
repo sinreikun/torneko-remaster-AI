@@ -12,18 +12,18 @@ class DurationLearner:
             PRIMARY KEY(profile,state,key,ms))''')
         memory.db.commit()
 
-    def state(self, decision):
-        # Scene/objective are tentative labels. Never transfer to a different objective.
-        return hashlib.sha256(json.dumps([decision.scene, decision.subgoal], ensure_ascii=False).encode()).hexdigest()[:24]
+    def state(self, decision, observation=None):
+        # Mechanical context uses observations, not changing model-generated subgoal labels.
+        return hashlib.sha256(json.dumps(['one-cell-input-v2',decision.scene,decision.keys,(observation or {}).get('metrics',{}).get('floor',{}).get('values'),(observation or {}).get('minimap',{}).get('source_size')], ensure_ascii=False).encode()).hexdigest()[:24]
 
-    def choose(self, decision):
+    def choose(self, decision, observation=None):
         if decision.scene != 'gameplay' or len(decision.keys) != 1 or decision.status != 'continue' or decision.risk != 'normal' or decision.confidence < self.cfg.min_confidence:
             return None
         import re
         from .controls import ACTIONS,is_torneko
         bindings=self.cfg.key_bindings or (ACTIONS if is_torneko(self.cfg.window_title) else {})
         if not re.search(r'移動|move|前進|後退|^上|^下|^左|^右',bindings.get(decision.keys[0],''),re.I):return None
-        state = self.state(decision)
+        state = self.state(decision,observation)
         values = sorted({min(self.cfg.max_hold_ms, ms) for ms in (40,80,120,180,250)})
         rows = self.memory.db.execute('SELECT ms,trials,responses FROM input_durations WHERE profile=? AND state=? AND key=?',
                                       (self.memory.profile, state, decision.keys[0])).fetchall()
@@ -46,7 +46,11 @@ class DurationLearner:
         if row.get('operation'):
             delta=(row.get('action_effect_learning') or {}).get('effects',{}).get('player_delta')
             if delta is None:return
-            response=int(delta!=[0,0])
+            expected={'w':[0,-1],'s':[0,1],'a':[-1,0],'d':[1,0]}.get(trial['key'])
+            if expected is None or delta==[0,0]:return # A wall or unknown state is not a duration failure.
+            before=row.get('policy_state') or {};after=row.get('policy_after') or {}
+            if before and after and before.get('metrics',{}).get('floor',{}).get('values')!=after.get('metrics',{}).get('floor',{}).get('values'):return
+            response=int(delta==expected)
         else:response = int(row.get('raw_change', 0) > max(.01, 4*baseline))
         with self.memory.db:
             self.memory.db.execute('''INSERT INTO input_durations VALUES(?,?,?,?,1,?)

@@ -231,6 +231,17 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         self.assertEqual(self.actor._recovery_item(native('▶食べる','投げる','置く'),hungry,'item_actions',current),'num1')
         self.assertEqual(self.actor.item_context['phase'],'using')
 
+    def test_supplied_recheck_is_not_filtered_into_opposite_policy_move(self):
+        from pathlib import Path
+        data=json.loads((Path(__file__).parent/'fixtures/recheck-dispatch-1793017563052917700.json').read_text())
+        self.assertEqual(data['old_keys'],['w']);self.assertEqual(data['old_source'],'policy')
+        self.actor.last_inspection_step=0 # Match the ongoing run's menu-inspection cooldown.
+        d,_,_,_,op=self.select(s=data['state'])
+        self.assertEqual(d.keys,['s']);self.assertEqual(op['selected_source'],'floor_navigation')
+        bad=copy.deepcopy(data['state']);bad['map_route_hint']['edge_target']=[0,0]
+        d,_,_,_,op=self.select(s=bad)
+        self.assertNotEqual(op['selected_source'],'floor_navigation')
+
     def test_checked_inventory_does_not_reopen_from_main_menu(self):
         p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
         self.select(n=native('道具','詳細表示切替','整理','3/20','▶薬草'),plan=p)

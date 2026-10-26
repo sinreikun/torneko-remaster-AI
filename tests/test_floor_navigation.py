@@ -129,6 +129,23 @@ class FloorNavigationTests(unittest.TestCase):
         self.assertEqual(hint['edge_target'],[1,10]);self.assertEqual(hint['traversal_evidence'],2)
         self.assertIsNone(nav._path({(1,10)}))
 
+    def test_actual_motion_cycle_is_reported_without_banning_return_floor(self):
+        nav=FloorNavigation();known={(1,1),(2,1),(3,1)}
+        a=observed((1,1),known);b=observed((2,1),known)
+        nav.observe(a);nav.visited[(2,1)]=1
+        for _ in range(3):
+            nav.record(a,b,receipt_row('d'));nav.record(b,a,receipt_row('a'))
+        self.assertTrue(nav.cycle_status()['detected']);self.assertEqual(nav.cycle_status()['period'],2)
+        self.assertIsNotNone(nav._path({(3,1)}))
+        nav.record(a,b,receipt_row('d'));nav.record(b,observed((3,1),known),receipt_row('d'))
+        self.assertFalse(nav.cycle_status()['detected'])
+
+    def test_disputed_cached_patch_does_not_hide_a_current_narrow_connection(self):
+        nav=FloorNavigation();known={(1,1),(2,1),(1,2),(2,2)}
+        nav.observe(observed((1,1),known));nav.missing_floor[(2,2)]=2
+        self.assertFalse(nav.area_cell((1,1)))
+        self.assertIn((2,1),nav.primary())
+
     def test_area_corners_never_become_frontiers_or_boundary_rechecks(self):
         known={(x,y) for x in range(1,6) for y in range(1,6)}
         nav=FloorNavigation();s=observed((3,3),known)

@@ -16,6 +16,7 @@ class TurnObservation:
     applied_minimum_ms: int = 0
     timing_mode: str = "standard"
     scene_boundary: dict = field(default_factory=dict)
+    evidence_frames: list = field(default_factory=list)
 
 class TurnObserver:
     def __init__(self): self.motion={};self.masks={};self.fast_mode=False;self.timing_samples={};self.failures={};self.neutral_calls=0;self.input_signature=();self.track_scene_boundaries=False
@@ -30,23 +31,26 @@ class TurnObserver:
         requested_minimum=minimum_ms;fast=self.fast_mode and scene!='human_console'
         initial=self.grid(baseline)
         bands=tuple(int(sum(v for i,v in enumerate(initial) if (i//32>=12)*2+(i%32>=16)==b)/192/32) for b in range(4)) if fast else ()
-        key=(self.input_signature,bands);samples=self.timing_samples.get(key,[])
-        calibrated=fast and scene!='neutral_observation' and len(samples)>=4
+        key=(scene,getattr(self,'timing_scope',()),self.input_signature,bands);samples=self.timing_samples.get(key,[])
+        calibrated=fast and not getattr(self,'external_timing',False) and not getattr(self,'protect_text',False) and scene!='neutral_observation' and len(samples)>=4
         if calibrated:
             duration=sorted(samples)[min(len(samples)-1,int(len(samples)*.9))]
             minimum_ms=min(minimum_ms,max(350,int(duration*1.3+180)+150*self.failures.get(key,0)))
         if scene=='neutral_observation':self.neutral_calls+=1
         quick_neutral=fast and scene=='neutral_observation' and self.neutral_calls%8!=0
-        mode='short_neutral' if quick_neutral else 'adaptive_margin' if calibrated else 'standard'
+        mode='short_neutral' if quick_neutral else 'policy_margin' if getattr(self,'external_timing',False) else 'adaptive_margin' if calibrated else 'standard'
         def is_dark(values):return bool(values) and sum(v<24 for v in values)/len(values)>.92 and sum(values)/len(values)<18
         def is_black(values):return bool(values) and sum(v<8 for v in values)/len(values)>.985 and sum(values)/len(values)<6
         boundary={'blackout_seen':self.track_scene_boundaries and is_black(initial),'sampled':self.track_scene_boundaries,'dark_seen':self.track_scene_boundaries and is_dark(initial),'dark_samples':0,'sample_count':0}
         previous=initial; anchor=initial
         mask=self.masks.get(scene,set());late=set();stable_since=None
         start=clock();maximum=max(1.2,min(8.,minimum_ms/1000+2.))
+        evidence=[]
         image=baseline;changed=False;kind='timeout';current=initial
         while not stop.wait(.06 if fast else .1):
-            image=capture();current=self.grid(image);now=clock();elapsed=now-start
+            image=capture()
+            if getattr(self,'capture_evidence',False) and (not evidence or evidence[-1]!=image):evidence=(evidence+[image])[-8:]
+            current=self.grid(image);now=clock();elapsed=now-start
             if self.track_scene_boundaries:
                 boundary['sample_count']+=1
                 if is_dark(current):boundary['dark_seen']=True;boundary['dark_samples']+=1
@@ -79,7 +83,7 @@ class TurnObserver:
         boundary['dark_recovered']=boundary['dark_seen'] and not boundary['final_dark']
         raw=self.bits(initial,current)
         return TurnObservation(image,kind,any(bit and i not in mask for i,bit in enumerate(raw)),sum(raw)/len(raw),sum(raw[i] for i in mask)/max(1,len(mask)),int((clock()-start)*1000),
-            max(0,int((stable_since-start)*1000)) if stable_since is not None else None,requested_minimum,minimum_ms,mode,boundary)
+            max(0,int((stable_since-start)*1000)) if stable_since is not None else None,requested_minimum,minimum_ms,mode,boundary,evidence)
 
 
 def image_color_facts(png):
