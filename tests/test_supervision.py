@@ -213,6 +213,16 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         self.actor.healing_unsafe.clear();low['metrics']['hp']['retained']=True
         self.assertNotEqual(self.select(s=low)[4]['selected_source'],'natural_recovery')
 
+    def test_inventory_item_selection_uses_vertical_axis_even_with_horizontal_text_offset(self):
+        value=native('▶大きいパン','薬草')
+        value['lines'][0]['words']=[{'box':[10,100,80,20]}]
+        value['lines'][1]['words']=[{'box':[300,130,40,20]}]
+        low=state();low['metrics']['hp']['values']=[4,15]
+        current=ledger(low).current
+        self.assertEqual(self.actor._recovery_item(value,low,'inventory',current),'s')
+        value['lines'][1]['words']=[{'box':[300,100,40,20]}]
+        self.assertIsNone(self.actor._recovery_item(value,low,'inventory',current))
+
     def test_checked_inventory_does_not_reopen_from_main_menu(self):
         p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
         self.select(n=native('道具','詳細表示切替','整理','3/20','▶薬草'),plan=p)

@@ -83,7 +83,7 @@ class OperationalControl:
             key=next((k for k,v in self.effects.bindings.items() if k in self.effects.keys('move') and v.startswith(direction)),None)
             if key and self.trials.get((scope,(key,)),0)==0:return key
         return None
-    def _cursor_toward(self,native,target):
+    def _cursor_toward(self,native,target,vertical=False):
         lines=(native or {}).get('lines',[]);selected=[];targets=[]
         visual=(native or {}).get('_visual_selection') or {}
         observed=compact_text(visual.get('text','')) if visual.get('frame_sha256') and visual['frame_sha256']==(native or {}).get('frame_sha256') else ''
@@ -99,7 +99,8 @@ class OperationalControl:
         a=pos(selected[0]);b=pos(targets[0])
         if a is None or b is None:return None
         dx,dy=b[0]-a[0],b[1]-a[1]
-        direction=('右' if dx>0 else '左') if abs(dx)>abs(dy) else ('下' if dy>0 else '上')
+        if vertical and dy==0:return None
+        direction=('下' if dy>0 else '上') if vertical else ('右' if dx>0 else '左') if abs(dx)>abs(dy) else ('下' if dy>0 else '上')
         return next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and (v.startswith(direction) or v.lower()=={'上':'up','下':'down','左':'left','右':'right'}[direction])),None)
     def _recovery_item(self,native,state,kind,current):
         hp=state.get('metrics',{}).get('hp',{}).get('values');food=state.get('metrics',{}).get('fullness',{}).get('values')
@@ -110,7 +111,7 @@ class OperationalControl:
                 # Exact visible name only, including its displayed quantity.
                 label=next((compact_text(r['quote']).lstrip('▶►▷>→') for r in (native or {}).get('_current_inventory_rows',[]) if r.get('display_name')==name),None) or next((x for x in lines if re.fullmatch(re.escape(name)+r'(?:[×x]\d+|\(\d+\))?',x)),None)
                 if label:
-                    target=self._cursor_toward(native,label)
+                    target=self._cursor_toward(native,label,vertical=True)
                     if target:
                         if target=='selected':self.item_context={'name':name,'phase':'opening','step':current['step'],'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':current['floor']}
                         return self._key('confirm') if target=='selected' else target

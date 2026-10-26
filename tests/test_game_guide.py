@@ -36,6 +36,12 @@ class GameGuideTests(unittest.TestCase):
             self.assertIn(word,rule['expected_effect'])
         self.assertIn('満腹度',rule['verify_or_revise']);self.assertEqual(ctx['current_keys']['step'],['num6'])
 
+    def test_inventory_axes_are_separate_in_injected_knowledge(self):
+        ctx=GameGuide(Settings()).context({'lines':[{'text':'道具'}]},'menu',{}, {})
+        flow=next(r for r in ctx['foundations'] if r['id']=='inventory-selection-command-flow')
+        for phrase in ('上下（現在キーW/S）','左右（現在キーA/D）','ページ'):
+            self.assertIn(phrase,flow['expected_effect'])
+
     def test_low_hp_and_food_references_remain_cross_edition(self):
         ctx=GameGuide(Settings()).context({},'gameplay',{}, {'hp':{'values':[3,15]},'fullness':{'values':[0]},'floor':{'values':[1]}})
         selected={r['id']:r for r in ctx['rules']}
