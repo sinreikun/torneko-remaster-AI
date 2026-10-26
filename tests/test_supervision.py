@@ -173,6 +173,23 @@ class EffectsAndAuthorityTests(unittest.TestCase):
         d,*_=self.select(s=menu,n=data['menu']);self.assertEqual(d.keys,['num2'])
         self.assertIn('回復は未完了',d.reason)
 
+    def test_explicit_tactical_inventory_request_can_precede_automatic_combat(self):
+        s=state();s['minimap']['enemies']=[(1,0)]
+        p=copy.deepcopy(self.plan);p['skill']='inspect_inventory'
+        from dataclasses import replace
+        combat=Mock();combat.choose.return_value=(replace(self.base(),keys=['num1']),{'stage':'orient_trial'})
+        d,_,_,_,op=self.select(s=s,plan=p,combat=combat)
+        self.assertEqual(d.keys,['num0']);self.assertEqual(op['selected_priority'],85)
+
+    def test_new_item_inspection_precedes_frontier_after_short_cooldown(self):
+        s=state();s['metrics']['hp']['values']=[15,15]
+        s['floor_exploration']={'goal':{'item_recheck_needed':True}}
+        s['map_route_hint']={'key':'d','target_kind':'frontier','mode':'observed_grid_route','distance':2}
+        self.actor.last_inspection_step=0
+        l=ledger(s,step=5)
+        d,_,_,_,op=self.actor.select(self.base(),s,native('1階 HP15/15'),l,self.plan,None,None,None,self.mapless,self.exterior,[],True,{})
+        self.assertEqual(d.keys,['num0']);self.assertEqual(op['selected_priority'],65)
+
     def test_starvation_retries_inventory_before_normal_24_turn_cooldown(self):
         hungry=state();hungry['metrics']['fullness']={'values':[0]}
         self.actor.last_inspection_step=0

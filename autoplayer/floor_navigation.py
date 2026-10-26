@@ -220,10 +220,19 @@ class FloorNavigation:
                 target=candidate[0] if candidate else min(targets,key=lambda c:(abs(c[0]-self.position[0])+abs(c[1]-self.position[1]),c))
                 self.exploration_task={'target_cell':list(target),'status':'navigating','reason':'未処理先端への継続目標。踏破済みの移動では変更しない'}
             targets={tuple(self.exploration_task['target_cell'])}
-        # Visible threats first, then visible items. Only route on observed floor;
-        # enemy markers themselves are occupied, not walkable destinations.
-        enemy_goals={self._add(e,d) for e in self.enemies for d in ROUTE_MOVES.values()}&self.known-self.enemies
+        # Items create tactical possibilities. Enemies supersede collection
+        # when currently close or adjacent to the proposed collection route.
+        # This geometric check does not prove remote/ranged enemies harmless.
         item_goals=self.item_tasks.goals(self.position)
+        item_path=self._path(item_goals) if item_goals else None
+        threats=set(self.enemies)
+        if self.item_tasks.context()['needs_inventory_check']:
+            threats={e for e in self.enemies if max(abs(e[0]-self.position[0]),abs(e[1]-self.position[1]))<=2}
+        if item_path is not None:
+            points=[self.position]
+            for key in item_path[1]:points.append(self._add(points[-1],ROUTE_MOVES[key]))
+            threats={e for e in self.enemies if max(abs(e[0]-self.position[0]),abs(e[1]-self.position[1]))<=2 or any(max(abs(e[0]-p[0]),abs(e[1]-p[1]))<=1 for p in points)}
+        enemy_goals={self._add(e,d) for e in threats for d in ROUTE_MOVES.values()}&self.known-self.enemies
         for kind,options in (('enemy',enemy_goals),('items',item_goals),('inspect_marker',self.item_tasks.goals(self.position,'unclassified_marker'))):
             if options and self._path(options) is not None:
                 targets=options;target_kind=kind;break
@@ -288,7 +297,7 @@ class FloorNavigation:
             elif path is None:
                 task.update(status='blocked',reason='既知の有効な辺では到達不能。失敗辺を解除せず再検討が必要')
         if deferred_unreachable:reason='到達できない先端を保留し、到達可能な別の目的へ進む。'+reason
-        self.goal={'cycle_review':self.cycle_status()['detected'],'priority_order':['visible_enemies','visible_items','unexplored','status_inventory_review'],'item_recheck_needed':self.item_tasks.context()['needs_inventory_check'], 'mission':selected_mission,'phase':phase,'reason':reason,'target_cell':self.last_hint.get('target_cell') if self.last_hint else None,
+        self.goal={'cycle_review':self.cycle_status()['detected'],'priority_order':['collection_threat_response','items_and_use_learning','unprocessed_frontiers','routine_status_review'],'floor_value_rule':'踏破履歴は観測記録。既知床と同等に通行し、再訪だけで減点しない。','threat_assessment':'現在の近接と取得経路への接触。遠隔能力・敵種の安全性は未確定','item_recheck_needed':self.item_tasks.context()['needs_inventory_check'], 'mission':selected_mission,'phase':phase,'reason':reason,'target_cell':self.last_hint.get('target_cell') if self.last_hint else None,
           'needs_review':self.cycle_status()['detected'] or phase in ('route_unavailable','review_exhausted_floor','verify_stair_action','verify_objective'),
           'stairs_seen_type_unknown':bool(self.stairs),'instruction':'これは階内の局所目標。階段の上下・箱の所持・帰還成功を推定で確定しない。'}
         if self.exploration_task:self.goal['exploration_task']=copy.deepcopy(self.exploration_task)

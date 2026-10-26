@@ -17,7 +17,7 @@ from .map_sensor import read_grid,MapSensor,FloorConfirmation
 from .exploration import ExplorationRoutes
 from .interfaces import compact_text,torneko_menu_kind,result_screen,has_text_content,main_menu_context
 
-VERSION=10
+VERSION=11
 MOVES=('w','a','s','d')
 
 def profile_for(settings):
@@ -320,8 +320,8 @@ class ExperiencePolicy:
         route=(row.get('policy_choice') or {}).get('exploration_route') or {}
         route_transit=bool((row.get('policy_choice') or {}).get('source') in ('learned_policy','floor_navigation') and route.get('mode') in ('observed_route','observed_grid_route','backtrack_to_frontier')
             and route.get('distance',0)>0 and route.get('key')==action and net['position'])
-        revisit_cost=.12*min(3,revisits) if net['position'] and not route_transit and not any(net[k] for k in ('coverage','floor','enemy_reduction','food_gain')) else 0.
-        reward=.35*net['position']*novelty+.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']-.04-revisit_cost
+        revisit_cost=0.  # A visited floor is not an adverse outcome.
+        reward=.6*net['coverage']+net['floor']+.3*net['enemy_reduction']+.8*net['food_gain']-.04
         hp0=before['metrics'].get('hp',{}).get('values');hp1=after['metrics'].get('hp',{}).get('values')
         if hp0 and hp1 and hp0[1]==hp1[1]:reward-=2*max(0.,hp0[0]-hp1[0])/hp0[1]
         # No positive reward for natural HP regeneration or simply remaining at full HP.
@@ -343,7 +343,7 @@ class ExperiencePolicy:
             'player_delta':([after['minimap']['player_cell'][i]-before['minimap']['player_cell'][i] for i in (0,1)] if before.get('eligible') and after.get('eligible') and before['metrics'].get('floor',{}).get('values')==after['metrics'].get('floor',{}).get('values') and not natural.get('position') and not natural.get('floor') else None),
             'hp_delta':(after['metrics']['hp']['values'][0]-before['metrics']['hp']['values'][0] if before['metrics'].get('hp') and after['metrics'].get('hp') and before['metrics']['hp']['values'][1]==after['metrics']['hp']['values'][1] else None),
             'reward':reward,'q_before':current,'q_after':new_q,'observed':observed,'neutral_baseline':natural,'baseline_kind':row.get('policy_baseline_kind','neutral_observation'),'net_signals':net,
-            'interface_response':interface_response,'interface_information_gain':interface_gain,'interface_gain_is_goal_progress':False,'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':novelty,'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
+            'interface_response':interface_response,'interface_information_gain':interface_gain,'interface_gain_is_goal_progress':False,'scoring_version':VERSION,'route_transit':route_transit,'novelty_weight':0.,'location_first_observed':bool(novelty),'arrival_visits_before':revisits,'revisit_cost':revisit_cost,'positive_progress_proxy':positive,'attribution':'observed_association_not_causal',
             'note':'無反応の小さなコストは優先度の再検討用。壁・Backend故障・ゲーム側拒否の確定ではない。'}
         with self.db:
             self.db.execute('INSERT INTO policy_actions(profile,state,objective,action,trials,q,positive,reward_sum) VALUES(?,?,?,?,1,?,?,?) ON CONFLICT(profile,state,objective,action) DO UPDATE SET trials=trials+1,q=excluded.q,positive=positive+excluded.positive,reward_sum=reward_sum+excluded.reward_sum',

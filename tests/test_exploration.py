@@ -44,6 +44,14 @@ class RouteTests(unittest.TestCase):
         self.routes.record(b,point(50),'d',{})
         self.assertFalse(self.routes.nodes);self.assertFalse(self.routes.edges)
 
+    def test_successful_traversal_counts_have_no_aversion(self):
+        a,b=point(40),point(41)
+        for _ in range(20):
+            self.routes.record(a,b,'d',{});self.routes.record(b,a,'a',{})
+        self.assertEqual(self.routes.penalty(a,'d'),0)
+        self.routes.record(a,a,'w',{})
+        self.assertGreater(self.routes.penalty(a,'w'),0)
+
     def test_floor_and_scale_changes_reset_routes(self):
         a,b=point(40),point(41)
         for altered in ('floor','scale'):

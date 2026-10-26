@@ -62,12 +62,13 @@ class PolicyTests(unittest.TestCase):
     def test_return_trip_does_not_learn_a_profitable_loop(self):
         a,b=state('A'),state('B',261.7)
         first=self.policy.learn(a,b,receipt_row('w'),a)
-        self.assertGreater(first['reward'],0)
+        self.assertEqual(first['reward'],-.04) # First traversal alone is not new information.
         for _ in range(8):
             for before,after,key in ((b,a,'s'),(a,b,'w')):
                 result=self.policy.learn(before,after,receipt_row(key),before)
                 self.assertEqual(result['novelty_weight'],0)
-                self.assertLess(result['reward'],0)
+                self.assertEqual(result['reward'],first['reward'])
+                self.assertEqual(result['revisit_cost'],0)
                 self.assertFalse(result['positive_progress_proxy'])
         self.assertLess(self.policy.values(a)['w']['q'],0)
         self.assertLess(self.policy.values(b)['s']['q'],0)
@@ -114,7 +115,7 @@ class PolicyTests(unittest.TestCase):
         route={'source':'learned_policy','exploration_route':{'mode':'observed_route','distance':1,'key':'a'}}
         result=self.policy.learn(b,a,receipt_row('a',policy_choice=route),b)
         self.assertTrue(result['route_transit']);self.assertEqual(result['revisit_cost'],0)
-        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],10)
+        self.assertEqual(result['reward'],-.04);self.assertEqual(result['scoring_version'],11)
     def test_observation_diagnostics_dry_run_and_rejected_submission_do_not_train(self):
         for row in (receipt_row(executed=False),receipt_row(dry_run=True),receipt_row(event='diagnostic'),
                     receipt_row(learning=False),receipt_row(learning=False,policy_choice={'source':'learned_policy'}),receipt_row(turn_kind='aborted'),receipt_row(input_receipt={'os_submission':'rejected'})):

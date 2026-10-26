@@ -58,7 +58,7 @@ class ExplorationRoutes:
         allowed={v['keys'][0] for v in candidates}
         # Search known paths for an unattempted direction. Known blue neighbors
         # precede unobserved cells; the latter may be either walls or unexplored.
-        for known,unvisited in ((True,True),(False,True),(True,False),(False,False)):
+        for known in (True,False):
             queue=deque([(start,None,0)]);seen={start}
             while queue:
                 node,first,distance=queue.popleft()
@@ -66,7 +66,6 @@ class ExplorationRoutes:
                     key=candidate['keys'][0];neighbor=self.nodes[node].get(key,{})
                     if bool(neighbor.get('known'))!=known:continue
                     dx,dy=DELTAS[key];destination=(node[0]+dx,node[1]+dy)
-                    if (self.arrivals[destination]==0)!=unvisited:continue
                     if self.attempts[node,key]==0:
                         return {'key':first or key,'mode':'untried_direction' if first is None else 'observed_route',
                             'target_cell':list(node),'probe_key':key,'distance':distance,
@@ -81,8 +80,9 @@ class ExplorationRoutes:
     def penalty(self,state,key):
         node=self.node(state)
         if node is None:return 0.
-        dx,dy=DELTAS[key];dest=(node[0]+dx,node[1]+dy)
-        return .12*min(6,self.attempts[node,key])+.08*min(6,self.arrivals[dest])
+        # Repeated successful traversal and arrival carry no aversion. Only
+        # observed lack of displacement can lower an ineffective input.
+        return .12*min(6,self.no_effect[node,key])
 
     def visits(self,state):
         node=self.node(state)

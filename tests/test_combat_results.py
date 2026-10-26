@@ -166,3 +166,11 @@ class MergedRankRegressionTests(unittest.TestCase):
         d,r=reconcile(d,{'objects':[]},{},ocr,client.cfg)
         self.assertEqual(d.keys,['num1']);self.assertGreaterEqual(d.confidence,client.cfg.min_confidence)
         client._request.assert_not_called()
+
+class SuppliedBattleMessageTests(unittest.TestCase):
+    def test_anonymous_miss_in_supplied_diagnostic_is_not_a_missing_attack_result(self):
+        from autoplayer.battle_messages import read_messages
+        n=native(['トルネコの攻撃は はずれてしまった。'])
+        events=read_messages(n,n['frame_sha256'])
+        self.assertEqual(len(events),1);self.assertEqual(events[0]['kind'],'miss')
+        self.assertIsNone(events[0]['enemy']);self.assertIsNone(events[0]['damage'])

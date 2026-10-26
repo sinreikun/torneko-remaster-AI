@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-26",
+  "updated": "2026-10-27",
   "sources": [
     {
       "id": "steam-remaster-20261025",
@@ -77,6 +77,14 @@
       "edition": "user_environment",
       "kind": "user_supplied",
       "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-item-strategy-20261027",
+      "url": "knowledge/SOURCES.md#2026-10-27-床の価値とアイテム中心の戦略",
+      "title": "利用者提供：再訪を忌避せず品の取得と用途学習を中心にする",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
     }
   ],
   "rules": [
@@ -1115,6 +1123,28 @@
       "verify_or_revise": "効果は利用者提供の対象環境の知識として保存し、現在の品名・所持数・説明・使用前後の能力値で確認する。パンの回復量は満腹度の絶対ポイントで、残り満腹度に対する割合計算にしない。くさったパンの満腹度回復量や未提示の副作用、ちから最大値の上昇は推測しない。",
       "sources": [
         "user-hunger-rest-food-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "item-strategy-floor-value",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "combat"
+      ],
+      "roles": [
+        "move",
+        "item",
+        "menu",
+        "confirm"
+      ],
+      "precondition": "ダンジョン内で探索・品の取得や使用を計画する。",
+      "expected_effect": "踏破済み床は既知床と同価値で、再訪だけを避けない。品の取得と用途・使用タイミングの学習を未処理先端より優先。取得や使用に関わる敵の脅威があれば対処や逃走を先に比較し、遠い敵を機械的に追わない。 敵の撃破は経験値・レベルによる能力強化と脅威削減に必要。品・遠距離攻撃・通路や角の地形で複数敵との同時対峙を減らし、有利に戦う。回避だけを目標にしない。",
+      "verify_or_revise": "説明・装備前後・使用前後の観測と文章を品に紐付け、有用な条件を学ぶ。取得・装備・効果は実測で確認し、無意味な消費や確認反復はしない。未知の遠隔脅威を安全と断定しない。 撃破・経験値・レベルの変化も分けて観測する。",
+      "sources": [
+        "user-item-strategy-20261027"
       ],
       "applicability": "user_environment"
     }

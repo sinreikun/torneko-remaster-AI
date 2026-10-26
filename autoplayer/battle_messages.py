@@ -29,6 +29,8 @@ def read_messages(native,expected_sha):
     for i,line in enumerate(lines):
         hit=re.fullmatch(r'(\d{1,4})ポイントのダメージを与えた[。.!！]?',line)
         if hit:add('damage_dealt',None,int(hit[1]),line)
+        miss=re.fullmatch(r'トルネコの攻撃は(?:はずれ(?:てしまった|た)|外れ(?:てしまった|た)|当たらなかった|あたらなかった)[。.!！]?',line)
+        if miss:add('miss',None,None,line)
         for quote in (line,line+(lines[i+1] if i+1<len(lines) else '')):
             received=re.fullmatch('('+NAME+r')から(\d{1,4})ポイントのダメージを受けた[。.!！]?',quote)
             if received and not received[1].startswith('トルネコは'):

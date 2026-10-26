@@ -150,7 +150,7 @@ class OperationalControl:
         candidates=[];pc=None;combat_trial=None;prediction_context={};self.sequence+=1
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
-                priority=100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 55 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and (detail or {}).get('tactical_inventory') else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
@@ -183,8 +183,9 @@ class OperationalControl:
             prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
             wants_inventory=(plan['skill']=='inspect_inventory' or plan['skill']=='recover' and bool(hp and hp[0]<hp[1] or food and food[0]<=15)) or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
-            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(4 if urgent else 24) and (urgent or revision is None or revision!=self.inspected_revision):
-                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat,'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
+            item_followup=state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)
+            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(4 if urgent or item_followup else 24) and (urgent or revision is None or revision!=self.inspected_revision):
+                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat,'tactical_inventory':bool(enemies and plan['skill']=='inspect_inventory'),'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
             hint=state.get('map_route_hint')
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 keys=hint.get('keys') or [hint.get('key')]
@@ -306,7 +307,8 @@ class OperationalControl:
         nav=row.get('mapless_navigation') or {};pose=nav.get('pose')
         assumed_frontier=bool((row.get('movement_result') or {}).get('success') is True and not nav.get('pose_uncertain') and any(c.get('cell')==pose and c.get('visits')==1 for c in nav.get('cells',[])))
         floor_progress=bool(net.get('floor'));coverage_progress=bool(net.get('coverage'))
-        progress=new_location or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
+        route_progress=bool(op.get('selected_source')=='floor_navigation' and (row.get('floor_navigation_outcome') or {}).get('moved') and (row.get('map_route_hint') or (row.get('policy_state') or {}).get('map_route_hint') or {}).get('distance',0)>0)
+        progress=route_progress or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
 
         actual=row.get('observed_keys',[]);applied=actual==op.get('selected_keys') and row.get('executed') and (row.get('input_receipt') or {}).get('os_submission')=='accepted' and row.get('turn_kind')!='aborted'
         healing=op.get('healing_check')
@@ -318,7 +320,7 @@ class OperationalControl:
             for cache in (self.healing_trials,self.healing_unsafe):
                 while len(cache)>64:cache.pop(next(iter(cache)))
         evaluation={'progress':bool(progress and applied),'comparable':bool(e.get('comparable') and applied and not prepared),
-          'expected_signal_observed':bool(values.get(op.get('expected_signal')) and applied), 'signals':values,'new_location':new_location,'assumed_frontier':assumed_frontier,'preparation':prepared,
+          'expected_signal_observed':bool(values.get(op.get('expected_signal')) and applied), 'signals':values,'new_location':new_location,'route_progress':route_progress,'assumed_frontier':assumed_frontier,'preparation':prepared,
           'sequence_evaluation':copy.deepcopy(row.get('combat_evaluation')),'scope':'observed_effects_not_goal_success','selection_applied':bool(applied)}
         item=self.item_context
         phase=item.get('phase') if item else None

@@ -333,7 +333,7 @@ class WorldModel:
         self.last_messages=current_messages
         self.latest={'frame_sha256':digest,'map_frame_sha256':state.get('frame_sha256'),'tick':self.tick,'new_adventure':new_adventure,'episode':self.episode,'metrics':now_metrics,'metric_changes':delta,
             'new_messages':new_messages[:12],'visual':vision,'scene_change':vision.get('scene_change',True),'objects':current_objects,'new_objects':new,
-            'novelty':min(1.,len(new)/3+.15*new_cell+.25*(bool(player) and tuple(player) in frontier)),
+            'novelty':min(1.,len(new)/3+.25*(bool(player) and tuple(player) in frontier)),
             'exploration':{'known_cells':len(known),'visited_cells':len(self.visited),'frontier_cells':len(frontier),'frontier_candidates':[list(c) for c in sorted(frontier)[:40]],
                 'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'未踏または未処理の先端を探索候補とし、探索完了の枝は優先度を下げる。探索不要は通行禁止ではなく、帰路・階段・回収のため再利用できる。'},
             'inventory':inv,'identity_rule':'数値IDは識別用。画像から正体・敵種・非敵対NPCを確定しない。姿の変化は別個体の証明ではない。'}

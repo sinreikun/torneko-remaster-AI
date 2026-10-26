@@ -267,10 +267,10 @@ class FloorNavigationTests(unittest.TestCase):
         nav=FloorNavigation();s=state()
         self.assertIsNone(nav.hint(s));self.assertEqual(nav.context()['status'],'unavailable')
 
-    def test_enemy_then_visible_item_then_frontier_including_visited_items(self):
+    def test_remote_enemy_does_not_override_item_including_visited_items(self):
         known={(x,2) for x in range(1,8)};nav=FloorNavigation()
         s=observed((3,2),known,enemies=[(7,2)],items=[(2,2)])
-        self.assertEqual(nav.hint(s)['target_kind'],'enemy');self.assertEqual(nav.hint(s)['key'],'d')
+        self.assertEqual(nav.hint(s)['target_kind'],'items');self.assertEqual(nav.hint(s)['key'],'a')
         nav.visited[(2,2)]=4;s['minimap']['enemies']=[]
         self.assertEqual(nav.hint(s)['target_kind'],'items');self.assertEqual(nav.hint(s)['key'],'a')
         arrived=observed((2,2),known,items=[(2,2)])
@@ -278,6 +278,29 @@ class FloorNavigationTests(unittest.TestCase):
         self.assertNotEqual((nav.hint(arrived) or {}).get('target_kind'),'items')
         nav.inventory_updated('old');nav.inventory_updated('changed')
         self.assertEqual(nav.item_attempts[(2,2)],0)
+
+    def test_enemy_on_collection_route_or_close_to_player_precedes_item(self):
+        known={(x,y) for x in range(1,9) for y in range(1,4)}
+        for enemy in ((4,2),(5,1)):
+            nav=FloorNavigation()
+            s=observed((2,2),known,enemies=[enemy],items=[(7,2)])
+            self.assertEqual(nav.hint(s)['target_kind'],'enemy')
+    def test_item_arrival_review_is_not_interrupted_by_unrelated_remote_enemy(self):
+        known={(x,2) for x in range(1,9)};nav=FloorNavigation()
+        s=observed((2,2),known,enemies=[(7,2)],items=[(2,2)])
+        hint=nav.hint(s)
+        self.assertTrue(nav.item_tasks.context()['needs_inventory_check'])
+        self.assertNotEqual((hint or {}).get('target_kind'),'enemy')
+
+    def test_shortest_item_route_is_unchanged_by_heavy_visit_history(self):
+        known={(x,y) for x in range(1,8) for y in range(1,4)}
+        s=observed((2,2),known,items=[(6,2)])
+        fresh=FloorNavigation();expected=fresh.hint(s)
+        seen=FloorNavigation();seen.observe(s)
+        for c in known:seen.visited[c]=1000
+        actual=seen.hint(s)
+        self.assertEqual(actual['target_kind'],'items')
+        self.assertEqual(actual['route_cells'],expected['route_cells'])
 
     def test_supplied_item_log_prefers_item_over_frontier(self):
         data=json.loads((Path(__file__).parent/'fixtures/item-priority-1792956399741382900.json').read_text())
