@@ -114,7 +114,21 @@ class Application:
         dashboard=ttk.Frame(self.tabs);config_tab=ttk.Frame(self.tabs);config=self.scroll_frame(config_tab);self.setup_tab=ttk.Frame(self.tabs)
         self.tabs.add(dashboard,text='攻略・観測・検証');self.tabs.add(config_tab,text='目標・攻略知識・接続設定');self.tabs.add(self.setup_tab,text='セットアップ')
         split=ttk.Panedwindow(dashboard,orient='horizontal');split.pack(fill='both',expand=True)
-        left=ttk.Frame(split);right=ttk.Frame(split);split.add(left,weight=3);split.add(right,weight=2)
+        observer=ttk.Frame(split,width=280);left=ttk.Frame(split);right=ttk.Frame(split)
+        split.add(observer,weight=2);split.add(left,weight=5);split.add(right,weight=3)
+        from .observer_view import ObserverPanels,ObserverDigest,SECTIONS
+        self.observer_panels=ObserverPanels();self.observer_digest=ObserverDigest();self.observer_positions={}
+        section=self.ui_state.get('observer_section','予測と結果')
+        if section not in SECTIONS:section='予測と結果'
+        self.observer_section=tk.StringVar(value=section);self.observer_shown_section=section
+        ttk.Label(observer,text='攻略の観察',padding=5,font=('',11,'bold')).pack(fill='x')
+        selector=ttk.Combobox(observer,textvariable=self.observer_section,values=list(SECTIONS),state='readonly',width=22)
+        selector.pack(fill='x',padx=4,pady=(0,5));selector.bind('<<ComboboxSelected>>',self.change_observer_section)
+        ttk.Label(observer,text='表示内容を選択 / 境界をドラッグして幅変更',wraplength=240,padding=4).pack(fill='x')
+        detail_host=ttk.Frame(observer);detail_host.pack(fill='both',expand=True,padx=4,pady=4)
+        self.detail_body=tk.Text(detail_host,width=27,height=12,wrap='word',state='disabled',relief='flat',padx=7,pady=7)
+        self.detail_body.pack(side='left',fill='both',expand=True)
+        detail_scroll=ttk.Scrollbar(detail_host,command=self.detail_body.yview);detail_scroll.pack(side='right',fill='y');self.detail_body.configure(yscrollcommand=detail_scroll.set)
         self.capture_log_split=ttk.Panedwindow(left,orient='vertical');self.capture_log_split.pack(fill='both',expand=True)
         capture_host=ttk.Frame(self.capture_log_split);log_host=ttk.Frame(self.capture_log_split)
         self.capture_log_split.add(capture_host,weight=3);self.capture_log_split.add(log_host,weight=2)
@@ -140,18 +154,16 @@ class Application:
         from .telemetry import RecognitionPanel
         self.runtime_summary=tk.StringVar(value='経過 00:00:00 / 完了ターン 0')
         ttk.Label(right,textvariable=self.runtime_summary,padding=7,font=('',11,'bold')).pack(fill='x')
-        self.recognition_panel=RecognitionPanel(right,self.recognition);self.recognition_panel.frame.pack(fill='x',padx=4,pady=4)
-        panel_host=self.scroll_frame(right);self.panels={};self.panel_bodies={};self.panel_values={}
-        self.panel_aliases={'新発見':'仮説','修正履歴':'仮説','系列のパターン':'行動学習','累積統計':'行動学習','手法の選択・学習':'行動学習','背景適合性':'バックエンド状態','ゲームの推定':'現在状態'}
-        for title in ['今回統計','目的','運用計画','選択行動と理由','結果','行動学習','現在状態','候補と評価','自己改善','OCR・攻略知識の照合','仮説','新発見','修正履歴','累積統計','系列のパターン','ゲームの推定','手法の選択・学習','背景適合性','バックエンド状態','キー配置・ミニマップ']:
-            if title=='今回統計' or title=='結果' or title in self.panel_aliases:continue
-            group=ttk.Frame(panel_host);group.pack(fill='x',pady=3)
-            button=ttk.Button(group,text=title,command=lambda name=title:self.toggle_panel(name));button.pack(fill='x')
-            holder=ttk.Frame(group);holder.pack(fill='x')
-            body=tk.Text(holder,height=5,wrap='word',state='disabled',relief='flat');body.pack(side='left',fill='x',expand=True)
-            scroll=ttk.Scrollbar(holder,command=body.yview);scroll.pack(side='right',fill='y');body.configure(yscrollcommand=scroll.set)
-            self.panels[title]=body;self.panel_bodies[title]=holder
-            if self.ui_state.get('collapsed',{}).get(title,title not in ('目的','運用計画','選択行動と理由','行動学習')):holder.pack_forget()
+        right_split=ttk.Panedwindow(right,orient='vertical');right_split.pack(fill='both',expand=True)
+        recognition_host=ttk.Frame(right_split);summary_host=ttk.LabelFrame(right_split,text='判断の要点',padding=4)
+        right_split.add(recognition_host,weight=3);right_split.add(summary_host,weight=2)
+        self.recognition_panel=RecognitionPanel(self.scroll_frame(recognition_host),self.recognition);self.recognition_panel.frame.pack(fill='x',padx=4,pady=4)
+        self.judgment_body=tk.Text(summary_host,width=28,height=9,wrap='word',state='disabled',relief='flat',padx=5,pady=5)
+        self.judgment_body.pack(side='left',fill='both',expand=True)
+        summary_scroll=ttk.Scrollbar(summary_host,command=self.judgment_body.yview);summary_scroll.pack(side='right',fill='y');self.judgment_body.configure(yscrollcommand=summary_scroll.set)
+        self.refresh_observer_section()
+        self.set_panel('判断の要点',self.observer_digest.summary())
+        self.set_panel('観察ダイジェスト',self.observer_digest.journal())
         self.vars={}
         for row,(label,key) in enumerate([('ゲームのタイトル（一部・固有の文字列）','window_title'),('API形式（ollama / openai）','provider'),('ローカルAPI URL','endpoint'),('画像対応モデル名','model'),('許可キー（カンマ区切り）','allowed_keys'),('手数上限（0 = 上限なし）','max_steps'),('OCR（auto = 導入済みV5 → V4 → Windows）','ocr_engine')]):
             ttk.Label(config,text=label).grid(row=row,column=0,sticky='w')
@@ -251,18 +263,31 @@ class Application:
         return frame
 
     def set_panel(self,title,value):
-        from .presentation import display_json
         from .dashboard import replace_text
         if title=='今回統計':self.runtime_summary.set(value);return
-        if title=='結果':return # Completed outcomes are in the large turn journal.
-        destination=self.panel_aliases.get(title,title)
-        if title!=destination or destination in self.panel_values:
-            self.panel_values.setdefault(destination,{})[title]=value
-            value='\n\n'.join(name+'\n'+(item if isinstance(item,str) else display_json(item,4500)) for name,item in self.panel_values[destination].items())
-        text=value[:10000] if isinstance(value,str) else display_json(value)
-        body=self.panels[destination]
-        if getattr(body,'_last_text',None)==text:return
-        replace_text(body,text);body._last_text=text
+        if title=='判断の要点':
+            body=self.judgment_body;text=value
+            if getattr(body,'_last_text',None)!=text:replace_text(body,text);body._last_text=text
+            return
+        destination=self.observer_panels.put(title,value)
+        from .observer_view import SECTIONS
+        if destination in SECTIONS.get(self.observer_section.get(),()):self.refresh_observer_section()
+
+    def refresh_observer_section(self):
+        from .dashboard import replace_text
+        text=self.observer_panels.render(self.observer_section.get())
+        if getattr(self.detail_body,'_last_text',None)!=text:
+            replace_text(self.detail_body,text);self.detail_body._last_text=text
+
+    def change_observer_section(self,event=None):
+        body=self.detail_body
+        self.observer_positions[self.observer_shown_section]=(body.index('@0,0'),body.xview()[0])
+        self.observer_shown_section=self.observer_section.get();self.refresh_observer_section()
+        top,x=self.observer_positions.get(self.observer_shown_section,('1.0',0.))
+        body.yview(top);body.xview_moveto(x)
+        self.ui_state['observer_section']=self.observer_shown_section
+        try:self.save_ui()
+        except OSError as error:self.status.set('表示設定の保存に失敗: '+str(error))
 
     def open_recognition(self):
         from .telemetry import RecognitionPanel
@@ -356,14 +381,6 @@ class Application:
         self.ui_state.update(capture_log_ratio=self.capture_log_ratio,log_follow_latest=self.log_follow_latest.get(),duration=self.duration.get(),compat=self.compat.get(),preview_graph_enabled=self.overlay_enabled.get(),graph_series={k:v.get() for k,v in self.overlay_layers.items()})
         DATA.mkdir(parents=True,exist_ok=True);temporary=DATA/'ui-settings.json.tmp'
         temporary.write_text(json.dumps(self.ui_state,ensure_ascii=False,indent=2),encoding='utf-8');temporary.replace(DATA/'ui-settings.json')
-
-    def toggle_panel(self,title):
-        body=self.panel_bodies[title];collapsed=bool(body.winfo_manager())
-        if collapsed:body.pack_forget()
-        else:body.pack(fill='x')
-        self.ui_state.setdefault('collapsed',{})[title]=collapsed
-        try:self.save_ui()
-        except OSError as error:self.status.set('表示設定の保存に失敗: '+str(error))
 
     def preview_loop(self):
         from PIL import Image
@@ -1044,6 +1061,9 @@ class Application:
 
     def update_decision(self,value):
         event=value.get('event');self.recognition.update(value);self.traces.update(value)
+        digest=getattr(self,'observer_digest',None)
+        if digest and digest.update(value):
+            self.set_panel('判断の要点',digest.summary());self.set_panel('観察ダイジェスト',digest.journal())
         if event in ('llm_activity','perception'):return
         self.append_log(value)
         if value.get('method_selection'):

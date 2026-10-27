@@ -1,2 +1,2 @@
-"""Local Game Pilot 0.23.22."""
-__version__='0.23.22'
+"""Local Game Pilot 0.23.23."""
+__version__='0.23.23'
