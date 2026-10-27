@@ -39,13 +39,15 @@ class InventoryAudit:
         known=all(r.get('known_description',{}).get('status')=='description_text_observed' or review and (r['display_name'],round(r['box'][1]/8)) in review['seen'] for r in rows if r.get('box'))
         if not known and not (review and (step>review['until'] or review['moves']>=review.get('max_moves',40))):return
         count=(state.get('retained_state',{}).get('last_observed_inventory') or {}).get('occupancy') or {}
+        if a['page_pending'] and not a.get('page_submitted') and signature not in a['pages']:
+            a['pages'].pop(a.get('last_page_signature'),None);a['page_pending']=False
         if review and (step>review['until'] or review['moves']>=review.get('max_moves',40)):
             a['pages'][signature]=copy.deepcopy(rows);a.update(stage='analyse',coverage='description_budget_exhausted',page_pending=False)
         elif a['page_pending'] and not a.get('page_submitted'):return
         elif a['page_pending'] and signature in a['pages']:
             a.update(stage='analyse',coverage='incomplete_or_page_did_not_change',page_pending=False)
         else:
-            a['pages'][signature]=copy.deepcopy(rows);a['page_pending']=False
+            a['pages'][signature]=copy.deepcopy(rows);a['last_page_signature']=signature;a['page_pending']=False
             total=sum(len(v) for v in a['pages'].values())
             if count.get('count') is not None and total>=count['count']:
                 a.update(stage='analyse',coverage='observed_count_matches')
@@ -55,7 +57,7 @@ class InventoryAudit:
     def context(self):
         a=self.active
         if not a:return {'active':False,'next_step':self.next_step,'last_review':copy.deepcopy(self.last)}
-        return {'active':True,'id':a['id'],'stage':a['stage'],'started_step':a['started_step'],'analysis_step':a.get('analysis_step'),'coverage':a['coverage'],
+        return {'active':True,'control_revision':a['scope'][0],'guidance_revision':a['scope'][1],'id':a['id'],'stage':a['stage'],'started_step':a['started_step'],'analysis_step':a.get('analysis_step'),'coverage':a['coverage'],
           'metrics':copy.deepcopy(a['metrics']),'selected_item_quote':a.get('selected_item_quote'),'missing_status':[k for k in ('strength','sword','shield','experience') if k not in a['metrics']],
           'pages':[copy.deepcopy(rows) for rows in a['pages'].values()],
           'instruction':'収集した状態・品の用途・装備と特殊効果を比較して次の具体的操作を選ぶ。名前不明でも説明や装備という使用方法は種別の根拠になる。未確認ページや装備状態を推測で埋めない。確認済みの説明を再表示しない。'}

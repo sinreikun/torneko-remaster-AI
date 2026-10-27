@@ -34,7 +34,7 @@ def compact_supervision_prompt(prompt,budget=6500,tight=False):
         compact_current['floor_counts']=pick(exploration,('known_count','visited_count','primary_frontier_count'))
         ledger={'current':compact_current,'inventory':{'status':'current_rows' if source.get('inventory_observed_now') else 'last_observation_or_review_pages_not_current_confirmation','rows':inventory},
           'inventory_audit':pick(audit,('active','id','stage','coverage','selected_item_quote','missing_status','instruction')),
-          'active_execution':pick(source.get('active_execution',{}),('recovery_active','item_action','recovery_item','description_review')),
+          'active_execution':pick(source.get('active_execution',{}),('recovery_active','item_action','recovery_item','description_review','equipment_preparation')),
           'active_plan':pick(source.get('active_plan',{}),('objective','skill','reason','test','hypothesis','interface_role','interface_quote')),
           'review_feedback':pick(source.get('review_feedback',{}),('last_error','reason'))}
         if audit.get('active'):ledger['inventory_audit']['observed_metrics']=metrics(audit.get('metrics'))

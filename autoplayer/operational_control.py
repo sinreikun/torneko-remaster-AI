@@ -10,6 +10,8 @@ class OperationalControl:
         from .inventory_audit import InventoryAudit
         self.inventory_audit=InventoryAudit()
         self.menu_followup=None
+        from .equipment_preparation import EquipmentPreparation
+        self.equipment_preparation=EquipmentPreparation()
     def prepare_inventory_audit(self,state,current,native):
         self.inventory_audit.prepare(state,current,native,self.inventory_review)
         follow=self.menu_followup
@@ -80,12 +82,16 @@ class OperationalControl:
         current_interface=bool(kind or ledger.current.get('interface'))
         if current_interface or hint_current and role!='none' and not state.get('eligible'):
             if kind in ('inventory','item_actions') and skill=='recover':
+                self.equipment_preparation.active=None
                 target=self._recovery_item(native,state,kind,current)
                 if target:
                     self.item_action_request=None
                     return self._decision(base,[target],'recovery_item','現在読めた品名・選択行・使用法を照合して回復を1段階進める。別の使用方法を決定しない。')
             if kind=='inventory' and 'equipment_status_after_change' in state.get('retained_state',{}).get('refresh_reasons',[]) and cancel:
                 return self._decision(base,[cancel],'equipment_status_check','装備変更後の能力値を先に読み取るため、一覧から主メニューへ戻る。')
+            if self.equipment_preparation.active:
+                equipment=self.equipment_preparation.choose(self,base,native,state,current,kind)
+                if equipment:return equipment
             if kind not in ('inventory','item_actions') or self.item_action_request and self.item_action_request.get('kind')!=kind:self.item_action_request=None
             menu_signature=tuple(sorted(compact_text(l.get('text','')).lstrip('▶►▷>●→') for l in native.get('lines',[])))
             request=self.item_action_request
@@ -117,6 +123,9 @@ class OperationalControl:
                 if key and [key] not in blocked:
                     plan['hint_consumed']=True
                     return self._decision(base,[key],'scoped_interface_hint','現在の同じ表示と引用を確認し、監督役が指定した役割の入力を1回試す。')
+            if kind=='inventory' and skill!='recover' and role=='none':
+                equipment=self.equipment_preparation.choose(self,base,native,state,current,kind,allow_start=True)
+                if equipment:return equipment
             if kind=='main_menu' and skill in ('inspect_inventory','recover'):
                 target=self._cursor_toward(native,'道具')
                 if target and confirm:return self._decision(base,[confirm if target=='selected' else target],'inventory_navigation','現在のメニュー項目とカーソルから道具へ1段階進める。')
@@ -154,6 +163,12 @@ class OperationalControl:
         choices=[r for r in rows if r.get('box') and key(r) not in review['seen'] and review['attempts'].get(key(r),0)<2]
         choices.sort(key=lambda r:abs(r['box'][1]-item['box'][1]))
         if not choices:
+            signature=tuple(r['display_name'] for r in rows)
+            descriptions={compact_text(t) for r in rows for t in r.get('known_description',{}).get('quotes',[])}
+            panel=any(compact_text(l.get('text','')) in descriptions for l in native.get('lines',[]))
+            if self.inventory_audit.active and panel and signature not in review.get('hidden_panels',set()):
+                self.review_pending={'key':'num7','token':signature,'action':'hide_panel'}
+                return self._decision(base,['num7'],'inventory_uncover_rows','説明で隠れた所持品の行を確認するためNum7を1回入力し、一覧と所持数を読み直す。')
             audit=self.inventory_audit.active
             if audit and audit['stage']=='collect' and audit['page_pending']:
                 key_input=next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and v.startswith('右')),None)
@@ -171,6 +186,7 @@ class OperationalControl:
     def execution_context(self):
         request=self.item_action_request or {};item=self.item_context or {};review=self.inventory_review or {}
         return {'recovery_active':self.recovery_request is not None,
+          'equipment_preparation':{k:copy.deepcopy(v) for k,v in (self.equipment_preparation.active or {}).items() if k in ('quote','slot','phase','until')},
           'item_action':{k:request[k] for k in ('kind','action','until') if k in request},
           'recovery_item':{k:item[k] for k in ('name','phase','step') if k in item},
           'inventory_audit':self.inventory_audit.context(),
@@ -413,6 +429,7 @@ class OperationalControl:
         self.last_selection=operation
         return d,pc,combat_trial,prediction_context,operation
     def feedback(self,row):
+        if self.equipment_preparation.active:self.equipment_preparation.feedback(row,self._key('confirm'))
         e=(row.get('action_effect_learning') or {}).get('effects',{});op=row.get('operation',{})
         values={'position':e.get('moved') is True,'damage_dealt':bool(e.get('new_hit_message')),'enemy_defeated':bool(e.get('new_defeat_message')),
           'hp_gain':e.get('hp_gain_net',0)>0,'food_gain':e.get('food_gain_net',0)>0,'interface_change':e.get('text_changed') is True,
@@ -434,6 +451,7 @@ class OperationalControl:
         pending=self.review_pending;self.review_pending=None
         if pending and self.inventory_review and applied and actual==[pending['key']] and op.get('selected_source')=='interface':
             review=self.inventory_review;review['moves']+=1
+            if pending['action']=='hide_panel':review.setdefault('hidden_panels',set()).add(pending['token'])
             if pending['action']=='page' and self.inventory_audit.active:self.inventory_audit.active['page_submitted']=True
             if pending['action']=='description':
                 token=pending['token'];review['attempts'][token]=review['attempts'].get(token,0)+1

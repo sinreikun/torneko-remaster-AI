@@ -177,12 +177,14 @@ class Inventory:
             if m:page=[int(m[1]),int(m[2])]
         previous={}
         for row in self.rows:previous.setdefault(row['display_name'],[]).append(row)
+        item_labels={compact_text(r.get('item_name','')).lstrip('▶►▷>●→') for r in self.description_reads}|{compact_text(r['display_name']) for r in self.rows}
+        stored_descriptions={compact_text(t) for r in self.description_reads if r.get('status')=='description_text_observed' and not all(compact_text(q).lstrip('▶►▷>●→') in item_labels for q in r.get('quotes',[])) for t in r.get('quotes',[])}
         rows=[];self.selected=None;cursor_index=self.cursor_index(native,png)
         cursor_box=self.line_box((native or {}).get('lines',[])[cursor_index]) if cursor_index is not None else None
         for line_index,line in enumerate((native or {}).get('lines',[])):
             raw=unicodedata.normalize('NFKC',line.get('text','')).strip()
             box=self.line_box(line)
-            if compact_text(raw) in self.description_text:continue
+            if compact_text(raw) in stored_descriptions or compact_text(raw) in self.description_text-item_labels or re.search(r'[。！？]',raw):continue
             if cursor_box and box:
                 h=cursor_box[3]-cursor_box[1]
                 if abs(box[0]-cursor_box[0])>h*1.3 or not h*.65<=box[3]-box[1]<=h*1.5:continue
