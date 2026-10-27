@@ -1,0 +1,79 @@
+{
+  "source": "diagnostics-1793055833910841700 / step20 decision / original frame 8f3d0822a9b5eddf5d8eb32b0c8e2c33808b99044219599b02a3d8330ea8933b",
+  "crop": [
+    80,
+    130,
+    360,
+    240
+  ],
+  "expected": "足元",
+  "ocr": {
+    "status": "ok",
+    "lines": [
+      {
+        "recognition_at": 1793055966.923811,
+        "text": "道具",
+        "confidence": 0.99997,
+        "words": [
+          {
+            "text": "道具",
+            "box": [
+              39.0,
+              11.0,
+              65.0,
+              38.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793055966.923811,
+        "text": "マップ",
+        "confidence": 1.0,
+        "words": [
+          {
+            "text": "マップ",
+            "box": [
+              175.0,
+              12.0,
+              90.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793055966.923811,
+        "text": "足元",
+        "confidence": 0.99744,
+        "words": [
+          {
+            "text": "足元",
+            "box": [
+              16.0,
+              62.0,
+              91.0,
+              40.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793055966.923811,
+        "text": "その他",
+        "confidence": 0.99999,
+        "words": [
+          {
+            "text": "その他",
+            "box": [
+              173.0,
+              61.0,
+              93.0,
+              40.0
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
