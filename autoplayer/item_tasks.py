@@ -84,7 +84,7 @@ class ItemTasks:
             if t['status']=='deferred' and t.get('revisit')=='goal_changed':self.change(t,'observed' if t['kind']=='item_indicator' else 'marker_unclassified','目的が変化したため保留を再検討')
     def goals(self,position,kind='item_indicator'):
         allowed=('observed','planned','route_unavailable','not_visible_unresolved','marker_unclassified')
-        return {c for c,t in self.tasks.items() if c!=position and t['kind']==kind and t['status'] in allowed and t['attempts']<(2 if kind=='item_indicator' else 1)}
+        return {c for c,t in self.tasks.items() if c!=position and t.get('visible') and t.get('current_classification',t['kind'])==kind and t['kind']==kind and t['status'] in allowed and t['attempts']<(2 if kind=='item_indicator' else 1)}
     def enemy_priority(self):
         for t in self.tasks.values():
             if t['status'] in ('observed','planned','marker_unclassified'):
@@ -116,8 +116,8 @@ class ItemTasks:
             self.change(t,'pickup_confirmed','現在位置と新しい取得メッセージを照合',{'source':'current_ocr_message','quote':pickup,'step':row.get('step')})
     def context(self):
         tasks=[{**copy.deepcopy(t),'decision_active':t['status']=='deferred' and t.get('decision')=='defer','label':LABELS[t['status']]} for t in self.tasks.values()]
-        pending=[t for t in tasks if t['status'] in ('arrival_unverified','awaiting_inventory_check','capacity_blocked') and self.checked.get(tuple(t['cell']))!=[t['attempts'],t['generation'],self.inventory_token] and not (t['status']=='capacity_blocked' and self.capacity and self.capacity.get('source')=='inventory_occupancy')]
+        pending=[t for t in tasks if t.get('visible') and t['status'] in ('arrival_unverified','awaiting_inventory_check','capacity_blocked') and self.checked.get(tuple(t['cell']))!=[t['attempts'],t['generation'],self.inventory_token] and not (t['status']=='capacity_blocked' and self.capacity and self.capacity.get('source')=='inventory_occupancy')]
         signature=hashlib.sha256(json.dumps([[t['cell'],t['status'],t['attempts']] for t in pending],sort_keys=True).encode()).hexdigest()[:16]
         return {'scope':self.scope,'revision':self.revision,'counts':dict(Counter(t['status'] for t in tasks)), 'tasks':tasks,
             'unlocated_evidence':copy.deepcopy(self.unlocated_evidence),'needs_inventory_check':bool(pending),'check_token':signature if pending else None,'capacity_evidence':copy.deepcopy(self.capacity),
-            'note':'到達/表示消失/踏破済みを取得成功にしない。visibleは最後に読めた地図での表示であり、メニュー中などの現在画面の証明ではない。未分類マークはアイテムや階段と断定しない。'}
+            'note':'過去の座標に独自マークを表示せず、現在のマップに見えるアイコンだけを探索候補にする。到達/表示消失/踏破済みを取得成功にしない。visibleは最後に読めた地図での表示であり、メニュー中などの現在画面の証明ではない。未分類マークはアイテムや階段と断定しない。'}

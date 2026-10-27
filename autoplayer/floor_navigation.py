@@ -31,7 +31,7 @@ class FloorNavigation:
         return bool(state.get('eligible') and m.get('status')=='observed' and not m.get('retained') and f.get('values') and not f.get('retained') and m.get('player_cell') is not None and (m.get('accumulated_cells') or m.get('known_cells')) and confirmation.get('status') not in ('pending','unreadable'))
     def observe(self,state):
         if not self._valid(state):return False
-        m=state['minimap'];floor=tuple(state['metrics']['floor']['values']);space=(floor,tuple(m.get('grid_size',[])),m.get('cell_size'))
+        m=state['minimap'];floor=tuple(state['metrics']['floor']['values']);space=(floor,tuple(m.get('grid_size',[])),m.get('cell_size'),m.get('map_generation'))
         if space!=self.space:
             self.reset();self.space=space;self.floor=floor
         self.tick+=1;pos=tuple(m['player_cell']);dims=m.get('grid_size')
@@ -63,8 +63,9 @@ class FloorNavigation:
                 relevant=[self._add(origin,ROUTE_MOVES[key])]+[self._add(origin,MOVES[k]) for k in key.split('+')]
                 if any(c in reopened for c in relevant):self.failures.pop((origin,key),None)
             self.fresh_floor=fresh;self.last_map_frame=frame
+        effective_floor=self.known-self.disputed()
         for cell in self.known:
-            signature=tuple(self._add(cell,d) in self.known for d in MOVES.values())
+            signature=tuple(self._add(cell,d) in effective_floor for d in MOVES.values())
             old=self.neighbors.get(cell)
             if old is not None and old!=signature:
                 for key in ROUTE_MOVES:self.failures.pop((cell,key),None)
@@ -76,12 +77,13 @@ class FloorNavigation:
     @staticmethod
     def _add(a,b):return (a[0]+b[0],a[1]+b[1])
     def degree(self,cell):return sum(self._add(cell,d) in self.known for d in MOVES.values())
-    def unknown_keys(self,cell):
+    def unknown_keys(self,cell,floor=None):
+        floor=self.known-self.disputed() if floor is None else floor
         out=[]
         for key,d in MOVES.items():
             p=self._add(cell,d)
             if self.dims and not (0<=p[0]<self.dims[0] and 0<=p[1]<self.dims[1]):continue
-            if p not in self.known and self.failures[cell,key]==0:out.append(key)
+            if p not in floor and self.failures[cell,key]==0:out.append(key)
         return out
     def proven_cells(self):
         # Successful input-linked connections are geometric evidence, not a
@@ -100,11 +102,11 @@ class FloorNavigation:
         # Walking over a cell neither completes nor creates an exploration task.
         floor=self.known-self.disputed()
         return {c for c in floor-self.stairs-self.items if not self.area_cell(c,floor)
-                and sum(self._add(c,d) in floor for d in MOVES.values())<=1 and self.unknown_keys(c)}
+                and sum(self._add(c,d) in floor for d in MOVES.values())<=1 and self.unknown_keys(c,floor)}
     def boundaries(self):
         # Rechecks are bounded corridor hypotheses, never every room perimeter.
         floor=self.known-self.disputed()
-        return {c for c in floor-self.stairs-self.items if not self.area_cell(c,floor) and self.unknown_keys(c)}
+        return {c for c in floor-self.stairs-self.items if not self.area_cell(c,floor) and self.unknown_keys(c,floor)}
     def retired(self):
         # Retire only explicitly checked branches; visitation has no effect. Its floor cells stay
         # in the graph and may be used for another objective or necessary return.

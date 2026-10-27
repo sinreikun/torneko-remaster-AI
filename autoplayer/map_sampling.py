@@ -2,9 +2,10 @@
 import copy
 
 class MapSamplingPlan:
-    def __init__(self,interval=4):self.interval=interval;self.last_step=None;self.floor=None;self.position=None;self.prediction=None;self.hp=None;self.invalid=False;self.inputs=[];self.anchor=None;self.force_checks=0
+    def __init__(self,interval=4,live_objects=False):self.live_objects=live_objects;self.interval=interval;self.last_step=None;self.floor=None;self.position=None;self.prediction=None;self.hp=None;self.invalid=False;self.inputs=[];self.anchor=None;self.force_checks=0
     def due(self,state,step,phase):
         metrics=state.get('metrics',{});floor=metrics.get('floor',{}).get('values');hp=metrics.get('hp',{}).get('values')
+        if self.live_objects and floor and not state.get('menu_evidence') and phase in ('map_observation','map_result'):return True
         if self.last_step is None or floor!=self.floor or self.invalid:return True
         if hp and self.hp and hp[0]<self.hp[0]:return True
         return phase!='map_result' and (self.force_checks>0 or step-self.last_step>=self.interval)

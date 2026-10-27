@@ -447,4 +447,27 @@ class MovementEvidenceTests(unittest.TestCase):
         self.assertEqual(dungeon_movement_keys(['s','d'],room),(['s','d'],None))
         self.assertEqual(dungeon_movement_keys(['num5','s','d'],state),(['num5','s','d'],None))
 
+
+
+class DisputedFrontierRegressionTests(unittest.TestCase):
+    def test_actual_log_stale_floor_cannot_hide_unchecked_directions(self):
+        f=json.loads((Path(__file__).parent/'fixtures/disputed-frontiers-1793085906299554700.json').read_text())
+        nav=FloorNavigation();nav.observe(f['state'])
+        stale={tuple(p) for p in f['stale_cells']};nav.known.update(stale)
+        for cell in stale:nav.missing_floor[cell]=2
+        self.assertEqual(f['reported_frontier_count'],0)
+        self.assertEqual(len(stale),164)
+        self.assertEqual(nav.primary(),{(15,12),(15,25)})
+        self.assertIn('w',nav.unknown_keys((15,12)))
+        self.assertEqual(nav.failures[(15,12),'w'],0)
+
+    def test_new_map_generation_discards_old_floor_and_failed_directions(self):
+        old=observed((2,2),{(1,2),(2,2),(3,2)})
+        old['minimap']['map_generation']=1
+        nav=FloorNavigation();nav.observe(old);nav.failures[(2,2),'d']=2
+        current=observed((8,8),{(8,8),(9,8)})
+        current['minimap']['map_generation']=2;nav.observe(current)
+        self.assertEqual(nav.known,{(8,8),(9,8)})
+        self.assertFalse(nav.failures);self.assertIsNone(nav.exploration_task)
+
 if __name__=='__main__':unittest.main()

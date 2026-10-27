@@ -59,3 +59,44 @@ class EquipmentPreparationTests(unittest.TestCase):
         full=n['_current_inventory_rows']+[{'display_name':x,'box':[100,y,220,y+24],'known_description':{'status':'description_text_observed','quotes':['既存の説明']}} for x,y in [('大きいパン',50),('ルーラ草',80)]]
         c['step']=10;op.inventory_audit.prepare(s,c,{'_current_inventory_rows':full},op.inventory_review)
         self.assertEqual(len(op.inventory_audit.context()['pages']),1);self.assertEqual(op.inventory_audit.context()['coverage'],'observed_count_matches')
+
+class EquipmentUpgradeTests(unittest.TestCase):
+    fixture=EquipmentPreparationTests.fixture
+    actor=EquipmentPreparationTests.actor
+    native=EquipmentPreparationTests.native
+    current=EquipmentPreparationTests.current
+    base=EquipmentPreparationTests.base
+    def equipped(self,op,special=False):
+        row={'display_name':'古い盾','quote':'古い盾','equipped':True,'known_description':{
+            'status':'description_text_observed','quotes':['盾。防御力は基本1。'+('満腹度の減少は半分。' if special else '')]}}
+        op.inventory_audit.last['metrics']['shield']['values']=[1]
+        op.inventory_audit.last['pages']=[[row]]
+
+    def test_nonzero_equipment_can_be_upgraded_and_uses_largest_known_candidate(self):
+        op=self.actor();self.equipped(op);n=self.native()
+        better={'display_name':'新しい盾+1','quote':'新しい盾+1','equipped':False,
+            'known_description':{'status':'description_text_observed','quotes':['盾。防御力は基本6。']}}
+        n['_current_inventory_rows'].append(better)
+        op._cursor_toward=Mock(return_value='selected')
+        d=op.equipment_preparation.choose(op,self.base(),n,{},self.current(),'inventory',True)
+        self.assertEqual(d.keys,['num1'])
+        self.assertEqual(op.equipment_preparation.active['quote'],'新しい盾+1')
+        self.assertEqual(op.equipment_preparation.active['before'],1)
+        self.assertEqual(op.equipment_preparation.active['base'],7)
+
+    def test_special_equipped_effect_is_not_overridden_by_number_alone(self):
+        op=self.actor();self.equipped(op,special=True)
+        self.assertIsNone(op.equipment_preparation.choose(op,self.base(),self.native(),{},self.current(),'inventory',True))
+
+    def test_new_pickup_schedules_one_early_review_then_keeps_interval(self):
+        audit=InventoryAudit();audit.next_step=128
+        s=state();s['retained_state']={'revision':3,'inventory_token':'bag','refresh_reasons':['possible_item_pickup_or_full_inventory']}
+        c={**self.current(),'region':'dungeon','interface':None,'step':10}
+        audit.prepare(s,c,{},None);self.assertIsNotNone(audit.active)
+        audit.finish('analysed',11);audit.prepare(s,dict(c,step=12),{},None)
+        self.assertIsNone(audit.active)
+
+    def test_newly_observed_ability_prevents_stale_audit_from_downgrading_equipment(self):
+        op=self.actor();self.equipped(op)
+        s={'retained_state':{'last_observed_metrics':{'shield':{'values':[8]}}}}
+        self.assertIsNone(op.equipment_preparation.choose(op,self.base(),self.native(),s,self.current(),'inventory',True))

@@ -56,14 +56,19 @@ class ItemTaskTests(unittest.TestCase):
         i=Inventory();n=native('道具','詳細表示切替','整理','1階','HP20/20','3/20','▶薬草')
         result=i.observe(n);self.assertEqual(result['occupancy']['count'],3)
         self.assertEqual([r['display_name'] for r in result['rows']],['薬草'])
-    def test_monitor_keeps_pending_and_capacity_flags_above_floor_colors(self):
+    def test_monitor_uses_live_icons_not_capacity_or_history_marks(self):
         s=observed((1,1),{(1,1),(2,1)},items=[(2,1)]);self.t.inventory('bag',{'count':20,'capacity':20})
         self.t.observe({(2,1)},set(),set(),(1,1),'frame2')
         s['floor_exploration']={'status':'observed_floor','item_tasks':self.t.context()}
         monitor=RecognitionState();monitor.update({'event':'perception','policy_state':s})
-        self.assertEqual(monitor.grid()[(2,1)],'item_full');self.assertEqual(monitor.grid()[(1,1)],'player')
-        self.assertIn('満杯',monitor.item_detail((2,1)))
-        self.assertIn('所持上限',monitor.item_detail((2,1)))
+        self.assertEqual(monitor.grid()[(2,1)],'item');self.assertEqual(monitor.grid()[(1,1)],'player')
+        self.assertIn('アイテム',monitor.item_detail((2,1)))
+        self.assertNotIn('満杯',monitor.item_detail((2,1)))
+        self.t.observe(set(),set(),set(),(1,1),'clear')
+        self.assertNotIn((2,1),self.t.goals((1,1)))
+        monitor.map['items']=[]
+        self.assertNotEqual(monitor.grid()[(2,1)],'item')
+        self.assertIn('アイコンなし',monitor.item_detail((2,1)))
         monitor.map['retained']=True;self.assertIn('保持',monitor.item_detail((2,1)))
     def test_actual_log_unknown_mark_becomes_a_confirmation_goal(self):
         data=json.loads((Path(__file__).parent/'fixtures/item-marker-1792973659845475500.json').read_text())

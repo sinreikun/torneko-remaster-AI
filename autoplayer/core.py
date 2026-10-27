@@ -946,7 +946,7 @@ class Controller:
                 and hasattr(self.backend,'capture_map_display')):return None
         if self.cfg.fast_learning:
             from .map_sampling import MapSamplingPlan
-            if not hasattr(self,'map_plan'):self.map_plan=MapSamplingPlan()
+            if not hasattr(self,'map_plan'):self.map_plan=MapSamplingPlan(live_objects=True)
             if phase=='map_observation' and (self.supervised or self.combat and self.combat.pending):self.map_plan.invalid=True
             if not self.map_plan.due(state,getattr(self,'current_step',0),phase):
                 self._write({'event':'map_observation_deferred','phase':phase,'prediction':self.map_plan.context(),'learning':False});return None
@@ -1086,7 +1086,7 @@ class Controller:
                     if operation_control:operation_control.recovery_policy.reset()
                     from .pacing import AdaptivePacing
                     self.pacing=AdaptivePacing(self.cfg.max_wait_ms)
-                    self.policy.map_sensor.reset();self.policy.routes.reset();self.executive.cancel('new_adventure')
+                    self.policy.map_sensor.reset();self.policy.routes.reset();self.world.floor_navigation.reset();self.executive.cancel('new_adventure')
                     policy_state['minimap']=self.policy.map_sensor.accumulate(policy_state['minimap'],self.policy.floor_confirmation.floor)
                     world_observation=self.world.observe(normal_observation_image,native,policy_state,neutral_image)
                     world_observation['new_adventure']=True

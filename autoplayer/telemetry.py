@@ -92,19 +92,16 @@ class RecognitionState:
                 for offset in m.get(field,[]):
                     cell=[player[i]+offset[i] for i in (0,1)]
                     if valid(cell):out[tuple(cell)]=kind
-            for task in self.floor_exploration.get('item_tasks',{}).get('tasks',[]):
-                cell=task['cell'];status=task['status']
-                if not valid(cell) or out.get(tuple(cell)) in ('enemy','stairs') or status in ('pickup_confirmed','marker_resolved'):continue
-                kind='unknown_marker' if task['kind']=='unclassified_marker' else 'item_full' if status=='capacity_blocked' else 'item_deferred' if status=='deferred' else 'item_pending' if status in ('arrival_unverified','awaiting_inventory_check','awaiting_evidence','not_visible_unresolved','route_unavailable') or task.get('current_classification')=='unclassified_marker' else 'item'
-                out[tuple(cell)]=kind
             out[tuple(player)]='player'
         return out
     def item_detail(self,cell):
         if self.tentative.get('active') or self.tentative.get('display_retained'):return '仮経路マップ。ダンジョン内の品とは別の座標です。'
-        task=next((t for t in self.floor_exploration.get('item_tasks',{}).get('tasks',[]) if t['cell']==list(cell)),None)
-        if not task:return f'{list(cell)}: 品/マークの記録なし'
-        seen=('最終地図の表示を保持' if self.map.get('retained') else '今回の地図で確認') if task.get('visible') else '過去の観測を保持'
-        return f"{list(cell)} {task.get('label',task['status'])} / {seen}\n{task.get('reason','未処理')}\n到達 {task.get('attempts',0)}回"
+        player=self.map.get('player_cell')
+        if player is None:return f'{list(cell)}: 現在のマップ未確認'
+        offset=[cell[0]-player[0],cell[1]-player[1]]
+        kind=next((label for field,label in [('items','アイテム'),('enemies','敵'),('stairs','階段'),('uncertain_marks','未分類マーク')] if offset in [list(p) for p in self.map.get(field,[])]),None)
+        seen='最後のマップ観測を保持・未再確認' if self.map.get('retained') else '最新のマップ観測'
+        return f"{list(cell)}: {kind or 'アイコンなし'} / {seen}"
     def summary(self):
         def val(name):
             values=self.metrics.get(name,{}).get('values')
@@ -123,8 +120,7 @@ class RecognitionState:
         if task and not (self.tentative.get('active') or self.tentative.get('display_retained')):
             status={'navigating':'移動中','probing':'先端を確認','detour_search':'迂回探索','interrupted':'割込み後に再検討','blocked':'到達不能・再検討'}.get(task.get('status'),task.get('status',''))
             note+=f"\n継続探索目標: {task.get('target_cell')} / {status}"
-        counts=f.get('item_tasks',{}).get('counts',{})
-        if counts and not (self.tentative.get('active') or self.tentative.get('display_retained')):note+=f"\n品/マーク: 未分類 {sum(t['kind']=='unclassified_marker' and t['status'] not in ('pickup_confirmed','marker_resolved') for t in f.get('item_tasks',{}).get('tasks',[]))} 取得未確認 {counts.get('arrival_unverified',0)+counts.get('awaiting_inventory_check',0)} 満杯 {counts.get('capacity_blocked',0)} 保留 {counts.get('deferred',0)}"
+
         atlas=self.tentative.get('atlas',{})
         if atlas.get('map_id'):note+='\n外部地図 '+atlas['map_id']+(' / 保存済み開始地点から再開' if atlas.get('reused') else ' / 新規地図')
         if atlas.get('awaiting_entry'):note+='\n場面切替：開始地点の再観測待ち'
@@ -132,7 +128,7 @@ class RecognitionState:
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
-COLORS={'unknown_marker':'#b9a4ed','item_pending':'#ffcd70','item_full':'#f29a59','item_deferred':'#a0a6b5','disputed':'#633e40','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
+COLORS={'unknown_marker':'#b9a4ed','disputed':'#633e40','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
 def grid_layout(width,height):
     width=max(1,float(width));height=max(1,float(height));pad=min(8,width/4,height/4)
@@ -148,15 +144,15 @@ def paint_grid(canvas,cells,x=8,y=8,unit=6):
     for row in range(32):
         for col in range(54):
             kind=cells.get((col,row));a=x+col*unit;b=y+row*unit;inset=min(1,unit*.2);mark=min(2,unit*.3)
-            canvas.create_rectangle(a,b,a+unit,b+unit,fill=COLORS['known'] if kind in ('enemy','item','stairs','unknown_marker','item_pending','item_full','item_deferred') else COLORS.get(kind,'#121c2b'),outline='#263346',width=1,tags='recognition')
+            canvas.create_rectangle(a,b,a+unit,b+unit,fill=COLORS['known'] if kind in ('enemy','item','stairs','unknown_marker') else COLORS.get(kind,'#121c2b'),outline='#263346',width=1,tags='recognition')
             if kind in ('estimated_pose','uncertain_pose'):canvas.create_rectangle(a+inset,b+inset,a+unit-inset,b+unit-inset,outline='#ffe04b',tags='recognition')
             elif kind=='portal':canvas.create_rectangle(a+inset,b+inset,a+unit-inset,b+unit-inset,outline='#cc8bff',tags='recognition')
             elif kind=='obstacle':canvas.create_line(a,b+unit,a+unit,b,fill='#ffbe63',tags='recognition')
             elif kind=='enemy':canvas.create_oval(a+inset,b+inset,a+unit-inset,b+unit-inset,fill=COLORS[kind],outline='',tags='recognition')
             elif kind=='item':canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill=COLORS[kind],tags='recognition')
-            elif kind in ('unknown_marker','item_pending','item_full','item_deferred'):
-                canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill='' if kind!='item_full' else COLORS[kind],outline=COLORS[kind],tags='recognition')
-                if kind=='unknown_marker':canvas.create_line(a+unit/2,b+mark,a+unit/2,b+unit-mark,fill=COLORS[kind],tags='recognition')
+            elif kind=='unknown_marker':
+                canvas.create_polygon(a+unit/2,b,a+unit,b+unit/2,a+unit/2,b+unit,a,b+unit/2,fill='',outline=COLORS[kind],tags='recognition')
+                canvas.create_line(a+unit/2,b+mark,a+unit/2,b+unit-mark,fill=COLORS[kind],tags='recognition')
             elif kind=='stairs':canvas.create_rectangle(a+inset,b+inset,a+unit-inset,b+unit-inset,fill='#121c2b',outline=COLORS[kind],tags='recognition')
 
 class RecognitionPanel:

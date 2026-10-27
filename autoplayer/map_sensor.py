@@ -35,7 +35,7 @@ class FloorConfirmation:
 
 class MapSensor:
     def __init__(self):self.reset()
-    def reset(self):self.cells=set();self.floor=None
+    def reset(self):self.cells=set();self.floor=None;self.generation=getattr(self,'generation',0)+1
     def accumulate(self,result,floor):
         if result.get('status')!='observed':return result
         # Called only after OCR floor confirmation; pending frames never enter this map.
@@ -43,7 +43,7 @@ class MapSensor:
         px,py=result['player_cell']
         self.cells.update((x+px,y+py) for x,y in result['known_cells'])
         result=dict(result);result['accumulated_cells']=[list(p) for p in sorted(self.cells)]
-        result['confirmed_floor']=floor
+        result['confirmed_floor']=floor;result['map_generation']=self.generation
         return result
 
 @lru_cache(maxsize=6)

@@ -4,7 +4,7 @@ import copy,time
 class InventoryAudit:
     INTERVAL=128
     def __init__(self):
-        self.next_step=0;self.active=None;self.last=None;self.serial=0
+        self.next_step=0;self.active=None;self.last=None;self.serial=0;self.last_equipment_trigger=None
     def finish(self,status,step):
         self.last={**self.context(), 'status':status,'finished_step':step}
         if self.active and self.active.get('analysis_started') is not None:self.last['analysis_elapsed_ms']=round((time.monotonic()-self.active['analysis_started'])*1000)
@@ -21,6 +21,11 @@ class InventoryAudit:
         hp=state.get('metrics',{}).get('hp',{});food=state.get('metrics',{}).get('fullness',{})
         danger=danger or bool(hp.get('values') and not hp.get('retained') and hp['values'][0]/max(1,hp['values'][1])<.3 or food.get('values') and not food.get('retained') and food['values'][0]<=15)
         scope=(current.get('control_revision'),current.get('operator_guidance',{}).get('revision',0),current.get('floor'))
+        retained=state.get('retained_state',{})
+        reasons=set(retained.get('refresh_reasons',[]))&{'possible_item_pickup_or_full_inventory','inventory_or_equipment_message','floor_item_needs_check'}
+        trigger=(retained.get('revision'),retained.get('inventory_token'),tuple(sorted(reasons)))
+        if reasons and not danger and trigger!=self.last_equipment_trigger:
+            self.last_equipment_trigger=trigger;self.next_step=min(self.next_step,step)
         if self.active and ((self.active['scope'][:2]!=scope[:2] or self.active['scope'][2] and scope[2] and self.active['scope'][2]!=scope[2]) or current.get('region')!='dungeon' or danger):self.finish('interrupted_current_context',step)
         if not self.active and step>=self.next_step and current.get('region')=='dungeon' and state.get('eligible') and not kind and not danger:
             self.serial+=1;self.active={'id':self.serial,'scope':copy.deepcopy(scope),'started_step':step,'until':step+96,'stage':'collect','metrics':{},'pages':{},'coverage':'unconfirmed','page_pending':False}
@@ -60,7 +65,7 @@ class InventoryAudit:
         return {'active':True,'control_revision':a['scope'][0],'guidance_revision':a['scope'][1],'id':a['id'],'stage':a['stage'],'started_step':a['started_step'],'analysis_step':a.get('analysis_step'),'coverage':a['coverage'],
           'metrics':copy.deepcopy(a['metrics']),'selected_item_quote':a.get('selected_item_quote'),'missing_status':[k for k in ('strength','sword','shield','experience') if k not in a['metrics']],
           'pages':[copy.deepcopy(rows) for rows in a['pages'].values()],
-          'instruction':'収集した状態・品の用途・装備と特殊効果を比較して次の具体的操作を選ぶ。名前不明でも説明や装備という使用方法は種別の根拠になる。未確認ページや装備状態を推測で埋めない。確認済みの説明を再表示しない。'}
+          'instruction':'装備済みでも複数の剣・盾を常に比較する。現在の強さ・表示補正・実測した変化・空腹や敵に有効な特殊効果から使用候補を選び、必要なら装備し直し能力を確認する。収集した状態・品の用途・装備と特殊効果を比較して次の具体的操作を選ぶ。名前不明でも説明や装備という使用方法は種別の根拠になる。未確認ページや装備状態を推測で埋めない。確認済みの説明を再表示しない。'}
     def awaiting_analysis(self,supervisor,step):
         a=self.active
         if not a or a['stage']!='analyse':return False

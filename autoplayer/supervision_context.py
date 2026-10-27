@@ -39,6 +39,8 @@ def compact_supervision_prompt(prompt,budget=6500,tight=False):
           'review_feedback':pick(source.get('review_feedback',{}),('last_error','reason'))}
         if audit.get('active'):ledger['inventory_audit']['observed_metrics']=metrics(audit.get('metrics'))
         equipment=world.get('equipment_review',{})
+        ledger['equipment_candidates']=[{**pick(x,('display_name','equipped','type_evidence')),'description_excerpt':' / '.join((x.get('description') or {}).get('quotes',[]))[:140]} for x in equipment.get('candidates',[])[:12]]
+        ledger['equipment_rule']=equipment.get('rule','')[:220]
         ledger['equipment_comparisons']=[pick(x,('display_name','before','after','metric_changes','status','attribution')) for x in equipment.get('observed_comparisons',[])[-2:]]
         ledger['equipment_pending']=pick(equipment.get('verification_pending') or {},('display_name','command','origin_step'))
         names={r.get('id'):r.get('display_name') for r in rows}
@@ -55,7 +57,7 @@ def compact_supervision_prompt(prompt,budget=6500,tight=False):
     size=lambda:len(json.dumps(result,ensure_ascii=False,separators=(',',':')))
     ledger=result['state_ledger']
     if tight or size()>budget:
-        for key in ('action_effects','recent_outcomes','equipment_comparisons','item_use_experience'):
+        for key in ('action_effects','recent_outcomes','equipment_comparisons','item_use_experience','equipment_candidates'):
             ledger.pop(key,None)
         result.pop('game_rules',None)
     if tight or size()>budget:
