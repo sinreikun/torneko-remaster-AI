@@ -1268,7 +1268,20 @@ class Controller:
                     self.executive.cancel('tentative_route')
                 decision,exterior_filter=exterior.enforce(decision,blocked)
                 if exterior_filter:active_choice=exterior_filter;self.executive.cancel('exterior_action_filter')
+                movement_gate=None
+                if policy_state and is_torneko(self.cfg.window_title):
+                    from .controls import dungeon_movement_keys
+                    safe_keys,movement_gate=dungeon_movement_keys(decision.keys,policy_state)
+                    if movement_gate:decision=replace(decision,keys=safe_keys,reason=decision.reason+' '+movement_gate['reason'])
                 timing_trial=self.duration_learner.choose(decision,policy_state) if self.duration_learner and not dry_run and not route_proposal else None
+                movement_verification=None
+                hint=(policy_state or {}).get('map_route_hint') or {}
+                if hint.get('minimum_hold_ms') and decision.keys==(hint.get('keys') or [hint.get('key')]):
+                    required=min(self.cfg.max_hold_ms,hint['minimum_hold_ms'])
+                    if decision.hold_ms<required:
+                        decision.hold_ms=required
+                        if timing_trial:timing_trial={**timing_trial,'ms':required,'minimum_for_verification':True}
+                    movement_verification={'status':'longer_single_input_recheck','hold_ms':decision.hold_ms,'requested_minimum_ms':hint['minimum_hold_ms']}
                 pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run and not route_proposal else None
                 if not planned and decision.keys not in ([k] for k in ('w','a','s','d')):
                     self.executive.remaining=0
@@ -1280,7 +1293,7 @@ class Controller:
                 state_report=({'ocr':native,'scene_observation':{'status':'not_requested','reason':'新しい地図/HUDと中立観測による限定的な方策実行'},'inference_metrics':[],
                     'decision_policy':{'source':'bounded_policy_continuation','steps_since_llm':fast_count}} if fast else (self.llm.take_state() if hasattr(self.llm,'take_state') else {}))
                 if local_learning:state_report={'ocr':native,'scene_observation':{'status':'not_requested','reason':'高速学習のローカル観測'},'inference_metrics':[],'learning':False}
-                row={'step':step+1,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
+                row={'step':step+1,'movement_input_gate':movement_gate,'movement_input_verification':movement_verification,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
                 if supervisor:

@@ -77,6 +77,24 @@ class DurationTests(unittest.TestCase):
             decision.scene='dialog';self.assertIsNone(learner.choose(decision))
             memory.close()
 
+    def test_actual_neutral_sample_advances_unconfirmed_duration_without_failure_learning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg=Settings(window_title='Other',allowed_keys=['w'],key_bindings={'w':'上移動'})
+            memory=MemoryStore(Path(tmp)/'memory.sqlite',cfg);learner=DurationLearner(memory,cfg)
+            d=Decision('gameplay','観察','進む','理由',.9,'continue',['w'],80,0)
+            trial=learner.choose(d)
+            row={'executed':True,'observed_keys':['w'],'input_receipt':{'os_submission':'accepted'},
+                'neutral_before':{'kind':'neutral_sample','raw_change':0},'operation':{'skill':'explore'},
+                'action_effect_learning':{'effects':{'player_delta':[0,0]}}}
+            learner.record(trial,row)
+            self.assertEqual(learner.context()['duration_trials'],[])
+            next_trial=learner.choose(d);self.assertEqual(next_trial['ms'],80)
+            learner.record(next_trial,{**row,'action_effect_learning':{'effects':{'player_delta':[0,-1]}}})
+            evidence=learner.context()['duration_trials'][0]
+            self.assertEqual(evidence['response_associations'],1)
+            self.assertEqual(evidence['ms'],80)
+            memory.close()
+
     def test_natural_activity_is_not_a_positive_response(self):
         with tempfile.TemporaryDirectory() as tmp:
             cfg=Settings(window_title='Other',allowed_keys=['w'],key_bindings={'w':'上移動'})

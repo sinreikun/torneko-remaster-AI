@@ -9,6 +9,13 @@ MOVES={'w':(0,-1),'d':(1,0),'s':(0,1),'a':(-1,0)}
 ROUTE_MOVES={**MOVES,'w+a':(-1,-1),'w+d':(1,-1),'s+a':(-1,1),'s+d':(1,1)}
 MISSIONS=('auto','find_stairs','reach_stairs','collect_visible_items','search_objective','return_with_objective')
 
+def room_diagonal_allowed(origin,destination,floor):
+    """A shared observed 3x3 room patch; corridor bends alone never suffice."""
+    x,y=origin
+    return any(ax<=destination[0]<=ax+2 and ay<=destination[1]<=ay+2
+        and all((xx,yy) in floor for xx in range(ax,ax+3) for yy in range(ay,ay+3))
+        for ax in range(x-2,x+1) for ay in range(y-2,y+1))
+
 class FloorNavigation:
     def __init__(self,confirm_key='num1'):
         self.confirm_key=confirm_key;self.reset()
@@ -17,7 +24,7 @@ class FloorNavigation:
         self.item_tasks=ItemTasks()
         self.floor=None;self.space=None;self.known=set();self.visited=Counter();self.failures=Counter();self.neighbors={}
         self.motion_history=deque(maxlen=16);self.last_motion_progress=False;self.crossings=Counter();self.rechecked_edges={};self.stairs=set();self.items=set();self.enemies=set();self.position=None;self.tick=0;self.last_direction=None;self.mission='auto';self.plan_id=None
-        self.exploration_task=None;self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None;self.fresh_floor=set();self.missing_floor=Counter();self.last_map_frame=None;self.positive_floor=Counter()
+        self.exploration_task=None;self.frontier_selection={};self.movement_checks={};self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None;self.fresh_floor=set();self.missing_floor=Counter();self.last_map_frame=None;self.positive_floor=Counter()
     def _valid(self,state):
         m=state.get('minimap',{});f=state.get('metrics',{}).get('floor',{})
         confirmation=state.get('floor_confirmation',{})
@@ -165,9 +172,20 @@ class FloorNavigation:
             self.crossings[self.edge_pair(a,b)]+=1
             if [b[0]-a[0],b[1]-a[1]] in [list(p) for p in before['minimap'].get('items',[])]:self.item_attempts[b]+=1
             if b in self.item_tasks.tasks:self.item_tasks.arrive(b,row.get('step'))
-            self.last_direction=key;self.failures.pop((a,key),None)
-        elif (a==b or '+' in key) and not any(max(abs(x),abs(y))<=1 for x,y in before['minimap'].get('enemies',[])):
-            self.failures[a,key]+=1
+            self.last_direction=key;self.failures.pop((a,key),None);self.movement_checks.pop((a,key),None)
+        elif a==b and not any(max(abs(x),abs(y))<=1 for x,y in before['minimap'].get('enemies',[])):
+            outcome=row['floor_navigation_outcome']
+            if any(s.get('menu_evidence') or s.get('white_frame_evidence',{}).get('visible') for s in (before,after)):
+                outcome.update(status='interface_confounded',route_failure_counted=False)
+            elif self._add(a,delta) in self.known and row.get('hold_ms',120)<120:
+                self.movement_checks[a,key]={'minimum_hold_ms':120,'reason':'既知床への短い入力はゲーム受理・位置観測が未確認。経路を保留する前に長めの単発入力で確認'}
+                outcome.update(status='short_input_unconfirmed',route_failure_counted=False,required_hold_ms=120)
+            else:
+                self.failures[a,key]+=1
+                outcome.update(status='no_displacement_observed',route_failure_counted=True,
+                    interpretation='観測上の無移動。物理障害物やゲーム側の入力受理を証明しない')
+        elif a!=b:
+            row['floor_navigation_outcome'].update(status='different_displacement',route_failure_counted=False)
     def cycle_status(self):
         history=list(self.motion_history);period=None;recent=history[-6:]
         for size in range(2,6):
@@ -180,17 +198,19 @@ class FloorNavigation:
         self.item_tasks.inventory(token,occupancy,fresh)
         if token and self.inventory_token and token!=self.inventory_token:self.item_attempts.clear()
         if token:self.inventory_token=token
-    def _path(self,targets,toward=None):
+    def _path(self,targets,toward=None,tie_break=None,choices=None):
         if not targets:return None
-        disputed=self.disputed();start=self.position;queue=deque([(start,[])]);seen={start};best=None;best_rank=None
+        disputed=self.disputed();floor=self.known-disputed;start=self.position;queue=deque([(start,[])]);seen={start};best=None;best_rank=None
         while queue:
             node,path=queue.popleft()
             if node in targets:
-                if toward is None:return node,path
-                rank=(abs(node[0]-toward[0])+abs(node[1]-toward[1]),len(path),node)
+                if toward is None and tie_break is None:return node,path
+                rank=(abs(node[0]-toward[0])+abs(node[1]-toward[1]),len(path),node) if toward is not None else (len(path),*tie_break(node,path))
+                if choices is not None:choices.append((node,path,rank))
                 if best_rank is None or rank<best_rank:best=(node,path);best_rank=rank
             for key,d in ROUTE_MOVES.items():
                 if '+' in key:
+                    if not room_diagonal_allowed(node,self._add(node,d),floor):continue
                     sides=[self._add(node,MOVES[k]) for k in key.split('+')]
                     if any(p not in self.known or p in self.enemies or p in disputed for p in sides) or any(self.failures[node,k]>=2 for k in key.split('+')):continue
                 nxt=self._add(node,d)
@@ -200,6 +220,26 @@ class FloorNavigation:
                 if self.failures[node,key]>=2:continue
                 seen.add(nxt);queue.append((nxt,path+[key]))
         return best
+    def _frontier_rank(self,target,path):
+        node=self.position;exposure=attempts=turns=0;heading=self.last_direction
+        for key in path:
+            attempts+=self.failures[node,key]
+            node=self._add(node,ROUTE_MOVES[key])
+            exposure+=any(max(abs(node[0]-e[0]),abs(node[1]-e[1]))<=1 for e in self.enemies)
+            turns+=heading is not None and heading!=key;heading=key
+        # Distance is ranked first by _path. These factors resolve equal-length
+        # routes only; age, visitation and the order a frontier appeared do not.
+        return exposure,attempts,turns,target
+    def _select_frontier(self,targets,trigger):
+        choices=[];candidate=self._path(targets,tie_break=self._frontier_rank,choices=choices)
+        ranked=sorted(choices,key=lambda item:item[2])
+        self.frontier_selection={'trigger':trigger,'origin':list(self.position),
+          'rule':'到達可能な既知床で必要な移動入力数が最少。同距離なら敵への接近・無移動の試行履歴・方向変更の少なさを比較。新旧や踏破回数では選ばない。',
+          'candidate_count':len(targets),'reachable_count':len(choices),
+          'selected_cell':list(candidate[0]) if candidate else None,
+          'candidates':[{'cell':list(node),'route_steps':rank[0],'enemy_adjacent_steps':rank[1],
+             'previous_no_motion_trials':rank[2],'direction_changes':rank[3]} for node,path,rank in ranked[:40]]}
+        return candidate
     def hint(self,state,preference='current_goal',mission='auto',plan_id=None,item_decisions=None):
         if not self.observe(state):return None
         if plan_id and plan_id!=self.plan_id:
@@ -218,16 +258,14 @@ class FloorNavigation:
         elif not primary and self.stairs and selected_mission!='search_objective':targets=self.stairs;target_kind='stairs'
         elif not primary and secondary:targets=secondary;target_kind='boundary_recheck'
         # Keep the remote exploration destination across transit, supervisor
-        # reviews and higher-priority interruptions. Revalidate against current
+        # reviews. After a higher-priority interruption, compare distances again.
+        # Revalidate against current
         # floor evidence; a cached/disputed or exhausted endpoint is not a goal.
+        selection_trigger='initial'
+        if self.exploration_task:
+            selection_trigger='target_reached' if tuple(self.exploration_task['target_cell'])==self.position else 'frontier_changed'
         if self.exploration_task and (tuple(self.exploration_task['target_cell']) not in primary or selected_mission in ('reach_stairs','return_with_objective')):
             self.exploration_task=None
-        if target_kind=='frontier' and targets:
-            if self.exploration_task is None:
-                candidate=self._path(targets)
-                target=candidate[0] if candidate else min(targets,key=lambda c:(abs(c[0]-self.position[0])+abs(c[1]-self.position[1]),c))
-                self.exploration_task={'target_cell':list(target),'status':'navigating','reason':'未確認方向への継続目標。目的への移動途中は維持する'}
-            targets={tuple(self.exploration_task['target_cell'])}
         # Items create tactical possibilities. Enemies supersede collection
         # when currently close or adjacent to the proposed collection route.
         # This geometric check does not prove remote/ranged enemies harmless.
@@ -250,6 +288,13 @@ class FloorNavigation:
         if target_kind=='enemy':self.item_tasks.enemy_priority()
         if item_goals and self._path(item_goals) is None:
             for cell in item_goals:self.item_tasks.change(self.item_tasks.tasks[cell],'route_unavailable','現在の既知床と有効な辺では到達不能')
+        if target_kind=='frontier' and targets:
+            if self.exploration_task is None or self.exploration_task.get('status')=='interrupted':
+                if self.exploration_task:selection_trigger='resume_after_interruption'
+                candidate=self._select_frontier(targets,selection_trigger)
+                target=candidate[0] if candidate else min(targets,key=lambda c:(abs(c[0]-self.position[0])+abs(c[1]-self.position[1]),c))
+                self.exploration_task={'target_cell':list(target),'status':'navigating','reason':'現在地から最短の到達可能な先端を選択。同距離では接近リスクと方向変更を比較。移動途中は維持する'}
+            targets={tuple(self.exploration_task['target_cell'])}
         path=self._path(targets);self.last_hint=None
         deferred_unreachable=False
         if path is None and target_kind in ('frontier','boundary_recheck'):
@@ -260,11 +305,13 @@ class FloorNavigation:
             alternatives.append(('boundary_recheck',secondary))
             for kind,options in alternatives:
                 toward=tuple(self.exploration_task['target_cell']) if kind=='boundary_recheck' and self.exploration_task else None
-                alternate=self._path(options,toward=toward)
+                alternate=self._select_frontier(options,'route_blocked') if kind=='frontier' else self._path(options,toward=toward)
                 if alternate is not None:
-                    targets=options;target_kind=kind;path=alternate;deferred_unreachable=True;break
+                    targets=options;target_kind=kind;path=alternate;deferred_unreachable=True
+                    if kind=='frontier':self.exploration_task={'target_cell':list(path[0]),'status':'navigating','reason':'通れない経路を保留し、現在地から最短の到達可能な先端を選択'}
+                    break
         phase='inspect_unclassified_marker' if target_kind=='inspect_marker' else 'handle_visible_enemy' if target_kind=='enemy' else 'return_to_stairs' if target_kind=='stairs' and selected_mission=='return_with_objective' else 'reach_stairs' if target_kind=='stairs' else 'collect_visible_items' if target_kind=='items' else 'explore_frontier'
-        reason='未分類マークの位置を確認し、アイテムと断定せず分類を再検討する' if target_kind=='inspect_marker' else '見えている敵に対処するため既知床上の隣接位置へ向かう' if target_kind=='enemy' else '見えている品の位置へ向かい取得結果を確認する' if target_kind=='items' else '現在の観測から未確認の探索先へ進む'
+        reason='未分類マークの位置を確認し、アイテムと断定せず分類を再検討する' if target_kind=='inspect_marker' else '見えている敵に対処するため既知床上の隣接位置へ向かう' if target_kind=='enemy' else '見えている品の位置へ向かい取得結果を確認する' if target_kind=='items' else '現在地からの経路距離と状況を比較した未確認の探索先へ進む'
         if not targets:
             phase='verify_objective' if selected_mission=='search_objective' else 'review_exhausted_floor'
             reason='現在の観測範囲に未処理の探索先がない。所持品・目標・地図認識を再検討する'
@@ -307,15 +354,19 @@ class FloorNavigation:
                 task.update(status='blocked',reason='既知の有効な辺では到達不能。失敗辺を解除せず再検討が必要')
         if deferred_unreachable:reason='到達できない先端を保留し、到達可能な別の目的へ進む。'+reason
         self.goal={'cycle_review':self.cycle_status()['detected'],'priority_order':['collection_threat_response','items_and_use_learning','unprocessed_frontiers','routine_status_review'],'floor_value_rule':'踏破履歴は診断専用。探索対象は未確認の方向と調査結果で決め、経路は観測した床と接続から組む。','threat_assessment':'現在の近接と取得経路への接触。遠隔能力・敵種の安全性は未確定','item_recheck_needed':self.item_tasks.context()['needs_inventory_check'], 'mission':selected_mission,'phase':phase,'reason':reason,'target_cell':self.last_hint.get('target_cell') if self.last_hint else None,
+          'frontier_selection':{k:copy.deepcopy(self.frontier_selection[k]) for k in ('trigger','origin','selected_cell','candidate_count','reachable_count') if k in self.frontier_selection},
           'needs_review':self.cycle_status()['detected'] or phase in ('route_unavailable','review_exhausted_floor','verify_stair_action','verify_objective'),
           'stairs_seen_type_unknown':bool(self.stairs),'instruction':'これは階内の局所目標。階段の上下・箱の所持・帰還成功を推定で確定しない。'}
         if self.exploration_task:self.goal['exploration_task']=copy.deepcopy(self.exploration_task)
+        if self.last_hint:
+            token='+'.join(self.last_hint.get('keys') or [self.last_hint['key']])
+            if (self.position,token) in self.movement_checks:self.last_hint.update(self.movement_checks[self.position,token])
         if self.last_hint:self.last_hint.update(basis='floor_connections_and_direction_checks',reason=reason)
         return copy.deepcopy(self.last_hint)
     def context(self):
         if self.position is None:return {'status':'unavailable','goal':copy.deepcopy(self.goal)}
         primary=self.primary();retired=self.retired();interior={c for c in self.known if self.degree(c)==4}
-        return {'cycle_status':self.cycle_status(),'route_rechecks':[{'origin':list(p),'keys':k.split('+'),'traversal_evidence':v} for (p,k),v in sorted(self.rechecked_edges.items())], 'exploration_task':copy.deepcopy(self.exploration_task),'suppressed_edges':[{'origin':list(p),'keys':k.split('+'),'failures':v} for (p,k),v in sorted(self.failures.items()) if v>=2], 'item_tasks':self.item_tasks.context(),'status':'observed_floor','disputed_cached_cells':[list(p) for p in self.disputed()],
+        return {'movement_checks':[{'origin':list(p),'keys':k.split('+'),**copy.deepcopy(v)} for (p,k),v in sorted(self.movement_checks.items())], 'frontier_selection':copy.deepcopy(self.frontier_selection),'cycle_status':self.cycle_status(),'route_rechecks':[{'origin':list(p),'keys':k.split('+'),'traversal_evidence':v} for (p,k),v in sorted(self.rechecked_edges.items())], 'exploration_task':copy.deepcopy(self.exploration_task),'suppressed_edges':[{'origin':list(p),'keys':k.split('+'),'failures':v} for (p,k),v in sorted(self.failures.items()) if v>=2], 'item_tasks':self.item_tasks.context(),'status':'observed_floor','disputed_cached_cells':[list(p) for p in self.disputed()],
           'ineffective_actions_here':[k.split('+') for k in ROUTE_MOVES if self.failures[self.position,k]>=2],
           'suppressed_edge_count':sum(v>=2 for v in self.failures.values()),'floor':list(self.floor),'position':list(self.position),'goal':copy.deepcopy(self.goal),
           'known_count':len(self.known),'visited_count':len(self.visited),'primary_frontier_count':len(primary),'exhausted_branch_count':len(retired),

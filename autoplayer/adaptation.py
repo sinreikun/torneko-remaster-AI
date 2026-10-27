@@ -10,6 +10,9 @@ class DurationLearner:
         memory.db.execute('''CREATE TABLE IF NOT EXISTS input_durations(
             profile TEXT,state TEXT,key TEXT,ms INTEGER,trials INTEGER,responses INTEGER,
             PRIMARY KEY(profile,state,key,ms))''')
+        memory.db.execute('''CREATE TABLE IF NOT EXISTS input_duration_attempts(
+            profile TEXT,state TEXT,key TEXT,ms INTEGER,attempts INTEGER,
+            PRIMARY KEY(profile,state,key,ms))''')
         memory.db.commit()
 
     def state(self, decision, observation=None):
@@ -28,9 +31,10 @@ class DurationLearner:
         rows = self.memory.db.execute('SELECT ms,trials,responses FROM input_durations WHERE profile=? AND state=? AND key=?',
                                       (self.memory.profile, state, decision.keys[0])).fetchall()
         stats = {ms:(trials,responses) for ms,trials,responses in rows}
+        attempts=dict(self.memory.db.execute('SELECT ms,attempts FROM input_duration_attempts WHERE profile=? AND state=? AND key=?',(self.memory.profile,state,decision.keys[0])).fetchall())
         # Bounded trials; once response is repeated, prefer its shortest duration.
         established = [ms for ms in values if stats.get(ms,(0,0))[0] >= 3 and stats[ms][1]/stats[ms][0] >= .8]
-        chosen = min(established) if established else min(values, key=lambda ms:(stats.get(ms,(0,0))[0],ms))
+        chosen = min(established) if established else min(values, key=lambda ms:(max(stats.get(ms,(0,0))[0],attempts.get(ms,0)),ms))
         requested = decision.hold_ms
         decision.hold_ms = chosen
         return {'state': state, 'key': decision.keys[0], 'ms': chosen, 'requested_ms': requested,
@@ -40,8 +44,14 @@ class DurationLearner:
         receipt = row.get('input_receipt') or {}
         if (not trial or not row.get('executed') or row.get('dry_run') or row.get('turn_kind') == 'aborted'
                 or receipt.get('os_submission') != 'accepted' or row.get('observed_keys') != [trial['key']]
-                or row.get('neutral_before', {}).get('kind') not in ('normal','no_change','timeout')):
+                or row.get('neutral_before', {}).get('kind') not in ('normal','no_change','timeout','neutral_sample')):
             return
+        # Count accepted attempts separately from game response evidence. A wall,
+        # short missed input or uncertain observation is not a duration failure.
+        with self.memory.db:
+            self.memory.db.execute('''INSERT INTO input_duration_attempts VALUES(?,?,?,?,1)
+                ON CONFLICT(profile,state,key,ms) DO UPDATE SET attempts=attempts+1''',
+                (self.memory.profile,trial['state'],trial['key'],trial['ms']))
         baseline = row['neutral_before'].get('raw_change', 0)
         if row.get('operation'):
             delta=(row.get('action_effect_learning') or {}).get('effects',{}).get('player_delta')

@@ -27,3 +27,24 @@ REFERENCE['dialogue_policy']='会話・ダイアログの決定待ちはnum1を1
 def valid_key_count(keys):
     """Existing two-key chords plus only the three-key diagonal facing chord."""
     return isinstance(keys,list) and (len(keys)<=2 or len(keys)==3 and all(isinstance(k,str) for k in keys) and 'num5' in keys and len(set(keys)&{'w','s'})==1 and len(set(keys)&{'a','d'})==1)
+
+
+def dungeon_movement_keys(keys,state):
+    """Constrain pure diagonal movement, never eight-direction facing/attacks."""
+    if len(keys)!=2 or set(keys) not in ({'w','a'},{'w','d'},{'s','a'},{'s','d'}):return keys,None
+    m=state.get('minimap',{});pos=m.get('player_cell')
+    if not state.get('eligible') or state.get('menu_evidence') or m.get('status')!='observed' or pos is None:return keys,None
+    from .floor_navigation import MOVES,room_diagonal_allowed
+    origin=tuple(pos)
+    floor={tuple(p) for p in m.get('accumulated_cells',[])}
+    floor.update((pos[0]+x,pos[1]+y) for x,y in m.get('known_cells',[]));floor.add(origin)
+    floor.difference_update(tuple(p) for p in state.get('floor_exploration',{}).get('disputed_cached_cells',[]))
+    destination=tuple(pos[i]+sum(MOVES[k][i] for k in keys) for i in (0,1))
+    if not m.get('retained') and room_diagonal_allowed(origin,destination,floor):return keys,None
+    hint=state.get('map_route_hint') or {};route_keys=hint.get('keys') or [hint.get('key')]
+    if len(route_keys)==1 and route_keys[0] in MOVES:safe=route_keys
+    else:safe=[next((k for k in keys if tuple(pos[i]+MOVES[k][i] for i in (0,1)) in floor),keys[0])]
+    return safe,{'status':'corridor_diagonal_replaced','original_keys':list(keys),'keys':safe,
+        'reason':'部屋の床面を確認できない場所では斜め移動せず、目的への縦横移動を1入力ずつ観測する'}
+
+REFERENCE['movement_policy']='通路内では斜め移動できない。斜め移動は部屋内で目的地への経路が短くなる場合だけ使う。8方向への向き変更と隣接攻撃は別の操作。'

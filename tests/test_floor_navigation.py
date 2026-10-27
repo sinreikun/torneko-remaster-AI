@@ -345,3 +345,106 @@ class FloorNavigationTests(unittest.TestCase):
         self.assertIn((2,1),nav.disputed())
         s['frame_sha256']='f4';nav.observe(s);self.assertNotIn((2,1),nav.disputed())
         self.assertEqual(nav.failures[(1,1),'d'],0)
+
+class FrontierSelectionTests(unittest.TestCase):
+    def test_new_continuation_after_arrival_beats_old_distant_endpoint(self):
+        nav=FloorNavigation();known={(x,2) for x in range(1,7)}
+        nav.observe(observed((5,2),known));nav.exploration_task={'target_cell':[6,2],'status':'navigating'}
+        nav.last_direction='d'
+        hint=nav.hint(observed((6,2),known|{(7,2),(8,2)}))
+        self.assertEqual(hint['target_cell'],[8,2])
+        self.assertEqual(nav.frontier_selection['candidates'][0]['route_steps'],2)
+        self.assertEqual(nav.frontier_selection['trigger'],'target_reached')
+
+    def test_distance_uses_passable_route_not_geometric_closeness(self):
+        known={(5,5),(5,4),(4,4),(3,4),(3,5),(3,6),(3,7),(4,7),(5,7)}|{(x,5) for x in range(6,10)}
+        nav=FloorNavigation();hint=nav.hint(observed((5,5),known))
+        self.assertEqual(hint['target_cell'],[9,5])
+        candidates=nav.frontier_selection['candidates']
+        self.assertEqual(candidates[0]['route_steps'],4)
+        self.assertGreater(next(c['route_steps'] for c in candidates if c['cell']==[5,7]),4)
+
+    def test_equal_distance_continues_heading_not_fixed_bfs_direction(self):
+        nav=FloorNavigation();nav.last_direction=None
+        nav.observe(observed((5,2),{(x,2) for x in range(3,8)}));nav.last_direction='a'
+        hint=nav.hint(observed((5,2),nav.known))
+        self.assertEqual(hint['target_cell'],[3,2])
+        self.assertEqual(nav.frontier_selection['candidates'][0]['direction_changes'],0)
+
+    def test_equal_distance_accounts_for_enemy_contact(self):
+        nav=FloorNavigation();nav.observe(observed((5,2),{(x,2) for x in range(3,8)}))
+        nav.last_direction='a';nav.enemies={(3,3)}
+        target,_=nav._select_frontier({(3,2),(7,2)},'test_equal_distance')
+        self.assertEqual(target,(7,2))
+        self.assertEqual(nav.frontier_selection['candidates'][0]['enemy_adjacent_steps'],0)
+
+    def test_collection_interruption_recompares_from_current_position(self):
+        known={(x,2) for x in range(1,10)};nav=FloorNavigation()
+        nav.observe(observed((5,2),known));nav.last_direction='d'
+        self.assertEqual(nav.hint(observed((5,2),known))['target_cell'],[9,2])
+        self.assertEqual(nav.hint(observed((3,2),known,items=[(2,2)]))['target_kind'],'items')
+        self.assertEqual(nav.exploration_task['status'],'interrupted')
+        nav.item_tasks.decide([{'cell':[2,2],'decision':'defer','reason':'explicit review complete','revisit':'inventory_changed'}])
+        self.assertEqual(nav.hint(observed((3,2),known))['target_cell'],[1,2])
+        self.assertEqual(nav.frontier_selection['trigger'],'resume_after_interruption')
+
+    def test_supplied_log_extension_and_blocked_route_decisions(self):
+        fixture=json.loads((Path(__file__).parent/'fixtures/frontier-selection-1793083821884081900.json').read_text())
+        for record in fixture['records']:
+            with self.subTest(step=record['step']):
+                nav=FloorNavigation();nav.observe(record['state'])
+                for edge in record['suppressed_edges']:
+                    nav.failures[tuple(edge['origin']),'+'.join(edge['keys'])]=edge['failures']
+                for cell in record['disputed_cells']:nav.missing_floor[tuple(cell)]=2
+                nav.exploration_task={'target_cell':record['previous_target'],'status':'navigating'}
+                hint=nav.hint(record['state'])
+                self.assertEqual(hint['target_cell'],record['expected_target'])
+                self.assertEqual(nav.frontier_selection['selected_cell'],record['expected_target'])
+
+
+
+class MovementEvidenceTests(unittest.TestCase):
+    def test_two_short_no_motion_attempts_do_not_suppress_known_floor(self):
+        nav=FloorNavigation();s=observed((2,2),{(x,2) for x in range(1,6)})
+        nav.observe(s);nav.exploration_task={'target_cell':[5,2],'status':'navigating'}
+        for _ in range(2):
+            row=receipt_row('d',hold_ms=40);nav.record(s,s,row)
+            self.assertEqual(row['floor_navigation_outcome']['status'],'short_input_unconfirmed')
+        self.assertEqual(nav.failures[(2,2),'d'],0)
+        self.assertEqual(nav.hint(s)['minimum_hold_ms'],120)
+        after=observed((3,2),nav.known);nav.record(s,after,receipt_row('d',hold_ms=120))
+        self.assertNotIn(((2,2),'d'),nav.movement_checks)
+        self.assertEqual(nav.failures[(2,2),'d'],0)
+
+    def test_longer_verified_attempts_remain_bounded_without_declaring_wall(self):
+        nav=FloorNavigation();s=observed((2,2),{(x,2) for x in range(1,6)})
+        nav.observe(s)
+        for _ in range(2):
+            row=receipt_row('d',hold_ms=120);nav.record(s,s,row)
+            self.assertTrue(row['floor_navigation_outcome']['route_failure_counted'])
+            self.assertEqual(row['floor_navigation_outcome']['status'],'no_displacement_observed')
+        self.assertIsNone(nav._path({(5,2)}))
+        self.assertIn((3,2),nav.known)
+
+    def test_partial_diagonal_displacement_is_not_an_obstacle(self):
+        nav=FloorNavigation();known={(x,y) for x in range(1,4) for y in range(1,4)}
+        s=observed((1,1),known);nav.observe(s)
+        row=receipt_row('s',observed_keys=['s','d'],hold_ms=120)
+        nav.record(s,observed((1,2),known),row)
+        self.assertEqual(nav.failures[(1,1),'s+d'],0)
+        self.assertEqual(row['floor_navigation_outcome']['status'],'different_displacement')
+
+    def test_two_wide_corridor_never_uses_diagonal_but_room_still_does(self):
+        corridor={(x,y) for x in range(1,6) for y in (1,2)}
+        nav=FloorNavigation();nav.observe(observed((1,1),corridor))
+        _,path=nav._path({(5,2)})
+        self.assertEqual(len(path),5);self.assertTrue(all('+' not in k for k in path))
+        from autoplayer.controls import dungeon_movement_keys
+        state=observed((1,1),corridor)
+        keys,gate=dungeon_movement_keys(['s','d'],state)
+        self.assertEqual(len(keys),1);self.assertEqual(gate['status'],'corridor_diagonal_replaced')
+        room=observed((1,1),{(x,y) for x in range(1,4) for y in range(1,4)})
+        self.assertEqual(dungeon_movement_keys(['s','d'],room),(['s','d'],None))
+        self.assertEqual(dungeon_movement_keys(['num5','s','d'],state),(['num5','s','d'],None))
+
+if __name__=='__main__':unittest.main()
