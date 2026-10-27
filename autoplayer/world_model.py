@@ -295,24 +295,42 @@ class WorldModel:
         self.confirm_key=next((k for k,v in bindings.items() if re.search(r'決定|confirm',v,re.I)),'num1')
         from .floor_navigation import FloorNavigation
         self.floor_navigation=FloorNavigation(self.confirm_key)
-        self.visual=VisualSense();self.inventory=Inventory(self.scope+'0_',self.confirm_key);self.floor=None;self.objects={};self.serial=0;self.tick=0;self.visited=set();self.previous_metrics={};self.latest={};self.pending_effects=[];self.delayed=[];self.result_seen=False;self.episode=0;self.last_messages=[]
+        self.visual=VisualSense();self.inventory=Inventory(self.scope+'0_',self.confirm_key);self.floor=None;self.objects={};self.serial=0;self.tick=0;self.visited=set();self.previous_metrics={};self.latest={};self.pending_effects=[];self.delayed=[];self.result_seen=False;self.episode=0;self.last_messages=[];self.pending_equipment_check=None;self.equipment_comparisons=[]
         if self.db:
             self.db.executescript('''CREATE TABLE IF NOT EXISTS world_events(id INTEGER PRIMARY KEY,profile TEXT,session TEXT,created REAL,kind TEXT,data TEXT);
             CREATE INDEX IF NOT EXISTS world_events_profile ON world_events(profile,id);
             CREATE TABLE IF NOT EXISTS item_use_stats(profile TEXT,item_key TEXT,command TEXT,context TEXT,data TEXT,PRIMARY KEY(profile,item_key,command,context));''');self.db.commit()
             self.inventory.description_reads=[json.loads(r[0])['observation'] for r in reversed(self.db.execute("SELECT data FROM world_events WHERE profile=? AND kind='item_description_observation' ORDER BY id DESC LIMIT 40",(self.profile,)).fetchall())]
+            self.equipment_comparisons=[json.loads(r[0])['observation'] for r in reversed(self.db.execute("SELECT data FROM world_events WHERE profile=? AND kind='equipment_comparison' ORDER BY id DESC LIMIT 24",(self.profile,)).fetchall())]
     def save(self,kind,data):
         if self.db:
             self.db.execute('INSERT INTO world_events(profile,session,created,kind,data) VALUES(?,?,?,?,?)',(self.profile,self.session,time.time(),kind,json.dumps({'episode':self.episode,'observation':data},ensure_ascii=False)));self.db.commit()
+    def verify_equipment(self,current,frame,step=None):
+        pending=self.pending_equipment_check
+        if not pending:return None
+        if not frame or not all(current.get(k,{}).get('values') is not None and not current[k].get('retained') for k in ('strength','sword','shield')):
+            if self.tick-pending.get('started_tick',self.tick)<=12:return None
+            result={**pending,'status':'abilities_unconfirmed','after_frame':frame,'reason':'装備後の能力値を観測予算内にそろえられないため、数値比較を確定せず再確認要求を解除'}
+            self.equipment_comparisons=(self.equipment_comparisons+[result])[-24:];self.pending_equipment_check=None;self.state_snapshot.pending.discard('equipment_status_after_change')
+            self.save('equipment_comparison',result);return result
+        after={k:copy.deepcopy(current[k]['values']) for k in ('strength','sword','shield')}
+        before={k:v['values'] for k,v in pending['before'].items() if v.get('values') is not None}
+        result={**pending,'after':after,'metric_changes':changes(before,after),'after_frame':frame,'observed_step':step,'status':'observed_comparison','attribution':'temporal_association_not_proof_of_equipment_effect'}
+        self.equipment_comparisons=(self.equipment_comparisons+[result])[-24:];self.pending_equipment_check=None;self.state_snapshot.pending.discard('equipment_status_after_change')
+        self.save('equipment_comparison',result)
+        return result
+
     def observe(self,png,native,state,neutral_png=None):
         from .interfaces import result_screen
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native={'status':'frame_mismatch','lines':[]}
-        self.tick+=1;state=state or {};m=state.get('minimap',{});floor=metrics(state).get('floor');vision=self.visual.read(png,neutral_png)
+        self.tick+=1;state=state or {}
+        m=state.get('minimap',{});floor=metrics(state).get('floor');vision=self.visual.read(png,neutral_png)
         if result_screen(native or {}):self.result_seen=True
         new_adventure=bool(self.result_seen and floor and state.get('eligible'))
         if new_adventure:
             self.last_known_metrics={};self.state_snapshot=type(self.state_snapshot)()
+            self.pending_equipment_check=None
             self.episode+=1;self.inventory=Inventory(self.scope+str(self.episode)+'_',self.confirm_key);self.pending_effects=[];self.delayed=[];self.result_seen=False
         if new_adventure or (floor and self.floor and floor!=self.floor):
             self.objects={};self.visited=set();self.visual=VisualSense();self.floor_navigation.reset()
@@ -376,6 +394,7 @@ class WorldModel:
             if key in ('strength','sword','shield','experience','max_floor','level','gold'):
                 self.last_known_metrics[key]={'values':copy.deepcopy(value.get('values')),'frame_sha256':digest,'observed_at':time.time(),'status':'last_observed_not_current_confirmation'}
         if self.memory:self.memory.last_known_status=self.last_known_metrics
+        self.verify_equipment(state.get('metrics',{}),digest,self.tick)
         now_metrics=metrics(state);delta=changes(self.previous_metrics,now_metrics);self.previous_metrics=copy.deepcopy(now_metrics)
         inv=self.inventory.observe(native,png)
         self.state_snapshot.observe(state.get('metrics',{}),inv,self.tick,bool(m.get('enemies')) if m.get('status')=='observed' else None)
@@ -438,8 +457,13 @@ class WorldModel:
         effect=self.inventory.learn(row,before,after,old_ocr,new_ocr,natural,before_png)
         if effect:
             self.state_snapshot.request('item_use_or_equipment_effect',row.get('step'))
+            if effect.get('command_quote','').lstrip('▶►▷>●→') in ('装備','外す','はずす'):
+                self.state_snapshot.request('equipment_status_after_change',row.get('step'))
+                self.pending_equipment_check={'item_id':effect['item_id'],'display_name':effect.get('display_name'),'command':effect['command_quote'],'origin_step':row.get('step'),'started_tick':self.tick,'before':{k:copy.deepcopy(v) for k,v in self.last_known_metrics.items() if k in ('strength','sword','shield')},'before_frame':(old_ocr or {}).get('frame_sha256')}
             self.save('item_effect',effect)
             self.record_item_value(effect)
+        verification=self.verify_equipment(after.get('metrics',{}),(new_ocr or {}).get('frame_sha256'),row.get('step'))
+        if verification:row['equipment_comparison']=verification
         later=[]
         for p in list(self.pending_effects):
             p['remaining']-=1
@@ -493,4 +517,4 @@ class WorldModel:
             'floor_exploration':self.floor_navigation.context(),
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],
-            'item_description_observations':copy.deepcopy(self.inventory.description_reads[-20:]),'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}
+            'equipment_review':{'observed_comparisons':copy.deepcopy(self.equipment_comparisons[-8:]),'verification_pending':copy.deepcopy(self.pending_equipment_check),'candidates':[{'item_id':r['id'],'display_name':r['display_name'],'equipped':r.get('equipped'),'description':r.get('known_description'),'identity_status':r.get('name_status'),'may_consider_discard_after_comparison':True} for r in self.inventory.rows if re.search(r'剣|つるぎ|盾|指輪|矢',r['display_name'])],'last_observed_abilities':{k:v for k,v in self.last_known_metrics.items() if k in ('strength','sword','shield')},'rule':'候補は現在表示名の装備種別。所持だけで装備済みとせず、装備後は能力値を再取得して比較する。特殊効果と用途を含め有効な装備を選ぶ。比較して不要と判断した品は所持枠確保のため置く候補にできるが、目的品や有用な予備品を不用と仮定しない。'},'item_description_observations':copy.deepcopy(self.inventory.description_reads[-20:]),'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}

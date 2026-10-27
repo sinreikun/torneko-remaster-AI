@@ -13,6 +13,7 @@ class StateSnapshot:
                 old=self.metrics.get(k,{}).get('values')
                 if old is not None and old!=v['values'] and k in ('level','strength','sword','shield'):self.request('ability_changed',json.dumps([k,v['values']]))
                 self.metrics[k]={**copy.deepcopy(v),'last_observed_tick':tick,'status':'last_observed'}
+        if all(metrics.get(k,{}).get('values') is not None and not metrics[k].get('retained') for k in ('strength','sword','shield')):self.pending.discard('equipment_status_after_change')
         if enemies and not self.in_combat:
             self.encounters+=1
             if any(k not in self.metrics for k in ('level','strength','sword','shield')):self.request('before_combat_missing_abilities',self.encounters)
@@ -21,7 +22,7 @@ class StateSnapshot:
             self.inventory=copy.deepcopy(inventory);self.inventory['last_observed_tick']=tick
             signature=[(r.get('display_name'),r.get('quantity'),r.get('equipped')) for r in inventory.get('rows',[])]
             self.inventory_token=hashlib.sha256(json.dumps(signature,ensure_ascii=False).encode()).hexdigest()
-            self.pending.clear()
+            self.pending.intersection_update({'equipment_status_after_change'})
     def feedback(self,before,after,old_native,new_native,event_id=None):
         m=before.get('minimap',{});a=m.get('player_cell');b=after.get('minimap',{}).get('player_cell')
         if a and b and a!=b and before.get('metrics',{}).get('floor',{}).get('values')==after.get('metrics',{}).get('floor',{}).get('values'):
