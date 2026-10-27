@@ -19,7 +19,8 @@ DATA=Path(os.environ.get('GAMEPILOT_DATA_DIR',Path(__file__).resolve().parent.pa
 class Application:
     def __init__(self,root):
         self.root=root;self.configure_theme();root.title(f'ローカルLLM ゲーム攻略ツール v{__version__} — 統合コンソール');root.geometry('1500x920');root.minsize(1000,640)
-        self.queue=queue.Queue();self.stop=threading.Event();self.worker=None;self.closing_at=None;self.watchdog_file=None;self.watchdog_at=0
+        from .ui_budget import UIEventQueue
+        self.queue=UIEventQueue();self.stop=threading.Event();self.worker=None;self.closing_at=None;self.watchdog_file=None;self.watchdog_at=0
         root.report_callback_exception=self.callback_error
         self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
         self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
@@ -114,7 +115,13 @@ class Application:
         dashboard=ttk.Frame(self.tabs);config_tab=ttk.Frame(self.tabs);config=self.scroll_frame(config_tab);self.setup_tab=ttk.Frame(self.tabs)
         self.tabs.add(dashboard,text='攻略・観測・検証');self.tabs.add(config_tab,text='目標・攻略知識・接続設定');self.tabs.add(self.setup_tab,text='セットアップ')
         split=ttk.Panedwindow(dashboard,orient='horizontal');split.pack(fill='both',expand=True)
-        observer=ttk.Frame(split,width=280);left=ttk.Frame(split);right=ttk.Frame(split)
+        self.dashboard_split=split;self.dashboard_last_width=None;self.dashboard_dragging=False
+        split.bind('<Configure>',self.resize_dashboard)
+        split.bind('<ButtonPress-1>',lambda event:setattr(self,'dashboard_dragging',True))
+        split.bind('<ButtonRelease-1>',self.save_dashboard)
+        observer=ttk.Frame(split,width=280);left=ttk.Frame(split,width=800);right=ttk.Frame(split,width=400)
+        # Pane dimensions belong to the user/splitter, never to log labels.
+        for pane in (observer,left,right):pane.pack_propagate(False)
         split.add(observer,weight=2);split.add(left,weight=5);split.add(right,weight=3)
         from .observer_view import ObserverPanels,ObserverDigest,SECTIONS
         self.observer_panels=ObserverPanels();self.observer_digest=ObserverDigest();self.observer_positions={}
@@ -130,7 +137,8 @@ class Application:
         self.detail_body.pack(side='left',fill='both',expand=True)
         detail_scroll=ttk.Scrollbar(detail_host,command=self.detail_body.yview);detail_scroll.pack(side='right',fill='y');self.detail_body.configure(yscrollcommand=detail_scroll.set)
         self.capture_log_split=ttk.Panedwindow(left,orient='vertical');self.capture_log_split.pack(fill='both',expand=True)
-        capture_host=ttk.Frame(self.capture_log_split);log_host=ttk.Frame(self.capture_log_split)
+        capture_host=ttk.Frame(self.capture_log_split,height=400);log_host=ttk.Frame(self.capture_log_split,height=250)
+        for pane in (capture_host,log_host):pane.pack_propagate(False)
         self.capture_log_split.add(capture_host,weight=3);self.capture_log_split.add(log_host,weight=2)
         from .dashboard import split_fraction
         self.capture_log_ratio=split_fraction(self.ui_state.get('capture_log_ratio',.62))
@@ -138,22 +146,23 @@ class Application:
         self.capture_log_split.bind('<Configure>',self.resize_capture_log)
         self.capture_log_split.bind('<ButtonPress-1>',lambda event:setattr(self,'capture_log_dragging',True))
         self.capture_log_split.bind('<ButtonRelease-1>',self.save_capture_log)
-        self.live=tk.Canvas(capture_host,bg='black',highlightthickness=0,height=390);self.live.pack(fill='both',expand=True)
+        self.live=tk.Canvas(capture_host,width=1,bg='black',highlightthickness=0,height=390);self.live.pack(fill='both',expand=True)
         self.live.create_text(280,180,text='ゲームに接続していません',fill='white',tags='image')
         self.live.bind('<Configure>',self.resize_live)
         self.live_info=tk.StringVar(value='画面の記録は実機実行時のみ。架空ゲームは使用しません。')
-        ttk.Label(capture_host,textvariable=self.live_info).pack(fill='x')
+        self.live_caption=ttk.Label(capture_host,textvariable=self.live_info,wraplength=300);self.live_caption.pack(fill='x')
         ttk.Label(log_host,text='ターンの要約・介入・観測結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
         logtools=ttk.Frame(log_host);logtools.pack(anchor='e')
         ttk.Button(logtools,text='ログの最新へ',command=lambda:self.log.see('end')).pack(side='left')
         self.log_follow_latest=tk.BooleanVar(value=self.ui_state.get('log_follow_latest',False))
         ttk.Checkbutton(logtools,text='最新で固定',variable=self.log_follow_latest,command=self.follow_log_latest).pack(side='left',padx=(8,0))
         logbox=ttk.Frame(log_host);logbox.pack(fill='both',expand=True)
-        self.log=tk.Text(logbox,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
+        self.log=tk.Text(logbox,width=1,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         from .telemetry import RecognitionPanel
         self.runtime_summary=tk.StringVar(value='経過 00:00:00 / 完了ターン 0')
-        ttk.Label(right,textvariable=self.runtime_summary,padding=7,font=('',11,'bold')).pack(fill='x')
+        runtime_label=ttk.Label(right,textvariable=self.runtime_summary,padding=7,font=('',11,'bold'),wraplength=280);runtime_label.pack(fill='x')
+        right.bind('<Configure>',lambda event:runtime_label.configure(wraplength=max(1,event.width-14)))
         right_split=ttk.Panedwindow(right,orient='vertical');right_split.pack(fill='both',expand=True)
         recognition_host=ttk.Frame(right_split);summary_host=ttk.LabelFrame(right_split,text='判断の要点',padding=4)
         right_split.add(recognition_host,weight=3);right_split.add(summary_host,weight=2)
@@ -306,20 +315,29 @@ class Application:
         if self.overlay:self.overlay.close();self.overlay=None
         self.draw_learning_graph()
     def draw_learning_graph(self):
-        signature=(getattr(self,'shown_frame',None),self.traces.turn,self.overlay_enabled.get(),tuple((k,v.get()) for k,v in self.overlay_layers.items()),getattr(self,'preview_bounds',None))
-        if getattr(self,'_graph_signature',None)==signature:return
-        self._graph_signature=signature
-        self.live.delete('learning_graph')
-        if not self.overlay_enabled.get() or not getattr(self,'preview_bounds',None):return
-        x,y,w,h=self.preview_bounds
+        enabled=self.overlay_enabled.get();bounds=getattr(self,'preview_bounds',None)
+        signature=(self.traces.turn,enabled,tuple((k,v.get()) for k,v in self.overlay_layers.items()),bounds)
+        changed=getattr(self,'_graph_signature',None)!=signature
+        if not enabled or not bounds:
+            if changed:self.live.delete('learning_graph');self._graph_signature=signature
+            return
+        x,y,w,h=bounds
+        if w<150 or h<140:
+            if changed:self.live.delete('learning_graph');self._graph_signature=signature
+            return
+        now=time.monotonic()
+        if not changed and (getattr(self,'_graph_frame',None) is self.shown_frame or now-getattr(self,'_graph_background_at',0)<.25):return
         width=min(285,max(120,w*.42));height=min(170,max(100,h*.4))
-        if w<150 or h<140:return
         from .dashboard import translucent_background
         from PIL import ImageTk
         box=(round(x+w-width-8),round(y+h-height-8),round(width),round(height))
         crop=(box[0]-x,box[1]-y,box[2],box[3])
-        self.graph_background=ImageTk.PhotoImage(translucent_background(self.preview_image,crop))
-        self.traces.paint(self.live,{k:v.get() for k,v in self.overlay_layers.items()},box,background=self.graph_background)
+        background=translucent_background(self.preview_image,crop)
+        if changed:
+            self.graph_background=ImageTk.PhotoImage(background)
+            self.traces.paint(self.live,{k:v.get() for k,v in self.overlay_layers.items()},box,background=self.graph_background)
+        else:self.graph_background.paste(background)
+        self._graph_signature=signature;self._graph_background_at=now;self._graph_frame=self.shown_frame
 
     def open_guidance(self):
         existing=getattr(self,'guidance_window',None)
@@ -407,6 +425,7 @@ class Application:
             self.preview_done.wait(max(.01,budget.period-(time.monotonic()-started)))
 
     def resize_live(self,event):
+        if hasattr(self,'live_caption'):self.live_caption.configure(wraplength=max(1,event.width-8))
         self.preview_viewport=(max(160,event.width),max(90,event.height))
         self.draw_frame(force=True)
 
@@ -441,7 +460,7 @@ class Application:
         self.shown_frame=frame
         if frame[0] is None:
             self.live.delete('image');self.live_image_id=None
-            self.preview_bounds=None;self.live.delete('learning_graph');self.live.delete('live_status');self.last_live_status_at=0
+            self.preview_bounds=None;self._graph_signature=None;self._graph_frame=None;self.live.delete('learning_graph');self.live.delete('live_status');self.last_live_status_at=0
             self.live.create_text(20,20,anchor='nw',text=frame[1],fill='white',tags='image');return
         from PIL import Image,ImageTk
         import io
@@ -1137,13 +1156,45 @@ class Application:
         try:self.status.set('表示処理のエラーを記録し攻略を停止しました。UIの更新は継続します。')
         except Exception:pass
 
+    def write_ui_performance(self,seconds):
+        now=time.monotonic()
+        if now-getattr(self,'_ui_health_at',0)<10:return
+        self._ui_health_at=now
+        try:
+            DATA.mkdir(parents=True,exist_ok=True)
+            value={'at':time.time(),'version':__version__,'poll_ms':round(seconds*1000,2),'preview_draw_ms':round(getattr(self,'preview_draw_seconds',0)*1000,2),'queue':self.queue.snapshot(),'trace_samples':len(self.traces.samples),'turn':self.traces.turn}
+            path=DATA/'ui-performance.json';temporary=path.with_suffix('.tmp')
+            temporary.write_text(json.dumps(value,ensure_ascii=False),encoding='utf-8');temporary.replace(path)
+        except (OSError,AttributeError):pass
+
+    def resize_dashboard(self,event):
+        if self.dashboard_dragging or event.width<=1 or event.width==self.dashboard_last_width:return
+        self.dashboard_last_width=event.width
+        self.root.after_idle(self.apply_dashboard_layout)
+
+    def apply_dashboard_layout(self):
+        if self.dashboard_dragging:return
+        from .dashboard import dashboard_sashes
+        width=self.dashboard_split.winfo_width()
+        if width<=1:return
+        for index,position in enumerate(dashboard_sashes(width,self.ui_state.get('dashboard_ratios'))):self.dashboard_split.sashpos(index,position)
+
+    def save_dashboard(self,event=None):
+        self.dashboard_dragging=False;width=self.dashboard_split.winfo_width()
+        if width<=1:return
+        self.ui_state['dashboard_ratios']=[self.dashboard_split.sashpos(i)/width for i in range(2)]
+        try:self.save_ui()
+        except OSError as error:self.status.set('表示設定の保存に失敗: '+str(error))
+
     def poll(self):
+        started=time.monotonic()
         try:self.poll_once()
         except Exception:
             import sys
             self.callback_error(*sys.exc_info())
         finally:
             self.arm_watchdog()
+            self.write_ui_performance(time.monotonic()-started)
             try:self.root.after(100,self.poll)
             except tk.TclError:pass
 

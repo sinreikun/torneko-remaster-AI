@@ -13,7 +13,7 @@ class LongRunningTests(unittest.TestCase):
     def test_log_remains_bounded_even_when_reading_old_lines(self):
         w=Mock();w.index.side_effect=lambda i:'40.0' if i=='@0,0' else '6000.0';w.xview.return_value=(.2,.8)
         append_text(w,'new')
-        w.delete.assert_called_once_with('1.0','1501.0');w.yview.assert_called_with('1.0');w.see.assert_not_called()
+        w.delete.assert_called_once_with('1.0','4801.0');w.yview.assert_called_with('1.0');w.see.assert_not_called()
     def test_main_menu_cursor_ignores_arrow_like_hud_pixels(self):
         image=Image.new('RGB',(300,220),'black');draw=ImageDraw.Draw(image)
         # Two actual white triangle shapes, only one belongs to menu entries.

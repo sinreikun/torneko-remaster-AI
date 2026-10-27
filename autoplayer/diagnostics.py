@@ -194,7 +194,7 @@ def export_diagnostics(data,destination,detailed=False):
                         report['databases'][name]['snapshot_included']=False
                         report['databases'][name]['reason']='軽量ZIPの上限によりDB本体は省略。ローカルの元DBを保持。'
                         report['omitted'].append(name)
-            candidates=[data/'settings.json',data/'ui-settings.json',data/'components.json']
+            candidates=[data/'settings.json',data/'ui-settings.json',data/'components.json',data/'ui-performance.json']
             candidates+=sorted((data/'profiles').glob('*.json'))
             candidates+=sorted((data/'research').glob('*.json'))
             candidates+=sorted((data/'runs').glob('*.jsonl'),key=lambda p:p.stat().st_mtime,reverse=True)[:(20 if detailed else 3)]

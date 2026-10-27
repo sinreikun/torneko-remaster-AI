@@ -165,6 +165,10 @@ class OperationalControl:
             if kind=='inventory' and skill=='inspect_inventory':
                 review=self._inspect_inventory(base,native,current)
                 if review:return review
+                rows=native.get('_current_inventory_rows',[])
+                if self.inventory_audit.active and self.inventory_audit.active['stage']=='collect' and sum(bool(r.get('selected')) for r in rows)!=1:
+                    self.inventory_audit.finish('cursor_unconfirmed',step)
+                    self.inspection_until=-1;self.last_inspection_step=step;self.inventory_review=None
             if kind and cancel:
                 if skill=='recover':self.recovery_request=None
                 return self._decision(base,[cancel],'close_known_menu','回復は未完了。現在の品・使用法・カーソルを確定できず、盲目的に使用せずメニューを閉じて再検討する。' if skill=='recover' else '表示中の品への説明確認の試行を終了し、既知のメニューを閉じる。未読・未表示ページを確認済みとはしない。' if kind=='inventory' and skill=='inspect_inventory' else '必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')

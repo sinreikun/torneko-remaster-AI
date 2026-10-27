@@ -64,12 +64,27 @@ def compact_supervision_prompt(prompt,budget=6500,tight=False):
         ledger.get('active_execution',{}).pop('equipment_opportunities',None)
     if tight or size()>budget:
         for row in ledger.get('inventory',{}).get('rows',[]):
+            if not isinstance(row,dict):continue
             if 'description_ocr' in row:
                 row['description_ocr']=row['description_ocr'][:60];row['description_excerpt']=True
         ledger['current'].pop('floor_counts',None)
     if size()>budget:
         for row in ledger.get('inventory',{}).get('rows',[]):
+            if not isinstance(row,dict):continue
             row.pop('description_ocr',None);row['description_omitted_for_budget']=True
         ledger['current'].pop('retained_metrics',None)
+    if size()>budget:
+        # Column encoding preserves all known item rows and duplicate identity
+        # while avoiding repeated field names. Current OCR/goal/guidance remain exact.
+        inv=ledger.get('inventory',{})
+        rows=inv.get('rows',[])
+        if rows and isinstance(rows[0],dict):
+            columns=[k for k in ('display_name','row_id','quantity','equipped','identification_required','selected','page','line_index','true_name','name_status','quote') if any(k in r for r in rows)]
+            inv['columns']=columns;inv['rows']=[[r.get(k) for k in columns] for r in rows]
+            inv['encoding']='rows_follow_columns; null=unknown_or_absent; never assume identified/equipped'
+        ledger.pop('active_plan',None)
+        ledger['current'].pop('fact_rule',None)
+        policy=ledger['current'].get('recovery_policy')
+        if isinstance(policy,dict):ledger['current']['recovery_policy']=pick(policy,('recovery_check','automatic_recheck_blocked','avoid_initiating_combat','stationary_enemy_cells'))
     if size()>budget:raise ValueError('監督LLMの必須情報が送信予算を超えています。現在画面・目標・作戦指示を切り落とさず送信を見送りました。')
     return result

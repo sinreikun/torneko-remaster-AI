@@ -133,7 +133,7 @@ class Inventory:
                 pts={(xx,yy) for yy in range(top,bottom) for xx in range(left,right) if min(pixels[xx,yy])>180 and max(pixels[xx,yy])-min(pixels[xx,yy])<50}
                 for region in components(pts):
                     xs=[p[0] for p in region];ys=[p[1] for p in region];rw=max(xs)-min(xs)+1;rh=max(ys)-min(ys)+1
-                    if rh<h*.55 or not .35<=rw/rh<=1.5 or not .3<=len(region)/(rw*rh)<=.75:continue
+                    if rh<max(8,h*.45) or not .35<=rw/rh<=1.5 or not .3<=len(region)/(rw*rh)<=.75:continue
                     # A right-pointing cursor has a mostly straight left edge;
                     # text fragments inside an expanded OCR box do not suffice.
                     left_edge=min(xs);top_edge=min(ys)

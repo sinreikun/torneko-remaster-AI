@@ -10,7 +10,8 @@ class LearningTraces:
     def update(self,row):
         if row.get('event') not in ('result','human_console_result'):return
         if row.get('event')=='human_console_result' and not row.get('keys'):return
-        self.turn+=1
+        step=row.get('step')
+        self.turn=max(self.turn,step) if type(step) is int and step>0 else self.turn+1
         actions=(row.get('information_exploration') or {}).get('actions',[])
         update=row.get('input_coverage',{})
         if update.get('situation')==(row.get('information_exploration') or {}).get('situation'):
@@ -22,7 +23,7 @@ class LearningTraces:
             'forecast':1 if prediction=='matched' else 0 if prediction=='mismatch' else None,'confidence':row.get('confidence') if row.get('performance',{}).get('llm_requested') is not False else None})
     def paint(self,canvas,selected,box,background=None):
         canvas.delete('learning_graph');x,y,w,h=box
-        if background is not None:canvas.create_image(x,y,anchor='nw',image=background,tags='learning_graph')
+        if background is not None:canvas.create_image(x,y,anchor='nw',image=background,tags=('learning_graph','learning_graph_background'))
         canvas.create_rectangle(x,y,x+w,y+h,fill='' if background is not None else '#111a29',outline='#71859f',tags='learning_graph')
         canvas.create_text(x+7,y+6,text=('学習状態 / 手 '+str(self.samples[0]['turn'])+'〜'+str(self.samples[-1]['turn'])+' / 系列別の範囲') if self.samples else '学習状態 / ターンの観測待ち',anchor='nw',fill='#e6edf7',font=('',8),tags='learning_graph')
         if not self.samples:
@@ -54,11 +55,16 @@ def replace_text(widget,text):
 
 
 def append_text(widget,text):
+    text=text[:12000]+('\n…（表示のみ省略。全文は診断ログに保存）\n' if len(text)>12000 else '')
     top=widget.index('@0,0');horizontal=widget.xview()[0]
     widget.configure(state='normal');widget.insert('end',text)
     lines=int(widget.index('end-1c').split('.')[0])
-    if lines>5000:
-        removed=lines-4500;widget.delete('1.0',f'{removed+1}.0');top=f'{max(1,int(top.split(".")[0])-removed)}.0'
+    if lines>1500:
+        removed=lines-1200;widget.delete('1.0',f'{removed+1}.0');top=f'{max(1,int(top.split(".")[0])-removed)}.0'
+    count=widget.count('1.0','end-1c','chars')
+    if isinstance(count,(list,tuple)) and count and type(count[0]) is int and count[0]>200000:
+        cut=widget.index(f'1.0+{count[0]-160000}c lineend+1c')
+        removed=int(cut.split('.')[0])-1;widget.delete('1.0',cut);top=f'{max(1,int(top.split(".")[0])-removed)}.0'
     widget.yview(top);widget.xview_moveto(horizontal);widget.configure(state='disabled')
 
 
@@ -114,3 +120,9 @@ def split_fraction(value,default=.62):
     try:ratio=float(value)
     except (TypeError,ValueError):return default
     return max(.1,min(.9,ratio)) if math.isfinite(ratio) else default
+
+
+def dashboard_sashes(width,ratios=None):
+    if not isinstance(ratios,(list,tuple)) or len(ratios)!=2 or any(type(x) not in (int,float) or not math.isfinite(x) for x in ratios):ratios=(.22,.72)
+    first=max(.12,min(.35,ratios[0]));second=max(first+.25,min(.88,ratios[1]))
+    return round(width*first),round(width*second)
