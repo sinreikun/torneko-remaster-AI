@@ -240,8 +240,10 @@ class Inventory:
     def known_description(self,row):
         from .interfaces import compact_text
         name=compact_text(row.get('display_name',''))
+        list_labels={compact_text(r.get('display_name','')).lstrip('▶►▷>●→') for r in self.rows}|{compact_text(r.get('item_name','')).lstrip('▶►▷>●→') for r in self.description_reads}
         for record in reversed(self.description_reads):
             if record.get('status')!='description_text_observed' or not record.get('quotes'):continue
+            if all(compact_text(t).lstrip('▶►▷>●→') in list_labels for t in record['quotes']):continue
             if compact_text(record.get('item_name',''))!=name:continue
             if record.get('identity_scope')!='profile_display_name' and record.get('inventory_scope')!=self.scope:continue
             return copy.deepcopy(record)
@@ -260,8 +262,8 @@ class Inventory:
         if not box_a or not box_b or abs(box_a[1]-box_b[1])>max(2,(box_a[3]-box_a[1])*.4):return {'status':'selection_position_changed_unlinked'}
         if clean(a.get('text',''))!=clean(b.get('text','')):return {'status':'selection_changed_unlinked'}
         old_text={compact_text(l.get('text','')) for l in before_native.get('lines',[])}
-        row_labels={compact_text(r['quote']) for r in self.rows}
-        added=[l.get('text','')[:800] for l in after_native.get('lines',[]) if compact_text(l.get('text','')) not in old_text|row_labels and len(compact_text(l.get('text','')))>=5 and compact_text(l.get('text','')) not in ('満腹度','詳細表示切替','整理') and not re.match(r'^(?:HP\s*\d|Lv\s*\d|\d)',l.get('text',''),re.I)]
+        row_labels={clean(r['quote']) for r in self.rows}|{clean(r['display_name']) for r in self.rows}
+        added=[l.get('text','')[:800] for l in after_native.get('lines',[]) if compact_text(l.get('text','')) not in old_text and clean(l.get('text','')) not in row_labels and len(compact_text(l.get('text','')))>=5 and compact_text(l.get('text','')) not in ('満腹度','詳細表示切替','整理') and not re.match(r'^(?:HP\s*\d|Lv\s*\d|\d)',l.get('text',''),re.I)]
         result={'status':'description_text_observed' if added else 'toggle_without_new_readable_text','item_name':clean(a.get('text','')),'selected_line_box':self.line_box(a),'quotes':added[:12],'before_frame':before_native.get('frame_sha256'),'after_frame':after_native.get('frame_sha256'),'step':row.get('step'),'source':'current_inventory_num7_toggle','effect_verified':False}
         item_name=clean(a.get('text',''))
         alias=bool(re.search(r'未識別|未鑑定|仮名|^(?:赤|青|黄|緑|白|黒|紫|茶|桃|灰|銀|金|橙|水|ピンク|オレンジ)(?:い|色の|色い)?(?:草|巻物|杖|指輪)$',item_name))

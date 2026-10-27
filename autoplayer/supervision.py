@@ -30,7 +30,7 @@ def validate_plan(value):
     for key,lo,hi in (('budget_turns',2,32),('test_attempts',1,4)):
         if type(value[key]) is not int or not lo<=value[key]<=hi:raise ValueError('Invalid operational budget')
     x=value['exploration_fraction']
-    if type(x) not in (int,float) or not 0<=x<=.5:raise ValueError('Invalid exploration budget')
+    if type(x) not in (int,float) or not 0<=x<=.5:raise ValueError('exploration_fractionは0〜0.5の小数で指定してください（通常0.125）。受信値: '+repr(x)[:80])
     if value['test']!='none' and not value['hypothesis'].strip():raise ValueError('Experiment needs a question')
     decisions=value['item_decisions']
     if not isinstance(decisions,list) or len(decisions)>4:raise ValueError('Invalid item decisions')
@@ -80,7 +80,7 @@ class StateLedger:
           'map_current':map_current,'player_cell':m.get('player_cell') if map_current else None,
           'contacts':copy.deepcopy(m.get('enemies',[]))[:16] if map_current else [],
           'frame_sha256':state.get('metrics_source_frame_sha256') or state.get('frame_sha256'),
-          'selection_key':selection_key,'text':text,'text_key':hashlib.sha256(compact_text(text).encode()).hexdigest()[:20],
+          'selection_key':selection_key,'selection_text':selected,'selection_line_index':visual.get('line_index') if selected else None,'text':text,'text_key':hashlib.sha256(compact_text(text).encode()).hexdigest()[:20],
           'operator_guidance':copy.deepcopy(guidance),'control_revision':revision,
           'fact_rule':'現在の数値/位置は今回の観測。last_knownは過去の参考。敵種/所持/向き/因果は未確認。'}
         floor=self.current.get('floor_exploration',{});items=floor.get('item_tasks',{})
@@ -123,6 +123,7 @@ class Supervisor:
         except queue.Empty:result=None
         if result is not None:
             request=self.inflight;self.inflight=None
+            self.last_completed={'audit_id':request.get('inventory_audit_id') if request else None,'error':bool(result.get('error'))}
             if request is None or request['cancel'].is_set() or request['scope']!=scope or step-request['step']>64:
                 self.discarded+=1;self.last_reason='stale_scope_or_age';self.next_review=step
             elif result.get('error'):
@@ -134,6 +135,7 @@ class Supervisor:
                     if plan['skill']=='interface' and current.get('map_current') and not current.get('interface'):
                         raise ValueError('現在は地図を観測した通常画面で、会話/選択肢/メニューの根拠がないため画面操作計画を採用しない。')
                 except (ValueError,KeyError,TypeError) as error:
+                    self.last_completed['error']=True
                     self.errors+=1;self.last_error=str(error);self.last_reason='invalid_review';self.next_review=step+8
                 else:
                     self.errors=0;self.last_error=None;self.adoptions+=1;self.stall=0
@@ -194,6 +196,7 @@ class Supervisor:
         return {'review_interval':self.review_interval,'enabled':True,'plan':copy.deepcopy(self.plan),'remaining':max(0,(self.plan or {}).get('expires_step',0)-current['step']),
           'review_in':max(0,self.next_review-current['step']),'review_running':self.inflight is not None,'requests':self.requests,'adoptions':self.adoptions,
           'review_elapsed_ms':self.review_ms,'plan_performance':copy.deepcopy(self.plan_stats.get((self.plan or {}).get('id'),{})),
+          'request_metrics':copy.deepcopy(getattr(getattr(self.review,'__self__',None),'supervision_request_metrics',[])),
           'discarded':self.discarded,'unproductive_inputs':self.stall,'reason':self.last_reason,'error':self.last_error}
     def close(self):
         self.closed.set()

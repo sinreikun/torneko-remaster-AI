@@ -65,7 +65,8 @@ class InventoryAudit:
         plan=supervisor.plan or {}
         if plan.get('inventory_audit_id')==a['id']:
             self.finish('analysed',step);return False
-        if supervisor.errors and supervisor.last_request>=a['analysis_step'] or time.monotonic()-a['analysis_started']>95:
+        completed=getattr(supervisor,'last_completed',None) or {}
+        if completed.get('audit_id')==a['id'] and completed.get('error') or time.monotonic()-a['analysis_started']>95:
             self.finish('analysis_unavailable',step);return False
         supervisor.next_review=min(supervisor.next_review,step)
         return True

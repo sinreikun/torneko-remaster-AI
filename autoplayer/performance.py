@@ -59,6 +59,9 @@ def compact_profile_prompt(prompt):
 
 def context_retry_prompt(prompt):
     """Drop optional historical context, preserving current evidence and controls."""
+    if prompt.get('task')=='operational_supervision':
+        from .supervision_context import compact_supervision_prompt
+        return compact_supervision_prompt(prompt,budget=5000,tight=True)
     result=dict(prompt)
     if result.get('human_examples'):
         result['human_examples']=[{**result['human_examples'][0],'steps':result['human_examples'][0].get('steps',[])[:2]}]
@@ -122,6 +125,9 @@ def fallback_schema(schema):
 
 def bounded_request_prompt(prompt,budget=8500):
     """Bound optional planning context, never clip current metrics or controls."""
+    if prompt.get('task')=='operational_supervision':
+        from .supervision_context import compact_supervision_prompt
+        return compact_supervision_prompt(prompt,budget=min(budget,6500))
     import copy,json
     result=copy.deepcopy(prompt)
     size=lambda:len(json.dumps(result,ensure_ascii=False,separators=(',',':')))
