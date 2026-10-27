@@ -131,6 +131,9 @@ class WindowsGame:
         from .observation import TurnObserver
         if not hasattr(self,'observer'):self.observer=TurnObserver()
         self.observer.fast_mode=bool(enabled)
+    def configure_quick_step(self,enabled):
+        self.quick_step=bool(enabled)
+        if hasattr(self,'observer'):self.observer.quick_mode=bool(enabled)
     def configure_scene_boundaries(self,enabled):
         from .observation import TurnObserver
         if not hasattr(self,'observer'):self.observer=TurnObserver()
@@ -204,15 +207,25 @@ class WindowsGame:
         with self.capture_lock:
             if stop.is_set():return {'status':'cancelled','learning':False}
             self.ready();self.input_target=self._input_window();events=[];first=None;image=None
+            quick=bool(getattr(self,'quick_step',False) or getattr(getattr(self,'observer',None),'fast_mode',False))
             try:
                 vk=self._vk('num7');self.held.add(vk);events.append(self._send(vk))
-                if not stop.wait(.18):
+                if not stop.wait(.04 if quick else .18):
                     first=self.capture()
-                    if not baseline or not stop.wait(.12):image=self.capture() if baseline else first
+                    if quick:
+                        from .map_sensor import read_grid
+                        for _ in range(3):
+                            if read_grid(first).get('status')=='observed' or stop.wait(.06):break
+                            first=self.capture()
+                    if not baseline or not stop.wait(.06 if quick else .12):image=self.capture() if baseline else first
             finally:events.extend(self.release_all())
             if image is None:return {'status':'cancelled','events':events,'learning':False}
-            stop.wait(.18)
+            stop.wait(.04 if quick else .18)
             restored=self.capture() if not stop.is_set() else None
+            if quick and restored is not None:
+                for _ in range(3):
+                    if read_grid(restored).get('status')!='observed' or stop.wait(.06):break
+                    restored=self.capture()
             return {'status':'captured','image':image,'baseline_image':first,'restored_image':restored,
                 'events':events,'learning':False,'kind':'held_map_display_not_keyless','game_processing':'unverified'}
 

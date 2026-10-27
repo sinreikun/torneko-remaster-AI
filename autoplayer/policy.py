@@ -81,11 +81,10 @@ class ExperiencePolicy:
         return bool(math.dist(first['player'],last['player'])<=tile*.3
             and all(abs(first['bbox'][i]-last['bbox'][i])<=tile*.5 for i in range(4))
             and abs(first['known_pixels']-last['known_pixels'])<=max(8,first['known_pixels']*.03))
-    def observe(self,png,native=None,map_display=False,reference=None):
+    def observe(self,png,native=None,map_display=False,reference=None,carried_map=None):
         digest=hashlib.sha256(png).hexdigest()
         if native and native.get('frame_sha256') and native['frame_sha256']!=digest:native=None
         if reference is not None:
-            import copy
             metrics=copy.deepcopy(reference['metrics']);confirmation=copy.deepcopy(reference.get('floor_confirmation',{}))
         else:
             metrics=self.reader.reconcile(native or {'status':'unavailable'})['metrics']
@@ -101,7 +100,8 @@ class ExperiencePolicy:
                 self.pose_anchors=[];self.pose_space=None
                 self.runtime_navigation.update(anchors=self.pose_anchors,space=None)
         floor_ready=confirmation['status'] in ('initialized','confirmed','changed')
-        minimap=read_grid(png) if map_display and floor_ready else {'status':'unavailable','reason':'地図専用表示または階の確認待ち。'}
+        minimap=copy.deepcopy(carried_map) if carried_map and floor_ready else read_grid(png) if map_display and floor_ready else {'status':'unavailable','reason':'地図専用表示または階の確認待ち。'}
+        if carried_map:minimap['baseline_reused_without_intervening_input']=True
         if floor_ready:minimap=self.map_sensor.accumulate(minimap,confirmation['confirmed'])
         if not floor_ready:metrics.pop('floor',None)
         text='\n'.join(compact_text(line.get('text','')) for line in (native or {}).get('lines',[]))
@@ -128,7 +128,7 @@ class ExperiencePolicy:
         if not eligible:objective='interface'
         payload={'floor':floor,'hp_band':int(4*hp[0]/hp[1]) if hp else None,'food_band':food[0]//20 if food else None,'map_shape':minimap.get('shape'),
             'player_cell':minimap.get('player_cell'),'neighbors':minimap.get('neighbors'),'enemies':minimap.get('enemies'),'menu_evidence':menu}
-        if map_display:payload['observation_mode']='num7_held'
+        if map_display or carried_map:payload['observation_mode']='num7_held'
         if not eligible:
             payload.update(text_key=text_key)
             if not has_text_content(native):payload['visual']=visual

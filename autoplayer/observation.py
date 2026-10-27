@@ -35,7 +35,7 @@ class TurnObserver:
         calibrated=fast and not getattr(self,'external_timing',False) and not getattr(self,'protect_text',False) and scene!='neutral_observation' and len(samples)>=4
         if calibrated:
             duration=sorted(samples)[min(len(samples)-1,int(len(samples)*.9))]
-            minimum_ms=min(minimum_ms,max(350,int(duration*1.3+180)+150*self.failures.get(key,0)))
+            minimum_ms=min(minimum_ms,max(120,int(duration*1.2+90)+100*self.failures.get(key,0)))
         if scene=='neutral_observation':self.neutral_calls+=1
         quick_neutral=fast and scene=='neutral_observation' and self.neutral_calls%8!=0
         mode='short_neutral' if quick_neutral else 'policy_margin' if getattr(self,'external_timing',False) else 'adaptive_margin' if calibrated else 'standard'
@@ -62,10 +62,10 @@ class TurnObserver:
             if any(bit and i not in mask for i,bit in enumerate(self.bits(anchor,current))):
                 anchor=current;stable_since=now
             elif stable_since is None: stable_since=now
-            if quick_neutral and elapsed>=.3 and not (self.track_scene_boundaries and is_black(current)):kind='neutral_sample';break
-            if elapsed>=minimum_ms/1000 and changed and now-stable_since>=.25 and not (self.track_scene_boundaries and is_black(current)):
+            if quick_neutral and elapsed>=.10 and not (self.track_scene_boundaries and is_black(current)):kind='neutral_sample';break
+            if elapsed>=minimum_ms/1000 and changed and now-stable_since>=(.08 if fast and not getattr(self,'protect_text',False) else .25) and not (self.track_scene_boundaries and is_black(current)):
                 kind='normal';break
-            if not changed and elapsed>=max(1.2,minimum_ms/1000): kind='no_change';break
+            if not changed and elapsed>=max(.35 if fast else 1.2,minimum_ms/1000): kind='no_change';break
             if elapsed>=maximum: break
             previous=current
         if stop.is_set(): kind='aborted'

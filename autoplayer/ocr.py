@@ -62,6 +62,39 @@ class ScreenOCR:
         self.readers[engine].recognition_cache_enabled=getattr(self,'fast_mode',False)
         self.readers[engine].force_fresh=getattr(self,'force_fresh',False)
         return self.readers[engine].read(png)
+    def read_regions(self,png):
+        """Current HUD and message pixels, no resizing or invented OCR text."""
+        import io
+        from PIL import Image
+        from .exterior_screen import white_frames
+        # Menus/dialogs can place text anywhere; ambiguous detection is full OCR.
+        if white_frames(png).get('visible') is not False:return self.read(png)
+        with Image.open(io.BytesIO(png)) as source:
+            image=source.convert('RGB');w,h=image.size
+            top=round(h*.15);bottom=round(h*.55);gap=16
+            mosaic=Image.new('RGB',(w,top+gap+h-bottom))
+            mosaic.paste(image.crop((0,0,w,top)),(0,0));mosaic.paste(image.crop((0,bottom,w,h)),(0,top+gap))
+            stream=io.BytesIO();mosaic.save(stream,format='PNG',compress_level=1)
+        result=self.read(stream.getvalue())
+        if result.get('status')!='ok':return self.read(png)
+        result=copy.deepcopy(result)
+        lines=[]
+        for line in result.get('lines',[]):
+            words=line.get('words',[])
+            if not words:continue
+            ys=[word['box'][1] for word in words if len(word.get('box',[]))==4]
+            if not ys:continue
+            offset=0 if max(word['box'][1]+word['box'][3] for word in words if len(word.get('box',[]))==4)<=top else bottom-top-gap if min(ys)>=top+gap else None
+            if offset is None:return self.read(png)
+            for word in words:
+                if len(word.get('box',[]))==4:word['box'][1]+=offset
+            lines.append(line)
+        from .knowledge import KnowledgeEngine
+        observed=KnowledgeEngine().reconcile({'status':'ok','lines':lines})['metrics']
+        if not observed.get('floor') or not observed.get('hp'):return self.read(png)
+        result.update(lines=lines,frame_sha256=hashlib.sha256(png).hexdigest(),ocr_scope='hud_and_messages',regions=[[0,0,w,top],[0,bottom,w,h]],full_screen_text_read=False)
+        return result
+
     def read(self,png):
         from .cancellation import call_interruptible
         return call_interruptible(lambda:self._read(png),getattr(self,'cancel',None))

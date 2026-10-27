@@ -8,7 +8,7 @@ from .interfaces import compact_text
 
 
 def brief(row):
-    value={k:row.get(k) for k in ('step','scene','observed_keys','hold_ms','reason','input_receipt','turn_kind','battle_observations','current_evidence')}
+    value={k:row.get(k) for k in ('step','scene','observed_keys','hold_ms','reason','input_receipt','turn_kind','loop_guard','battle_observations','current_evidence')}
     native=row.get('ocr') or {}
     value['ocr']={k:native.get(k) for k in ('frame_sha256','captured_at','engine','status')}
     value['ocr']['lines']=[{'text':line.get('text','')[:200]} for line in native.get('lines',[])[:40]]
@@ -23,6 +23,7 @@ class ImportantEvents:
         floor=a.get('floor',{}).get('values') or b.get('floor',{}).get('values')
         food0=b.get('fullness',{}).get('values');food1=a.get('fullness',{}).get('values')
         reasons=[]
+        if row.get('loop_guard',{}).get('event') in ('loop_detected','loop_escape'):reasons.append('control_loop')
         if row.get('item_description_observation'):reasons.append('item_description_toggle')
         if floor and self.last_floor and floor!=self.last_floor:reasons.append('floor_changed')
         if food0 and food1 and food1[0]>food0[0]:reasons.append('fullness_increased')
@@ -38,7 +39,7 @@ class ImportantEvents:
             self.pending=None
         if reasons:
             self.sequence+=1;kind=reasons[0];self.kind_counts[kind]=self.kind_counts.get(kind,0)+1
-            buckets={'floor_changed':(0,4),'fullness_increased':(4,3),'defeat_message':(7,3),'dialogue_or_choice':(10,2),'item_description_toggle':(10,2),'battle_text_unconfirmed':(12,2),'battle_text_recovered':(12,2),'navigation_cycle':(14,2)}
+            buckets={'floor_changed':(0,4),'fullness_increased':(4,3),'defeat_message':(7,3),'dialogue_or_choice':(10,2),'item_description_toggle':(10,2),'battle_text_unconfirmed':(12,2),'battle_text_recovered':(12,2),'navigation_cycle':(14,2),'control_loop':(14,2)}
             start,count=buckets[kind] if self.slots>=16 or self.slots==12 and kind not in ('battle_text_unconfirmed','battle_text_recovered','navigation_cycle') else (0,self.slots)
             slot=self.folder/('event-%02d'%(start+(self.kind_counts[kind]-1)%count));slot.mkdir(parents=True,exist_ok=True)
             for f in slot.iterdir():f.unlink()

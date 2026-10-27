@@ -101,7 +101,7 @@ class PipelineSpeedTests(unittest.TestCase):
             def is_set(self):return False
         c=Clock();o=TurnObserver();o.fast_mode=True;o.grid=lambda frame:frame
         durations=[o.observe(lambda:[0]*768,[0]*768,'neutral_observation',c,clock=c).duration_ms for _ in range(8)]
-        self.assertTrue(all(d<500 for d in durations[:7]));self.assertGreaterEqual(durations[-1],1200)
+        self.assertTrue(all(d<500 for d in durations[:7]));self.assertGreaterEqual(durations[-1],350);self.assertLess(durations[-1],500)
     def test_timing_shortens_only_after_observed_samples_and_keeps_a_margin(self):
         class Clock:
             def __init__(self):self.now=0.
@@ -110,7 +110,11 @@ class PipelineSpeedTests(unittest.TestCase):
             def is_set(self):return False
         c=Clock();o=TurnObserver();o.fast_mode=True;o.input_signature=(('w',),0);o.grid=lambda frame:frame
         results=[o.observe(lambda:[255]*768,[0]*768,'unknown',c,600,clock=c) for _ in range(5)]
-        self.assertEqual(results[0].applied_minimum_ms,600);self.assertLess(results[-1].applied_minimum_ms,600);self.assertGreaterEqual(results[-1].applied_minimum_ms,350)
+        self.assertEqual(results[0].applied_minimum_ms,600);self.assertLess(results[-1].applied_minimum_ms,600);self.assertGreaterEqual(results[-1].applied_minimum_ms,120)
+        o.protect_text=True
+        protected=o.observe(lambda:[255]*768,[0]*768,'unknown',c,600,clock=c)
+        self.assertEqual(protected.applied_minimum_ms,600);self.assertGreaterEqual(protected.duration_ms,600)
+        o.protect_text=False
         new_context=o.observe(lambda:[255]*768,[128]*768,'unknown',c,600,clock=c)
         self.assertEqual(new_context.applied_minimum_ms,600)
     def test_important_image_processing_runs_on_recorder_worker_and_copies_row(self):

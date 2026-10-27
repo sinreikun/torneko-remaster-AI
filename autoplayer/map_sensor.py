@@ -61,15 +61,30 @@ def _read_grid(png):
         image=source.convert('RGB').resize((1468,round(size[1]*1468/size[0])))
     w,h=image.size;pixels=image.load();tile=1468/120 # 12.2333, 54*32 calibrated cells
     left=(w-53*tile)/2;top=h/2-160
-    if sum(max(rgb)<30 for rgb in image.getdata())<w*h*.7:
+    from PIL import ImageChops
+    channels=image.split();maximum=ImageChops.lighter(channels[0],ImageChops.lighter(channels[1],channels[2]))
+    if sum(maximum.histogram()[:30])<w*h*.7:
         return {'status':'unavailable','reason':'地図専用表示ではありません。'}
-    yellow=set();red=set();cyan=set()
-    for y in range(max(round(top),round(h*.2)),min(h,round(top+32*tile))):
-        for x in range(max(0,round(left)),min(w,round(left+54*tile))):
-            r,g,b=pixels[x,y]
-            if r>90 and g>95 and b<min(r,g)*.55 and abs(r-g)<60:yellow.add((x,y))
-            if r>110 and r>g*1.6 and r>b*1.5:red.add((x,y))
-            if g>135 and b>125 and r<g*.7 and abs(g-b)<45:cyan.add((x,y))
+    try:
+        import numpy as np
+    except ImportError:np=None
+    if np is not None:
+        data=np.asarray(image)
+        x0=max(0,round(left));x1=min(w,round(left+54*tile));y0=max(round(top),round(h*.2));y1=min(h,round(top+32*tile))
+        rgb=data[y0:y1,x0:x1].astype(np.int16);r,g,b=rgb[:,:,0],rgb[:,:,1],rgb[:,:,2]
+        def points(mask,x=x0,y=y0):
+            yy,xx=np.nonzero(mask);return set(zip((xx+x).tolist(),(yy+y).tolist()))
+        yellow=points((r>90)&(g>95)&(b<np.minimum(r,g)*.55)&(np.abs(r-g)<60))
+        red=points((r>110)&(r>g*1.6)&(r>b*1.5))
+        cyan=points((g>135)&(b>125)&(r<g*.7)&(np.abs(g-b)<45))
+    else:
+        yellow=set();red=set();cyan=set()
+        for y in range(max(round(top),round(h*.2)),min(h,round(top+32*tile))):
+            for x in range(max(0,round(left)),min(w,round(left+54*tile))):
+                r,g,b=pixels[x,y]
+                if r>90 and g>95 and b<min(r,g)*.55 and abs(r-g)<60:yellow.add((x,y))
+                if r>110 and r>g*1.6 and r>b*1.5:red.add((x,y))
+                if g>135 and b>125 and r<g*.7 and abs(g-b)<45:cyan.add((x,y))
     markers=[p for p in components(yellow) if 20<=len(p)<=180 and all(4<=max(v[i] for v in p)-min(v[i] for v in p)<=14 for i in (0,1))]
     if len(markers)!=1:return {'status':'unavailable','reason':'54×32格子内の黄色い自位置が一意ではありません。','sensor':'fixed_grid_54x32'}
     marker=markers[0];mx=sum(x for x,y in marker)/len(marker);my=sum(y for x,y in marker)/len(marker)
@@ -86,9 +101,13 @@ def _read_grid(png):
             colors[tuple(v//24 for v in rgb)]+=1
     if not colors:return {'status':'unavailable','reason':'地図の床色を校正できません。','sensor':'fixed_grid_54x32'}
     palette=colors.most_common(1)[0][0];region=set()
-    for y in range(max(0,round(top)),min(h,round(top+32*tile))):
-        for x in range(max(0,round(left)),min(w,round(left+54*tile))):
-            if tuple(v//24 for v in pixels[x,y])==palette:region.add((x,y))
+    if np is not None:
+        x0=max(0,round(left));x1=min(w,round(left+54*tile));y0=max(0,round(top));y1=min(h,round(top+32*tile))
+        region=points(np.all(data[y0:y1,x0:x1]//24==np.asarray(palette),axis=2),x0,y0)
+    else:
+        for y in range(max(0,round(top)),min(h,round(top+32*tile))):
+            for x in range(max(0,round(left)),min(w,round(left+54*tile))):
+                if tuple(v//24 for v in pixels[x,y])==palette:region.add((x,y))
     if len(region)<50:return {'status':'unavailable','reason':'地図の床領域が不足しています。'}
     known={c for c in quantized_shape(region,mx,my,tile) if 0<=c[0]+player[0]<54 and 0<=c[1]+player[1]<32};known.add((0,0))
     objects={'enemies':[],'items':[],'stairs':[],'uncertain_marks':[]}

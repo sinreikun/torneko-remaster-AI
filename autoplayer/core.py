@@ -769,6 +769,10 @@ class Controller:
         if self.supervised:
             from dataclasses import replace
             cfg=replace(cfg,fast_learning=True,adaptive_timing=True)
+        from .quick_steps import QuickSteps
+        self.quick_steps=QuickSteps()
+        from .loop_guard import LoopGuard
+        self.loop_guard=LoopGuard()
         self.cfg=cfg; self.backend=backend; self.llm=llm; self.emit=emit
         self.journal=journal; self.stop=stop if stop is not None else threading.Event()
         self.memory=memory
@@ -888,7 +892,9 @@ class Controller:
         started=time.monotonic()
         try:
             from .interfaces import normalize_item_menu
-            return normalize_item_menu(self.observation_store.read(image,mode,lambda:ocr.read(image),independent=pending))
+            regional=bool(self.cfg.fast_learning and (getattr(getattr(self,'quick_steps',None),'active',False) or gate and getattr(gate,'confirmed',None) is not None) and not full and not pending and not (audit and audit.active) and hasattr(ocr,'read_regions'))
+            mode=mode+(regional,)
+            return normalize_item_menu(self.observation_store.read(image,mode,lambda:ocr.read_regions(image) if regional else ocr.read(image),independent=pending))
         finally:
             ocr.force_fresh=previous_force;ocr.fast_mode=previous_fast
             self.ocr_observation_ms=getattr(self,'ocr_observation_ms',0)+(time.monotonic()-started)*1000
@@ -977,7 +983,7 @@ class Controller:
         return current,first,sample.get('restored_image')
 
     def run(self, dry_run=False):
-        if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(self.cfg.fast_learning and not dry_run)
+        if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(not dry_run)
         if hasattr(self.backend,'configure_scene_boundaries'):self.backend.configure_scene_boundaries(is_torneko(self.cfg.window_title) and not dry_run)
         if getattr(self.llm,'methods',None):self.llm.methods.read_only=dry_run
         self.journal.parent.mkdir(parents=True,exist_ok=True)
@@ -1027,17 +1033,24 @@ class Controller:
                 self.ocr_observation_ms=0;self.stage_ms={};self.current_step=step;self.combat_evidence_image=None
                 step_started=time.monotonic()
                 image=self._timed('capture_ms',self.backend.capture)
-                neutral_image=image
+                guidance_source=getattr(self.llm,'operator_guidance',None)
+                quick_scope=(revision,(guidance_source.snapshot()['revision'] if guidance_source else 0))
+                handoff=self.quick_steps.take(image,quick_scope) if self.cfg.fast_learning and is_torneko(self.cfg.window_title) and not dry_run else None
+                self.quick_steps.active=bool(handoff)
+                if hasattr(self.backend,'configure_quick_step'):self.backend.configure_quick_step(False)
+                neutral_image=handoff['neutral_image'] if handoff else image
                 neutral=None
                 natural_metric_changes={}
-                state_before_neutral=self.policy.observe(image,self.read_policy_ocr(image)) if self.policy else None
+                state_before_neutral=self.policy.observe(image,handoff['native'],carried_map=handoff['map']) if self.policy and handoff else self.policy.observe(image,self.read_policy_ocr(image)) if self.policy else None
                 if self.policy and not dry_run:
                     configured=self.hide_map(image,state_before_neutral)
                     if configured!=image:
+                        handoff=None;self.quick_steps.active=False
                         image=configured
                         state_before_neutral=self.policy.observe(image,self.read_policy_ocr(image))
                 neutral_text_key_for_effects=(state_before_neutral or {}).get('text_key')
-                if hasattr(self.backend,'observe_turn'):
+                if handoff:neutral=handoff['neutral']
+                elif hasattr(self.backend,'observe_turn'):
                     neutral=self._timed('neutral_observation_ms',self.backend.observe_turn,image,'neutral_observation',0,self.control or self.stop)
                     image=neutral.image
                     if self.stop.is_set():break
@@ -1054,11 +1067,12 @@ class Controller:
                 normal_observation_image=image
                 policy_state=None;policy_stable=False;policy_damage=False
                 if self.policy:
-                    native=self.read_policy_ocr(image)
-                    policy_state=self.policy.observe(image,native)
+                    native=handoff['native'] if handoff else self.read_policy_ocr(image)
+                    policy_state=self.policy.observe(image,native,carried_map=handoff['map']) if handoff else self.policy.observe(image,native)
+                    if handoff:policy_state['observation_mode']='num7_held';policy_state['quick_baseline']=handoff['evidence']
                     from .world_model import changes,metrics
                     natural_metric_changes=changes(metrics(state_before_neutral),metrics(policy_state))
-                    map_sample=self.map_sample(image,policy_state,'map_observation',baseline=True) if not dry_run else None
+                    map_sample=self.map_sample(image,policy_state,'map_observation',baseline=True) if not dry_run and not handoff else None
                     if map_sample:
                         policy_state,state_before_neutral,restored=map_sample
                         if restored is not None:
@@ -1086,6 +1100,7 @@ class Controller:
                     if operation_control:
                         operation_control.recovery_policy.reset();operation_control.equipment_preparation.reset();operation_control.strength_growth.active=None
                         operation_control.identification.active=None;operation_control.identification.attempted.clear()
+                    self.loop_guard=__import__('autoplayer.loop_guard',fromlist=['LoopGuard']).LoopGuard();self.quick_steps.saved=None
                     from .pacing import AdaptivePacing
                     self.pacing=AdaptivePacing(self.cfg.max_wait_ms)
                     self.policy.map_sensor.reset();self.policy.routes.reset();self.world.floor_navigation.reset();self.executive.cancel('new_adventure')
@@ -1124,6 +1139,8 @@ class Controller:
                     cycle.prepare(policy_state,self.world.latest,self.world.inventory)
                     ledger.observe(operational_native,policy_state,exterior_context,{'last_known_metrics':self.world.last_known_metrics},guidance,revision,step)
                     ledger.current['tentative_navigation']={k:mapless_context[k] for k in ('scope','pose','pose_uncertain','movement_basis','local_goal') if k in mapless_context}
+                    operation_control.loop_escape=self.loop_guard.context()
+                    ledger.current['loop_escape']=self.loop_guard.context()
                     if is_torneko(self.cfg.window_title):operation_control.prepare_inventory_audit(policy_state,ledger.current,operational_native)
                     audit=operation_control.inventory_audit
                     ledger.current['inventory_audit']=audit.context()
@@ -1284,7 +1301,10 @@ class Controller:
                         decision.hold_ms=required
                         if timing_trial:timing_trial={**timing_trial,'ms':required,'minimum_for_verification':True}
                     movement_verification={'status':'longer_single_input_recheck','hold_ms':decision.hold_ms,'requested_minimum_ms':hint['minimum_hold_ms']}
-                pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable) if self.policy and self.cfg.adaptive_timing and not dry_run and not route_proposal else None
+                pace_trial=self.pacing.apply(decision,policy_state,policy_choice,policy_stable,**({'quick':True} if handoff else {})) if self.policy and self.cfg.adaptive_timing and not dry_run and not route_proposal else None
+                from .quick_steps import MOVES as QUICK_MOVES
+                quick_input=bool(handoff and self.quick_steps.quiet(policy_state) and decision.keys in QUICK_MOVES and decision.risk=='normal')
+                if hasattr(self.backend,'configure_quick_step'):self.backend.configure_quick_step(quick_input)
                 if not planned and decision.keys not in ([k] for k in ('w','a','s','d')):
                     self.executive.remaining=0
                 if original_proposal.get('keys')!=decision.keys:
@@ -1298,6 +1318,7 @@ class Controller:
                 row={'step':step+1,'movement_input_gate':movement_gate,'movement_input_verification':movement_verification,'input_timing_trial':timing_trial,**decision.__dict__,**state_report,'dry_run':dry_run,'executed':False,
                     'performance':{'llm_requested':not (fast or local_learning),'policy_steps_since_llm':fast_count,'max_policy_steps':self.executive.latest.get('max_turns',1),'eligibility':{'anchor_available':anchor_available,'state_eligible':bool(policy_state and policy_state['eligible']),'stable':policy_stable,'hp_read':bool(policy_state and policy_state['metrics'].get('hp')),'floor_read':bool(policy_state and policy_state['metrics'].get('floor')),'enemy_count':len(policy_state['minimap'].get('enemies',[])) if policy_state else None},'prepare_ms':round((decision_started-step_started)*1000),'decision_ms':round((decision_finished-decision_started)*1000)}}
                 if learning_review:row['fast_learning']=learning_review
+                row['quick_step']={'enabled':quick_input,'baseline':handoff['evidence'] if handoff else None,'target_ms':[500,1000],'target_is_not_achieved_measurement':True}
                 if supervisor:
                     row['operation']=operation;row['supervision']=supervisor.context(ledger.current)
                     row['decision_policy']={'source':'supervised_operational_control','local_input':True}
@@ -1541,6 +1562,7 @@ class Controller:
                         if pair_requested:row['map_pair_for_learning']={'requested':True,'observed':bool(map_after and map_after[0].get('minimap',{}).get('status')=='observed'),'reason':'pair_current_input_before_after_not_a_multi_input_sequence'}
                         if map_after:after_state=map_after[0]
                         elif self.cfg.fast_learning and hasattr(self,'map_plan') and row['executed']:self.map_plan.after_input(row['observed_keys'],after_state)
+                        quick_captured_at=time.monotonic()
                         row['policy_learning']=self._timed('learning_save_ms',self.policy.learn,policy_state,after_state,row,state_before_neutral)
                         row['policy_after']=after_state
                         if self.predictions:
@@ -1589,6 +1611,9 @@ class Controller:
                     row['movement_result']=action_observation.get('movement',{'status':'not_evaluated','success':None})
                 else:row['movement_result']={'status':'scene_transition' if scene_boundary else 'not_evaluated','success':None}
                 if not dry_run:mapless.locate(after_image)
+                if self.cfg.fast_learning and self.policy and not dry_run and map_after and map_after[2] is not None and self.quick_steps.quiet(after_state):
+                    self.quick_steps.remember(map_after[2],after_native,after_state,row,quick_scope,observation,at=quick_captured_at)
+                else:self.quick_steps.saved=None;self.quick_steps.active=False
                 if self.cfg.fast_learning and self.memory:self.stage_ms['learning_batch_commit_ms']=self.memory.last_batch_commit_ms
                 if self.diagnostic_sink:self.diagnostic_sink({'action_kind':row['action_kind'],'observed_keys':row['observed_keys'],'input_receipt':row.get('input_receipt'),'neutral_before':row['neutral_before'],'changed_after':row.get('changed'),'raw_change_after':row.get('raw_change'),'attribution':row['transition_attribution'],'learning':False})
                 row['performance'].update(total_ms=round((time.monotonic()-step_started)*1000),after_decision_ms=round((time.monotonic()-decision_finished)*1000))
@@ -1611,6 +1636,14 @@ class Controller:
                     criterion=(row.get('method_learning') or {}).get('signal') is True or (row.get('policy_learning') or {}).get('status')=='trained' and (row.get('policy_learning') or {}).get('reward',0)>0
                     row['background_compatibility']=self.background_evidence.update(row,criterion)
                 if self.duration_learner and not supervisor:self.duration_learner.record(timing_trial,row)
+                loop_event=self.loop_guard.record(row,policy_state or {},after_state or {},after_native or {}) if not dry_run else None
+                if loop_event:
+                    row['loop_guard']=loop_event;self._write(loop_event);self.emit(loop_event)
+                    if loop_event['event']=='loop_detected':
+                        self.quick_steps.saved=None;self.quick_steps.active=False
+                        self.world.floor_navigation.force_escape(loop_event)
+                    if supervisor:supervisor.next_review=step;supervisor.stall=max(supervisor.stall,6)
+                elif self.loop_guard.pending:row['loop_guard']=self.loop_guard.context()
                 if hasattr(self.backend,'record_important'):
                     evidence_after=observation.image if hasattr(self.backend,'observe_turn') else after
                     if getattr(self,'combat_evidence_image',None):
@@ -1658,6 +1691,7 @@ class Controller:
             if atlas:
                 try:atlas.close(mapless)
                 except Exception as error:self._write({'event':'exterior_atlas_save_error','reason':str(error)})
+            if hasattr(self.backend,'configure_quick_step'):self.backend.configure_quick_step(False)
             if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(False)
             if self.improvement and self.improvement.active:
                 result=self.improvement.finish(False,'実行終了で検証が中断。成功にも失敗にも確定せず調整を撤回。')

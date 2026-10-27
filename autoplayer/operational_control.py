@@ -14,6 +14,7 @@ class OperationalControl:
         self.menu_followup=None
         from .identification import Identification
         self.identification=Identification()
+        self.loop_escape=None
         from .equipment_preparation import EquipmentPreparation
         self.equipment_preparation=EquipmentPreparation()
         from .recovery_policy import RecoveryPolicy
@@ -65,6 +66,13 @@ class OperationalControl:
             key=confirm if [confirm] not in blocked else cancel or confirm
             return self._decision(base,[key],'result_screen','現在の結果表示を1回進め、再挑戦画面を確認する。')
         kind=torneko_menu_kind(native)
+        if self.loop_escape and kind in ('inventory','item_actions','main_menu') and cancel:
+            step=ledger.current['step']
+            if self.inventory_audit.active:self.inventory_audit.finish('loop_escape_incomplete',step)
+            self.inspection_until=-1;self.last_inspection_step=step;self.inventory_review=None;self.item_action_request=None;self.menu_followup=None
+            self.equipment_preparation.active=None;self.strength_growth.active=None;self.identification.active=None
+            if self.recovery_request:self.recovery_policy.record_unavailable(native,state,step,'loop_escape_unresolved_selection');self.recovery_request=None
+            return self._decision(base,[cancel],'loop_escape_menu','記録した開閉反復を中断し、既知のメニューから1段階戻る。所持品・能力・全体目標を消去せず、同じ確認の即時再開を抑える。')
         skill=plan['skill']
         step=ledger.current['step'];request=self.recovery_request;current=ledger.current
         if request and (step>request['until'] or request['control']!=current['control_revision'] or request['guidance']!=current['operator_guidance'].get('revision',0) or request['floor'] and current['floor'] and request['floor']!=current['floor']):
@@ -337,8 +345,8 @@ class OperationalControl:
             complete=replace(base,status='complete',keys=[],goal_evidence=[quote],goal_success=quote,subgoal='現在の帰還/達成表示を独立に検証する')
             operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':'verify_goal','selected_source':'completion_check','expected_signal':'interface_change','scope':ledger.current['scope'],'candidates':[],'experiment':None}
             return complete,{'source':'operational_completion_check'},None,{},operation
-        growth=self.strength_growth.choose(self,base,native,state,ledger.current,blocked) if is_torneko(self.cfg.window_title) else None
-        identification=self.identification.choose(self,base,native,state,ledger.current,blocked) if not growth and is_torneko(self.cfg.window_title) else None
+        growth=self.strength_growth.choose(self,base,native,state,ledger.current,blocked) if not self.loop_escape and is_torneko(self.cfg.window_title) else None
+        identification=self.identification.choose(self,base,native,state,ledger.current,blocked) if not growth and not self.loop_escape and is_torneko(self.cfg.window_title) else None
         interface=None if growth or identification else self.interface(base,native,state,plan,ledger,blocked)
         if identification:
             self.review_pending=None
@@ -350,12 +358,16 @@ class OperationalControl:
         context=exterior.context
         current=ledger.current
         if not interface and context.get('active'):
-            route=mapless.propose(allow_facing=False) if context.get('mode')=='exit_exploration' else None
+            route=mapless.propose(allow_facing=False) if context.get('mode')=='exit_exploration' and not self.loop_escape else None
             if route:offer(self._decision(base,route[0],'exterior_route',route[1]),'exterior_route','exit',2.)
             for keys in context.get('actions',[]):
                 estimate=self.effects.estimate(state,keys);count=self.trials.get((current['scope'],tuple(keys)),0)
                 score=.4+max(-.3,min(.3,estimate['mean_observed_value']))-.08*min(6,count)
                 if keys and keys[0] in self.effects.keys('move'):score+=.1
+                if self.loop_escape:
+                    repeated=[tuple(e.get('keys',[])) for e in self.loop_escape.get('sequence',[])]
+                    score-=2.*repeated.count(tuple(keys))
+                    score-=.15*self.trials.get((current['scope'],tuple(keys)),0)
                 offer(self._decision(base,keys,'exterior_probe','現在の出口探索の許可候補から、実測と未検証の疑問を比較する。'),'exterior_probe','exit',score,estimate)
         elif not interface:
             hp=state.get('metrics',{}).get('hp',{}).get('values');food=state.get('metrics',{}).get('fullness',{}).get('values')
@@ -368,7 +380,7 @@ class OperationalControl:
             if state.get('eligible') and combat:
                 d,trial=combat.choose(base,state,stable,blocked)
                 if trial:offer(d,'combat','combat',2.,{'trial':trial})
-            upgrade=self.equipment_preparation.request(self,base,state,current,native)
+            upgrade=self.equipment_preparation.request(self,base,state,current,native) if not self.loop_escape else None
             if upgrade:offer(upgrade,'equipment_upgrade_pending','inspect_inventory',2.)
             retained=state.get('retained_state',{});revision=retained.get('revision')
             enemies=state.get('minimap',{}).get('enemies',[])
@@ -379,7 +391,7 @@ class OperationalControl:
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
             equipment_followup='equipment_status_after_change' in retained.get('refresh_reasons',[])
             item_followup=state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)
-            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(1 if equipment_followup else 4 if urgent and not recovery_blocked or item_followup else 24) and (urgent and not recovery_blocked or self.inventory_audit.active or revision is None or revision!=self.inspected_revision):
+            if not self.loop_escape and wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(1 if equipment_followup else 4 if urgent and not recovery_blocked or item_followup else 24) and (urgent and not recovery_blocked or self.inventory_audit.active or revision is None or revision!=self.inspected_revision):
                 offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent and not recovery_blocked else 'inspect_inventory',2.2 if urgent else 1.8,{'periodic_audit':bool(self.inventory_audit.active),'before_combat':prepare_combat,'equipment_followup':equipment_followup,'tactical_inventory':bool(enemies and plan['skill']=='inspect_inventory'),'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
             hint=state.get('map_route_hint')
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
@@ -387,7 +399,7 @@ class OperationalControl:
                 if keys and all(k in self.cfg.allowed_keys for k in keys):
                     caption='通過実績と無移動の食い違う経路を再検証する' if hint.get('target_kind')=='route_recheck' else '未分類マークを確認する' if hint.get('target_kind')=='inspect_marker' else '見えている敵へ対処する位置に向かう' if hint.get('target_kind')=='enemy' else '観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '観測済みの接続で別の未確認方向へ向かう' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
                     offer(replace(self._decision(base,keys,'floor_navigation',hint.get('reason','現在の階内目標への経路を1入力ずつ確認する。')),subgoal=caption),
-                        'floor_navigation','combat' if hint.get('target_kind')=='enemy' else 'explore',1.85,{'route':hint})
+                        'floor_navigation','combat' if hint.get('target_kind')=='enemy' else 'explore',3. if hint.get('mode')=='loop_escape' else 1.85,{'route':hint})
             if policy and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 d,choice=policy.choose(base,state,blocked,stable,None,bool(guidance.get('text')))
                 if predictions:d,choice,prediction_context=predictions.choose(d,state,choice,blocked)
@@ -445,7 +457,7 @@ class OperationalControl:
         # Purposeful exploration compares legal single moves; never forces a
         # menu, facing or diagonal sweep just to complete key coverage.
         fraction=max(plan['exploration_fraction'],.25) if plan.get('strategy')=='compare_alternatives' else plan['exploration_fraction'];period=max(2,round(1/fraction)) if fraction else None
-        if period and self.sequence%period==0 and state.get('eligible') and not state['minimap'].get('enemies') and not interface:
+        if plan.get('test')=='movement_response' and period and self.sequence%period==0 and state.get('eligible') and not state['minimap'].get('enemies') and not interface:
             for key in self.effects.keys('move'):
                 if [key] in blocked:continue
                 estimate=self.effects.estimate(state,[key])

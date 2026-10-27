@@ -30,7 +30,7 @@ def capture_worker(pipe):
                     frame=image.copy();frame.thumbnail(tuple(size),Image.Resampling.LANCZOS)
                     pipe.send(('ok',{'pixels':frame.tobytes(),'size':frame.size,'source_size':image.size,'captured_at':captured_at,'sequence':sequence}))
                 else:
-                    output=io.BytesIO();image.save(output,format='PNG')
+                    output=io.BytesIO();image.save(output,format='PNG',compress_level=1)
                     pipe.send(('ok',output.getvalue()))
             except Exception as error:
                 pipe.send(('unsupported' if isinstance(error,BackgroundUnavailable) else 'error',str(error)))

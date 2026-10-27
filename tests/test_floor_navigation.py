@@ -12,6 +12,13 @@ def observed(pos,known,floor=1,stairs=(),items=(),enemies=()):
     return s
 
 class FloorNavigationTests(unittest.TestCase):
+    def test_loop_escape_routes_outside_cycle_without_erasing_floor(self):
+        known={(x,2) for x in range(1,6)};nav=FloorNavigation();s=observed((2,2),known)
+        nav.observe(s);nav.force_escape({'id':1,'positions':[[1,2],[2,2]]})
+        hint=nav.hint(s)
+        self.assertEqual(hint['mode'],'loop_escape');self.assertEqual(hint['keys'],['d'])
+        self.assertEqual(nav.known,known);self.assertFalse(nav.failures)
+
     def test_remote_frontier_survives_new_nearby_frontier_and_menu(self):
         known={(x,2) for x in range(1,9)};nav=FloorNavigation();start=observed((2,2),known)
         nav.observe(start);nav.visited.update({(x,2):1 for x in range(1,8)})

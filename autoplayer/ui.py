@@ -98,10 +98,10 @@ class Application:
         fast_bar=toolbar
         self.supervised_learning=tk.BooleanVar(value=self.cfg.supervised_learning)
         ttk.Checkbutton(fast_bar,text='LLM監督・自律学習',variable=self.supervised_learning).pack(side='left')
-        self.fast_learning=tk.BooleanVar(value=self.cfg.fast_learning);self.review_interval=tk.IntVar(value=self.cfg.llm_review_interval)
-        ttk.Checkbutton(fast_bar,text='従来モードで高速学習',variable=self.fast_learning).pack(side='left')
+        self.fast_learning=tk.BooleanVar(value=True);self.review_interval=tk.IntVar(value=self.cfg.llm_review_interval)
+        ttk.Label(fast_bar,text='観測・操作は常時高速 / 状況に応じて精査').pack(side='left')
         review_group=ttk.Frame(fast_bar);review_group.pack(side='left')
-        ttk.Label(review_group,text='従来モードの確認（手）').pack(side='left',padx=(0,4))
+        ttk.Label(review_group,text='監督LLMの定期確認（手）').pack(side='left',padx=(0,4))
         ttk.Spinbox(review_group,from_=16,to=4096,increment=16,textvariable=self.review_interval,width=6).pack(side='left')
         ttk.Label(review_group,text='（次回開始から適用）').pack(side='left',padx=5)
         for widget in toolbar.winfo_children():
@@ -542,7 +542,7 @@ class Application:
             value=getattr(cfg,key);var.set(','.join(value) if isinstance(value,list) else str(value))
         for widget,value in ((self.goal,cfg.goal),(self.knowledge,cfg.knowledge),(self.bindings,'\n'.join(k+'='+v for k,v in cfg.key_bindings.items()))):
             widget.delete('1.0','end');widget.insert('1.0',value)
-        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing);self.fast_learning.set(cfg.fast_learning);self.supervised_learning.set(cfg.supervised_learning);self.review_interval.set(cfg.llm_review_interval)
+        self.resilient.set(cfg.resilient);self.adaptive.set(cfg.adaptive_timing);self.fast_learning.set(True);self.supervised_learning.set(cfg.supervised_learning);self.review_interval.set(cfg.llm_review_interval)
         from .controls import REFERENCE,is_torneko
         self.set_panel('キー配置・ミニマップ',REFERENCE if is_torneko(cfg.window_title) else cfg.key_bindings or 'キー配置一覧を入力してください。')
         self.set_panel('目的',cfg.goal);self.status.set('選択: '+target['title']+' / キー配置は接続設定で編集できます。')
@@ -1080,6 +1080,8 @@ class Application:
             if combat.get('status')=='updated':text+=f"戦闘学習: 評価 {combat['reward']:.3f} / 予測誤差 {combat.get('prediction_error')}\n"
             visual=value.get('visual_response',{})
             if visual.get('status')=='observed':text+=f"画像反応: 大きな変化={visual.get('context_change')} / 変化未確認 {visual.get('stagnant_turns',0)}手 / 一時保留 {value.get('visual_action_evidence',{}).get('blocked_actions',[])}（攻略成果は未確認）\n"
+        elif event in ('loop_detected','loop_escape'):
+            text=f"反復検出 / 脱出 | {event} #{value.get('id')} | 手 {value.get('steps',[])}\n種類: {value.get('kind','')} / 周期 {value.get('period','')} / {value.get('reason','別の局所目標へ切り替えます')}\n"
         elif str(event).startswith('human_'):
             text=f"人間操作 {event} | 入力 {value.get('keys',[])} | {value.get('reason','')}\n"
         elif event in ('error','diagnostic_export','observation_recovery','self_improvement'):
@@ -1110,6 +1112,8 @@ class Application:
                 elif event=='human_example_processed':self.status.set('お手本記録中：例 #'+str(value['example_id'])+' / '+value['status']+'。停止で保存・ZIP生成。')
             return
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
+        if event in ('loop_detected','loop_escape'):
+            self.set_panel('自己改善',value);self.status.set('反復を検出し、実行器が局所目標を切り替えます。' if event=='loop_detected' else '反復脱出の結果: '+value.get('reason','未確認'));return
         if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='supervisor_plan':
             self.set_panel('運用計画',value['plan']);return

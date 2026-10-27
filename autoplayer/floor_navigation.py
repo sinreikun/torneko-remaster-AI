@@ -24,7 +24,7 @@ class FloorNavigation:
         self.item_tasks=ItemTasks()
         self.floor=None;self.space=None;self.known=set();self.visited=Counter();self.failures=Counter();self.neighbors={}
         self.motion_history=deque(maxlen=16);self.last_motion_progress=False;self.crossings=Counter();self.rechecked_edges={};self.stairs=set();self.items=set();self.enemies=set();self.position=None;self.tick=0;self.last_direction=None;self.mission='auto';self.plan_id=None
-        self.exploration_task=None;self.frontier_selection={};self.movement_checks={};self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None;self.fresh_floor=set();self.missing_floor=Counter();self.last_map_frame=None;self.positive_floor=Counter()
+        self.loop_escape=None;self.exploration_task=None;self.frontier_selection={};self.movement_checks={};self.last_hint=None;self.goal={'phase':'awaiting_current_map','reason':'現在の地図と階を待つ'};self.stair_trials=Counter();self.item_attempts=Counter();self.inventory_token=None;self.fresh_floor=set();self.missing_floor=Counter();self.last_map_frame=None;self.positive_floor=Counter()
     def _valid(self,state):
         m=state.get('minimap',{});f=state.get('metrics',{}).get('floor',{})
         confirmation=state.get('floor_confirmation',{})
@@ -242,8 +242,32 @@ class FloorNavigation:
           'candidates':[{'cell':list(node),'route_steps':rank[0],'enemy_adjacent_steps':rank[1],
              'previous_no_motion_trials':rank[2],'direction_changes':rank[3]} for node,path,rank in ranked[:40]]}
         return candidate
+    def force_escape(self,context):
+        self.loop_escape={'id':context['id'],'cells':{tuple(p) for p in context.get('positions',[])},'until':self.tick+24}
+        self.exploration_task=None
+    def escape_hint(self):
+        escape=self.loop_escape
+        if not escape:return None
+        if self.tick>escape['until'] or self.position not in escape['cells']:
+            self.loop_escape=None;return None
+        targets=self.known-escape['cells']-self.enemies-self.disputed()
+        route=self._path(targets)
+        key=None;route_cells=[list(self.position)];target=self.position
+        if route and route[1]:
+            target,steps=route;key=steps[0];node=self.position
+            for step in steps:node=self._add(node,ROUTE_MOVES[step]);route_cells.append(list(node))
+        else:
+            probes=self.unknown_keys(self.position)
+            if probes:key=probes[0];target=self._add(self.position,MOVES[key])
+        if not key:return None
+        self.goal={'phase':'loop_escape','reason':'反復区間の外の観測済み床、または未試行の方向へ一時的に目標を変更する。踏破床は減点しない。','target_cell':list(target),'loop_id':escape['id']}
+        self.last_hint={'key':key,'keys':key.split('+'),'mode':'loop_escape','target_kind':'loop_escape','target_cell':list(target),'distance':max(1,len(route_cells)-1),'route_cells':route_cells}
+        return copy.deepcopy(self.last_hint)
+
     def hint(self,state,preference='current_goal',mission='auto',plan_id=None,item_decisions=None):
         if not self.observe(state):return None
+        escape=self.escape_hint()
+        if escape:return escape
         if plan_id and plan_id!=self.plan_id:
             self.plan_id=plan_id
             if mission in MISSIONS:
