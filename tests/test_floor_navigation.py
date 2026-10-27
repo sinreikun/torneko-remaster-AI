@@ -153,24 +153,17 @@ class FloorNavigationTests(unittest.TestCase):
         self.assertEqual(nav.primary(),set());self.assertEqual(nav.boundaries(),set())
         self.assertEqual(nav.goal['phase'],'review_exhausted_floor')
 
-    def test_unvisited_narrow_connection_remains_candidate_alongside_other_leaf(self):
+    def test_corridor_endpoints_depend_on_unknown_directions_not_visit_counts(self):
         ring={(x,y) for x in range(1,4) for y in range(1,4)}-{(2,2)}
-        known=ring|{(4,2),(5,2),(6,2)};nav=FloorNavigation();s=observed((2,1),known)
-        nav.observe(s);nav.visited.update({c:1 for c in known-{(3,1),(6,2)}})
-        self.assertEqual(nav.degree((3,1)),2)
-        self.assertEqual(nav.primary(),{(3,1),(6,2)})
-        hint=nav.hint(s);self.assertEqual(hint['key'],'d');self.assertEqual(hint['target_cell'],[3,1])
-        self.assertEqual(nav.visited[(3,1)],0)
-        self.assertEqual(nav.hint(s)['target_cell'],[3,1])
-        self.assertEqual(nav.visited[(3,1)],0) # Planning/replanning is not a visit.
-        # Reaching a tip reveals a connection back into known floor: continue
-        # across the newly revealed cell rather than returning to a distant leaf.
-        nav=FloorNavigation();initial=observed((3,2),known-{(2,1)})
-        nav.observe(initial);nav.visited.update({c:1 for c in known-{(2,1),(3,1),(6,2)}})
-        self.assertEqual(nav.hint(initial)['target_cell'],[3,1])
-        after=observed((3,1),known);nav.record(initial,after,receipt_row('w'))
-        continued=nav.hint(after)
-        self.assertEqual(continued['key'],'a');self.assertEqual(continued['target_cell'],[2,1])
+        known=ring|{(4,2),(5,2),(6,2)};s=observed((2,1),known)
+        nav=FloorNavigation();nav.observe(s)
+        expected=nav.hint(s)
+        self.assertEqual(nav.primary(),{(6,2)})
+        self.assertIn((3,1),nav.boundaries())
+        nav.visited.update({c:100 for c in known})
+        self.assertEqual(nav.primary(),{(6,2)})
+        self.assertEqual(nav.hint(s),expected)
+        self.assertEqual(nav.hint(s)['target_cell'],[6,2])
 
     def test_supplied_twenty_four_corners_are_area_not_corridor_endpoints(self):
         data=json.loads((Path(__file__).parent/'fixtures/room-corners-1792990699719325000.json').read_text())
@@ -195,7 +188,7 @@ class FloorNavigationTests(unittest.TestCase):
         known={(x,4) for x in range(40,45)};nav=FloorNavigation();s=observed((43,4),known)
         nav.observe(s);end=observed((44,4),known);nav.record(s,end,receipt_row('d'))
         for key in ('d','w','s'):nav.record(end,end,receipt_row(key))
-        hint=nav.hint(end,'frontier');self.assertEqual(hint['key'],'a');self.assertEqual(hint['target_cell'],[42,4])
+        hint=nav.hint(end,'frontier');self.assertEqual(hint['key'],'a');self.assertEqual(hint['target_cell'],[40,4])
         back=observed((43,4),known);nav.record(end,back,receipt_row('a'))
         hint=nav.hint(back,'frontier');self.assertEqual(hint['key'],'a');self.assertNotEqual(hint['target_cell'],[44,4])
         self.assertIn([44,4],nav.context()['exhausted_branch_cells']);self.assertIn((44,4),nav.known)

@@ -9,7 +9,7 @@ class MonitorCheckpoint:
         if row:
             try:
                 value=json.loads(row[0])
-                valid=isinstance(value,dict) and value.get('version')==1 and isinstance(value.get('cells'),list) and len(value['cells'])<=1728 and isinstance(value.get('view'),list) and len(value['view'])==144 and all(type(v) is int and 0<=v<=255 for v in value['view']) and isinstance(value.get('metrics'),dict) and isinstance(value.get('visited'),list) and isinstance(value.get('floor'),list) and isinstance(value.get('player'),list)
+                valid=isinstance(value,dict) and value.get('version') in (1,2) and isinstance(value.get('cells'),list) and len(value['cells'])<=1728 and isinstance(value.get('view'),list) and len(value['view'])==144 and all(type(v) is int and 0<=v<=255 for v in value['view']) and isinstance(value.get('metrics'),dict) and isinstance(value.get('connections',[]),list) and len(value.get('connections',[]))<=6912 and isinstance(value.get('floor'),list) and isinstance(value.get('player'),list)
                 if valid:self.candidate=value;self.status='awaiting_current_scene'
                 else:self.status='invalid_checkpoint'
             except (ValueError,TypeError):self.status='invalid_checkpoint'
@@ -43,15 +43,20 @@ class MonitorCheckpoint:
         sensor.cells.update(cells(saved['cells']));sensor.floor=identity['floor'][0]
         m=state['minimap'];m['accumulated_cells']=[list(p) for p in sorted(sensor.cells)]
         navigation.observe(state)
-        navigation.visited.update({p:1 for p in cells(saved.get('visited',[]))})
-        world.visited.update(cells(saved.get('visited',[])))
+        for record in saved.get('connections',[]):
+            if not isinstance(record,list) or len(record)!=3 or type(record[2]) is not int or not 1<=record[2]<=1000000:continue
+            ends=cells(record[:2])
+            if len(ends)!=2 or not ends<=sensor.cells:continue
+            a,b=sorted(ends)
+            if max(abs(a[i]-b[i]) for i in (0,1))!=1:continue
+            edge=navigation.edge_pair(a,b);navigation.crossings[edge]=max(navigation.crossings[edge],record[2])
         # Retained numbers are references, never current HP or live enemies.
         for k,v in saved.get('metrics',{}).items():
             if k not in ('strength','sword','shield','experience','max_floor','level','gold'):continue
             retained={**copy.deepcopy(v),'retained':True,'status':'checkpoint_past_observation_not_current_confirmation'}
             world.last_known_metrics.setdefault(k,retained)
             state.setdefault('metrics',{}).setdefault(k,copy.deepcopy(retained))
-        self.status='restored_static_map';m['checkpoint_restore']={'status':self.status,'saved_at':saved.get('saved_at'),'rule':'床と踏破履歴のみ再利用。敵・アイテム位置・目的地・現在値は新しい観測から取得。'}
+        self.status='restored_static_map';m['checkpoint_restore']={'status':self.status,'saved_at':saved.get('saved_at'),'rule':'床と入力に対応した通過接続のみ再利用。敵・アイテム位置・目的地・現在値は新しい観測から取得。'}
         return True
     def preview(self,metrics,png):
         """Read-only connection preview; never authorize navigation from this."""
@@ -62,7 +67,7 @@ class MonitorCheckpoint:
         retained={k:{**copy.deepcopy(v),'retained':True} for k,v in saved.get('metrics',{}).items()}
         return {'event':'monitor_checkpoint_preview','policy_state':{'eligible':False,'metrics':{**retained,**copy.deepcopy(metrics)},
           'minimap':{'status':'observed','retained':True,'checkpoint_preview':True,'grid_size':[54,32],'player_cell':saved['player'],'accumulated_cells':saved['cells'],'known_cells':[]},
-          'floor_exploration':{'status':'observed_floor','visited_cells':saved.get('visited',[])}}}
+          'floor_exploration':{'status':'observed_floor','known_count':len(saved['cells'])}}}
     def remember(self,state,png,sensor,navigation,world):
         identity=self.identity(state)
         if not identity:
@@ -72,7 +77,7 @@ class MonitorCheckpoint:
             return
         view=self.view(png)
         if view is None:return
-        self.latest={'version':1,**copy.deepcopy(identity),'cells':[list(p) for p in sorted(sensor.cells)],'visited':[list(p) for p in navigation.visited],
+        self.latest={'version':2,**copy.deepcopy(identity),'cells':[list(p) for p in sorted(sensor.cells)],'connections':[[list(a),list(b),n] for (a,b),n in navigation.crossings.items() if n>0][:6912],
           'metrics':copy.deepcopy(world.last_known_metrics),'level':state.get('metrics',{}).get('level',{}).get('values'),'view':view,'saved_at':time.time()}
     def save(self):
         if self.latest:

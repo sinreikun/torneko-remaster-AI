@@ -348,7 +348,7 @@ class OperationalControl:
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 keys=hint.get('keys') or [hint.get('key')]
                 if keys and all(k in self.cfg.allowed_keys for k in keys):
-                    caption='通過実績と無移動の食い違う経路を再検証する' if hint.get('target_kind')=='route_recheck' else '未分類マークを確認する' if hint.get('target_kind')=='inspect_marker' else '見えている敵へ対処する位置に向かう' if hint.get('target_kind')=='enemy' else '観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '踏破済み経路で別の未処理先端へ戻る' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
+                    caption='通過実績と無移動の食い違う経路を再検証する' if hint.get('target_kind')=='route_recheck' else '未分類マークを確認する' if hint.get('target_kind')=='inspect_marker' else '見えている敵へ対処する位置に向かう' if hint.get('target_kind')=='enemy' else '観測済み階段へ向かい操作結果を確認する' if hint.get('target_kind')=='stairs' else '観測済みの品の位置へ向かう' if hint.get('target_kind')=='items' else '観測済みの接続で別の未確認方向へ向かう' if hint.get('mode')=='backtrack_to_frontier' else '未処理の探索先を確認する'
                     offer(replace(self._decision(base,keys,'floor_navigation',hint.get('reason','現在の階内目標への経路を1入力ずつ確認する。')),subgoal=caption),
                         'floor_navigation','combat' if hint.get('target_kind')=='enemy' else 'explore',1.85,{'route':hint})
             if policy and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
@@ -388,14 +388,9 @@ class OperationalControl:
                 for c in relevant:c['score']+=.25
             else:experiment_active=False
         preferred=plan['skill']
-        floor=state.get('floor_exploration',{});pos=state.get('minimap',{}).get('player_cell')
-        exhausted={tuple(p) for p in floor.get('exhausted_branch_cells',[])}
-        route_key=(state.get('map_route_hint') or {}).get('key')
+        pos=state.get('minimap',{}).get('player_cell')
         for c in candidates:
             keys=c['decision'].keys
-            if c['source'] in ('policy','movement_alternative','targeted_probe') and len(keys)==1 and pos and keys[0]!=route_key:
-                delta={'w':(0,-1),'d':(1,0),'s':(0,1),'a':(-1,0)}.get(keys[0])
-                if delta and (pos[0]+delta[0],pos[1]+delta[1]) in exhausted:c['score']-=.9
             if c['skill']==preferred:c['score']+=.15
             if c['decision'].keys in blocked:c['score']-=1.
             c['estimate']=self.effects.estimate(state,c['decision'].keys)
@@ -467,12 +462,12 @@ class OperationalControl:
         prepared=(row.get('combat_evaluation') or {}).get('status')=='awaiting_attack_trial'
         # Interface information may be useful without being dungeon progress.
         policy=row.get('policy_learning') or {};net=policy.get('net_signals') or {}
-        new_location=bool(values['position'] and (policy.get('arrival_visits_before')==0 or (row.get('floor_navigation_outcome') or {}).get('moved') and row['floor_navigation_outcome'].get('arrival_visits_before')==0))
-        nav=row.get('mapless_navigation') or {};pose=nav.get('pose')
-        assumed_frontier=bool((row.get('movement_result') or {}).get('success') is True and not nav.get('pose_uncertain') and any(c.get('cell')==pose and c.get('visits')==1 for c in nav.get('cells',[])))
+        nav=row.get('mapless_navigation') or {}
+        new_connection=bool((row.get('floor_navigation_outcome') or {}).get('new_connection'))
+        assumed_connection=bool((row.get('movement_result') or {}).get('success') is True and not nav.get('pose_uncertain') and (nav.get('last') or {}).get('new_connection'))
         floor_progress=bool(net.get('floor'));coverage_progress=bool(net.get('coverage'))
         route_progress=bool(op.get('selected_source')=='floor_navigation' and (row.get('floor_navigation_outcome') or {}).get('moved') and (row.get('map_route_hint') or (row.get('policy_state') or {}).get('map_route_hint') or {}).get('distance',0)>0)
-        progress=route_progress or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
+        progress=route_progress or new_connection or assumed_connection or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
 
         actual=row.get('observed_keys',[]);applied=actual==op.get('selected_keys') and row.get('executed') and (row.get('input_receipt') or {}).get('os_submission')=='accepted' and row.get('turn_kind')!='aborted'
         if self.menu_followup and not self.menu_followup.get('accepted'):
@@ -495,7 +490,7 @@ class OperationalControl:
             for cache in (self.healing_trials,self.healing_unsafe):
                 while len(cache)>64:cache.pop(next(iter(cache)))
         evaluation={'progress':bool(progress and applied),'comparable':bool(e.get('comparable') and applied and not prepared),
-          'expected_signal_observed':bool(values.get(op.get('expected_signal')) and applied), 'signals':values,'new_location':new_location,'route_progress':route_progress,'assumed_frontier':assumed_frontier,'preparation':prepared,
+          'expected_signal_observed':bool(values.get(op.get('expected_signal')) and applied), 'signals':values,'new_connection':new_connection,'route_progress':route_progress,'assumed_connection':assumed_connection,'preparation':prepared,
           'sequence_evaluation':copy.deepcopy(row.get('combat_evaluation')),'scope':'observed_effects_not_goal_success','selection_applied':bool(applied)}
         item=self.item_context
         phase=item.get('phase') if item else None

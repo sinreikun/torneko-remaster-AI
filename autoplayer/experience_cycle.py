@@ -179,7 +179,7 @@ class ExperienceCycle:
             'explicit_defeats':sum(e.get('kind')=='defeated_enemy' and bool(e.get('new_message')) for e in row.get('battle_observations',[])),
             'explicit_hits':sum(e.get('kind')=='damage_dealt' and bool(e.get('new_message')) for e in row.get('battle_observations',[])),
             'explicit_misses':sum(e.get('kind')=='miss' and bool(e.get('new_message')) for e in row.get('battle_observations',[])),
-            'floor_change':bool(before.get('metrics',{}).get('floor',{}).get('values') and after.get('metrics',{}).get('floor',{}).get('values') and not same_floor_values(before,after)),'new_location':bool((row.get('operation_evaluation') or {}).get('new_location')),
+            'floor_change':bool(before.get('metrics',{}).get('floor',{}).get('values') and after.get('metrics',{}).get('floor',{}).get('values') and not same_floor_values(before,after)),'new_connection':bool((row.get('operation_evaluation') or {}).get('new_connection') or (row.get('operation_evaluation') or {}).get('assumed_connection')),
             'hp_loss':max(0,-values.get('hp_change',0)),'item_effect':bool((row.get('world_learning') or {}).get('item_effect'))}
         self.recent.append(summary)
         with self.db:
@@ -200,7 +200,7 @@ class ExperienceCycle:
             'checks_by_field':{k:{'checks':len(v),'match_rate':sum(e['matched'] for r in recent for e in r.get('field_errors',[]) if e['field']==k)/len(v)} for k,v in errors.items()},
             'explicit_hits':hits,'explicit_misses':misses,'observed_hit_rate':hits/(hits+misses) if hits+misses else None,
             'explicit_defeats':sum(r.get('explicit_defeats',0) for r in recent),'observed_floor_changes':sum(r.get('floor_change',False) for r in recent),
-            'observed_new_locations':sum(r['new_location'] for r in recent),'observed_hp_loss':sum(r['hp_loss'] for r in recent),
+            'observed_new_connections':sum(r.get('new_connection',False) for r in recent),'observed_hp_loss':sum(r['hp_loss'] for r in recent),
             'recorded_item_use_outcomes':sum(r['item_effect'] for r in recent),'causal_improvement_verified':False}
     def context(self,state):
         rules=[]

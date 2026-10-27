@@ -15,7 +15,7 @@ class CycleTests(unittest.TestCase):
         self.a=state();self.b=state('B',261.7);self.a['frame_sha256']='before';self.b['frame_sha256']='after';self.step=0
     def run_pair(self,after=None,natural=None,keys=None):
         self.step+=1;keys=keys or ['d'];forecast=self.cycle.predict(self.a,keys,self.step)
-        row=receipt_row(observed_keys=keys,action_prediction=forecast,step=self.step,operation_evaluation={'new_location':True})
+        row=receipt_row(observed_keys=keys,action_prediction=forecast,step=self.step,operation_evaluation={'new_connection':True})
         after=after or self.b
         row['action_effect_learning']=self.effects.record(row,self.a,after,natural or {})
         result=self.cycle.record(row,self.a,after,natural or {})

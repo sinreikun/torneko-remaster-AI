@@ -369,7 +369,7 @@ class WorldModel:
         if floor:self.floor=floor
         self.floor_navigation.observe(state)
         state['floor_exploration']=self.floor_navigation.context()
-        player=m.get('player_cell');new_cell=bool(player and tuple(player) not in self.visited);observed=m.get('status')=='observed';new=[];seen=set();current_objects=[]
+        player=m.get('player_cell');observed=m.get('status')=='observed';new=[];seen=set();current_objects=[]
         if observed and player:
             self.visited.add(tuple(player))
             for category,field in [('player','player'),('enemy_indicator','enemies'),('item_indicator','items'),('stair_indicator','stairs')]:
@@ -420,8 +420,9 @@ class WorldModel:
             visible=copy.deepcopy(obj);visible['appearance_variant_count']=len(visible.pop('variants',[]));current_objects.append(visible)
         known={tuple(c) for c in m.get('accumulated_cells',[])}
         frontier=self.floor_navigation.primary() if self.floor_navigation._valid(state) else set()
+        unresolved=frontier|self.floor_navigation.boundaries() if self.floor_navigation._valid(state) else set()
         targets={tuple(o['cell']) for o in current_objects if o.get('cell') and o['legend'] not in ('player',)}
-        surveyed=known-frontier-targets
+        surveyed=known-unresolved-targets
         for key,value in state.get('metrics',{}).items():
             if key in ('strength','sword','shield','experience','max_floor','level','gold'):
                 self.last_known_metrics[key]={'values':copy.deepcopy(value.get('values')),'frame_sha256':digest,'observed_at':time.time(),'status':'last_observed_not_current_confirmation'}
@@ -442,7 +443,7 @@ class WorldModel:
             'new_messages':new_messages[:12],'visual':vision,'scene_change':vision.get('scene_change',True),'objects':current_objects,'new_objects':new,
             'novelty':min(1.,len(new)/3+.25*(bool(player) and tuple(player) in frontier)),
             'exploration':{'known_cells':len(known),'visited_cells':len(self.visited),'frontier_cells':len(frontier),'frontier_candidates':[list(c) for c in sorted(frontier)[:40]],
-                'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'未踏または未処理の先端を探索候補とし、探索完了の枝は優先度を下げる。探索不要は通行禁止ではなく、帰路・階段・回収のため再利用できる。'},
+                'surveyed_cell_count':len(surveyed),'surveyed_cells':[list(c) for c in sorted(surveyed)[:40]],'not_walls':True,'rule':'観測した床・接続と未確認の方向から調査対象を選ぶ。調査済みの方向は新しい根拠が得られるまで保留し、既知床は目的への経路に使う。'},
             'inventory':inv,'identity_rule':'数値IDは識別用。画像から正体・敵種・非敵対NPCを確定しない。姿の変化は別個体の証明ではない。'}
         return copy.deepcopy(self.latest)
     def navigation_hint(self,state,preference='current_goal',mission='auto',plan_id=None,item_decisions=None):
@@ -542,11 +543,12 @@ class WorldModel:
         return out[:12]
 
     def context(self):
-        l=self.latest
+        l=copy.deepcopy(self.latest)
+        l.get('exploration',{}).pop('visited_cells',None)
         return {k:l[k] for k in ('metrics','metric_changes','visual','exploration','inventory','identity_rule') if k in l}|{
             'retained_state':self.state_snapshot.context(),
             'visual_battle_experience':self.battle_appearances.context(l.get('objects',[])),
-            'floor_exploration':self.floor_navigation.context(),
+            'floor_exploration':{k:v for k,v in self.floor_navigation.context().items() if k not in ('visited_cells','visited_count')},
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],
             'equipment_review':{'observed_comparisons':copy.deepcopy(self.equipment_comparisons[-8:]),'verification_pending':copy.deepcopy(self.pending_equipment_check),'candidates':[{'item_id':r['id'],'display_name':r['display_name'],'equipped':r.get('equipped'),'description':r.get('known_description'),'identity_status':r.get('name_status'),'type_evidence':self.inventory.equipment_evidence(r),'may_consider_discard_after_comparison':True} for r in self.inventory.rows if self.inventory.equipment_evidence(r)],'last_observed_abilities':{k:v for k,v in self.last_known_metrics.items() if k in ('strength','sword','shield')},'rule':'候補は表示名・品に結び付いた説明文・実際の装備コマンドが根拠。正体と種類を区別し、不明名でも装備可能と観測できた品を比較する。所持だけで装備済みとせず、装備後は能力値を再取得して比較する。特殊効果と用途を含め有効な装備を選ぶ。比較して不要と判断した品は所持枠確保のため置く候補にできるが、目的品や有用な予備品を不用と仮定しない。'},'item_description_observations':copy.deepcopy(self.inventory.description_reads[-20:]),'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}

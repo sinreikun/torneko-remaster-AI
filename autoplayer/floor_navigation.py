@@ -1,4 +1,4 @@
-"""Floor-scoped exploration tasks: observed floor, actual visits, bounded probes.
+"""Floor-scoped exploration tasks: observed floor, measured connections, bounded probes.
 
 Completed exploration tasks remain traversable. Unknown cells are not walls.
 """
@@ -40,7 +40,7 @@ class FloorNavigation:
         self.item_tasks.observe(self.items,unknown,{(pos[0]+x,pos[1]+y) for x,y in m.get('stairs',[])},pos,state.get('frame_sha256'),bool(self.enemies))
         self.known.update(self.stairs|self.items|unknown)
         # Accumulation preserves history, including old recognition errors. Two
-        # independent current-map frames can dispute an unvisited cached cell,
+        # independent current-map frames can dispute cached cells lacking connection evidence,
         # without deleting history or declaring a physical wall.
         fresh={(pos[0]+x,pos[1]+y) for x,y in m.get('known_cells',[])}|{pos}|self.items|self.enemies|set((pos[0]+x,pos[1]+y) for x,y in m.get('stairs',[]))
         frame=state.get('frame_sha256')
@@ -76,26 +76,32 @@ class FloorNavigation:
             if self.dims and not (0<=p[0]<self.dims[0] and 0<=p[1]<self.dims[1]):continue
             if p not in self.known and self.failures[cell,key]==0:out.append(key)
         return out
-    def disputed(self):return {c for c,n in self.missing_floor.items() if n>=2 and not self.visited[c]}
+    def proven_cells(self):
+        # Successful input-linked connections are geometric evidence, not a
+        # reward or a reason to prefer/reject walking over the same floor.
+        return {c for edge,count in self.crossings.items() if count>0 for c in edge}|({self.position} if self.position is not None else set())
+    def disputed(self):
+        proven=self.proven_cells()
+        return {c for c,n in self.missing_floor.items() if n>=2 and c not in proven}
     def area_cell(self,cell,floor=None):
         # A filled 2x2 floor patch is area evidence, not a corridor endpoint.
         # In particular a rectangular room corner has degree two as well.
         x,y=cell;floor=self.known-self.disputed() if floor is None else floor
         return any({cell,(x+dx,y),(x,y+dy),(x+dx,y+dy)}<=floor for dx in (-1,1) for dy in (-1,1))
     def primary(self):
-        # Keep untraversed narrow connections even while leaves exist elsewhere.
-        # Planning a route never visits a cell; only observed positions do.
+        # Narrow observed endpoints with an unresolved outward direction.
+        # Walking over a cell neither completes nor creates an exploration task.
         floor=self.known-self.disputed()
         return {c for c in floor-self.stairs-self.items if not self.area_cell(c,floor)
-                and (not self.visited[c] or sum(self._add(c,d) in floor for d in MOVES.values())<=1 and self.unknown_keys(c))}
+                and sum(self._add(c,d) in floor for d in MOVES.values())<=1 and self.unknown_keys(c)}
     def boundaries(self):
         # Rechecks are bounded corridor hypotheses, never every room perimeter.
         floor=self.known-self.disputed()
         return {c for c in floor-self.stairs-self.items if not self.area_cell(c,floor) and self.unknown_keys(c)}
     def retired(self):
-        # Prune a visited dead branch for exploration only. Its floor cells stay
+        # Retire only explicitly checked branches; visitation has no effect. Its floor cells stay
         # in the graph and may be used for another objective or necessary return.
-        retired=set();degree={c:self.degree(c) for c in self.known};queue=deque(c for c in self.known if degree[c]<=1 and self.visited[c] and not self.unknown_keys(c) and c not in self.stairs|self.items)
+        retired=set();degree={c:self.degree(c) for c in self.known};queue=deque(c for c in self.known if degree[c]<=1 and not self.unknown_keys(c) and c not in self.stairs|self.items)
         while queue:
             c=queue.popleft()
             if c in retired:continue
@@ -104,7 +110,7 @@ class FloorNavigation:
                 p=self._add(c,d)
                 if p not in degree or p in retired:continue
                 degree[p]-=1
-                if degree[p]<=1 and self.visited[p] and self.degree(p)<=2 and p not in self.stairs|self.items:queue.append(p)
+                if degree[p]<=1 and self.degree(p)<=2 and not self.unknown_keys(p) and p not in self.stairs|self.items:queue.append(p)
         return retired
     @staticmethod
     def edge_pair(a,b):return tuple(sorted((tuple(a),tuple(b))))
@@ -150,7 +156,9 @@ class FloorNavigation:
         row['floor_navigation_outcome']={'expected_delta':list(delta),'observed_delta':[b[0]-a[0],b[1]-a[1]],'moved':b==self._add(a,delta),'arrival_visits_before':arrival_visits}
         if 'route_recheck_outcome' in row:row['route_recheck_outcome']['status']='traversal_observed' if b==self._add(a,delta) else 'not_traversed' if a==b else 'different_displacement'
         if b==self._add(a,delta):
-            self.last_motion_progress=arrival_visits==0 or len(self.known)>known_before
+            first_connection=not self.crossings[self.edge_pair(a,b)]
+            row['floor_navigation_outcome']['new_connection']=first_connection
+            self.last_motion_progress=first_connection or len(self.known)>known_before
             if self.last_motion_progress or self.motion_history and self.motion_history[-1]!=a:self.motion_history.clear()
             if not self.motion_history:self.motion_history.append(a)
             self.motion_history.append(b)
@@ -167,7 +175,7 @@ class FloorNavigation:
             if len(candidate)==size*3 and len(set(candidate))>1 and all(candidate[i]==candidate[i%size] for i in range(len(candidate))):
                 period=size;recent=candidate;break
         return {'detected':period is not None,'period':period,'positions':[list(p) for p in recent],
-            'basis':'受理済みの実移動のみ。未踏位置や新しい床の観測で履歴を更新。帰路そのものは通行禁止にしない。'}
+            'basis':'受理済みの実移動のみ。新しい接続や床の観測で履歴を更新。帰路そのものは通行禁止にしない。'}
     def inventory_updated(self,token,occupancy=None,fresh=True):
         self.item_tasks.inventory(token,occupancy,fresh)
         if token and self.inventory_token and token!=self.inventory_token:self.item_attempts.clear()
@@ -218,7 +226,7 @@ class FloorNavigation:
             if self.exploration_task is None:
                 candidate=self._path(targets)
                 target=candidate[0] if candidate else min(targets,key=lambda c:(abs(c[0]-self.position[0])+abs(c[1]-self.position[1]),c))
-                self.exploration_task={'target_cell':list(target),'status':'navigating','reason':'未処理先端への継続目標。踏破済みの移動では変更しない'}
+                self.exploration_task={'target_cell':list(target),'status':'navigating','reason':'未確認方向への継続目標。目的への移動途中は維持する'}
             targets={tuple(self.exploration_task['target_cell'])}
         # Items create tactical possibilities. Enemies supersede collection
         # when currently close or adjacent to the proposed collection route.
@@ -277,10 +285,8 @@ class FloorNavigation:
             else:
                 route=[list(self.position)];node=self.position
                 for key in steps:node=self._add(node,ROUTE_MOVES[key]);route.append(list(node))
-                backtrack=bool(self.visited[self._add(self.position,ROUTE_MOVES[steps[0]])])
-                self.last_hint={'key':steps[0],'keys':steps[0].split('+'),'diagonal':len(steps[0].split('+'))==2,'mode':'backtrack_to_frontier' if backtrack and target_kind!='stairs' else 'observed_grid_route',
+                self.last_hint={'key':steps[0],'keys':steps[0].split('+'),'diagonal':len(steps[0].split('+'))==2,'mode':'observed_grid_route',
                     'target_cell':list(target),'distance':len(steps),'target_kind':target_kind,'route_cells':route[:1728]}
-                if backtrack:reason='踏破済みの床を必要な帰路として使い、別の探索先または現在の目的へ向かう'
         if self.last_hint is None and phase in ('route_unavailable','review_exhausted_floor'):
             recheck=self.recheck_hint()
             if recheck:
@@ -300,11 +306,11 @@ class FloorNavigation:
             elif path is None:
                 task.update(status='blocked',reason='既知の有効な辺では到達不能。失敗辺を解除せず再検討が必要')
         if deferred_unreachable:reason='到達できない先端を保留し、到達可能な別の目的へ進む。'+reason
-        self.goal={'cycle_review':self.cycle_status()['detected'],'priority_order':['collection_threat_response','items_and_use_learning','unprocessed_frontiers','routine_status_review'],'floor_value_rule':'踏破履歴は観測記録。既知床と同等に通行し、再訪だけで減点しない。','threat_assessment':'現在の近接と取得経路への接触。遠隔能力・敵種の安全性は未確定','item_recheck_needed':self.item_tasks.context()['needs_inventory_check'], 'mission':selected_mission,'phase':phase,'reason':reason,'target_cell':self.last_hint.get('target_cell') if self.last_hint else None,
+        self.goal={'cycle_review':self.cycle_status()['detected'],'priority_order':['collection_threat_response','items_and_use_learning','unprocessed_frontiers','routine_status_review'],'floor_value_rule':'踏破履歴は診断専用。探索対象は未確認の方向と調査結果で決め、経路は観測した床と接続から組む。','threat_assessment':'現在の近接と取得経路への接触。遠隔能力・敵種の安全性は未確定','item_recheck_needed':self.item_tasks.context()['needs_inventory_check'], 'mission':selected_mission,'phase':phase,'reason':reason,'target_cell':self.last_hint.get('target_cell') if self.last_hint else None,
           'needs_review':self.cycle_status()['detected'] or phase in ('route_unavailable','review_exhausted_floor','verify_stair_action','verify_objective'),
           'stairs_seen_type_unknown':bool(self.stairs),'instruction':'これは階内の局所目標。階段の上下・箱の所持・帰還成功を推定で確定しない。'}
         if self.exploration_task:self.goal['exploration_task']=copy.deepcopy(self.exploration_task)
-        if self.last_hint:self.last_hint.update(basis='floor_scoped_visits_and_bounded_frontiers',reason=reason)
+        if self.last_hint:self.last_hint.update(basis='floor_connections_and_direction_checks',reason=reason)
         return copy.deepcopy(self.last_hint)
     def context(self):
         if self.position is None:return {'status':'unavailable','goal':copy.deepcopy(self.goal)}
@@ -316,5 +322,5 @@ class FloorNavigation:
           'visited_cells':[list(p) for p in self.visited],'exploration_unnecessary_cells':[list(p) for p in interior|retired],
           'exhausted_branch_cells':[list(p) for p in retired],'frontier_cells':[list(p) for p in primary],
           'stairs_cells':[list(p) for p in self.stairs],'route_cells':copy.deepcopy((self.last_hint or {}).get('route_cells',[])),
-          'frontier_rule':'未踏の細い床接続と未完了の先端を同時に候補にする。2×2の床領域に属する角を先端にしない。経路設定は踏破や処理完了ではない。',
+          'frontier_rule':'細い床の先端と、入力方向の確認が残る境界を候補にする。2×2の床領域に属する角を先端にしない。経路設定は踏破や処理完了ではない。',
           'note':'無移動の方向は今回の探索試行を一旦完了するだけで永久の壁とは確定しない。探索不要は現在の探索先の優先度。通行禁止や永久の壁ではない。新しい床・目標・階で見直す。'}

@@ -14,13 +14,13 @@ class MonitorCheckpointTests(unittest.TestCase):
         s=state();s['minimap'].update(status='observed',grid_size=[54,32],player_cell=[10,10],known_cells=[[x,y] for y in range(-2,3) for x in range(-2,3)],cell_size=12.2333)
         s['floor_confirmation']={'status':'confirmed'};s['metrics']['floor']={'values':[1]}
         sensor=MapSensor();sensor.accumulate(s['minimap'],1);sensor.cells.add((0,0))
-        nav=FloorNavigation();nav.observe(s);nav.visited[(9,10)]=2
+        nav=FloorNavigation();nav.observe(s);nav.visited[(9,10)]=2;nav.crossings[nav.edge_pair((9,10),(10,10))]=2
         world=SimpleNamespace(last_known_metrics={'sword':{'values':[3]}},visited=set())
         c=MonitorCheckpoint(db,'profile');c.remember(s,png,sensor,nav,world);c.save()
         return db,png,s,world
-    def test_restart_restores_static_floor_and_visit_history_after_match(self):
+    def test_restart_restores_static_floor_and_measured_connections_after_match(self):
         db,png,s,world=self.setup_data();c=MonitorCheckpoint(db,'profile');sensor=MapSensor();nav=FloorNavigation()
-        self.assertTrue(c.restore(s,png,sensor,nav,world));self.assertIn((0,0),sensor.cells);self.assertIn((9,10),nav.visited)
+        self.assertTrue(c.restore(s,png,sensor,nav,world));self.assertIn((0,0),sensor.cells);self.assertNotIn((9,10),nav.visited);self.assertEqual(nav.crossings[nav.edge_pair((9,10),(10,10))],2)
         self.assertEqual(c.status,'restored_static_map');self.assertNotIn('enemies',c.latest or {})
         self.assertEqual(s['metrics']['sword']['values'],[3]);self.assertTrue(s['metrics']['sword']['retained'])
         self.assertFalse(c.restore(s,png,sensor,nav,world))
@@ -50,3 +50,14 @@ class MonitorCheckpointTests(unittest.TestCase):
         db,png,s,w=self.setup_data()
         db.execute('UPDATE monitor_checkpoint SET data=?',('[1,2,3]',))
         self.assertIsNone(MonitorCheckpoint(db,'profile').candidate)
+    def test_legacy_checkpoint_visited_flags_are_not_reintroduced(self):
+        import json
+        db,png,s,w=self.setup_data()
+        data=json.loads(db.execute('SELECT data FROM monitor_checkpoint').fetchone()[0])
+        data.update(version=1,visited=[[9,10]]);data.pop('connections',None)
+        db.execute('UPDATE monitor_checkpoint SET data=?',(json.dumps(data),))
+        nav=FloorNavigation();checkpoint=MonitorCheckpoint(db,'profile')
+        preview=checkpoint.preview(s['metrics'],png)
+        self.assertNotIn('visited_cells',preview['policy_state']['floor_exploration'])
+        self.assertTrue(checkpoint.restore(s,png,MapSensor(),nav,w));self.assertNotIn((9,10),nav.visited)
+        self.assertFalse(nav.crossings)

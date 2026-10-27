@@ -85,7 +85,7 @@ class RecognitionState:
             for offset in m.get('known_cells',[]):
                 cell=[player[i]+offset[i] for i in (0,1)]
                 if valid(cell):out[tuple(cell)]='known'
-            for field,kind in [('exploration_unnecessary_cells','surveyed'),('visited_cells','visited'),('exhausted_branch_cells','exhausted'),('disputed_cached_cells','disputed'),('route_cells','route'),('frontier_cells','frontier')]:
+            for field,kind in [('exploration_unnecessary_cells','surveyed'),('exhausted_branch_cells','exhausted'),('disputed_cached_cells','disputed'),('route_cells','route'),('frontier_cells','frontier')]:
                 for cell in self.floor_exploration.get(field,[]):
                     if valid(cell) and tuple(cell) in out:out[tuple(cell)]=kind
             for field,kind in [('stairs','stairs'),('items','item'),('uncertain_marks','unknown_marker'),('enemies','enemy')]:
@@ -118,7 +118,7 @@ class RecognitionState:
         if f.get('status')=='observed_floor' and not self.tentative.get('active'):
             goal=f.get('goal',{});phase=goal.get('phase','')
             title={'inspect_unclassified_marker':'未分類マークを確認','handle_visible_enemy':'見えている敵に対処','explore_frontier':'未処理先端を探索','reach_stairs':'観測済み階段へ','return_to_stairs':'帰還のため階段へ','collect_visible_items':'観測済みの品を確認','verify_failed_route':'通過実績のある経路を再検証','route_unavailable':'経路を再検討','review_exhausted_floor':'階内の次の目的を再検討','verify_objective':'所持品・目標を再確認','verify_stair_action':'階段の操作結果を再確認'}.get(phase,phase)
-            note+=f"\n階内目標: {title} {goal.get('target_cell') or ''}\n踏破 {f.get('visited_count',0)} / 既知 {f.get('known_count',0)} / 未処理先端 {f.get('primary_frontier_count',0)} / 完了枝 {len(f.get('exhausted_branch_cells',[]))}"
+            note+=f"\n階内目標: {title} {goal.get('target_cell') or ''}\n既知 {f.get('known_count',0)} / 未処理先端 {f.get('primary_frontier_count',0)} / 完了枝 {len(f.get('exhausted_branch_cells',[]))}"
         task=f.get('exploration_task')
         if task and not (self.tentative.get('active') or self.tentative.get('display_retained')):
             status={'navigating':'移動中','probing':'先端を確認','detour_search':'迂回探索','interrupted':'割込み後に再検討','blocked':'到達不能・再検討'}.get(task.get('status'),task.get('status',''))
@@ -132,7 +132,7 @@ class RecognitionState:
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
-COLORS={'unknown_marker':'#b9a4ed','item_pending':'#ffcd70','item_full':'#f29a59','item_deferred':'#a0a6b5','disputed':'#633e40','visited':'#547d86','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
+COLORS={'unknown_marker':'#b9a4ed','item_pending':'#ffcd70','item_full':'#f29a59','item_deferred':'#a0a6b5','disputed':'#633e40','surveyed':'#294052','exhausted':'#665273','frontier':'#70bd7d','route':'#7da8cc','portal':'#172033','tentative':'#276d70','obstacle':'#be7939','estimated_pose':'#172a30','uncertain_pose':'#833f6c','known':'#365e83','player':'#ffe04b','enemy':'#ff685e','item':'#3de5dc','stairs':'#73bcff'}
 
 def grid_layout(width,height):
     width=max(1,float(width));height=max(1,float(height));pad=min(8,width/4,height/4)
@@ -170,7 +170,7 @@ class RecognitionPanel:
         self.label=ttk.Label(top,text='LLM待機');self.label.pack(side='left')
         self.canvas=tk.Canvas(self.frame,width=1,height=210,bg='#121c2b',highlightthickness=0);self.canvas.pack(fill='x')
         self.text=ttk.Label(self.frame,justify='left',wraplength=340);self.text.pack(fill='x')
-        self.legend=ttk.Label(self.frame,wraplength=340,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未処理先端 青灰:踏破 薄青:経路 紫:完了枝 赤茶:再確認待ち\n品: 橙=満杯 黄枠=取得未確認 灰=保留 紫枠=未分類');self.legend.pack(fill='x')
+        self.legend=ttk.Label(self.frame,wraplength=340,text='黄:自分 赤:敵 菱形:品 枠:階段 紫枠:場面切替\n緑:未確認方向の先端 青:観測床 薄青:経路 紫:調査済み枝 赤茶:再確認待ち\n品: 橙=満杯 黄枠=取得未確認 灰=保留 紫枠=未分類');self.legend.pack(fill='x')
         self.selected_cell=None
         self.detail=ttk.Label(self.frame,text='マスをクリックすると品/マークの状態と理由を表示',wraplength=340,justify='left');self.detail.pack(fill='x')
         self.canvas.bind('<Button-1>',self.select_cell)

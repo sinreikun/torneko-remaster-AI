@@ -80,7 +80,7 @@ def context_retry_prompt(prompt):
 # Keep obsolete display-related prose out of planning context.
 import re
 REFERENCES=re.compile(r'ミニマップ|地図|マップ|minimap|\bmap\b|青い(?:物体|図形|表示|箱|四角|領域|ブロック)|黄色.{0,12}(?:四角|円形|マーカー)|赤い点|blue[_ ](?:object|box|shape|display)|yellow[_ ](?:square|circle)|red[_ ]dot',re.I)
-PRIVATE_KEYS={'minimap','minimap_pixels','minimap_observation','player_cell','cell','map_status','_floor_observed'}
+PRIVATE_KEYS={'visited_cells','visited_count','visits','arrival_visits_before','location_first_observed','minimap','minimap_pixels','minimap_observation','player_cell','cell','map_status','_floor_observed'}
 
 def clean_text(text):
     if text=='num7':return ''

@@ -112,9 +112,9 @@ class MaplessNavigation:
                 if origin==node and direction in self.keys:portals.append((data.get('visits',1),len(path),path,direction))
             for d,delta in DIRECTIONS.items():
                 dest=(node[0]+delta[0],node[1]+delta[1])
-                if dest not in self.nodes and self.trials.get((node,d),0)<3 and (node,d) not in self.portal_edges:
-                    if path:self.mode='復路';return [self.keys[path[0]]],'未訪問分岐への既知経路（再訪）'
-                    self.mode='未訪問優先';return [self.keys[d]],'出口探索のため未訪問方向を試す'
+                if (node,d) not in self.edges and self.trials.get((node,d),0)<3 and (node,d) not in self.portal_edges:
+                    if path:self.mode='復路';return [self.keys[path[0]]],'未確認の接続への既知経路（再訪）'
+                    self.mode='未確認方向の確認';return [self.keys[d]],'出口探索のため未確認の方向を試す'
             for d,delta in DIRECTIONS.items():
                 dest=(node[0]+delta[0],node[1]+delta[1])
                 if (node,d) in self.edges and dest not in seen:seen.add(dest);queue.append((dest,path+[d]))
@@ -141,7 +141,7 @@ class MaplessNavigation:
             # Untracked movement combinations invalidate relative position.
             if any(k in keys for k in self.keys.values()):self.uncertain=True
             return self.snapshot()
-        evidence=motion(before,after,neutral);self.last={'before_sha256':hashlib.sha256(before).hexdigest(),'after_sha256':hashlib.sha256(after).hexdigest(),'motion':evidence,'keys':keys,'hold_ms':row.get('hold_ms'),'wait_ms':row.get('wait_ms'),'from':list(previous)}
+        evidence=motion(before,after,neutral);self.last={'new_connection':False,'before_sha256':hashlib.sha256(before).hexdigest(),'after_sha256':hashlib.sha256(after).hexdigest(),'motion':evidence,'keys':keys,'hold_ms':row.get('hold_ms'),'wait_ms':row.get('wait_ms'),'from':list(previous)}
         edge=(previous,direction);self.trials[edge]=self.trials.get(edge,0)+1
         delta=DIRECTIONS[direction]
         if evidence['status']=='translated':
@@ -164,6 +164,7 @@ class MaplessNavigation:
                     return self.snapshot()
                 dest=(previous[0]+delta[0],previous[1]+delta[1]);self.pose=dest
                 self.nodes.setdefault(dest,{'visits':0})['visits']+=1
+                self.last['new_connection']=edge not in self.edges or bool(self.edges[edge].get('reverse_hypothesis'))
                 self.edges[edge]={'to':list(dest),'evidence':self.last}
                 inverse=next(d for d,v in DIRECTIONS.items() if v==(-delta[0],-delta[1]));self.edges[(dest,inverse)]={'to':list(previous),'reverse_hypothesis':True}
                 self.obstacles.discard(dest);self.pending=None
@@ -197,7 +198,7 @@ class MaplessNavigation:
             'from':list(previous),'to':list(previous),'input_pair_comparable':comparable,
             'screen_change':{k:evidence.get(k) for k in ('large_change','changed_fraction','natural_fraction','large_change_threshold')},
             'white_frame_observation':{'frames':evidence.get('white_frames',[]),'transition':evidence.get('frame_transition','unknown')},
-            'movement':{'status':'not_applicable','success':None},'motion':{'status':'not_movement'}}
+            'new_connection':False,'movement':{'status':'not_applicable','success':None},'motion':{'status':'not_movement'}}
         self.last=current
         if action_kind!='movement':
             if action_kind=='other' and any(k in keys for k in self.keys.values() if k):self.uncertain=True
@@ -232,6 +233,7 @@ class MaplessNavigation:
         self.nodes[previous]['surface']='floor'
         if evidence['status']=='assumed_moved':
             self.pose=dest;self.uncertain=False;self.nodes.setdefault(dest,{'visits':0,'surface':'floor'})['visits']+=1
+            current['new_connection']=edge not in self.edges or bool(self.edges[edge].get('reverse_hypothesis'))
             self.edges[edge]={'to':list(dest),'basis':evidence['basis'],'evidence':self.last}
             inverse=next(d for d,v in DIRECTIONS.items() if v==(-delta[0],-delta[1]))
             self.edges[(dest,inverse)]={'to':list(previous),'reverse_hypothesis':True,'basis':evidence['basis']}
