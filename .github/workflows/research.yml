@@ -1,0 +1,20 @@
+name: Public game knowledge research
+on:
+  push:
+    branches: ['research/**']
+permissions:
+  contents: write
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read public sources
+        run: python tools/research_sources.py
+      - name: Publish research evidence
+        run: |
+          git checkout --orphan evidence/research-${{ github.run_id }}
+          git rm -r --cached .
+          git add research-evidence
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record public source retrieval'
+          git push origin HEAD
