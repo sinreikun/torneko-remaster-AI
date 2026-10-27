@@ -126,7 +126,7 @@ class Application:
         self.capture_log_split.bind('<ButtonRelease-1>',self.save_capture_log)
         self.live=tk.Canvas(capture_host,bg='black',highlightthickness=0,height=390);self.live.pack(fill='both',expand=True)
         self.live.create_text(280,180,text='ゲームに接続していません',fill='white',tags='image')
-        self.live.bind('<Configure>',lambda event:self.draw_frame(force=True))
+        self.live.bind('<Configure>',self.resize_live)
         self.live_info=tk.StringVar(value='画面の記録は実機実行時のみ。架空ゲームは使用しません。')
         ttk.Label(capture_host,textvariable=self.live_info).pack(fill='x')
         ttk.Label(log_host,text='ターンの要約・介入・観測結果',font=('',11,'bold')).pack(anchor='w',pady=(6,2))
@@ -367,35 +367,52 @@ class Application:
 
     def preview_loop(self):
         from PIL import Image
-        last_observed=None
+        from .live_preview import PreviewBudget
+        budget=PreviewBudget();last_observed=None;last_sequence=None
         while not self.preview_done.is_set():
             started=time.monotonic();backend=self.backend
-            if backend is None:
+            if backend is None or not getattr(self,'preview_visible',True):
                 self.preview_done.wait(.1);continue
             try:
-                observed=getattr(backend,'last_capture_at',None)
-                if observed is not None and observed!=last_observed and getattr(backend,'last_frame',None):
-                    self.frame_slot=(backend.last_frame,observed);last_observed=observed
+                value=None
                 if hasattr(backend,'capture_preview'):
-                    value=backend.capture_preview(self.preview_done)
-                    if value:self.frame_slot=(Image.frombytes('RGB',tuple(value['size']),value['pixels']),time.time())
+                    value=backend.capture_preview(self.preview_done,size=budget.size(getattr(self,'preview_viewport',(640,400))))
+                    if value:
+                        at=value.get('captured_at',time.time());sequence=value.get('sequence',at)
+                        if sequence!=last_sequence and (not self.frame_slot or self.frame_slot[0] is None or at>self.frame_slot[1]):
+                            self.frame_slot=(Image.frombytes('RGB',tuple(value['size']),value['pixels']),at)
+                        last_sequence=sequence
+                        budget.sample(time.monotonic()-started,getattr(self,'preview_draw_seconds',0),time.monotonic())
                 else:self.frame_slot=(backend.capture(),time.time())
+                if value is None:
+                    observed=getattr(backend,'last_capture_at',None)
+                    if observed is not None and observed!=last_observed and getattr(backend,'last_frame',None):
+                        self.frame_slot=(backend.last_frame,observed);last_observed=observed
             except Exception as error:
                 from .cancellation import OperationCancelled
                 if not isinstance(error,OperationCancelled):self.frame_slot=(None,str(error))
             # Deadline pacing includes capture time; no fixed extra 400ms delay.
-            self.preview_done.wait(max(.01,.05-(time.monotonic()-started)))
+            self.preview_done.wait(max(.01,budget.period-(time.monotonic()-started)))
+
+    def resize_live(self,event):
+        self.preview_viewport=(max(160,event.width),max(90,event.height))
+        self.draw_frame(force=True)
 
     def refresh_live(self):
         if self.preview_done.is_set():return
-        try:self.draw_frame();self.draw_live_status()
+        try:
+            self.preview_visible=bool(self.root.winfo_viewable() and self.live.winfo_viewable())
+            if self.preview_visible:self.draw_frame();self.draw_live_status()
         except Exception as error:self.live_info.set('LIVE表示エラー: '+str(error))
         finally:
-            try:self.root.after(33,self.refresh_live)
+            try:self.root.after(33 if getattr(self,'preview_visible',True) else 250,self.refresh_live)
             except tk.TclError:pass
 
     def draw_live_status(self):
         if not getattr(self,'preview_bounds',None) or not self.frame_slot or self.frame_slot[0] is None:return
+        now=time.monotonic()
+        if now-getattr(self,'last_live_status_at',0)<.25:return
+        self.last_live_status_at=now
         from .live_preview import live_status
         text=live_status(getattr(self,'live_paint_times',()),self.frame_slot[1],time.monotonic(),time.time())
         self.live.delete('live_status');x,y,w,h=self.preview_bounds
@@ -408,22 +425,33 @@ class Application:
     def draw_frame(self,force=False):
         frame=self.frame_slot
         if not frame or (frame is self.shown_frame and not force):return
-        self.shown_frame=frame;self.live.delete('image')
+        started=time.monotonic()
+        self.shown_frame=frame
         if frame[0] is None:
-            self.preview_bounds=None;self.live.delete('learning_graph')
+            self.live.delete('image');self.live_image_id=None
+            self.preview_bounds=None;self.live.delete('learning_graph');self.live.delete('live_status');self.last_live_status_at=0
             self.live.create_text(20,20,anchor='nw',text=frame[1],fill='white',tags='image');return
         from PIL import Image,ImageTk
         import io
-        image=frame[0].copy() if isinstance(frame[0],Image.Image) else Image.open(io.BytesIO(frame[0]));width,height=image.size
+        source=frame[0] if isinstance(frame[0],Image.Image) else Image.open(io.BytesIO(frame[0]));width,height=source.size
         from collections import deque
         if not hasattr(self,'live_paint_times'):self.live_paint_times=deque(maxlen=60)
         if not force:self.live_paint_times.append(time.monotonic())
-        image.thumbnail((max(1,self.live.winfo_width()),max(1,self.live.winfo_height())))
+        ratio=min(max(1,self.live.winfo_width())/width,max(1,self.live.winfo_height())/height)
+        size=(max(1,round(width*ratio)),max(1,round(height*ratio)))
+        image=source.resize(size,Image.Resampling.BILINEAR) if size!=source.size else source.copy()
+        if not isinstance(frame[0],Image.Image):source.close()
         self.live_photo=ImageTk.PhotoImage(image)
-        self.live.create_image(self.live.winfo_width()/2,self.live.winfo_height()/2,image=self.live_photo,tags='image')
-        self.preview_image=image.copy()
+        if getattr(self,'live_image_id',None):
+            self.live.itemconfigure(self.live_image_id,image=self.live_photo)
+            self.live.coords(self.live_image_id,self.live.winfo_width()/2,self.live.winfo_height()/2)
+        else:
+            self.live.delete('image')
+            self.live_image_id=self.live.create_image(self.live.winfo_width()/2,self.live.winfo_height()/2,image=self.live_photo,tags='image')
+        self.preview_image=image
         self.preview_bounds=((self.live.winfo_width()-image.width)/2,(self.live.winfo_height()-image.height)/2,image.width,image.height)
         self.draw_learning_graph();self.draw_live_status()
+        self.preview_draw_seconds=time.monotonic()-started
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
 
     def connect(self):
@@ -1142,7 +1170,8 @@ class Application:
                     self.set_panel('仮説',value.get('provisional_claims',[]));self.set_panel('系列のパターン',value.get('known_transitions',[]))
                 elif kind=='cumulative':self.set_panel('累積統計',{'saved_experiences':value,'note':'この目標・知識・ゲーム設定の経験。診断を除く。'})
         except queue.Empty:pass
-        try:self.draw_frame();self.draw_learning_graph()
+        try:
+            if getattr(self,'preview_visible',True):self.draw_frame();self.draw_learning_graph()
         except Exception as error:self.live_info.set('ライブ表示エラー: '+str(error))
         if getattr(self,'console_window',None) is not None and self.console_window.winfo_exists():self.console_status(bool(getattr(self,'console_commands',None) and self.console_commands.ready))
         self.recognition_panel.refresh()

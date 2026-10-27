@@ -14,15 +14,20 @@ class CaptureTimeout(RuntimeError):
 def capture_worker(pipe):
     from .window_capture import WindowCapture
     try:
-        capture=WindowCapture()
+        from .live_preview import PreviewFrameCache
+        capture=WindowCapture();cache=PreviewFrameCache()
         while True:
             request=pipe.recv()
             if request is None:break
-            preview=isinstance(request,tuple) and len(request)==2 and request[1]=='preview'
+            preview=isinstance(request,tuple) and len(request) in (2,3) and request[1]=='preview'
             hwnd=request[0] if preview else request
             try:
-                image=capture.grab(hwnd);source_size=image.size;image.thumbnail((1024,768) if preview else (1280,960))
-                if preview:pipe.send(('ok',{'pixels':image.tobytes(),'size':image.size,'source_size':source_size}))
+                image,captured_at,sequence=cache.frame(hwnd,capture.grab,time.monotonic,time.time,preview=preview)
+                if preview:
+                    size=request[2] if len(request)==3 else (1024,768)
+                    if not isinstance(size,(tuple,list)) or len(size)!=2 or not all(type(n) is int and 1<=n<=1024 for n in size):raise ValueError('Invalid preview dimensions')
+                    frame=image.copy();frame.thumbnail(tuple(size))
+                    pipe.send(('ok',{'pixels':frame.tobytes(),'size':frame.size,'source_size':image.size,'captured_at':captured_at,'sequence':sequence}))
                 else:
                     output=io.BytesIO();image.save(output,format='PNG')
                     pipe.send(('ok',output.getvalue()))
@@ -56,9 +61,9 @@ class CaptureService:
 
     def grab_png(self,hwnd,cancel=None):return self._grab(hwnd,cancel)
 
-    def grab_preview(self,hwnd,cancel=None):return self._grab(hwnd,cancel,preview=True)
+    def grab_preview(self,hwnd,cancel=None,size=None):return self._grab(hwnd,cancel,preview=True,size=size)
 
-    def _grab(self,hwnd,cancel=None,preview=False):
+    def _grab(self,hwnd,cancel=None,preview=False,size=None):
         cancel=cancel or self.cancel
         deadline=time.monotonic()+self.timeout
         while not self.lock.acquire(timeout=.05):
@@ -66,7 +71,7 @@ class CaptureService:
             if time.monotonic()>=deadline:raise CaptureTimeout('画面取得の待機時間を超えました。')
         try:
             if cancel and cancel.is_set():raise OperationCancelled('画面取得を停止しました。')
-            self._start();self.pipe.send((int(hwnd),'preview') if preview else int(hwnd))
+            self._start();self.pipe.send(((int(hwnd),'preview',tuple(size)) if size else (int(hwnd),'preview')) if preview else int(hwnd))
             while True:
                 if cancel and cancel.is_set():
                     self._discard();raise OperationCancelled('画面取得を停止しました。')

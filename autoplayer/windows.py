@@ -97,17 +97,20 @@ class WindowsGame:
         if self.u.IsIconic(self.hwnd): raise RuntimeError('ゲームが最小化されています。')
         if self.emergency(): raise RuntimeError('緊急停止キーが押されました。')
     def capture(self):
-        with self.capture_lock:
-            image=self._capture()
-            import time
-            self.last_frame=image;self.last_capture_at=time.time()
-            return image
-    def capture_preview(self,cancel=None):
+        self.capture_waiters=getattr(self,'capture_waiters',0)+1
+        try:
+            with self.capture_lock:
+                image=self._capture()
+                import time
+                self.last_frame=image;self.last_capture_at=time.time()
+                return image
+        finally:self.capture_waiters-=1
+    def capture_preview(self,cancel=None,size=None):
         # A live preview must not queue behind, or interrupt, an action/map
         # capture. The UI reuses last_frame while the gameplay lock is held.
-        if not self.capture_lock.acquire(blocking=False):return None
+        if getattr(self,'capture_waiters',0) or not self.capture_lock.acquire(blocking=False):return None
         try:
-            self.ready();frame=self.window_capture.grab_preview(self.hwnd,cancel);self.ready()
+            self.ready();frame=self.window_capture.grab_preview(self.hwnd,cancel,size=size);self.ready()
             return frame
         finally:self.capture_lock.release()
 
