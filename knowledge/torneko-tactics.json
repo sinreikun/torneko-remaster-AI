@@ -1,0 +1,1658 @@
+{
+  "schema_version": 1,
+  "updated": "2026-10-27",
+  "sources": [
+    {
+      "id": "steam-remaster-20261025",
+      "url": "https://store.steampowered.com/app/4027450/?l=japanese",
+      "title": "リマスターSteam公式説明",
+      "edition": "remaster",
+      "kind": "publisher_store",
+      "accessed": "2026-10-25",
+      "sha256": "2a81b7a621d590cf7596348e62068656b1d094a6e3265c24f1625d0304b22ec9",
+      "evidence_branch": "evidence/research-40187795438"
+    },
+    {
+      "id": "sfc-wiki-20261025",
+      "url": "https://ja.wikipedia.org/wiki/トルネコの大冒険_不思議のダンジョン",
+      "title": "初代Wikipedia・システムと道具",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-25",
+      "sha256": "3f28e48b99b00942ab82f57f0b2321b6737e3926d3fcee042179ec0fa5af81dd",
+      "evidence_branch": "evidence/research-40187795438"
+    },
+    {
+      "id": "user-controls",
+      "url": "knowledge/SOURCES.md#利用者提供の操作と観測",
+      "title": "利用者提示のキー配置・マップ凡例・外部探索条件",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-25"
+    },
+    {
+      "id": "user-mechanics-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-利用者提供の基礎知識",
+      "title": "利用者提供：道具運用・戦闘・能力補正・命中と所持品操作",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-priority-diagonal-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-行動優先度と斜め移動",
+      "title": "利用者提供：通常の優先度・状態保持/再確認・目的のある斜め移動",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-eight-way-combat-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-斜め攻撃と接近の手番",
+      "title": "利用者提供：8方向の隣接攻撃と1マス空きからの接近リスク",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-inventory-flow-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-所持品の操作手順と装備効果",
+      "title": "利用者提供：道具一覧・左右の切替・使用方法の左側メニューと装備",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-natural-recovery-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-足踏みによる回復と回復品の温存",
+      "title": "利用者提供：敵が周囲にいない場合の足踏み回復優先",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-hunger-rest-food-20261026",
+      "url": "knowledge/SOURCES.md#2026-10-26-休息場所と満腹度食料ちから",
+      "title": "利用者提供：敵の手番・通路での休息・満腹度消費と食料/装備/ちから回復",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "user-item-strategy-20261027",
+      "url": "knowledge/SOURCES.md#2026-10-27-床の価値とアイテム中心の戦略",
+      "title": "利用者提供：再訪を忌避せず品の取得と用途学習を中心にする",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": "user-equipment-comparison-20261027",
+      "url": "knowledge/SOURCES.md#2026-10-27-装備比較と不要品候補",
+      "title": "利用者指示：積極的な装備比較と能力確認、不要品の候補化",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": "user-equal-speed-pursuit-20261027",
+      "url": "knowledge/SOURCES.md#2026-10-27-等速追跡と退避",
+      "title": "利用者提供：通常は敵も1マス移動し、距離だけを目的に離れることには利益がない",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
+    },
+    {
+      "id": "ring-research-20261027-3",
+      "url": "https://ja.wikipedia.org/wiki/%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA_%E4%B8%8D%E6%80%9D%E8%AD%B0%E3%81%AE%E3%83%80%E3%83%B3%E3%82%B8%E3%83%A7%E3%83%B3",
+      "title": "初代Wikipedia・指輪一覧",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "def52383065fff6d3737593c88c4b1f98ac451fd77c48ed2b95d6e9b3523c8da",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/3.json"
+    },
+    {
+      "id": "ring-research-20261027-5",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%82%B7%E3%83%A3%E3%83%8A%E3%82%AF%E3%81%AE%E5%B7%BB%E7%89%A9%E3%80%91",
+      "title": "DQ大辞典・シャナクの巻物",
+      "edition": "sfc_and_reported_remaster",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "2e9aece434c472ed5b5c5c1468ce9894d025ac781ff682a54f722fd8bec83147",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/5.json"
+    },
+    {
+      "id": "ring-research-20261027-6",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%82%A4%E3%83%B3%E3%83%91%E3%82%B9%E3%81%AE%E5%B7%BB%E7%89%A9%E3%80%91",
+      "title": "DQ大辞典・インパスの巻物",
+      "edition": "sfc_and_reported_remaster",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "48a8201ae4dfc498252b5fc74b0f44d461d363847f3ad9610ea2b9c2fa6c29b6",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/6.json"
+    },
+    {
+      "id": "ring-research-20261027-27",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%83%8F%E3%83%A9%E3%83%98%E3%83%A9%E3%82%BA%E3%81%AE%E6%8C%87%E8%BC%AA%E3%80%91",
+      "title": "DQ大辞典・ハラヘラズの指輪",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "6a81d3e13dd76ed462ec44ac910aeb0e18455bd304f7a8ce399a28fedc472557",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/27.json"
+    },
+    {
+      "id": "ring-research-20261027-28",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%81%A8%E3%81%86%E3%81%9E%E3%81%8F%E3%81%AE%E6%8C%87%E8%BC%AA%E3%80%91",
+      "title": "DQ大辞典・とうぞくの指輪",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "bc7de23e4b920846f9864142f9b188116df158d6f461db4413212c164bd53e4a",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/28.json"
+    },
+    {
+      "id": "user-strength-seed-priority-20261027",
+      "url": "knowledge/SOURCES.md#ちからの種と毒消し草",
+      "title": "利用者提供：ちから最大時の種優先と毒消し草による事前回復",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
+    }
+  ],
+  "rules": [
+    {
+      "id": "turn-economy",
+      "when": [
+        "explore",
+        "combat"
+      ],
+      "roles": [
+        "move",
+        "attack",
+        "item",
+        "step"
+      ],
+      "precondition": "ダンジョンで移動・攻撃・道具使用を選ぶとき。",
+      "expected_effect": "移動等に伴って敵も行動する。無入力の実時間待機はゲーム内のターン消費やHP回復を意味しない。",
+      "verify_or_revise": "ツールの1手・アニメーション・向き変更・メニュー操作を同じターン消費と決め付けず、位置・HP・敵の動きを別々に照合する。",
+      "sources": [
+        "steam-remaster-20261025",
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "remaster_general",
+      "priority": 70
+    },
+    {
+      "id": "adjacent-attack",
+      "when": [
+        "combat"
+      ],
+      "roles": [
+        "face",
+        "attack",
+        "move"
+      ],
+      "precondition": "現在の地図で敵が縦横斜め8方向のいずれかに隣接。",
+      "expected_effect": "対象方向へNum5+方向キー（斜めは縦横2キー）で向き直しNum1で攻撃する。斜めから攻撃できるため縦横へ並び直す移動は不要。新しい命中表示と現在の接触を確認して再攻撃を比較する。",
+      "verify_or_revise": "向き変更だけで撃破を期待しない。HP変化・命中/撃破の新しい文章・敵位置を照合。無反応だけで命中・空振りを断定しない。",
+      "sources": [
+        "steam-remaster-20261025",
+        "user-controls",
+        "user-eight-way-combat-20261026"
+      ],
+      "applicability": "editorial_application",
+      "priority": 100
+    },
+    {
+      "id": "contact-position",
+      "when": [
+        "combat"
+      ],
+      "roles": [
+        "move",
+        "attack"
+      ],
+      "precondition": "敵が遠い、または複数隣接している。",
+      "expected_effect": "遠い敵への攻撃反復より、射程と移動後の接触数を比較。複数敵なら一度に受ける攻撃を減らす位置を候補にする。",
+      "verify_or_revise": "移動しても敵が追う可能性があり、距離だけで安全とはしない。倍速・遠隔攻撃等の特性は現在の文章と経験から確認する。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "steam-remaster-20261025"
+      ],
+      "applicability": "editorial_application",
+      "priority": 85
+    },
+    {
+      "id": "explore-not-ui",
+      "when": [
+        "explore"
+      ],
+      "roles": [
+        "move",
+        "menu"
+      ],
+      "precondition": "階と実マップを観測し、未探索の通路や現在目的への経路がある。",
+      "expected_effect": "現在の通行実績と地図から1マスずつ進み、未知領域・目的地への接近を確認。",
+      "verify_or_revise": "方向転換だけ、メニュー開閉、空の攻撃で新しい床への到達は期待しない。必要な状態確認以外のUI反復を探索成果と混同しない。",
+      "sources": [
+        "steam-remaster-20261025",
+        "user-controls"
+      ],
+      "applicability": "editorial_application",
+      "priority": 80
+    },
+    {
+      "id": "recovery",
+      "when": [
+        "low_hp"
+      ],
+      "roles": [
+        "step",
+        "item",
+        "move"
+      ],
+      "precondition": "現在HPが低い。満腹度、敵の隣接や射線、回復品の所持を確認できる。",
+      "expected_effect": "初代ではターン経過で自然回復する。必要なら回復品・退避・安全な足踏みを比較する。",
+      "verify_or_revise": "無入力や決定/攻撃の連打を回復操作にしない。隣接敵がいる足踏みや空腹は損失になり得る。回復量は現在の説明・使用後HPから検証する。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 100
+    },
+    {
+      "id": "food",
+      "when": [
+        "hungry"
+      ],
+      "roles": [
+        "menu",
+        "item"
+      ],
+      "precondition": "満腹度が低い、または0。実際の持ち物を確認する。",
+      "expected_effect": "初代では満腹度0でHPが減る。食料の確定名と食べる選択を確認して利用を検討する。",
+      "verify_or_revise": "パン等の回復量をリマスターの固定値にしない。未知名の草を食料や安全な回復品と断定しない。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 100
+    },
+    {
+      "id": "inventory-equipment",
+      "when": [
+        "inventory"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item"
+      ],
+      "precondition": "現在の道具画面で項目名・カーソル・操作一覧が読める。",
+      "expected_effect": "武器/盾は装備して効果を得る候補。使用や装備の前後でちから・剣・盾・HP等の観測差を記録する。",
+      "verify_or_revise": "所持しているだけと装備済みを区別する。呪い・副作用・未識別を確認し、選択中の項目を推測して連続入力しない。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 95
+    },
+    {
+      "id": "unidentified",
+      "when": [
+        "unidentified",
+        "inventory"
+      ],
+      "roles": [
+        "item",
+        "confirm"
+      ],
+      "precondition": "仮の名前の品、未識別の杖・指輪等がある。",
+      "expected_effect": "仮名をその冒険の識別子として持ち、使用・装備・説明・識別の文章と結果を結び付ける。",
+      "verify_or_revise": "別の冒険の同じ仮名や色だけで本来名を決めない。効果が見えない場合は無効とも安全とも断定しない。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 90
+    },
+    {
+      "id": "item-purpose",
+      "when": [
+        "inventory",
+        "item"
+      ],
+      "roles": [
+        "item",
+        "confirm"
+      ],
+      "precondition": "草・巻物・杖等の説明と選択中コマンドが読める。",
+      "expected_effect": "初代では草は飲む/投げる、巻物は読む、杖は振る等で用途が異なる。説明に合う使い方を選ぶ。",
+      "verify_or_revise": "同じ品でも使用法や対象で効果が違う。残数・回数・対象方向と新しいメッセージを確認。資料の数値を現在値として捏造しない。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 85
+    },
+    {
+      "id": "arrow",
+      "when": [
+        "ranged"
+      ],
+      "roles": [
+        "arrow",
+        "face"
+      ],
+      "precondition": "矢と射線、対象の現在位置を確認できる。",
+      "expected_effect": "現在キーの矢入力で射撃を候補にできる。敵が遠いだけでは通常攻撃の命中を期待しない。",
+      "verify_or_revise": "残弾や射線を無視して連射しない。画像の変化だけで命中とせずメッセージと対象の変化を確認する。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 90
+    },
+    {
+      "id": "dialogue",
+      "when": [
+        "dialogue"
+      ],
+      "roles": [
+        "confirm",
+        "cancel",
+        "move"
+      ],
+      "precondition": "現在の会話・通常のはい/いいえの選択肢を確認。",
+      "expected_effect": "会話は決定で進め、通常ははいを選んで決定。現在のカーソルが読めれば配置に合う方向入力を使う。",
+      "verify_or_revise": "取消はいいえや前画面へ戻る可能性がある。削除・初期化等の保護確認は実行しない。同じ説明へ戻る反復は再検討する。",
+      "sources": [
+        "user-controls"
+      ],
+      "applicability": "user_confirmed",
+      "priority": 100
+    },
+    {
+      "id": "death-retry",
+      "when": [
+        "death"
+      ],
+      "roles": [
+        "confirm",
+        "move"
+      ],
+      "precondition": "死亡・リザルト・やり直し確認が表示された。",
+      "expected_effect": "結果を進め、通常の再挑戦確認ははいを選ぶ。再挑戦後の階・HP・装備は現在画面から取り直す。",
+      "verify_or_revise": "取消で店へ戻る可能性がある。前の冒険の地図・敵・レベル・所持品を現在へ引き継がない。",
+      "sources": [
+        "steam-remaster-20261025",
+        "user-controls"
+      ],
+      "applicability": "remaster_general",
+      "priority": 100
+    },
+    {
+      "id": "outside-exit",
+      "when": [
+        "outside"
+      ],
+      "roles": [
+        "move",
+        "confirm"
+      ],
+      "precondition": "階表示と実マップがなく、白枠のないダンジョン外で操作可能。",
+      "expected_effect": "利用者の対象環境では固定地形の出口へ移動する。進めない場所がドアなら決定入力で開く可能性を確認する。",
+      "verify_or_revise": "方向転換だけは出口探索の進展にならない。メニュー・射撃・足踏みを探索候補にしない。会話の枠が出たら地形移動と区別。",
+      "sources": [
+        "user-controls"
+      ],
+      "applicability": "user_confirmed",
+      "priority": 100
+    },
+    {
+      "id": "goal-return",
+      "when": [
+        "goal"
+      ],
+      "roles": [
+        "move",
+        "confirm",
+        "item"
+      ],
+      "precondition": "箱や階段・帰還の文章が現在読める。",
+      "expected_effect": "箱の所持確認後は帰還が必要。初代の目標階や名称は参考にし、現在のダンジョンの説明と利用者の目標を優先する。",
+      "verify_or_revise": "階への到達・箱を見た・階段を見た、だけでは取得や帰還成功を宣言しない。初代のもっと不思議30階情報で利用者の99階目標を書き換えない。",
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 100
+    },
+    {
+      "id": "use-heal",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "薬草",
+        "弟切草"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "次の被ダメージで倒される前に回復する候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：薬草はHP回復、弟切草はHPと一部状態異常の回復。満タン時の効果は別扱い。",
+      "verify_or_revise": "使用前後の現在HP/最大HPと状態異常を別々に記録。所持名を過去のHPとして読まない。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "道具画面で薬草等を選ぶ",
+        "飲む等の自分へ作用するコマンドを確認",
+        "決定を1回送りHPと新しい文章を再取得"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-food",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "パン",
+        "大きいパン",
+        "くさったパン"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "満腹度が減り、空腹によるHP減少の前に補給する候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：パンは満腹度を回復。くさったパンには不利益があり得る。",
+      "verify_or_revise": "食べると投げるを区別。回復量・副作用・残数を確認し、満腹時の無意味な消費を避ける。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "現在の満腹度と食料の名前を確認",
+        "道具で食べるを選ぶ",
+        "決定後に満腹度・HP・残数を比較"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-sleep",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "ラリホー草"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "敵の行動を止めて危険な接触を減らす候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：敵へ投げると眠らせ、自分で飲むと自分が眠る。",
+      "verify_or_revise": "睡眠の成立・持続は未確認。攻撃や退避までの猶予を過大評価しない。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "対象敵の現在方向と投射経路を確認",
+        "必要なら方向転換し再観測",
+        "品を選び投げるを確認して決定",
+        "眠った文章と敵の行動を確認して次の1手を選ぶ"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-warp",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "ルーラ草"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "囲まれた、又は不利な接触から離れる候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：自分で飲むと別の部屋へワープ、敵へ投げると対象をワープさせる。",
+      "verify_or_revise": "飲むと投げるを目的に合わせる。ワープ先の安全や出口到達は保証しない。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "自分が離れるか敵を離すかを選ぶ",
+        "飲む又は対象方向への投げるを確認",
+        "決定後の位置・敵・HPを取り直す"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-flame",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "火炎草"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "前方の敵へ通常攻撃以外のダメージを与える候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：飲むと前方へ炎、投げても攻撃効果。飲む炎は前方の床の品も消す可能性がある。",
+      "verify_or_revise": "回復用の草と混同しない。前方1マスと投射の違い、敵足元の大事な品を確認する。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "敵との距離・向きと床の品を確認",
+        "飲む又は投げるを選ぶ",
+        "決定後のダメージ文章と品の変化を照合"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-paralysis",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "かなしばりの巻物"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "複数の隣接敵の動きを止めて通過・退避する候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：周囲1マスの敵を止め、攻撃すると再び動く。",
+      "verify_or_revise": "止めた直後の不要な攻撃で解除しない。遠い敵まで止まったと仮定しない。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "隣接数と退路を確認",
+        "対象巻物を読み決定",
+        "停止した敵を確認し、攻撃するか離れるかを選び直す"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-sanctuary",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "聖域の巻物"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "近接攻撃への対処として足元の拠点を作る候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：床に置いてその上に乗る使い方。矢・炎・爆発等には例外があり無敵ではない。",
+      "verify_or_revise": "読むだけで保護されたとしない。実際の足元・設置・遠隔攻撃の有無を確認する。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "現在の床と周囲の敵を確認",
+        "品を選び置くを確認して決定",
+        "巻物の上にいるか確認",
+        "被害と残る脅威を毎手再評価"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-io",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "イオの巻物"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "複数敵へまとめてダメージを与える候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：部屋では部屋内、通路では自分の周囲1マスが対象。",
+      "verify_or_revise": "敵数と部屋/通路を確認。全滅を保証せず、範囲外や生き残った敵の行動を想定する。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "部屋と通路・対象範囲を確認",
+        "読むを確認して決定",
+        "新しいダメージ/撃破文章と残った敵を確認"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-strengthen",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "バイキルトの巻物",
+        "スカラの巻物"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "戦闘前などに装備を強化する候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：バイキルトは装備中の武器、スカラは装備中の盾を強化する。",
+      "verify_or_revise": "所持品すべてが強化されるとしない。装備の対象・修正値・強さを前後比較する。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "装備中の武器/盾を確認",
+        "対象巻物を読み決定",
+        "装備名と剣/盾の値を再確認"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-identify",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "インパスの巻物"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "未識別品の用途が現在の判断に必要なときの候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：道具を識別する。",
+      "verify_or_revise": "どの品が対象か現在の選択画面を確認。仮名と判明した名前を結び付け、別冒険へ無条件に移さない。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "未識別品と識別手段の所持を確認",
+        "読む後に対象選択が出たら対象を確認",
+        "決定後の本来名と説明を記録"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "use-escape",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "リレミトの巻物"
+      ],
+      "roles": [
+        "menu",
+        "confirm",
+        "cancel",
+        "item",
+        "face"
+      ],
+      "precondition": "箱を持ち帰る、又は損失を抑えて帰還する候補。持ち物・説明と現在カーソルで対象品を確認する。",
+      "expected_effect": "初代資料の参考効果：読むとダンジョンを脱出する。",
+      "verify_or_revise": "箱・持帰品の所持と帰還目的を先に確認。読む操作だけで帰還成功とせず実際の地上と結果を確認する。リマスターの設定・説明・使用後の実測を優先し、資料の効果を確定しない。",
+      "procedure": [
+        "現在の所持品と帰還目的を確認",
+        "対象巻物と読むを確認して決定",
+        "場面切り替え後の地上・所持・結果を照合"
+      ],
+      "sources": [
+        "sfc-wiki-20261025",
+        "user-controls"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 105
+    },
+    {
+      "id": "enemy-ghost",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "terms": [
+        "ゴースト"
+      ],
+      "roles": [
+        "move",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "現在の文章で名前を読め、対象との対応も確認できた場合の特性仮説。見た目だけで種類を付けない。",
+      "expected_effect": "初代資料：倍速で移動し、隣接攻撃の回数は移動速度と同じではない。",
+      "verify_or_revise": "距離があることだけで回復や退避が安全としない。リマスターで同じ挙動かは実測で更新する。",
+      "procedure": [
+        "通常歩行で逃げ切れるか実測を確認",
+        "接近されるまでの手数と攻撃・道具を比較"
+      ],
+      "sources": [
+        "sfc-wiki-20261025"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 106
+    },
+    {
+      "id": "enemy-ranged",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "terms": [
+        "リリパット"
+      ],
+      "roles": [
+        "move",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "現在の文章で名前を読め、対象との対応も確認できた場合の特性仮説。見た目だけで種類を付けない。",
+      "expected_effect": "初代資料：直線上に矢を撃ち、聖域上でも矢は防げない。",
+      "verify_or_revise": "離れているだけで被ダメージがないとしない。リマスターで同じ挙動かは実測で更新する。",
+      "procedure": [
+        "射線と遮蔽物を確認",
+        "直線を外す移動・接近・道具を比較"
+      ],
+      "sources": [
+        "sfc-wiki-20261025"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 106
+    },
+    {
+      "id": "enemy-sleeper",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "terms": [
+        "まどうし"
+      ],
+      "roles": [
+        "move",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "現在の文章で名前を読め、対象との対応も確認できた場合の特性仮説。見た目だけで種類を付けない。",
+      "expected_effect": "初代資料：通常は眠り、攻撃で起きて睡眠攻撃を使うことがある。",
+      "verify_or_revise": "見た目の無動作だけで睡眠・無害と断定しない。リマスターで同じ挙動かは実測で更新する。",
+      "procedure": [
+        "敵が本当に眠っているか文章や継続観測を確認",
+        "通過できるなら攻撃で起こす必要を検討",
+        "戦うなら短期決着や道具を比較"
+      ],
+      "sources": [
+        "sfc-wiki-20261025"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 106
+    },
+    {
+      "id": "enemy-bomb",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "terms": [
+        "爆弾岩"
+      ],
+      "roles": [
+        "move",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "現在の文章で名前を読め、対象との対応も確認できた場合の特性仮説。見た目だけで種類を付けない。",
+      "expected_effect": "初代資料：HP低下で停止し、さらに攻撃すると爆発し周囲へ被害を与える。",
+      "verify_or_revise": "敵の無動作を無反応や攻撃継続の理由にせず、聖域で爆発を防げるとしない。リマスターで同じ挙動かは実測で更新する。",
+      "procedure": [
+        "停止した対象を攻撃し続ける前に退路を確認",
+        "通路を塞ぐ場合は距離を取り道具等を比較"
+      ],
+      "sources": [
+        "sfc-wiki-20261025"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 106
+    },
+    {
+      "id": "enemy-poison",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "terms": [
+        "おばけキノコ"
+      ],
+      "roles": [
+        "move",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "現在の文章で名前を読め、対象との対応も確認できた場合の特性仮説。見た目だけで種類を付けない。",
+      "expected_effect": "初代資料：毒でちからを下げる。初代ではうろこの盾等が対策になる。",
+      "verify_or_revise": "現在の装備だけで耐性を仮定せず、変動を記録する。リマスターで同じ挙動かは実測で更新する。",
+      "procedure": [
+        "ちからの変化をHPと別に確認",
+        "長期戦の損失と短期決着・回避・対策品を比較"
+      ],
+      "sources": [
+        "sfc-wiki-20261025"
+      ],
+      "applicability": "sfc_reference",
+      "priority": 106
+    },
+    {
+      "id": "ring-effect-0",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "ハラヘラズの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ハラヘラズの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "満腹度がターン経過で減らなくなる。 食料消費を抑え、空いた所持枠を活用する。満腹度0から満腹に戻す効果ではない。",
+      "verify_or_revise": "通常行動の長さと装備前後の満腹度を比較。皮の盾・食事・経過ターンを分け、短時間で減らないだけでは確定しない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-1",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "ハラペコの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ハラペコの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "満腹度の減少が速くなる（初代資料では通常の2倍）。 通常の探索では不利な候補。呪いで外せない場合は食料確保と解呪を比較。",
+      "verify_or_revise": "通常行動数と満腹度の減少率を比較。空腹を意図的に作らず、食事や別効果の影響を除く。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-2",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "ワナ抜けの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ワナ抜けの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "装備中はワナを回避する。 ワナの多い場面の候補。",
+      "verify_or_revise": "既知のワナに対する通常行動中のメッセージを観察。ワナが不発の可能性もあるので、1回の無反応だけで確定しない。危険なワナを試験のため踏まない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-3",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "ちからの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ちからの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "ちからを修正値に応じて増減する（初代資料は±3）。 現在のちからと装備前後の変化を比較し、弱体化なら交換・解呪を検討。",
+      "verify_or_revise": "同じ最大値・状態で現在のちからを前後比較。毒・レベル変化・別アイテムの影響と分離。数値をリマスターへ固定しない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-4",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "きれいな指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "きれいな指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "特殊効果がない。 所持枠と換金用途を比較。",
+      "verify_or_revise": "効果が観察できなかっただけで、この指輪だと消去法で確定しない。インパスや名称の表示が必要。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-5",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "ルーラの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ルーラの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "一定確率で同じ階の別の場所へワープする。 不利な接触から離脱できる可能性もあるが、意図しない移動・分断に注意。",
+      "verify_or_revise": "歩行以外の位置変化とメッセージを観察。ワナ・敵の作用と区別。発動まで危険な待機を繰り返さず、呪い不明で安易に試着しない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-6",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "ザメハの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ザメハの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "部屋に入る・接近する際、眠っている敵を起こす。 通常の探索では敵を増やす不利益を比較。",
+      "verify_or_revise": "自然な接近での敵の起床を観測。偶然の起床・元から動いていた敵と区別し、試験のため敵を起こさない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-7",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "眠らずの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "眠らずの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "睡眠を防ぐ。 睡眠による連続被害を避ける候補。",
+      "verify_or_revise": "睡眠に関するメッセージと防止の表示を確認。眠らなかった1回だけで確定しない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-8",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "毒けしの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "毒けしの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "毒によるちからの低下を防ぐ。 毒が問題になる状況で検討。既に下がったちからが回復する効果とは区別。",
+      "verify_or_revise": "毒に関する表示と現在のちからを観察。毒をわざと受けず、盾や草の効果と区別。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-9",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "とうぞくの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "とうぞくの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "部屋への進入や接近で眠っている敵を起こしにくくする。 不要な起床・モンスターハウスへの接触を抑える候補。",
+      "verify_or_revise": "元から起きている敵を無力化するとは考えない。初代資料ではうごくせきぞうに例外がある。安全に自然観測し、無反応だけで確定しない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-10",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "シャドーの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "シャドーの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "透明なシャドーや、通常見えないパルプンテの巻物を見えるようにする。 透明な対象の認識を補助する候補。",
+      "verify_or_revise": "見える対象の変化と名称・文章を照合。全敵や全アイテムの位置が分かる「透視」と混同しない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "ring-effect-11",
+      "priority": 70,
+      "when": [
+        "inventory",
+        "item",
+        "combat",
+        "status",
+        "unidentified"
+      ],
+      "terms": [
+        "人形よけの指輪"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "人形よけの指輪という表示名を現在の品で確認。宝石の仮名から同定しない。",
+      "expected_effect": "どろ人形・ミステリードールの特殊攻撃を防ぐ。 能力低下を防ぐ状況で検討。",
+      "verify_or_revise": "該当する敵名と特殊攻撃の防止表示を確認。通常攻撃まで防ぐとは考えない。 初代の参照値でありリマスターの現在表示と実測を優先。",
+      "sources": [
+        "ring-research-20261027-3"
+      ],
+      "applicability": "sfc_reference"
+    },
+    {
+      "id": "remove-curses-current-equipment",
+      "priority": 90,
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "terms": [
+        "シャナク",
+        "呪い",
+        "呪われ",
+        "のろい"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "呪いのメッセージや外せない装備の根拠を観測。",
+      "expected_effect": "シャナクの巻物は現在装備している品の呪いを解く候補。所持だけの品をすべて解呪するとは考えない。 剣はバイキルト、盾はスカラなどの解呪作用も初代資料にある。対象と現在の説明を確認。メッキは対象・版・既存状態を照合する。",
+      "verify_or_revise": "呪いが理由の交換失敗では同じ着脱を反復しない。解呪後の表示・着脱を確認。パン化は品を失う。後作の神父・装備外し・合成を初代へ流用しない。",
+      "sources": [
+        "ring-research-20261027-5"
+      ],
+      "applicability": "edition_scoped_reference_verify_current_environment"
+    }
+  ],
+  "button_behaviors": {
+    "move": "通常場面では上下左右への移動、白枠のあるメニュー/選択肢ではカーソル移動。方向入力後の画面変化をすべて地形移動と数えない。",
+    "face": "方向キーと組み合わせたその場の向き変更/整理用。自位置移動を期待しない。準備が必要な攻撃などの前だけ検討し、ゲーム内ターン消費は実測する。",
+    "attack": "通常場面では攻撃/話す、画面操作では決定を兼ねる。敵・NPC・ドア・選択肢のどれへ作用したかを現在の場面で区別する。",
+    "confirm": "現在選択中の項目を実行する。表示名・カーソル・作用先を確認し、連打や選択位置の決め打ちをしない。",
+    "cancel": "メニュー等を閉じる/選択を戻す。ゲーム内ではダッシュも兼ねるが、単独入力で移動・回復すると仮定しない。再挑戦確認の取消は目的と逆の結果になり得る。",
+    "menu": "メニューを開き状態・道具を確認する。開閉自体とダンジョン探索の進行は別。現在項目を読み、必要な品へカーソルを動かして決定する。",
+    "arrow": "矢を撃つ。現在の方向・射線・残弾が必要。反応がない理由を空撃ち・壁・向き・処理待ち等に分ける。",
+    "step": "移動せずターンを進める足踏み。敵や空腹がある場面では損失になり得る。無入力観測とは異なる。",
+    "item": "メニュー→道具項目→品→使用法の順に現在表示を確認する。各画面で1回ずつ方向/決定し、飲む・投げる・読む・置く等を選び分ける。固定のカーソル位置やキー列を盲目的に再生しない。",
+    "item_details": "持ち物画面では選択中の品の説明枠を切り替える。通常場面の同じキーのマップ表示とは区別し、現在画面での1回の入力結果を確認する。"
+  },
+  "foundations": [
+    {
+      "id": "strength-seed-priority",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "status",
+        "combat"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ちからの種を所持し、現在のちからと最大値を確認できる。",
+      "expected_effect": "ちからの現在値が最大値と同じなら、ちからの種の使用を最優先する。最大でなければ先に毒消し草（毒けし草）で現在値を最大へ戻し、再確認してから種を使用する。",
+      "verify_or_revise": "毒きのこ等の敵の攻撃やくさったパンで現在のちからが低下する。現在値と最大値を混同しない。毒消し草がなければ種を保留し、回復したと仮定しない。品の現在行と飲むを照合し、使用後の値と所持数で効果を確認。確認や使用失敗の反復を避ける。",
+      "sources": [
+        "user-strength-seed-priority-20261027"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "ring-identification-curses",
+      "when": [
+        "inventory",
+        "item",
+        "unidentified"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm",
+        "item_details"
+      ],
+      "precondition": "指輪やオレンジ文字の未識別品、呪いが不明な装備を検討。",
+      "expected_effect": "宝石名は仮名として扱い、オレンジ文字は識別必要の根拠。インパスを優先候補にし、正体・補正・呪いを別々に確認する。同名品もページと行で区別し、説明確認と装備を往復しない。",
+      "verify_or_revise": "初代はちからの指輪以外の呪いがインパスで分からない。二次資料ではリマスターは指輪の呪いも判明する。画面で照合し、白文字や正体判明だけで呪いなしと決めない。シャナクは装備中の品への解呪候補。危険な装備試験や有害な効果の故意の発動は避ける。",
+      "sources": [
+        "ring-research-20261027-5",
+        "ring-research-20261027-6"
+      ],
+      "applicability": "edition_scoped_reference_verify_current_environment"
+    },
+    {
+      "id": "equal-speed-pursuit",
+      "roles": [
+        "move",
+        "attack",
+        "face",
+        "item",
+        "step"
+      ],
+      "precondition": "敵との距離を取る移動や低HP時の退避を検討する。",
+      "expected_effect": "通常は敵も1手に1マス追跡する。自分が1マス離れるだけでは敵の手番後の距離や有利さは増えない。単純な逃走を繰り返さず、必要な戦闘・回復・道具・目的のある地形利用を比較する。",
+      "verify_or_revise": "退避には、鈍足や行動制限・自分の速度優位・複数敵との接触を減らす地形・階段への到達など具体的な利益を必要とする。見た目だけで速度差や状態効果を確定しない。静止している敵を鈍足と決め付けない。移動前後の敵位置・HP・目的地への進捗で確認する。",
+      "sources": [
+        "user-equal-speed-pursuit-20261027"
+      ],
+      "applicability": "user_environment",
+      "when": [
+        "combat",
+        "ranged",
+        "low_hp"
+      ]
+    },
+    {
+      "id": "item-value-policy",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "goal"
+      ],
+      "roles": [
+        "move",
+        "item"
+      ],
+      "precondition": "道具の回収・使用・装備・保持・交換を検討するとき。",
+      "expected_effect": "可能な限り拾い、経験に基づいて使用/装備する。目的達成に必要な品は保持する。所持上限は20個で満杯では拾えない。拾えない場合は現在所持品と床の品の利用価値を比較し、有用な方へ交換する候補を立てる。",
+      "verify_or_revise": "目標品、回復、食料、残弾、将来の用途、装備効果と不確実性を比較する。説明や所持を未確認のまま品名/効果を断定しない。交換時は現在の品・個数・カーソルを確認し、必要品を捨てない。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "enemy-threat-policy",
+      "when": [
+        "combat",
+        "ranged",
+        "explore"
+      ],
+      "roles": [
+        "face",
+        "attack",
+        "move",
+        "item"
+      ],
+      "precondition": "敵の現在位置・自分の能力・戦闘経験から処理優先度を決めるとき。",
+      "expected_effect": "敵の放置は後で不利になり得る。取得・使用を妨げる脅威への対処と、十分な余裕をもって倒せる敵による経験値獲得を現在の目標と比較する。脅威度・HP/能力・与被ダメージ・必要攻撃回数を根拠に判断し、遠い敵を品より機械的に優先しない。",
+      "verify_or_revise": "「確実」は命中100%や無傷を意味しない。外れによる反撃、複数敵、未知の特性も含めて余裕を見積もる。現在の敵表示と過去の敵種の推測を混同せず、無条件に追い回さない。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "status-combat-model",
+      "when": [
+        "combat",
+        "ranged",
+        "inventory",
+        "status"
+      ],
+      "roles": [],
+      "precondition": "攻撃/防御の予測と装備比較をするとき。",
+      "expected_effect": "レベル上昇に応じ、画面に出ない基礎攻撃力が上昇する。攻撃力には装備中の剣の強さと「ちから」、防御力には盾の強さの補正が入る。",
+      "verify_or_revise": "剣の強さだけを総攻撃力にしない。未知の内部値や計算式を作らない。現在レベル・ちから・装備値・敵の識別確度と与被ダメージを対応付け、経験から予測を更新する。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "full-hp-herbs",
+      "when": [
+        "inventory",
+        "item",
+        "status"
+      ],
+      "roles": [
+        "item"
+      ],
+      "precondition": "本来名と所持を確認した薬草/弟切草の使用を検討するとき。",
+      "expected_effect": "現在HPが最大HPと等しい状態で薬草を使用すると最大HPが1、弟切草なら2上がる。緊急回復用に保持する価値と最大HP強化の価値を比較する。",
+      "verify_or_revise": "仮名の草を薬草/弟切草と決めない。使用直前の現在HP/最大HPを確認し、使用後の最大HPを照合する。満HP時のこの効果を負傷時の使用へ流用しない。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "attack-methods-and-accuracy",
+      "when": [
+        "combat",
+        "ranged",
+        "inventory",
+        "item"
+      ],
+      "roles": [
+        "face",
+        "attack",
+        "arrow",
+        "item"
+      ],
+      "precondition": "通常攻撃・矢・投擲・杖を比較するとき。",
+      "expected_effect": "通常攻撃は敵の方向を向き、攻撃ボタンで隣接マスを攻撃する。装備中の矢は矢ボタンで所持矢を消費し現在の方向へ射撃する。矢の装備は1ターン消費するが、道具で矢を選び「うつ」なら装備ターンを経由せず射撃できる。通常攻撃・矢・「なげる」は各攻撃で1/8の確率で外れる。「ふる」による杖の遠隔攻撃は必ず命中する。",
+      "verify_or_revise": "7/8は事前の命中確率で「8回ごとの固定周期」ではない。向き・射線・所持・残数・使用回数・対象と効果を確認する。杖の命中保証は壁越しの到達や全対象への効果保証ではない。新しい命中/外れ/撃破の文章で実測を別に記録する。",
+      "sources": [
+        "user-mechanics-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "inventory-description-equipment",
+      "when": [
+        "inventory",
+        "item",
+        "status"
+      ],
+      "roles": [
+        "item",
+        "item_details"
+      ],
+      "precondition": "現在の持ち物・説明・装備状態を調べるとき。",
+      "expected_effect": "持ち物画面のNum7は選択中の品の説明枠の表示切替。ゲーム内説明テキストから効果と使い方を学ぶ。剣・盾・指輪・矢は各1つ装備可能で、装備中の品は名前の先頭に印が付く。装備コマンドは1ターン消費する。状況に応じ有利な装備へ切り替える。 装備品は所持しているだけでは装備効果がない。装備する操作を完了し、装備中の印やステータスを確認して初めて現在の装備として扱う。",
+      "verify_or_revise": "実入力は現在キー割当を使う。通常場面のNum7長押しマップ表示とは別の作用。説明は現在カーソルの品と関連付け、仮名と本来名、所持と装備を分ける。印の見た目を勝手に決めず、装備前後の表示/能力とターン消費を確認する。 拾得・所持・一覧での選択・装備中を別の状態として保持する。装備状態が不明なら効果が出ていると計算しない。",
+      "sources": [
+        "user-mechanics-20261026",
+        "user-inventory-flow-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "priority-and-purposeful-diagonal",
+      "when": [
+        "explore",
+        "combat",
+        "ranged",
+        "inventory",
+        "item"
+      ],
+      "roles": [
+        "move",
+        "item"
+      ],
+      "precondition": "通常の行動候補を比較するとき。",
+      "expected_effect": "おおむね1見えている敵に対処、2見えている品を取得、3未確認を探索、4ステータス/所持品を確認して装備/使用を判断する。状態は最新観測で上書きして保持し、戦闘前の欠測や取得/装備/能力変化時など必要な場合だけ再確認する。明確な目標への経路で手数を減らせる場合はWASDの直交2キー同時入力による斜め移動を積極的に使う。",
+      "verify_or_revise": "緊急回復や重要な欠測確認は例外。確認だけを反復せず、非表示の保持値を現在HPや所持の証明にしない。斜めは既知床の目標経路に限定し、壁の角や未知領域を通れると決めない。目的なしに斜めを試さない。",
+      "sources": [
+        "user-priority-diagonal-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "eight-way-and-first-strike",
+      "when": [
+        "combat",
+        "ranged"
+      ],
+      "roles": [
+        "face",
+        "move",
+        "attack",
+        "step",
+        "item"
+      ],
+      "precondition": "現在のダンジョン地図で敵が見える。隣接と間に1マスある距離2を区別する。",
+      "expected_effect": "通常攻撃は縦横と斜めを含む8方向の隣接マス（相対座標の最大絶対値が1）に届く。斜めの敵でもその方向を向いてNum1で攻撃でき、縦横に並ぶための移動は不要。右上はNum5+W+D、左上はNum5+W+A、右下はNum5+S+D、左下はNum5+S+Aで移動せず向き直す。その後Num1で攻撃し新しい戦闘メッセージを確認する。間に1マス空いた距離2の敵に自分から近づくと、敵は移動をせずその手番に攻撃できる。通常速度で接近する近接敵ならNum6の足踏みで1ターンを渡して敵に隣接まで移動させ、次の自分の手番で先に攻撃する候補を比較する。",
+      "verify_or_revise": "接近待ちは無入力ではなくNum6を1回入力する。遠隔・倍速・不動・複数敵・低HP・地形等では成立/安全を仮定せず、回復・退避・遠隔攻撃・道具を比較。1回ごとに現在の敵位置とHPを読み直し、動かない敵に同じ足踏みを繰り返さない。方向転換が成功したことや命中、敵の個体・種別、壁越しの攻撃可否は推測で確定しない。",
+      "sources": [
+        "user-eight-way-combat-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "inventory-selection-command-flow",
+      "when": [
+        "inventory",
+        "item",
+        "status"
+      ],
+      "roles": [
+        "menu",
+        "move",
+        "confirm",
+        "cancel"
+      ],
+      "precondition": "所持品を確認したい、または所持品を使用・装備したい。",
+      "expected_effect": "Num0でメニューを開き、道具へカーソルを合わせNum1で決定して所持品一覧を開く。その一覧では上下（現在キーW/S）で表示中のアイテムを選択し、左右（現在キーA/D）でページを切り替えて所持品を確認する。左右は同じページ内のアイテム選択ではない。所持上限は20個で、左右入力で上限を増やす意味ではない。使いたいアイテムへカーソルを合わせNum1で決定すると、左側にその品をどう使うか選ぶ選択肢が出る。現在表示された使用方法にカーソルを合わせてNum1で決定する。品を選んだだけでは使用/装備完了ではない。",
+      "verify_or_revise": "現在のカーソル・表示中の品・使用方法を各入力後に確認する。見えていないページの品や、まだ見ていない使用方法を作らない。各ページの件数や左右操作後の配置を固定で推測せず、表示内容の変化で確認する。読み終えた表示への循環で確認を反復しない。取消やメニュー終了を使用成功にしない。 アイテム選択は上下だけで行い、文字の横ずれを左右への移動理由にしない。ページ切替後は表示された品と現在カーソルを読み直す。",
+      "sources": [
+        "user-inventory-flow-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "natural-recovery-before-consumables",
+      "when": [
+        "low_hp",
+        "explore",
+        "combat",
+        "ranged",
+        "inventory"
+      ],
+      "roles": [
+        "step",
+        "item",
+        "move"
+      ],
+      "precondition": "HPが減っており回復方法を選ぶ。現在の周囲の敵と満腹度を確認する。",
+      "expected_effect": "HP回復には薬草か弟切草を使える。現在の観測で周囲に敵がなく満腹度に余裕がある状況では、HP回復目的のために直ちに薬草/弟切草を消費せず、複数回の足踏みによる自然回復を優先して回復品を温存する。現在キーはNum6で足踏みする。無入力の実時間待機はゲーム内の手番を進める足踏みとは異なる。",
+      "verify_or_revise": "足踏みは1入力ごとにHP・敵の出現/接近・満腹度を再観測する。満HPならHP回復目的の足踏みを終了する。敵が周囲にいる、空腹、HP低下、回復が観測できない時は薬草/弟切草・退避・他の方法を比較する。自然回復の必要手数や回復量を固定ルールとして捏造しない。満HPで草を使い最大HPを上げる別目的とは区別する。",
+      "sources": [
+        "user-natural-recovery-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "rest-turn-hunger-budget",
+      "when": [
+        "low_hp",
+        "explore",
+        "combat",
+        "ranged",
+        "inventory"
+      ],
+      "roles": [
+        "step",
+        "move",
+        "item"
+      ],
+      "precondition": "自然回復や休息する場所・手数、食料の余裕を検討する。",
+      "expected_effect": "足踏みでもゲーム内ターンが進み、敵も行動する。敵に発見されていなければ敵は直接こちらへ向かわないが、偶然近づいてくる可能性がある。複数の敵に囲まれる不幸な遭遇を減らすため、休息場所には通路など接近方向を絞れる場所を候補にする。通常の満腹度消費は基本10ターンで1ポイント。皮の盾を実際に装備すると消費が半分になり、通常条件なら約20ターンで1ポイントとなる。所持だけでは適用しない。足踏み回復は満腹度をHPへ交換する行動として、残りの食料と次の目的までの余裕を比較する。",
+      "verify_or_revise": "敵が見えないことから未発見/非追跡と断定しない。通路の近くにいる敵、退路、遠隔/倍速などの可能性を現在の観測から再確認する。10ターンはゲーム内の基本値で、ツールの入力回数・実時間・メニュー/向き変更と混同しない。皮の盾の装備状態が不明なら半減を計算しない。実測の満腹度変動が異なれば条件を見直す。",
+      "sources": [
+        "user-hunger-rest-food-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "bread-and-strength-recovery",
+      "when": [
+        "hungry",
+        "low_hp",
+        "inventory",
+        "item",
+        "status",
+        "combat"
+      ],
+      "roles": [
+        "item",
+        "menu",
+        "confirm"
+      ],
+      "precondition": "食料または低下したちからの回復手段を検討する。",
+      "expected_effect": "パンは満腹度を50ポイント、大きなパンは100ポイント回復する。現在の満腹度と回復量から消費する品を比較し、回復量を無駄にしない時機を考える。くさったパンは満腹度を増やす一方、現在のちからが1ポイント減る。食料の必要性と戦闘能力への不利益を比較して使い、通常のパンと同じ副作用なしの品として扱わない。毒けし草は減った現在のちからを、その時点の最大値まで回復する。毒けし草をHPや満腹度を最大にする品と解釈しない。",
+      "verify_or_revise": "効果は利用者提供の対象環境の知識として保存し、現在の品名・所持数・説明・使用前後の能力値で確認する。パンの回復量は満腹度の絶対ポイントで、残り満腹度に対する割合計算にしない。くさったパンの満腹度回復量や未提示の副作用、ちから最大値の上昇は推測しない。",
+      "sources": [
+        "user-hunger-rest-food-20261026"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "item-strategy-floor-value",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "combat"
+      ],
+      "roles": [
+        "move",
+        "item",
+        "menu",
+        "confirm"
+      ],
+      "precondition": "ダンジョン内で探索・品の取得や使用を計画する。",
+      "expected_effect": "床の踏破回数は判断に用いない。観測した床と接続を経路に使い、未確認の方向と調査結果から探索先を選ぶ。品の取得と用途・使用タイミングの学習を未処理先端より優先。取得や使用に関わる敵の脅威があれば対処や逃走を先に比較し、遠い敵を機械的に追わない。 敵の撃破は経験値・レベルによる能力強化と脅威削減に必要。品・遠距離攻撃・通路や角の地形で複数敵との同時対峙を減らし、有利に戦う。回避だけを目標にしない。",
+      "verify_or_revise": "説明・装備前後・使用前後の観測と文章を品に紐付け、有用な条件を学ぶ。取得・装備・効果は実測で確認し、無意味な消費や確認反復はしない。未知の遠隔脅威を安全と断定しない。 撃破・経験値・レベルの変化も分けて観測する。",
+      "sources": [
+        "user-item-strategy-20261027"
+      ],
+      "applicability": "user_environment"
+    },
+    {
+      "id": "equipment-observed-comparison",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "status",
+        "combat"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "装備済みでも複数の剣・盾を持つ、装備品を取得する、能力や敵・空腹などの状況が変わる。",
+      "expected_effect": "積極的に装備を比較し、主メニューの能力値を再取得して差を記録する。特殊効果も含め状況に有効な装備を選ぶ。不要と判断した品は所持枠確保のため置く候補にする。 一覧と説明の既知情報、現在の表示強さ・補正値、交換後の実測を比較し、より強い通常装備や現在に有効な特殊効果の装備へ交換する。",
+      "verify_or_revise": "現在の選択行とコマンド名を照合。所持だけで装備済みとせず、装備効果は現在の値で確認する。欠測を0や変化なしとしない。目的品や有用な予備品を根拠なく捨てない。 同じ品の説明の再確認や装備の往復を繰り返さない。数値の優劣と特殊効果の価値を区別し、未知の数値や効果は未確定として扱う。",
+      "sources": [
+        "user-equipment-comparison-20261027"
+      ],
+      "applicability": "user_environment"
+    }
+  ]
+}
