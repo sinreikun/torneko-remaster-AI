@@ -28,6 +28,10 @@ jobs:
         run: |
           $zig = python -c "import pathlib,ziglang; print(pathlib.Path(ziglang.__file__).parent/'zig.exe')"
           python tools/build_exe.py --zig $zig
+          python -m tools.publish_update
+      - name: Update cache and offline fallback tests
+        shell: powershell
+        run: ./tools/test_updater.ps1
       - name: Python and distribution tests
         run: python tools/test.py
       - name: Native exe launch and payload self-test

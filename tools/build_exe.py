@@ -20,7 +20,8 @@ def generate():
     (build/'bootstrap.ps1').write_bytes(ps)
     def c_array(name,data):
         return 'static const unsigned char '+name+'[]={\n'+',\n'.join(','.join(str(b) for b in data[i:i+24]) for i in range(0,len(data),24))+'\n};\n'
-    (build/'payload.h').write_text(c_array('bootstrap_ps1',ps)+c_array('application_zip',app),encoding='ascii')
+    updater=b'\xef\xbb\xbf'+(root/'launcher/updater.ps1').read_text(encoding='utf-8-sig').encode('utf-8')
+    (build/'payload.h').write_text(c_array('bootstrap_ps1',updater),encoding='ascii')
     return build
 
 def main():

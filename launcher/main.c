@@ -32,19 +32,19 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR args,int show) 
         if(!self_test) MessageBoxW(NULL,L"Local Game Pilot is already running.",L"Local Game Pilot",MB_OK|MB_ICONINFORMATION);
         if(mutex) CloseHandle(mutex);return 1;
     }
-    wchar_t temp[MAX_PATH],dir[MAX_PATH],script[MAX_PATH],zip[MAX_PATH],log[MAX_PATH];
+    wchar_t temp[MAX_PATH],dir[MAX_PATH],script[MAX_PATH],log[MAX_PATH];
     wchar_t system[MAX_PATH],powershell[MAX_PATH],command[MAX_PATH*8];
-    wchar_t quoted_script[MAX_PATH*2],quoted_zip[MAX_PATH*2];
+    wchar_t quoted_script[MAX_PATH*2];
     int result=1;
     if(!GetTempPathW(MAX_PATH,temp) || !GetTempFileNameW(temp,L"gpk",0,dir)) goto failed;
     if(!DeleteFileW(dir) || !CreateDirectoryW(dir,NULL)) goto failed;
-    if(swprintf(script,MAX_PATH,L"%ls\\bootstrap.ps1",dir)<0 || swprintf(zip,MAX_PATH,L"%ls\\application.zip",dir)<0 || swprintf(log,MAX_PATH,L"%ls\\bootstrap.log",dir)<0) goto failed;
-    if(!write_file(script,bootstrap_ps1,(DWORD)sizeof(bootstrap_ps1)) || !write_file(zip,application_zip,(DWORD)sizeof(application_zip))) goto failed;
+    if(swprintf(script,MAX_PATH,L"%ls\\bootstrap.ps1",dir)<0 || swprintf(log,MAX_PATH,L"%ls\\bootstrap.log",dir)<0) goto failed;
+    if(!write_file(script,bootstrap_ps1,(DWORD)sizeof(bootstrap_ps1))) goto failed;
     if(!GetSystemDirectoryW(system,MAX_PATH)) goto failed;
     if(swprintf(powershell,MAX_PATH,L"%ls\\WindowsPowerShell\\v1.0\\powershell.exe",system)<0) goto failed;
-    if(!ps_quote(script,quoted_script,MAX_PATH*2) || !ps_quote(zip,quoted_zip,MAX_PATH*2)) goto failed;
+    if(!ps_quote(script,quoted_script,MAX_PATH*2)) goto failed;
     /* Command mode runs our embedded UI without requiring a machine-wide script policy change. */
-    if(swprintf(command,MAX_PATH*8,L"\"%ls\" -NoLogo -NoProfile -NonInteractive -STA -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('%ls'))) -Payload '%ls' %ls\"",powershell,quoted_script,quoted_zip,self_test?L"-SelfTest":L"")<0) goto failed;
+    if(swprintf(command,MAX_PATH*8,L"\"%ls\" -NoLogo -NoProfile -NonInteractive -STA -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('%ls'))) %ls\"",powershell,quoted_script,self_test?L"-SelfTest":L"")<0) goto failed;
     STARTUPINFOW startup={0}; PROCESS_INFORMATION process={0};
     startup.cb=sizeof(startup);
     SECURITY_ATTRIBUTES security={sizeof(security),NULL,TRUE};
@@ -65,7 +65,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR args,int show) 
         swprintf(message,MAX_PATH*2,L"Setup could not start or finish. Details:\n%ls\n\nWindows PowerShell 5.1 and Windows 10/11 x64 are required. Organization execution policies are respected.",log);
         if(!self_test) MessageBoxW(NULL,message,L"Local Game Pilot",MB_OK|MB_ICONERROR);
     } else { DeleteFileW(log);result=0; }
-    DeleteFileW(script);DeleteFileW(zip);
+    DeleteFileW(script);
     if(!result) RemoveDirectoryW(dir);
     ReleaseMutex(mutex);CloseHandle(mutex);
     return result;

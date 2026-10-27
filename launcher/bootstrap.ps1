@@ -17,7 +17,7 @@ if ($IntegrationTest -or $DownloadSelfTest) {
     $BaseDir = [IO.Path]::GetFullPath($TestBaseDir)
 }
 $payloadHash = (Get-FileHash -LiteralPath $Payload -Algorithm SHA256).Hash.Substring(0,12)
-$AppDir = Join-Path $BaseDir ('app-0.23.0-' + $payloadHash)
+$AppDir = Join-Path $BaseDir ('app-'  + $payloadHash)
 
 # This block runs in a dedicated runspace. UI updates are polled on the UI thread.
 $InstallWorker = {
