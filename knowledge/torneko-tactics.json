@@ -156,6 +156,14 @@
       "sha256": "bc7de23e4b920846f9864142f9b188116df158d6f461db4413212c164bd53e4a",
       "evidence_branch": "evidence/research-40493514238",
       "evidence_file": "research-evidence/28.json"
+    },
+    {
+      "id": "user-strength-seed-priority-20261027",
+      "url": "knowledge/SOURCES.md#ちからの種と毒消し草",
+      "title": "利用者提供：ちから最大時の種優先と毒消し草による事前回復",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
     }
   ],
   "rules": [
@@ -1288,6 +1296,28 @@
     "item_details": "持ち物画面では選択中の品の説明枠を切り替える。通常場面の同じキーのマップ表示とは区別し、現在画面での1回の入力結果を確認する。"
   },
   "foundations": [
+    {
+      "id": "strength-seed-priority",
+      "when": [
+        "explore",
+        "inventory",
+        "item",
+        "status",
+        "combat"
+      ],
+      "roles": [
+        "menu",
+        "item",
+        "confirm"
+      ],
+      "precondition": "ちからの種を所持し、現在のちからと最大値を確認できる。",
+      "expected_effect": "ちからの現在値が最大値と同じなら、ちからの種の使用を最優先する。最大でなければ先に毒消し草（毒けし草）で現在値を最大へ戻し、再確認してから種を使用する。",
+      "verify_or_revise": "毒きのこ等の敵の攻撃やくさったパンで現在のちからが低下する。現在値と最大値を混同しない。毒消し草がなければ種を保留し、回復したと仮定しない。品の現在行と飲むを照合し、使用後の値と所持数で効果を確認。確認や使用失敗の反復を避ける。",
+      "sources": [
+        "user-strength-seed-priority-20261027"
+      ],
+      "applicability": "user_environment"
+    },
     {
       "id": "ring-identification-curses",
       "when": [

@@ -9,6 +9,8 @@ class OperationalControl:
         self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None;self.healing_trials={};self.healing_unsafe={};self.inventory_review=None;self.review_pending=None;self.item_action_request=None
         from .inventory_audit import InventoryAudit
         self.inventory_audit=InventoryAudit()
+        from .strength_growth import StrengthGrowth
+        self.strength_growth=StrengthGrowth()
         self.menu_followup=None
         from .equipment_preparation import EquipmentPreparation
         self.equipment_preparation=EquipmentPreparation()
@@ -91,6 +93,13 @@ class OperationalControl:
         if recovery_blocked and kind=='main_menu' and compact_text(quote)=='道具' and plan['skill']!='inspect_inventory':hint_current=False
         current_interface=bool(kind or ledger.current.get('interface'))
         if current_interface or hint_current and role!='none' and not state.get('eligible'):
+            retained=state.get('retained_state',{})
+            selected_rows=native.get('_current_inventory_rows') or (retained.get('last_observed_inventory') or {}).get('rows',[])
+            seed_selected=any(r.get('selected') and r.get('display_name')=='ちからの種' for r in selected_rows) or (self.menu_followup or {}).get('item_quote')=='ちからの種'
+            strength=state.get('metrics',{}).get('strength',{})
+            values=strength.get('values')
+            if kind=='item_actions' and seed_selected and (not values or len(values)!=2 or values[0]!=values[1] or strength.get('retained')) and cancel:
+                return self._decision(base,[cancel],'strength_seed_requires_status','種を消費する前に現在のちからを確認する。低下中は毒消し草で戻してから使い、未確認の最大値を仮定しない。')
             if kind in ('inventory','item_actions') and skill=='recover':
                 self.equipment_preparation.active=None
                 target=self._recovery_item(native,state,kind,current)
@@ -310,14 +319,18 @@ class OperationalControl:
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
                 if not ledger.current.get('interface') and not self.recovery_policy.allows_move(state,decision.keys,self.effects.bindings):return
-                priority=88 if source=='recovery_retreat' else 100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=105 if source=='strength_growth' else 88 if source=='recovery_retreat' else 100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
             complete=replace(base,status='complete',keys=[],goal_evidence=[quote],goal_success=quote,subgoal='現在の帰還/達成表示を独立に検証する')
             operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':'verify_goal','selected_source':'completion_check','expected_signal':'interface_change','scope':ledger.current['scope'],'candidates':[],'experiment':None}
             return complete,{'source':'operational_completion_check'},None,{},operation
-        interface=self.interface(base,native,state,plan,ledger,blocked)
+        growth=self.strength_growth.choose(self,base,native,state,ledger.current,blocked) if is_torneko(self.cfg.window_title) else None
+        interface=None if growth else self.interface(base,native,state,plan,ledger,blocked)
+        if growth:
+            self.review_pending=None
+            offer(growth,'strength_growth','inspect_inventory',10.)
         if interface:offer(interface,'interface','interface',10.)
         context=exterior.context
         current=ledger.current
@@ -460,6 +473,7 @@ class OperationalControl:
         self.last_selection=operation
         return d,pc,combat_trial,prediction_context,operation
     def feedback(self,row):
+        self.strength_growth.feedback(row)
         if row.get('policy_state') and row.get('policy_after'):self.recovery_policy.observe_result(row,next((k for k,v in self.effects.bindings.items() if '足踏み' in v),None))
         if self.equipment_preparation.active:self.equipment_preparation.feedback(row,self._key('confirm'))
         e=(row.get('action_effect_learning') or {}).get('effects',{});op=row.get('operation',{})
