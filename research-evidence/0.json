@@ -1,0 +1,21 @@
+{
+  "url": "https://www.google.com/search?q=%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA%201%20%E6%8C%87%E8%BC%AA%20%E8%AD%98%E5%88%A5%20%E5%91%AA%E3%81%84",
+  "status": 200,
+  "final_url": "https://www.google.com/search?q=%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA%201%20%E6%8C%87%E8%BC%AA%20%E8%AD%98%E5%88%A5%20%E5%91%AA%E3%81%84",
+  "sha256": "4ae0e6eb2b7ce534f535c7130195b68e4ea7f4d511a36902f7e04e5145154a6f",
+  "text": " Google Search Please click here if you are not redirected within a few seconds. If you're having trouble accessing Google Search, please click here , or send feedback . ",
+  "links": [
+    {
+      "url": "https://www.google.com/httpservice/retry/enablejs?sei=g4Xgao3cLaGEwbkPiqvS0AQ",
+      "label": "here"
+    },
+    {
+      "url": "https://www.google.com/search?q=%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA+1+%E6%8C%87%E8%BC%AA+%E8%AD%98%E5%88%A5+%E5%91%AA%E3%81%84&sca_esv=9366922e221b021a&sxsrf=APpeQnsCUu7dLRE96Xq6L4IW9TULdAVJtw:1793099139755&emsg=SG_REL&sei=g4Xgao3cLaGEwbkPiqvS0AQ",
+      "label": "click here"
+    },
+    {
+      "url": "https://support.google.com/websearch",
+      "label": "feedback"
+    }
+  ]
+}
