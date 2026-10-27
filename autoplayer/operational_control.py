@@ -12,6 +12,8 @@ class OperationalControl:
         from .strength_growth import StrengthGrowth
         self.strength_growth=StrengthGrowth()
         self.menu_followup=None
+        from .identification import Identification
+        self.identification=Identification()
         from .equipment_preparation import EquipmentPreparation
         self.equipment_preparation=EquipmentPreparation()
         from .recovery_policy import RecoveryPolicy
@@ -216,7 +218,7 @@ class OperationalControl:
 
     def execution_context(self):
         request=self.item_action_request or {};item=self.item_context or {};review=self.inventory_review or {}
-        return {'recovery_active':self.recovery_request is not None,'recovery_checks':copy.deepcopy(self.recovery_policy.checks),
+        return {'identification':copy.deepcopy(self.identification.last),'recovery_active':self.recovery_request is not None,'recovery_checks':copy.deepcopy(self.recovery_policy.checks),
           'equipment_opportunities':[{'display_name':x['target_row']['display_name'],'slot':x['slot'],'candidate_base':x['base'],'last_observed_ability':x['before'],'status':x['status'],'individual_details_unconfirmed':x['individual_details_unconfirmed']} for x in list(self.equipment_preparation.opportunities.values())[:4]],
           'equipment_preparation':{k:copy.deepcopy(v) for k,v in (self.equipment_preparation.active or {}).items() if k in ('quote','slot','phase','until')},
           'item_action':{k:request[k] for k in ('kind','action','until') if k in request},
@@ -324,7 +326,7 @@ class OperationalControl:
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
                 if not ledger.current.get('interface') and not self.recovery_policy.allows_move(state,decision.keys,self.effects.bindings):return
-                priority=105 if source=='strength_growth' else 88 if source=='recovery_retreat' else 100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 78 if source=='equipment_upgrade_pending' else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=105 if source=='strength_growth' else 100 if source=='identification' else 88 if source=='recovery_retreat' else 100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 78 if source=='equipment_upgrade_pending' else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
@@ -332,7 +334,11 @@ class OperationalControl:
             operation={'authority':'operational_control','plan_id':plan['id'],'objective':plan['objective'],'skill':'verify_goal','selected_source':'completion_check','expected_signal':'interface_change','scope':ledger.current['scope'],'candidates':[],'experiment':None}
             return complete,{'source':'operational_completion_check'},None,{},operation
         growth=self.strength_growth.choose(self,base,native,state,ledger.current,blocked) if is_torneko(self.cfg.window_title) else None
-        interface=None if growth else self.interface(base,native,state,plan,ledger,blocked)
+        identification=self.identification.choose(self,base,native,state,ledger.current,blocked) if not growth and is_torneko(self.cfg.window_title) else None
+        interface=None if growth or identification else self.interface(base,native,state,plan,ledger,blocked)
+        if identification:
+            self.review_pending=None
+            offer(identification,'identification','inspect_inventory',10.)
         if growth:
             self.review_pending=None
             offer(growth,'strength_growth','inspect_inventory',10.)
@@ -481,6 +487,7 @@ class OperationalControl:
         return d,pc,combat_trial,prediction_context,operation
     def feedback(self,row):
         self.strength_growth.feedback(row)
+        self.identification.feedback(row)
         if row.get('policy_state') and row.get('policy_after'):self.recovery_policy.observe_result(row,next((k for k,v in self.effects.bindings.items() if '足踏み' in v),None))
         if self.equipment_preparation.active or (row.get('operation') or {}).get('selected_source')=='equipment_upgrade_pending':
             self.equipment_preparation.feedback(row,self._key('confirm') if self.equipment_preparation.active else None)

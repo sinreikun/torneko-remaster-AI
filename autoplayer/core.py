@@ -1085,6 +1085,7 @@ class Controller:
                 if world_observation.get('new_adventure') and self.policy:
                     if operation_control:
                         operation_control.recovery_policy.reset();operation_control.equipment_preparation.reset();operation_control.strength_growth.active=None
+                        operation_control.identification.active=None;operation_control.identification.attempted.clear()
                     from .pacing import AdaptivePacing
                     self.pacing=AdaptivePacing(self.cfg.max_wait_ms)
                     self.policy.map_sensor.reset();self.policy.routes.reset();self.world.floor_navigation.reset();self.executive.cancel('new_adventure')
