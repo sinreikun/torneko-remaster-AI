@@ -7,6 +7,21 @@ from .controls import is_torneko
 class OperationalControl:
     def __init__(self,cfg,effects,cycle=None):
         self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None;self.healing_trials={};self.healing_unsafe={};self.inventory_review=None;self.review_pending=None;self.item_action_request=None
+        from .inventory_audit import InventoryAudit
+        self.inventory_audit=InventoryAudit()
+        self.menu_followup=None
+    def prepare_inventory_audit(self,state,current,native):
+        self.inventory_audit.prepare(state,current,native,self.inventory_review)
+        follow=self.menu_followup
+        if not follow:return
+        hp=current.get('metrics',{}).get('hp',{}).get('values');food=current.get('metrics',{}).get('fullness',{}).get('values')
+        if self.recovery_request or any(max(abs(x),abs(y))<=1 for x,y in current.get('contacts',[])) or hp and hp[0]/max(1,hp[1])<.3 or food and food[0]<=15:
+            self.menu_followup=None;return
+        valid=current['step']-follow['step']<=4 and current['control_revision']==follow['control'] and current['operator_guidance'].get('revision',0)==follow['guidance'] and (not follow['floor'] or not current.get('floor') or follow['floor']==current['floor'])
+        if not valid:self.menu_followup=None;return
+        if follow.get('accepted') and current.get('interface')=='item_actions':
+            self.inventory_audit.analyse_interface(current)
+            self.inventory_audit.active['selected_item_quote']=follow['item_quote'];self.menu_followup=None
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
@@ -49,11 +64,11 @@ class OperationalControl:
         hp_values=hp.get('values');food_values=food.get('values')
         urgent=bool(hp_values and not hp.get('retained') and hp_values[0]/max(1,hp_values[1])<.3 or food_values and not food.get('retained') and food_values[0]<=15)
         if request or urgent:skill='recover'
-        if step<=self.inspection_until and skill!='recover':skill='inspect_inventory'
+        if (step<=self.inspection_until or self.inventory_audit.active and self.inventory_audit.active['stage']=='collect') and skill!='recover':skill='inspect_inventory'
         if kind!='inventory' or self.inventory_review and (self.inventory_review['control']!=current['control_revision'] or self.inventory_review['guidance']!=current['operator_guidance'].get('revision',0) or self.inventory_review.get('floor')!=current.get('floor')):self.inventory_review=None
         if self.inventory_review and step<=self.inventory_review['until'] and self.inventory_review['control']==current['control_revision'] and self.inventory_review['guidance']==current['operator_guidance'].get('revision',0) and skill!='recover':skill='inspect_inventory'
         if kind=='inventory':self.inventory_seen_step=step;self.inspection_until=-1
-        if kind=='main_menu' and skill=='inspect_inventory' and (step-self.inventory_seen_step<24 or self.last_inspection_step>=0 and self.inspection_until<step<self.last_inspection_step+24):skill='explore'
+        if kind=='main_menu' and skill=='inspect_inventory' and not self.inventory_audit.active and (step-self.inventory_seen_step<24 or self.last_inspection_step>=0 and self.inspection_until<step<self.last_inspection_step+24):skill='explore'
         # A supervisor UI hint is a single, scoped role, never a macro. Exact
         # current text and quoted premise must still agree with the request.
         role=plan.get('interface_role','none');quote=plan.get('interface_quote','')
@@ -90,7 +105,9 @@ class OperationalControl:
             if kind in ('inventory','item_actions') and request:
                 target=self._cursor_toward(native,request['action'],vertical=kind=='inventory')
                 if target:
-                    if target=='selected':self.item_action_request=None
+                    if target=='selected':
+                        if kind=='inventory':self.menu_followup={'item_quote':request['action'],'step':step,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':copy.deepcopy(current.get('floor'))}
+                        self.item_action_request=None
                     return self._decision(base,[confirm if target=='selected' else target],'requested_item_action','現在の使用方法の引用とカーソルを照合し、依頼された操作へ1段階進む。')
                 self.item_action_request=None
                 if cancel:return self._decision(base,[cancel],'unconfirmed_item_action','目的の使用方法と選択位置を照合できず、決定せず一覧へ戻る。')
@@ -122,9 +139,9 @@ class OperationalControl:
         if len(selected)!=1 or not selected[0].get('box'):return None
         step=current['step']
         if self.inventory_review is None:
-            self.inventory_review={'until':step+64,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':copy.deepcopy(current.get('floor')),'seen':set(),'attempts':{},'moves':0}
+            self.inventory_review={'until':step+(96 if self.inventory_audit.active else 64),'max_moves':80 if self.inventory_audit.active else 40,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':copy.deepcopy(current.get('floor')),'seen':set(),'attempts':{},'moves':0}
         review=self.inventory_review
-        if step>review['until'] or review['moves']>=40:return None
+        if step>review['until'] or review['moves']>=review.get('max_moves',40):return None
         def key(r):return (r['display_name'],round(r['box'][1]/8))
         for candidate in rows:
             if candidate.get('known_description',{}).get('status')=='description_text_observed':review['seen'].add(key(candidate))
@@ -136,7 +153,14 @@ class OperationalControl:
             return self._decision(base,['num7'],'inventory_description','現在選択中の品の説明表示を1回切り替え、同じ行の説明文を取得する。開閉を連打せず入力後に再観測する。')
         choices=[r for r in rows if r.get('box') and key(r) not in review['seen'] and review['attempts'].get(key(r),0)<2]
         choices.sort(key=lambda r:abs(r['box'][1]-item['box'][1]))
-        if not choices:return None
+        if not choices:
+            audit=self.inventory_audit.active
+            if audit and audit['stage']=='collect' and audit['page_pending']:
+                key_input=next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and v.startswith('右')),None)
+                if key_input:
+                    self.review_pending={'key':key_input,'token':token,'action':'page'}
+                    return self._decision(base,[key_input],'inventory_review_page','左右で次の所持品ページを1回確認し、同一ページなら未確認のまま調査を終える。')
+            return None
         direction='下' if choices[0]['box'][1]>item['box'][1] else '上'
         key_input=next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and v.startswith(direction)),None)
         if key_input:
@@ -149,6 +173,7 @@ class OperationalControl:
         return {'recovery_active':self.recovery_request is not None,
           'item_action':{k:request[k] for k in ('kind','action','until') if k in request},
           'recovery_item':{k:item[k] for k in ('name','phase','step') if k in item},
+          'inventory_audit':self.inventory_audit.context(),
           'description_review':{'active':bool(review),'until':review.get('until'),'completed_rows':len(review.get('seen',[]))},
           'rule':'有効な操作は同じ対象で続ける。危機・対象/画面/制御設定の変化・期限超過で中断する。'}
 
@@ -241,7 +266,7 @@ class OperationalControl:
         candidates=[];pc=None;combat_trial=None;prediction_context={};self.sequence+=1
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
-                priority=100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 80 if source=='combat' else 75 if source=='inventory_inspection' and (detail or {}).get('before_combat') else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
@@ -272,12 +297,12 @@ class OperationalControl:
             retained=state.get('retained_state',{});revision=retained.get('revision')
             enemies=state.get('minimap',{}).get('enemies',[])
             prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
-            wants_inventory=(plan['skill']=='inspect_inventory' or plan['skill']=='recover' and bool(hp and hp[0]<hp[1] or food and food[0]<=15)) or urgent or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
+            wants_inventory=(plan['skill']=='inspect_inventory' or plan['skill']=='recover' and bool(hp and hp[0]<hp[1] or food and food[0]<=15)) or urgent or bool(self.inventory_audit.active) or bool(retained.get('refresh_reasons')) or state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False) or state.get('floor_exploration',{}).get('goal',{}).get('needs_review',False)
             inspection_scope=(current['scope'],'food' if food and food[0]<=15 else 'health' if urgent else 'status')
             equipment_followup='equipment_status_after_change' in retained.get('refresh_reasons',[])
             item_followup=state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)
-            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(1 if equipment_followup else 4 if urgent or item_followup else 24) and (urgent or revision is None or revision!=self.inspected_revision):
-                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'before_combat':prepare_combat,'equipment_followup':equipment_followup,'tactical_inventory':bool(enemies and plan['skill']=='inspect_inventory'),'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
+            if wants_inventory and self._key('menu') and not current.get('interface') and current['step']-self.last_inspection_step>=(1 if equipment_followup else 4 if urgent or item_followup else 24) and (urgent or self.inventory_audit.active or revision is None or revision!=self.inspected_revision):
+                offer(self._decision(base,[self._key('menu')],'inventory_inspection','現在の不足情報を得るため道具・状態を一度確認する。'),'inventory_inspection','recover' if urgent else 'inspect_inventory',2.2 if urgent else 1.8,{'periodic_audit':bool(self.inventory_audit.active),'before_combat':prepare_combat,'equipment_followup':equipment_followup,'tactical_inventory':bool(enemies and plan['skill']=='inspect_inventory'),'item_followup':state.get('floor_exploration',{}).get('goal',{}).get('item_recheck_needed',False)})
             hint=state.get('map_route_hint')
             if hint and state.get('eligible') and not any(c['skill']=='combat' for c in candidates):
                 keys=hint.get('keys') or [hint.get('key')]
@@ -403,9 +428,13 @@ class OperationalControl:
         progress=route_progress or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
 
         actual=row.get('observed_keys',[]);applied=actual==op.get('selected_keys') and row.get('executed') and (row.get('input_receipt') or {}).get('os_submission')=='accepted' and row.get('turn_kind')!='aborted'
+        if self.menu_followup and not self.menu_followup.get('accepted'):
+            if applied and actual==[self._key('confirm')] and op.get('execution_stage')=='requested_item_action':self.menu_followup['accepted']=True
+            else:self.menu_followup=None
         pending=self.review_pending;self.review_pending=None
         if pending and self.inventory_review and applied and actual==[pending['key']] and op.get('selected_source')=='interface':
             review=self.inventory_review;review['moves']+=1
+            if pending['action']=='page' and self.inventory_audit.active:self.inventory_audit.active['page_submitted']=True
             if pending['action']=='description':
                 token=pending['token'];review['attempts'][token]=review['attempts'].get(token,0)+1
                 if (row.get('item_description_observation') or {}).get('status')=='description_text_observed' or review['attempts'][token]>=2:review['seen'].add(token)

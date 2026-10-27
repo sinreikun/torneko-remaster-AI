@@ -395,10 +395,26 @@ class Application:
     def connect(self):
         if self.busy():return
         title=self.vars['window_title'].get().strip()
+        cfg=self.settings()
         target=dict(self.selected_target) if self.selected_target else None
         def work():
             from .windows import WindowsGame
-            backend=self.open_target(title,target);backend.window_capture.cancel=self.stop;backend.capture();self.queue.put(('connected',(backend,title)))
+            backend=self.open_target(title,target);backend.window_capture.cancel=self.stop;image=backend.capture();self.queue.put(('connected',(backend,title)))
+            from .controls import is_torneko
+            if is_torneko(cfg.window_title):
+                memory=None
+                try:
+                    from .monitor_checkpoint import MonitorCheckpoint
+                    memory=MemoryStore(DATA/'memory.sqlite',cfg);checkpoint=MonitorCheckpoint(memory.db,memory.profile)
+                    if checkpoint.candidate:
+                        from .ocr import ScreenOCR
+                        from .knowledge import KnowledgeEngine
+                        ocr=ScreenOCR(cfg.ocr_engine);ocr.cancel=self.stop
+                        preview=checkpoint.preview(KnowledgeEngine().reconcile(ocr.read(image))['metrics'],image)
+                        if preview:self.queue.put(('decision',preview))
+                except Exception as error:self.queue.put(('status','接続済み。保存地図の事前照合は未完了: '+str(error)))
+                finally:
+                    if memory:memory.close()
         self.launch(work)
 
     @staticmethod

@@ -785,6 +785,8 @@ class Controller:
         cached_world=getattr(memory,'runtime_world',None) if memory else None
         self.world=cached_world if cached_world and cached_world.session==journal.stem else WorldModel(memory,journal.stem)
         if memory:memory.runtime_world=self.world
+        from .monitor_checkpoint import MonitorCheckpoint
+        self.monitor_checkpoint=MonitorCheckpoint(memory.db,memory.profile) if memory and is_torneko(cfg.window_title) else None
         self.completed=False; self.feedback={};self.last_observed_floor=None
         self.policy=None;self.predictions=None;self.improvement=None;self.map_visibility_attempted=False;self.combat=None;self.defeat_seen=False
         from .novelty import NoveltyExplorer
@@ -864,6 +866,8 @@ class Controller:
     def read_policy_ocr(self,image,full=False):
         ocr=getattr(self.llm,'ocr',None)
         if ocr is None:return None
+        audit=getattr(self,'inventory_audit',None)
+        if audit and audit.active and any(k not in audit.active['metrics'] for k in ('strength','sword','shield','experience')):full=True
         gate=getattr(self.policy,'floor_confirmation',None)
         # A cached OCR response is not an independent confirmation of a new floor.
         pending=bool(gate and gate.pending is not None)
@@ -987,6 +991,7 @@ class Controller:
             from .experience_cycle import ExperienceCycle
             cycle=ExperienceCycle(effects)
             operation_control=OperationalControl(self.cfg,effects,cycle)
+            self.inventory_audit=operation_control.inventory_audit
             supervisor=Supervisor(self.llm.supervise,self.control or self.stop,self.emit,review_interval=self.cfg.llm_review_interval if self.cfg.fast_learning else None)
         information_context={}
         from .fast_learning import FastLearningGate
@@ -1067,6 +1072,8 @@ class Controller:
                 if not self.policy:
                     native=self.read_policy_ocr(image)
                     policy_state={'metrics':KnowledgeEngine().reconcile(native or {'status':'unavailable'})['metrics'],'minimap':{'status':'unavailable'},'eligible':False}
+                if self.monitor_checkpoint and self.policy and not dry_run:
+                    self.monitor_checkpoint.restore(policy_state,normal_observation_image,self.policy.map_sensor,self.world.floor_navigation,self.world)
                 world_observation=self.world.observe(normal_observation_image,native,policy_state,neutral_image)
                 if world_observation.get('new_adventure') and self.policy:
                     from .pacing import AdaptivePacing
@@ -1075,6 +1082,8 @@ class Controller:
                     policy_state['minimap']=self.policy.map_sensor.accumulate(policy_state['minimap'],self.policy.floor_confirmation.floor)
                     world_observation=self.world.observe(normal_observation_image,native,policy_state,neutral_image)
                     world_observation['new_adventure']=True
+                if self.monitor_checkpoint and self.policy and not dry_run and self.monitor_checkpoint.latest is None:
+                    self.monitor_checkpoint.remember(policy_state,normal_observation_image,self.policy.map_sensor,self.world.floor_navigation,self.world)
                 if policy_state:policy_state['map_route_hint']=self.world.navigation_hint(policy_state)
                 guidance_source=getattr(self.llm,'operator_guidance',None)
                 guidance=guidance_source.snapshot() if guidance_source else {'revision':0,'text':''}
@@ -1105,13 +1114,27 @@ class Controller:
                     cycle.prepare(policy_state,self.world.latest,self.world.inventory)
                     ledger.observe(operational_native,policy_state,exterior_context,{'last_known_metrics':self.world.last_known_metrics},guidance,revision,step)
                     ledger.current['tentative_navigation']={k:mapless_context[k] for k in ('scope','pose','pose_uncertain','movement_basis','local_goal') if k in mapless_context}
-                    extra=lambda:{'active_execution':operation_control.execution_context(),'experience_cycle':cycle.context(policy_state),'human_examples':self.demonstrations.retrieve(normal_observation_image,native)[:1] if self.demonstrations else [],'last_observed_inventory':{'status':'past_observation_not_current_confirmation','observed_at':self.world.inventory.last_seen,'rows':self.world.inventory.rows[:20]},'world_knowledge':{k:v for k,v in self.world.context().items() if k in ('inventory','equipment_review','item_description_observations','item_effects','delayed_item_effects','item_value_estimates','visual_battle_experience','retained_state')},'learned_predictions':self.predictions.context(policy_state) if self.predictions else {},
+                    if is_torneko(self.cfg.window_title):operation_control.prepare_inventory_audit(policy_state,ledger.current,operational_native)
+                    audit=operation_control.inventory_audit
+                    ledger.current['inventory_audit']=audit.context()
+                    if audit.active and audit.active['stage']=='analyse':supervisor.next_review=min(supervisor.next_review,step)
+                    extra=lambda:{'inventory_audit':audit.context(),'active_execution':operation_control.execution_context(),'experience_cycle':cycle.context(policy_state),'human_examples':self.demonstrations.retrieve(normal_observation_image,native)[:1] if self.demonstrations else [],'last_observed_inventory':{'status':'past_observation_not_current_confirmation','observed_at':self.world.inventory.last_seen,'rows':self.world.inventory.rows[:20]},'world_knowledge':{k:v for k,v in self.world.context().items() if k in ('inventory','equipment_review','item_description_observations','item_effects','delayed_item_effects','item_value_estimates','visual_battle_experience','retained_state')},'learned_predictions':self.predictions.context(policy_state) if self.predictions else {},
                         'battle_experience':self.combat.experience() if self.combat else {},'action_effects':[{
                             'keys':[k],**{name:value for name,value in effects.estimate(policy_state,[k]).items() if name in ('role','samples','mean_observed_value','move_rate','no_effect_rate')}} for k in self.cfg.allowed_keys if k not in ('num3','num5','num7')],
                         'experience_review':{'retained':experience_review.context()['retained_observations'],'recent':experience_review.context()['recent_observations'][-3:]},
                         'knowledge':self.llm.game_guide.context(native,'menu' if ledger.current['interface'] else 'gameplay',{'relative_contacts':relative_contacts(policy_state)},policy_state.get('metrics',{})) if hasattr(self.llm,'game_guide') else {}}
                     needs_image=ledger.current['interface'] is not None or not policy_state.get('eligible')
                     operational_plan=supervisor.tick(ledger,extra,normal_observation_image if needs_image else None) or supervisor.bootstrap(ledger.current)
+                    if audit.awaiting_analysis(supervisor,step):
+                        # Inference consumes no game turn; fresh capture follows adoption.
+                        self.emit({'event':'status','status':'所持品・装備の用途をLLMが検討中'})
+                        while audit.awaiting_analysis(supervisor,step) and not self.stop.is_set():
+                            if self.control and (not self.control.checkpoint() or self.control.revision!=revision):
+                                audit.finish('interrupted_control',step);break
+                            self.stop.wait(.1)
+                            supervisor.tick(ledger,extra,normal_observation_image)
+                        self._write({'event':'inventory_audit','step':step,**audit.context()})
+                        continue
                 learning_review=learning_gate.evaluate(step,native,policy_state,guidance,experience_review.context(),image_available=normal_observation_image.startswith(b'\x89PNG\r\n\x1a\n')) if self.cfg.fast_learning and not dry_run and not supervisor else None
                 visual_grid=self._timed('visual_evidence_ms',visual_responses.grid,normal_observation_image) if learning_review and learning_review.get('visual_fallback') else None
                 visual_evidence=visual_responses.evidence(visual_grid,step) if visual_grid else {}
@@ -1592,12 +1615,19 @@ class Controller:
                 row['performance']['ocr_observation_ms']=round(self.ocr_observation_ms)
                 row['performance']['total_ms']=round((time.monotonic()-step_started)*1000)
                 self._write({'event':'result',**row})
+                if self.monitor_checkpoint and self.policy and not dry_run:
+                    from .interfaces import result_screen
+                    if result_screen(after_native):self.monitor_checkpoint.latest=None;self.monitor_checkpoint.candidate=None;self.monitor_checkpoint.status='result_screen_cleared'
+                    else:self.monitor_checkpoint.remember(after_state,after_image,self.policy.map_sensor,self.world.floor_navigation,self.world)
                 self.emit({'event':'result',**row})
                 if self.memory and row.get('learning') is not False: self.memory.remember(row,decision)
                 self.history.append(row); self.history=self.history[-12:]
             else: self.emit({'status':'limit','reason':'手数上限に達しました。'})
         finally:
             if supervisor:supervisor.close()
+            if self.monitor_checkpoint and not dry_run:
+                try:self.monitor_checkpoint.save()
+                except Exception as error:self._write({'event':'monitor_checkpoint_save_error','reason':str(error)})
             self.backend.release_all()
             if atlas:
                 try:atlas.close(mapless)

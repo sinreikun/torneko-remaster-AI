@@ -163,6 +163,9 @@ class Inventory:
                 self.identifications[match[1]]={'true_name':match[2],'quote':quote,'status':'identified_message_unverified_ocr'}
         for row in self.rows:
             if row['display_name'] in self.identifications:row.update(self.identifications[row['display_name']],name_status='identified_message_unverified_ocr')
+        if kind=='item_actions' and '装備' in [compact_text(t).lstrip('▶►▷>→') for t in text]:
+            for row in self.rows:
+                if row['id']==self.selected:row['equipment_affordance']={'action':'装備','source':'current_selected_item_actions_ocr','true_name_confirmed':False}
         if kind!='inventory':
             self.was_inventory=False
             return {'status':'not_visible','last_observed':self.last_seen,'complete':False,'selected_id':self.selected,'rows':[]}
@@ -202,7 +205,7 @@ class Inventory:
             selected=prefix in ('▶','►','▷','>','●') or (cursor_index is not None and line_index==cursor_index)
             row={'id':identifier,'display_name':name,'game_alias':name if re.search(r'未識別|未鑑定|仮名',raw) else None,'name_status':'game_alias_unidentified' if re.search(r'未識別|未鑑定|仮名',raw) else 'unknown','true_name':None,'quantity':quantity,
                 'equipped':True if prefix.strip()=='E' else None,'quote':raw,'selected':selected,
-                'identity_status':'matched_display_name' if old else 'new_or_ambiguous','page':page,'line_index':line_index,'box':self.line_box(line)}
+                'equipment_affordance':copy.deepcopy(old.get('equipment_affordance')) if old else None,'identity_status':'matched_display_name' if old else 'new_or_ambiguous','page':page,'line_index':line_index,'box':self.line_box(line)}
             if name in self.identifications:row.update(self.identifications[name],name_status='identified_message_unverified_ocr')
             known=self.known_description(row)
             if known:row['known_description']=known
@@ -226,6 +229,14 @@ class Inventory:
         return {'status':'observed' if rows or empty else 'unreadable_entries','rows':copy.deepcopy(rows),'page':page,
             'occupancy':occupancy,'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
             'rule':'表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。'}
+    @staticmethod
+    def equipment_evidence(row):
+        evidence=[]
+        for source,text in [('display_name',row.get('display_name','')),('description_ocr',' '.join(row.get('known_description',{}).get('quotes',[])))]:
+            if re.search(r'剣|つるぎ|盾|指輪|矢|装備|攻撃力|防御力',text):evidence.append({'source':source,'quote':text[:800]})
+        if row.get('equipment_affordance'):evidence.append(copy.deepcopy(row['equipment_affordance']))
+        return evidence
+
     def known_description(self,row):
         from .interfaces import compact_text
         name=compact_text(row.get('display_name',''))
@@ -517,4 +528,4 @@ class WorldModel:
             'floor_exploration':self.floor_navigation.context(),
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],
-            'equipment_review':{'observed_comparisons':copy.deepcopy(self.equipment_comparisons[-8:]),'verification_pending':copy.deepcopy(self.pending_equipment_check),'candidates':[{'item_id':r['id'],'display_name':r['display_name'],'equipped':r.get('equipped'),'description':r.get('known_description'),'identity_status':r.get('name_status'),'may_consider_discard_after_comparison':True} for r in self.inventory.rows if re.search(r'剣|つるぎ|盾|指輪|矢',r['display_name'])],'last_observed_abilities':{k:v for k,v in self.last_known_metrics.items() if k in ('strength','sword','shield')},'rule':'候補は現在表示名の装備種別。所持だけで装備済みとせず、装備後は能力値を再取得して比較する。特殊効果と用途を含め有効な装備を選ぶ。比較して不要と判断した品は所持枠確保のため置く候補にできるが、目的品や有用な予備品を不用と仮定しない。'},'item_description_observations':copy.deepcopy(self.inventory.description_reads[-20:]),'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}
+            'equipment_review':{'observed_comparisons':copy.deepcopy(self.equipment_comparisons[-8:]),'verification_pending':copy.deepcopy(self.pending_equipment_check),'candidates':[{'item_id':r['id'],'display_name':r['display_name'],'equipped':r.get('equipped'),'description':r.get('known_description'),'identity_status':r.get('name_status'),'type_evidence':self.inventory.equipment_evidence(r),'may_consider_discard_after_comparison':True} for r in self.inventory.rows if self.inventory.equipment_evidence(r)],'last_observed_abilities':{k:v for k,v in self.last_known_metrics.items() if k in ('strength','sword','shield')},'rule':'候補は表示名・品に結び付いた説明文・実際の装備コマンドが根拠。正体と種類を区別し、不明名でも装備可能と観測できた品を比較する。所持だけで装備済みとせず、装備後は能力値を再取得して比較する。特殊効果と用途を含め有効な装備を選ぶ。比較して不要と判断した品は所持枠確保のため置く候補にできるが、目的品や有用な予備品を不用と仮定しない。'},'item_description_observations':copy.deepcopy(self.inventory.description_reads[-20:]),'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}

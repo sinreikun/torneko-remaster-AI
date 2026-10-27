@@ -43,7 +43,7 @@ class RecognitionState:
             self.metrics={**retained,**fresh}
             self.floor_state=copy.deepcopy(state.get('floor_confirmation',{}))
             self.objects=[] if event=='result' else copy.deepcopy(world.get('objects',[]))
-            self.observed_at=time.monotonic();self.phase='観測・実行'
+            self.observed_at=time.monotonic();self.phase='保存地図候補・地図照合待ち' if event=='monitor_checkpoint_preview' else '観測・実行'
         elif world and event=='perception':
             self.map={};self.metrics={k:{'values':v} for k,v in world.get('metrics',{}).items()};self.objects=copy.deepcopy(world.get('objects',[]));self.observed_at=time.monotonic()
         evaluation=row.get('forecast_evaluation')

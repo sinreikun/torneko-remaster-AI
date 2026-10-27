@@ -138,7 +138,7 @@ class Supervisor:
                 else:
                     self.errors=0;self.last_error=None;self.adoptions+=1;self.stall=0
                     self.plan={**plan,'origin':'llm_supervisor','scope':scope,'adopted_step':step,'expires_step':step+plan['budget_turns'],
-                      'request_selection':request.get('selection_key'),'request_text_key':request['text_key'],'request_frame':request.get('frame_sha256'),'id':'plan-'+str(self.adoptions),'anchor_floor':copy.deepcopy(current.get('floor'))}
+                      'inventory_audit_id':request.get('inventory_audit_id'),'request_selection':request.get('selection_key'),'request_text_key':request['text_key'],'request_frame':request.get('frame_sha256'),'id':'plan-'+str(self.adoptions),'anchor_floor':copy.deepcopy(current.get('floor'))}
                     self.next_review=step+(self.review_interval or max(2,plan['budget_turns']//2));self.last_reason='review_adopted'
                     self.history.append({'event':'adopted','id':self.plan['id'],'step':step,'skill':plan['skill']});self.emit({'event':'supervisor_plan','plan':copy.deepcopy(self.plan)})
         if self.plan and self.plan['scope']!=scope and self.plan['skill'] in ('recover','inspect_inventory'):
@@ -159,10 +159,12 @@ class Supervisor:
         if current.get('floor_exploration',{}).get('goal',{}).get('needs_review') and step-self.last_request>=4:
             self.next_review=min(self.next_review,step);self.last_reason='floor_objective_review'
         known_fast_ui=current.get('interface') in ('choice','defeat_result','high_scores','main_menu','inventory','item_actions','carry_inventory')
-        ui_review_due=not known_fast_ui or step-self.last_request>=8
+        audit_context=current.get('inventory_audit',{})
+        audit_due=audit_context.get('active') and audit_context.get('stage')=='analyse'
+        ui_review_due=bool(audit_due) or not known_fast_ui or step-self.last_request>=8
         if not self.inflight and step>=self.next_review and ui_review_due:
             snapshot=ledger.snapshot();snapshot.update(copy.deepcopy((extra() if callable(extra) else extra) or {}));snapshot['review_feedback']={'last_error':self.last_error,'reason':self.last_reason};snapshot['active_plan']=copy.deepcopy(self.plan);snapshot['plan_performance']=copy.deepcopy(list(self.plan_stats.values())[-8:])
-            request={'scope':scope,'step':step,'text_key':current['text_key'],'selection_key':current.get('selection_key'),'frame_sha256':current.get('frame_sha256'),'cancel':threading.Event()}
+            request={'scope':scope,'step':step,'inventory_audit_id':audit_context.get('id') if audit_due else None,'text_key':current['text_key'],'selection_key':current.get('selection_key'),'frame_sha256':current.get('frame_sha256'),'cancel':threading.Event()}
             self.inflight=request;self.requests+=1;self.last_request=step
             def work():
                 started=time.monotonic()
