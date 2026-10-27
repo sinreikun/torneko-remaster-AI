@@ -1083,6 +1083,7 @@ class Controller:
                     self.monitor_checkpoint.restore(policy_state,normal_observation_image,self.policy.map_sensor,self.world.floor_navigation,self.world)
                 world_observation=self.world.observe(normal_observation_image,native,policy_state,neutral_image)
                 if world_observation.get('new_adventure') and self.policy:
+                    if operation_control:operation_control.recovery_policy.reset()
                     from .pacing import AdaptivePacing
                     self.pacing=AdaptivePacing(self.cfg.max_wait_ms)
                     self.policy.map_sensor.reset();self.policy.routes.reset();self.executive.cancel('new_adventure')
@@ -1124,6 +1125,7 @@ class Controller:
                     if is_torneko(self.cfg.window_title):operation_control.prepare_inventory_audit(policy_state,ledger.current,operational_native)
                     audit=operation_control.inventory_audit
                     ledger.current['inventory_audit']=audit.context()
+                    ledger.current['recovery_policy']=operation_control.recovery_policy.context(policy_state)
                     if audit.active and audit.active['stage']=='analyse':supervisor.next_review=min(supervisor.next_review,step)
                     extra=lambda:{'inventory_observed_now':self.world.latest.get('inventory',{}).get('status')=='observed','inventory_audit':audit.context(),'active_execution':operation_control.execution_context(),'experience_cycle':cycle.context(policy_state),'human_examples':self.demonstrations.retrieve(normal_observation_image,native)[:1] if self.demonstrations else [],'last_observed_inventory':{'status':'past_observation_not_current_confirmation','observed_at':self.world.inventory.last_seen,'rows':self.world.inventory.rows[:20]},'world_knowledge':{k:v for k,v in self.world.context().items() if k in ('inventory','equipment_review','item_description_observations','item_effects','delayed_item_effects','item_value_estimates','visual_battle_experience','retained_state')},'learned_predictions':self.predictions.context(policy_state) if self.predictions else {},
                         'battle_experience':self.combat.experience() if self.combat else {},'action_effects':[{
@@ -1203,6 +1205,7 @@ class Controller:
                     continue
                 operation={}
                 if supervisor:
+                    policy_state['recovery_policy']=operation_control.recovery_policy.context(policy_state)
                     policy_state['_operational_interface']=ledger.current.get('interface')
                     policy_state['map_route_hint']=self.world.navigation_hint(policy_state,operational_plan['navigation'],operational_plan.get('floor_objective','auto'),operational_plan['id'] if operational_plan.get('origin')=='llm_supervisor' else None,operational_plan.get('item_decisions',[]))
                     decision,policy_choice,combat_choice,prediction_context,operation=operation_control.select(decision,policy_state,operational_native,ledger,operational_plan,self.policy,self.predictions,self.combat,mapless,exterior,blocked_keys(),policy_stable,guidance)
@@ -1348,6 +1351,7 @@ class Controller:
                         cycle.prepare(policy_state,self.world.latest,self.world.inventory)
                         ledger.observe(operational_native,policy_state,exterior_context,{'last_known_metrics':self.world.last_known_metrics},guidance,revision,step)
                         operational_plan=supervisor.tick(ledger,{},image if ledger.current['interface'] else None) or supervisor.bootstrap(ledger.current)
+                        policy_state['recovery_policy']=operation_control.recovery_policy.context(policy_state)
                         policy_state['_operational_interface']=ledger.current.get('interface')
                         policy_state['map_route_hint']=self.world.navigation_hint(policy_state,operational_plan['navigation'],operational_plan.get('floor_objective','auto'),operational_plan['id'] if operational_plan.get('origin')=='llm_supervisor' else None,operational_plan.get('item_decisions',[]))
                         decision,policy_choice,combat_choice,prediction_context,operation=operation_control.select(decision,policy_state,operational_native,ledger,operational_plan,self.policy,self.predictions,self.combat,mapless,exterior,blocked_keys(),False,guidance)

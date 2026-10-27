@@ -232,6 +232,9 @@ class FloorNavigation:
             points=[self.position]
             for key in item_path[1]:points.append(self._add(points[-1],ROUTE_MOVES[key]))
             threats={e for e in self.enemies if max(abs(e[0]-self.position[0]),abs(e[1]-self.position[1]))<=2 or any(max(abs(e[0]-p[0]),abs(e[1]-p[1]))<=1 for p in points)}
+        caution=state.get('recovery_policy',{})
+        passive={tuple(p) for p in caution.get('stationary_enemy_cells',[])}
+        threats={e for e in threats if max(abs(e[0]-self.position[0]),abs(e[1]-self.position[1]))<=1 or e not in passive and not caution.get('avoid_initiating_combat')}
         enemy_goals={self._add(e,d) for e in threats for d in ROUTE_MOVES.values()}&self.known-self.enemies
         for kind,options in (('enemy',enemy_goals),('items',item_goals),('inspect_marker',self.item_tasks.goals(self.position,'unclassified_marker'))):
             if options and self._path(options) is not None:

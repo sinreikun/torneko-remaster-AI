@@ -1,0 +1,2268 @@
+{
+  "source": "Recorded OCR/metrics from diagnostics-1793077088051765200.zip, steps1-3. No game simulation.",
+  "frames": {
+    "1": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+        "captured_at": 1793077093.9139285,
+        "lines": [
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "1階",
+            "confidence": 0.9999,
+            "words": [
+              {
+                "text": "1階",
+                "box": [
+                  20.0,
+                  39.0,
+                  59.0,
+                  39.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "Lv1",
+            "confidence": 0.93596,
+            "words": [
+              {
+                "text": "Lv1",
+                "box": [
+                  189.0,
+                  42.0,
+                  73.0,
+                  34.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "HP4/15",
+            "confidence": 0.99238,
+            "words": [
+              {
+                "text": "HP4/15",
+                "box": [
+                  312.0,
+                  41.0,
+                  160.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "満腹度",
+            "confidence": 0.81654,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  618.0,
+                  38.0,
+                  95.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "99%",
+            "confidence": 0.97971,
+            "words": [
+              {
+                "text": "99%",
+                "box": [
+                  734.0,
+                  40.0,
+                  79.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "OＧ",
+            "confidence": 0.51275,
+            "words": [
+              {
+                "text": "OＧ",
+                "box": [
+                  1161.0,
+                  41.0,
+                  59.0,
+                  34.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "道具",
+            "confidence": 0.99988,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  96.0,
+                  140.0,
+                  90.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "マップ",
+            "confidence": 1.0,
+            "words": [
+              {
+                "text": "マップ",
+                "box": [
+                  255.0,
+                  142.0,
+                  90.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "不思議のダンジョン",
+            "confidence": 0.99903,
+            "words": [
+              {
+                "text": "不思議のダンジョン",
+                "box": [
+                  392.0,
+                  144.0,
+                  259.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "足元",
+            "confidence": 0.99938,
+            "words": [
+              {
+                "text": "足元",
+                "box": [
+                  121.0,
+                  193.0,
+                  65.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "その他",
+            "confidence": 0.99999,
+            "words": [
+              {
+                "text": "その他",
+                "box": [
+                  254.0,
+                  191.0,
+                  92.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "ン",
+            "confidence": 0.59017,
+            "words": [
+              {
+                "text": "ン",
+                "box": [
+                  488.0,
+                  392.0,
+                  94.0,
+                  96.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "最深階",
+            "confidence": 0.99994,
+            "words": [
+              {
+                "text": "最深階",
+                "box": [
+                  231.0,
+                  540.0,
+                  96.0,
+                  39.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "25",
+            "confidence": 0.99991,
+            "words": [
+              {
+                "text": "25",
+                "box": [
+                  510.0,
+                  542.0,
+                  49.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "満腹度",
+            "confidence": 0.99982,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  663.0,
+                  541.0,
+                  93.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "99%",
+            "confidence": 0.95037,
+            "words": [
+              {
+                "text": "99%",
+                "box": [
+                  969.0,
+                  542.0,
+                  80.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "剣の強さ",
+            "confidence": 0.99998,
+            "words": [
+              {
+                "text": "剣の強さ",
+                "box": [
+                  231.0,
+                  579.0,
+                  123.0,
+                  41.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "0",
+            "confidence": 0.75648,
+            "words": [
+              {
+                "text": "0",
+                "box": [
+                  531.0,
+                  576.0,
+                  27.0,
+                  42.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "ちから",
+            "confidence": 0.99999,
+            "words": [
+              {
+                "text": "ちから",
+                "box": [
+                  666.0,
+                  582.0,
+                  89.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "8/8",
+            "confidence": 0.95562,
+            "words": [
+              {
+                "text": "8/8",
+                "box": [
+                  965.0,
+                  583.0,
+                  83.0,
+                  33.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "盾の強さ",
+            "confidence": 0.99999,
+            "words": [
+              {
+                "text": "盾の強さ",
+                "box": [
+                  233.0,
+                  623.0,
+                  119.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "0",
+            "confidence": 0.9954,
+            "words": [
+              {
+                "text": "0",
+                "box": [
+                  535.0,
+                  625.0,
+                  22.0,
+                  26.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "経験値",
+            "confidence": 0.9494,
+            "words": [
+              {
+                "text": "経験値",
+                "box": [
+                  665.0,
+                  623.0,
+                  90.0,
+                  33.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077094.977273,
+            "text": "0",
+            "confidence": 0.94673,
+            "words": [
+              {
+                "text": "0",
+                "box": [
+                  1024.0,
+                  630.0,
+                  16.0,
+                  19.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 0,
+          "misses": 24
+        }
+      },
+      "state": {
+        "metrics": {
+          "hp": {
+            "values": [
+              4,
+              15
+            ],
+            "quote": "HP4/15",
+            "unverified_ocr": true,
+            "meaning": "HP（現在値/最大値）"
+          },
+          "level": {
+            "values": [
+              1
+            ],
+            "quote": "Lv1",
+            "unverified_ocr": true,
+            "meaning": "現在のレベル"
+          },
+          "floor": {
+            "values": [
+              1
+            ],
+            "quote": "1階",
+            "unverified_ocr": true,
+            "meaning": "現在の階（最深階ではない）"
+          },
+          "fullness": {
+            "values": [
+              99
+            ],
+            "quote": "満腹度 / 99%",
+            "evidence_quotes": [
+              "満腹度",
+              "99%"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+            "label_box": [
+              618.0,
+              38.0,
+              95.0,
+              40.0
+            ],
+            "value_box": [
+              734.0,
+              40.0,
+              79.0,
+              36.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "満腹度（%）"
+          },
+          "max_floor": {
+            "values": [
+              25
+            ],
+            "quote": "最深階 / 25",
+            "evidence_quotes": [
+              "最深階",
+              "25"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+            "label_box": [
+              231.0,
+              540.0,
+              96.0,
+              39.0
+            ],
+            "value_box": [
+              510.0,
+              542.0,
+              49.0,
+              36.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "記録上の最深階（現在の階ではない）"
+          },
+          "sword": {
+            "values": [
+              0
+            ],
+            "quote": "剣の強さ / 0",
+            "evidence_quotes": [
+              "剣の強さ",
+              "0"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+            "label_box": [
+              231.0,
+              579.0,
+              123.0,
+              41.0
+            ],
+            "value_box": [
+              531.0,
+              576.0,
+              27.0,
+              42.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "剣の強さ"
+          },
+          "strength": {
+            "values": [
+              8,
+              8
+            ],
+            "quote": "ちから / 8/8",
+            "evidence_quotes": [
+              "ちから",
+              "8/8"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+            "label_box": [
+              666.0,
+              582.0,
+              89.0,
+              36.0
+            ],
+            "value_box": [
+              965.0,
+              583.0,
+              83.0,
+              33.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "ちから（現在値/最大値）"
+          },
+          "shield": {
+            "values": [
+              0
+            ],
+            "quote": "盾の強さ / 0",
+            "evidence_quotes": [
+              "盾の強さ",
+              "0"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+            "label_box": [
+              233.0,
+              623.0,
+              119.0,
+              35.0
+            ],
+            "value_box": [
+              535.0,
+              625.0,
+              22.0,
+              26.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "盾の強さ"
+          },
+          "experience": {
+            "values": [
+              0
+            ],
+            "quote": "経験値 / 0",
+            "evidence_quotes": [
+              "経験値",
+              "0"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+            "label_box": [
+              665.0,
+              623.0,
+              90.0,
+              33.0
+            ],
+            "value_box": [
+              1024.0,
+              630.0,
+              16.0,
+              19.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "経験値（レベルとは別）"
+          }
+        },
+        "retained_state": {
+          "revision": 0,
+          "refresh_reasons": [],
+          "last_observed_metrics": {
+            "hp": {
+              "values": [
+                4,
+                15
+              ],
+              "quote": "HP4/15",
+              "unverified_ocr": true,
+              "meaning": "HP（現在値/最大値）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "level": {
+              "values": [
+                1
+              ],
+              "quote": "Lv1",
+              "unverified_ocr": true,
+              "meaning": "現在のレベル",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "floor": {
+              "values": [
+                1
+              ],
+              "quote": "1階",
+              "unverified_ocr": true,
+              "meaning": "現在の階（最深階ではない）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "fullness": {
+              "values": [
+                99
+              ],
+              "quote": "満腹度 / 99%",
+              "evidence_quotes": [
+                "満腹度",
+                "99%"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                618.0,
+                38.0,
+                95.0,
+                40.0
+              ],
+              "value_box": [
+                734.0,
+                40.0,
+                79.0,
+                36.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "満腹度（%）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "max_floor": {
+              "values": [
+                25
+              ],
+              "quote": "最深階 / 25",
+              "evidence_quotes": [
+                "最深階",
+                "25"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                231.0,
+                540.0,
+                96.0,
+                39.0
+              ],
+              "value_box": [
+                510.0,
+                542.0,
+                49.0,
+                36.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "記録上の最深階（現在の階ではない）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "sword": {
+              "values": [
+                0
+              ],
+              "quote": "剣の強さ / 0",
+              "evidence_quotes": [
+                "剣の強さ",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                231.0,
+                579.0,
+                123.0,
+                41.0
+              ],
+              "value_box": [
+                531.0,
+                576.0,
+                27.0,
+                42.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "剣の強さ",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "strength": {
+              "values": [
+                8,
+                8
+              ],
+              "quote": "ちから / 8/8",
+              "evidence_quotes": [
+                "ちから",
+                "8/8"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                666.0,
+                582.0,
+                89.0,
+                36.0
+              ],
+              "value_box": [
+                965.0,
+                583.0,
+                83.0,
+                33.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "ちから（現在値/最大値）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "shield": {
+              "values": [
+                0
+              ],
+              "quote": "盾の強さ / 0",
+              "evidence_quotes": [
+                "盾の強さ",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                233.0,
+                623.0,
+                119.0,
+                35.0
+              ],
+              "value_box": [
+                535.0,
+                625.0,
+                22.0,
+                26.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "盾の強さ",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "experience": {
+              "values": [
+                0
+              ],
+              "quote": "経験値 / 0",
+              "evidence_quotes": [
+                "経験値",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                665.0,
+                623.0,
+                90.0,
+                33.0
+              ],
+              "value_box": [
+                1024.0,
+                630.0,
+                16.0,
+                19.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "経験値（レベルとは別）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            }
+          },
+          "last_observed_inventory": null,
+          "inventory_token": null,
+          "before_combat_check_needed": false,
+          "rule": "現在画面で読めた値を優先して上書き。非表示の保持値は最終観測であり現在のHP/所持の証明ではない。確認は必要な変化時だけ、同じ理由で連打しない。"
+        },
+        "eligible": false,
+        "menu_evidence": true,
+        "minimap": {
+          "status": "unavailable",
+          "reason": "地図専用表示または階の確認待ち。"
+        }
+      },
+      "inventory": {
+        "status": "not_visible",
+        "last_observed": null,
+        "complete": false,
+        "selected_id": null,
+        "rows": []
+      }
+    },
+    "2": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "2a8c57f86c20efb6f9c9b5e6e30d2544de9a0075173ff7869acfa5f2b85c1ff8",
+        "captured_at": 1793077099.429024,
+        "lines": [
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "1階",
+            "confidence": 0.99988,
+            "words": [
+              {
+                "text": "1階",
+                "box": [
+                  20.0,
+                  39.0,
+                  59.0,
+                  39.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "Lv1",
+            "confidence": 0.93634,
+            "words": [
+              {
+                "text": "Lv1",
+                "box": [
+                  189.0,
+                  43.0,
+                  73.0,
+                  33.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "HP4/15",
+            "confidence": 0.99278,
+            "words": [
+              {
+                "text": "HP4/15",
+                "box": [
+                  312.0,
+                  41.0,
+                  160.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "満腹度",
+            "confidence": 0.81526,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  618.0,
+                  38.0,
+                  95.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "99%",
+            "confidence": 0.98029,
+            "words": [
+              {
+                "text": "99%",
+                "box": [
+                  733.0,
+                  40.0,
+                  79.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "OＧ",
+            "confidence": 0.51489,
+            "words": [
+              {
+                "text": "OＧ",
+                "box": [
+                  1161.0,
+                  41.0,
+                  59.0,
+                  34.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "大きいパン",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "大きいパン",
+                "box": [
+                  286.0,
+                  163.0,
+                  149.0,
+                  41.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "道具",
+            "confidence": 0.99998,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  1074.0,
+                  567.0,
+                  67.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "1/20",
+            "confidence": 0.99886,
+            "words": [
+              {
+                "text": "1/20",
+                "box": [
+                  1109.0,
+                  612.0,
+                  83.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "詳細表示切替",
+            "confidence": 0.99598,
+            "words": [
+              {
+                "text": "詳細表示切替",
+                "box": [
+                  773.0,
+                  677.0,
+                  179.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077100.2209077,
+            "text": "整理",
+            "confidence": 0.99989,
+            "words": [
+              {
+                "text": "整理",
+                "box": [
+                  1085.0,
+                  675.0,
+                  68.0,
+                  41.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 0,
+          "misses": 14
+        }
+      },
+      "state": {
+        "metrics": {
+          "hp": {
+            "values": [
+              4,
+              15
+            ],
+            "quote": "HP4/15",
+            "unverified_ocr": true,
+            "meaning": "HP（現在値/最大値）"
+          },
+          "level": {
+            "values": [
+              1
+            ],
+            "quote": "Lv1",
+            "unverified_ocr": true,
+            "meaning": "現在のレベル"
+          },
+          "floor": {
+            "values": [
+              1
+            ],
+            "quote": "1階",
+            "unverified_ocr": true,
+            "meaning": "現在の階（最深階ではない）"
+          },
+          "fullness": {
+            "values": [
+              99
+            ],
+            "quote": "満腹度 / 99%",
+            "evidence_quotes": [
+              "満腹度",
+              "99%"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "2a8c57f86c20efb6f9c9b5e6e30d2544de9a0075173ff7869acfa5f2b85c1ff8",
+            "label_box": [
+              618.0,
+              38.0,
+              95.0,
+              40.0
+            ],
+            "value_box": [
+              733.0,
+              40.0,
+              79.0,
+              36.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "満腹度（%）"
+          }
+        },
+        "retained_state": {
+          "revision": 0,
+          "refresh_reasons": [],
+          "last_observed_metrics": {
+            "hp": {
+              "values": [
+                4,
+                15
+              ],
+              "quote": "HP4/15",
+              "unverified_ocr": true,
+              "meaning": "HP（現在値/最大値）",
+              "last_observed_tick": 2,
+              "status": "last_observed"
+            },
+            "level": {
+              "values": [
+                1
+              ],
+              "quote": "Lv1",
+              "unverified_ocr": true,
+              "meaning": "現在のレベル",
+              "last_observed_tick": 2,
+              "status": "last_observed"
+            },
+            "floor": {
+              "values": [
+                1
+              ],
+              "quote": "1階",
+              "unverified_ocr": true,
+              "meaning": "現在の階（最深階ではない）",
+              "last_observed_tick": 2,
+              "status": "last_observed"
+            },
+            "fullness": {
+              "values": [
+                99
+              ],
+              "quote": "満腹度 / 99%",
+              "evidence_quotes": [
+                "満腹度",
+                "99%"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "2a8c57f86c20efb6f9c9b5e6e30d2544de9a0075173ff7869acfa5f2b85c1ff8",
+              "label_box": [
+                618.0,
+                38.0,
+                95.0,
+                40.0
+              ],
+              "value_box": [
+                733.0,
+                40.0,
+                79.0,
+                36.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "満腹度（%）",
+              "last_observed_tick": 2,
+              "status": "last_observed"
+            },
+            "max_floor": {
+              "values": [
+                25
+              ],
+              "quote": "最深階 / 25",
+              "evidence_quotes": [
+                "最深階",
+                "25"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                231.0,
+                540.0,
+                96.0,
+                39.0
+              ],
+              "value_box": [
+                510.0,
+                542.0,
+                49.0,
+                36.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "記録上の最深階（現在の階ではない）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "sword": {
+              "values": [
+                0
+              ],
+              "quote": "剣の強さ / 0",
+              "evidence_quotes": [
+                "剣の強さ",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                231.0,
+                579.0,
+                123.0,
+                41.0
+              ],
+              "value_box": [
+                531.0,
+                576.0,
+                27.0,
+                42.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "剣の強さ",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "strength": {
+              "values": [
+                8,
+                8
+              ],
+              "quote": "ちから / 8/8",
+              "evidence_quotes": [
+                "ちから",
+                "8/8"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                666.0,
+                582.0,
+                89.0,
+                36.0
+              ],
+              "value_box": [
+                965.0,
+                583.0,
+                83.0,
+                33.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "ちから（現在値/最大値）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "shield": {
+              "values": [
+                0
+              ],
+              "quote": "盾の強さ / 0",
+              "evidence_quotes": [
+                "盾の強さ",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                233.0,
+                623.0,
+                119.0,
+                35.0
+              ],
+              "value_box": [
+                535.0,
+                625.0,
+                22.0,
+                26.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "盾の強さ",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            },
+            "experience": {
+              "values": [
+                0
+              ],
+              "quote": "経験値 / 0",
+              "evidence_quotes": [
+                "経験値",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "1abe5f61076ff049275b21221c1648d1b9eca3da22e297210c4766f5d599260a",
+              "label_box": [
+                665.0,
+                623.0,
+                90.0,
+                33.0
+              ],
+              "value_box": [
+                1024.0,
+                630.0,
+                16.0,
+                19.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "経験値（レベルとは別）",
+              "last_observed_tick": 1,
+              "status": "last_observed"
+            }
+          },
+          "last_observed_inventory": {
+            "status": "observed",
+            "rows": [
+              {
+                "id": "item_f190172f_0_000001",
+                "display_name": "大きいパン",
+                "game_alias": null,
+                "name_status": "unknown",
+                "true_name": null,
+                "quantity": null,
+                "equipped": null,
+                "quote": "大きいパン",
+                "selected": false,
+                "equipment_affordance": null,
+                "identity_status": "new_or_ambiguous",
+                "page": null,
+                "line_index": 6,
+                "box": [
+                  286.0,
+                  163.0,
+                  435.0,
+                  204.0
+                ],
+                "known_description": {
+                  "status": "description_text_observed",
+                  "item_name": "大きいパン",
+                  "selected_line_box": [
+                    285.0,
+                    165.0,
+                    436.0,
+                    202.0
+                  ],
+                  "quotes": [
+                    "おなかがいつぱいになるぞ。"
+                  ],
+                  "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+                  "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+                  "step": 6,
+                  "source": "current_inventory_num7_toggle",
+                  "effect_verified": false,
+                  "inventory_scope": "3dafe324_1_",
+                  "identity_scope": "profile_display_name",
+                  "knowledge_kind": "game_description_ocr_not_verified_effect"
+                }
+              }
+            ],
+            "page": null,
+            "description_panel": {
+              "status": "unmeasured",
+              "rectangles": [],
+              "line_indices": [],
+              "quotes": [],
+              "frame_sha256": "2a8c57f86c20efb6f9c9b5e6e30d2544de9a0075173ff7869acfa5f2b85c1ff8"
+            },
+            "occupancy": {
+              "count": 1,
+              "capacity": 20,
+              "source": "current_inventory_ocr",
+              "unverified_ocr": true
+            },
+            "complete": false,
+            "selected_id": null,
+            "last_observed": 1793077099.429024,
+            "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。",
+            "last_observed_tick": 2
+          },
+          "inventory_token": "78cb09aecceeadc2c937451f2377ed15e3aa4dc688e1f7b862e0acfdef7701de",
+          "before_combat_check_needed": false,
+          "rule": "現在画面で読めた値を優先して上書き。非表示の保持値は最終観測であり現在のHP/所持の証明ではない。確認は必要な変化時だけ、同じ理由で連打しない。"
+        },
+        "eligible": false,
+        "menu_evidence": true,
+        "minimap": {
+          "status": "unavailable",
+          "reason": "地図専用表示または階の確認待ち。"
+        }
+      },
+      "inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_f190172f_0_000001",
+            "display_name": "大きいパン",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "大きいパン",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "new_or_ambiguous",
+            "page": null,
+            "line_index": 6,
+            "box": [
+              286.0,
+              163.0,
+              435.0,
+              204.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "大きいパン",
+              "selected_line_box": [
+                285.0,
+                165.0,
+                436.0,
+                202.0
+              ],
+              "quotes": [
+                "おなかがいつぱいになるぞ。"
+              ],
+              "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+              "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+              "step": 6,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          }
+        ],
+        "page": null,
+        "description_panel": {
+          "status": "unmeasured",
+          "rectangles": [],
+          "line_indices": [],
+          "quotes": [],
+          "frame_sha256": "2a8c57f86c20efb6f9c9b5e6e30d2544de9a0075173ff7869acfa5f2b85c1ff8"
+        },
+        "occupancy": {
+          "count": 1,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": null,
+        "last_observed": 1793077099.429024,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。"
+      }
+    },
+    "3": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+        "captured_at": 1793077105.058437,
+        "lines": [
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "1階",
+            "confidence": 0.99989,
+            "words": [
+              {
+                "text": "1階",
+                "box": [
+                  20.0,
+                  39.0,
+                  59.0,
+                  39.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "Lv1",
+            "confidence": 0.93217,
+            "words": [
+              {
+                "text": "Lv1",
+                "box": [
+                  189.0,
+                  42.0,
+                  73.0,
+                  34.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "HP4/15",
+            "confidence": 0.99265,
+            "words": [
+              {
+                "text": "HP4/15",
+                "box": [
+                  312.0,
+                  41.0,
+                  160.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "満腹度",
+            "confidence": 0.91371,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  617.0,
+                  37.0,
+                  95.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "99%",
+            "confidence": 0.98049,
+            "words": [
+              {
+                "text": "99%",
+                "box": [
+                  734.0,
+                  40.0,
+                  79.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "O G",
+            "confidence": 0.58951,
+            "words": [
+              {
+                "text": "O G",
+                "box": [
+                  1162.0,
+                  43.0,
+                  57.0,
+                  31.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "道具",
+            "confidence": 0.99988,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  96.0,
+                  140.0,
+                  90.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "マップ",
+            "confidence": 1.0,
+            "words": [
+              {
+                "text": "マップ",
+                "box": [
+                  255.0,
+                  142.0,
+                  90.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "不思議のダンジョン",
+            "confidence": 0.99904,
+            "words": [
+              {
+                "text": "不思議のダンジョン",
+                "box": [
+                  392.0,
+                  144.0,
+                  259.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "足元",
+            "confidence": 0.99938,
+            "words": [
+              {
+                "text": "足元",
+                "box": [
+                  121.0,
+                  193.0,
+                  65.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "その他",
+            "confidence": 0.99999,
+            "words": [
+              {
+                "text": "その他",
+                "box": [
+                  254.0,
+                  191.0,
+                  92.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "最深階",
+            "confidence": 0.99994,
+            "words": [
+              {
+                "text": "最深階",
+                "box": [
+                  231.0,
+                  540.0,
+                  96.0,
+                  39.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "25",
+            "confidence": 0.99986,
+            "words": [
+              {
+                "text": "25",
+                "box": [
+                  509.0,
+                  540.0,
+                  51.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "満腹度",
+            "confidence": 0.99982,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  663.0,
+                  541.0,
+                  93.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "99%",
+            "confidence": 0.95058,
+            "words": [
+              {
+                "text": "99%",
+                "box": [
+                  969.0,
+                  542.0,
+                  80.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "剣の強さ",
+            "confidence": 0.99994,
+            "words": [
+              {
+                "text": "剣の強さ",
+                "box": [
+                  233.0,
+                  582.0,
+                  120.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "0",
+            "confidence": 0.76164,
+            "words": [
+              {
+                "text": "0",
+                "box": [
+                  531.0,
+                  576.0,
+                  27.0,
+                  42.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "ちから",
+            "confidence": 0.99999,
+            "words": [
+              {
+                "text": "ちから",
+                "box": [
+                  666.0,
+                  582.0,
+                  89.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "8/8",
+            "confidence": 0.95655,
+            "words": [
+              {
+                "text": "8/8",
+                "box": [
+                  965.0,
+                  583.0,
+                  83.0,
+                  33.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "盾の強さ",
+            "confidence": 0.99995,
+            "words": [
+              {
+                "text": "盾の強さ",
+                "box": [
+                  233.0,
+                  622.0,
+                  120.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "0",
+            "confidence": 0.99544,
+            "words": [
+              {
+                "text": "0",
+                "box": [
+                  535.0,
+                  625.0,
+                  22.0,
+                  26.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "経験値",
+            "confidence": 0.9385,
+            "words": [
+              {
+                "text": "経験値",
+                "box": [
+                  666.0,
+                  624.0,
+                  90.0,
+                  33.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793077106.0367308,
+            "text": "0",
+            "confidence": 0.94722,
+            "words": [
+              {
+                "text": "0",
+                "box": [
+                  1024.0,
+                  630.0,
+                  16.0,
+                  19.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 0,
+          "misses": 24
+        }
+      },
+      "state": {
+        "metrics": {
+          "hp": {
+            "values": [
+              4,
+              15
+            ],
+            "quote": "HP4/15",
+            "unverified_ocr": true,
+            "meaning": "HP（現在値/最大値）"
+          },
+          "level": {
+            "values": [
+              1
+            ],
+            "quote": "Lv1",
+            "unverified_ocr": true,
+            "meaning": "現在のレベル"
+          },
+          "floor": {
+            "values": [
+              1
+            ],
+            "quote": "1階",
+            "unverified_ocr": true,
+            "meaning": "現在の階（最深階ではない）"
+          },
+          "fullness": {
+            "values": [
+              99
+            ],
+            "quote": "満腹度 / 99%",
+            "evidence_quotes": [
+              "満腹度",
+              "99%"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+            "label_box": [
+              617.0,
+              37.0,
+              95.0,
+              40.0
+            ],
+            "value_box": [
+              734.0,
+              40.0,
+              79.0,
+              36.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "満腹度（%）"
+          },
+          "max_floor": {
+            "values": [
+              25
+            ],
+            "quote": "最深階 / 25",
+            "evidence_quotes": [
+              "最深階",
+              "25"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+            "label_box": [
+              231.0,
+              540.0,
+              96.0,
+              39.0
+            ],
+            "value_box": [
+              509.0,
+              540.0,
+              51.0,
+              40.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "記録上の最深階（現在の階ではない）"
+          },
+          "sword": {
+            "values": [
+              0
+            ],
+            "quote": "剣の強さ / 0",
+            "evidence_quotes": [
+              "剣の強さ",
+              "0"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+            "label_box": [
+              233.0,
+              582.0,
+              120.0,
+              36.0
+            ],
+            "value_box": [
+              531.0,
+              576.0,
+              27.0,
+              42.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "剣の強さ"
+          },
+          "strength": {
+            "values": [
+              8,
+              8
+            ],
+            "quote": "ちから / 8/8",
+            "evidence_quotes": [
+              "ちから",
+              "8/8"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+            "label_box": [
+              666.0,
+              582.0,
+              89.0,
+              36.0
+            ],
+            "value_box": [
+              965.0,
+              583.0,
+              83.0,
+              33.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "ちから（現在値/最大値）"
+          },
+          "shield": {
+            "values": [
+              0
+            ],
+            "quote": "盾の強さ / 0",
+            "evidence_quotes": [
+              "盾の強さ",
+              "0"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+            "label_box": [
+              233.0,
+              622.0,
+              120.0,
+              35.0
+            ],
+            "value_box": [
+              535.0,
+              625.0,
+              22.0,
+              26.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "盾の強さ"
+          },
+          "experience": {
+            "values": [
+              0
+            ],
+            "quote": "経験値 / 0",
+            "evidence_quotes": [
+              "経験値",
+              "0"
+            ],
+            "source": "same_row_boxed_label_value",
+            "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+            "label_box": [
+              666.0,
+              624.0,
+              90.0,
+              33.0
+            ],
+            "value_box": [
+              1024.0,
+              630.0,
+              16.0,
+              19.0
+            ],
+            "unverified_ocr": true,
+            "meaning": "経験値（レベルとは別）"
+          }
+        },
+        "retained_state": {
+          "revision": 0,
+          "refresh_reasons": [],
+          "last_observed_metrics": {
+            "hp": {
+              "values": [
+                4,
+                15
+              ],
+              "quote": "HP4/15",
+              "unverified_ocr": true,
+              "meaning": "HP（現在値/最大値）",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "level": {
+              "values": [
+                1
+              ],
+              "quote": "Lv1",
+              "unverified_ocr": true,
+              "meaning": "現在のレベル",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "floor": {
+              "values": [
+                1
+              ],
+              "quote": "1階",
+              "unverified_ocr": true,
+              "meaning": "現在の階（最深階ではない）",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "fullness": {
+              "values": [
+                99
+              ],
+              "quote": "満腹度 / 99%",
+              "evidence_quotes": [
+                "満腹度",
+                "99%"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+              "label_box": [
+                617.0,
+                37.0,
+                95.0,
+                40.0
+              ],
+              "value_box": [
+                734.0,
+                40.0,
+                79.0,
+                36.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "満腹度（%）",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "max_floor": {
+              "values": [
+                25
+              ],
+              "quote": "最深階 / 25",
+              "evidence_quotes": [
+                "最深階",
+                "25"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+              "label_box": [
+                231.0,
+                540.0,
+                96.0,
+                39.0
+              ],
+              "value_box": [
+                509.0,
+                540.0,
+                51.0,
+                40.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "記録上の最深階（現在の階ではない）",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "sword": {
+              "values": [
+                0
+              ],
+              "quote": "剣の強さ / 0",
+              "evidence_quotes": [
+                "剣の強さ",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+              "label_box": [
+                233.0,
+                582.0,
+                120.0,
+                36.0
+              ],
+              "value_box": [
+                531.0,
+                576.0,
+                27.0,
+                42.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "剣の強さ",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "strength": {
+              "values": [
+                8,
+                8
+              ],
+              "quote": "ちから / 8/8",
+              "evidence_quotes": [
+                "ちから",
+                "8/8"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+              "label_box": [
+                666.0,
+                582.0,
+                89.0,
+                36.0
+              ],
+              "value_box": [
+                965.0,
+                583.0,
+                83.0,
+                33.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "ちから（現在値/最大値）",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "shield": {
+              "values": [
+                0
+              ],
+              "quote": "盾の強さ / 0",
+              "evidence_quotes": [
+                "盾の強さ",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+              "label_box": [
+                233.0,
+                622.0,
+                120.0,
+                35.0
+              ],
+              "value_box": [
+                535.0,
+                625.0,
+                22.0,
+                26.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "盾の強さ",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            },
+            "experience": {
+              "values": [
+                0
+              ],
+              "quote": "経験値 / 0",
+              "evidence_quotes": [
+                "経験値",
+                "0"
+              ],
+              "source": "same_row_boxed_label_value",
+              "frame_sha256": "e14844dee18f6a7d2ec3976da6c2c15214ad53be43770ae2070325c66136500e",
+              "label_box": [
+                666.0,
+                624.0,
+                90.0,
+                33.0
+              ],
+              "value_box": [
+                1024.0,
+                630.0,
+                16.0,
+                19.0
+              ],
+              "unverified_ocr": true,
+              "meaning": "経験値（レベルとは別）",
+              "last_observed_tick": 3,
+              "status": "last_observed"
+            }
+          },
+          "last_observed_inventory": {
+            "status": "observed",
+            "rows": [
+              {
+                "id": "item_f190172f_0_000001",
+                "display_name": "大きいパン",
+                "game_alias": null,
+                "name_status": "unknown",
+                "true_name": null,
+                "quantity": null,
+                "equipped": null,
+                "quote": "大きいパン",
+                "selected": false,
+                "equipment_affordance": null,
+                "identity_status": "new_or_ambiguous",
+                "page": null,
+                "line_index": 6,
+                "box": [
+                  286.0,
+                  163.0,
+                  435.0,
+                  204.0
+                ],
+                "known_description": {
+                  "status": "description_text_observed",
+                  "item_name": "大きいパン",
+                  "selected_line_box": [
+                    285.0,
+                    165.0,
+                    436.0,
+                    202.0
+                  ],
+                  "quotes": [
+                    "おなかがいつぱいになるぞ。"
+                  ],
+                  "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+                  "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+                  "step": 6,
+                  "source": "current_inventory_num7_toggle",
+                  "effect_verified": false,
+                  "inventory_scope": "3dafe324_1_",
+                  "identity_scope": "profile_display_name",
+                  "knowledge_kind": "game_description_ocr_not_verified_effect"
+                }
+              }
+            ],
+            "page": null,
+            "description_panel": {
+              "status": "unmeasured",
+              "rectangles": [],
+              "line_indices": [],
+              "quotes": [],
+              "frame_sha256": "2a8c57f86c20efb6f9c9b5e6e30d2544de9a0075173ff7869acfa5f2b85c1ff8"
+            },
+            "occupancy": {
+              "count": 1,
+              "capacity": 20,
+              "source": "current_inventory_ocr",
+              "unverified_ocr": true
+            },
+            "complete": false,
+            "selected_id": null,
+            "last_observed": 1793077099.429024,
+            "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。",
+            "last_observed_tick": 2
+          },
+          "inventory_token": "78cb09aecceeadc2c937451f2377ed15e3aa4dc688e1f7b862e0acfdef7701de",
+          "before_combat_check_needed": false,
+          "rule": "現在画面で読めた値を優先して上書き。非表示の保持値は最終観測であり現在のHP/所持の証明ではない。確認は必要な変化時だけ、同じ理由で連打しない。"
+        },
+        "eligible": false,
+        "menu_evidence": true,
+        "minimap": {
+          "status": "unavailable",
+          "reason": "地図専用表示または階の確認待ち。"
+        }
+      },
+      "inventory": {
+        "status": "not_visible",
+        "last_observed": 1793077099.429024,
+        "complete": false,
+        "selected_id": null,
+        "rows": []
+      }
+    }
+  }
+}

@@ -24,7 +24,7 @@ def compact_supervision_prompt(prompt,budget=6500,tight=False):
             if row.get('equipment_affordance'):item['available_equipment_action']=row['equipment_affordance'].get('action')
             inventory.append(item)
         retained=current.get('retained_state',{})
-        compact_current=pick(current,('step','region','floor','interface','text','selection_text','selection_line_index','contacts','visible_map_targets','fact_rule'))
+        compact_current=pick(current,('step','region','floor','interface','text','selection_text','selection_line_index','contacts','visible_map_targets','recovery_policy','fact_rule'))
         compact_current['metrics']=metrics(current.get('metrics'))
         compact_current['position']=copy.deepcopy(current.get('player_cell'))
         compact_current['retained_metrics']=metrics(retained.get('last_observed_metrics') or current.get('last_known_metrics'))
