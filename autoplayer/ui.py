@@ -942,6 +942,8 @@ class Application:
                 f"入力: {value.get('observed_keys',[])} / {value.get('hold_ms','?')}ms | {value.get('reason','')}\n"
                 f"結果: 変化={value.get('changed')} / {value.get('turn_kind','')} | 観測={learning.get('observed','?')}回（因果は未確定）\n"
                 f"処理: {value.get('performance',{}).get('total_ms','?')}ms / 学習選択: {value.get('active_input',{}).get('source','方策・モデル')}\n")
+            if value.get('item_description_observation'):
+                item=value['item_description_observation'];text+=f"品の説明: {item.get('item_name','未確定')} / {item.get('status')} / {item.get('quotes',[])}\n"
             stages=value.get('performance',{}).get('stages_ms',{})
             if stages:text+=f"内訳ms: OCR {stages.get('ocr_ms','?')} / 地図取得 {stages.get('map_capture_ms',0)} / 自然観測 {stages.get('neutral_observation_ms',0)} / 入力後観測 {stages.get('input_response_observation_ms',0)} / 学習・保存 {stages.get('learning_save_ms',0)}\n"
             if value.get('supervision'):

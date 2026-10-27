@@ -6,7 +6,7 @@ from .controls import is_torneko
 
 class OperationalControl:
     def __init__(self,cfg,effects,cycle=None):
-        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None;self.healing_trials={};self.healing_unsafe={}
+        self.cfg=cfg;self.effects=effects;self.cycle=cycle;self.inspections={};self.trials={};self.sequence=0;self.last_selection={};self.item_context=None;self.last_inspection_step=-1000;self.inspected_revision=None;self.inspection_until=-1;self.inventory_seen_step=-1000;self.recovery_request=None;self.healing_trials={};self.healing_unsafe={};self.inventory_review=None;self.review_pending=None
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
@@ -15,6 +15,7 @@ class OperationalControl:
         keys=self.effects.keys(role)
         return keys[0] if keys else None
     def interface(self,base,native,state,plan,ledger,blocked):
+        self.review_pending=None
         text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]));confirm=self._key('confirm');cancel=self._key('cancel')
         if PROTECTED_CONFIRMATION.search(text) and cancel:return self._decision(base,[cancel],'protected_confirmation','現在の保護確認から取消で離れる。')
         choice=choice_action(native or {},self.effects.bindings,self.cfg.allowed_keys)
@@ -44,6 +45,8 @@ class OperationalControl:
             self.recovery_request=None;request=None
         if request:skill='recover'
         if step<=self.inspection_until and skill!='recover':skill='inspect_inventory'
+        if kind!='inventory' or self.inventory_review and (self.inventory_review['control']!=current['control_revision'] or self.inventory_review['guidance']!=current['operator_guidance'].get('revision',0) or self.inventory_review.get('floor')!=current.get('floor')):self.inventory_review=None
+        if self.inventory_review and step<=self.inventory_review['until'] and self.inventory_review['control']==current['control_revision'] and self.inventory_review['guidance']==current['operator_guidance'].get('revision',0) and skill!='recover':skill='inspect_inventory'
         if kind=='inventory':self.inventory_seen_step=step;self.inspection_until=-1
         if kind=='main_menu' and skill=='inspect_inventory' and (step-self.inventory_seen_step<24 or self.last_inspection_step>=0 and self.inspection_until<step<self.last_inspection_step+24):skill='explore'
         # A supervisor UI hint is a single, scoped role, never a macro. Exact
@@ -71,11 +74,44 @@ class OperationalControl:
             if kind in ('inventory','item_actions') and skill=='recover':
                 target=self._recovery_item(native,state,kind,ledger.current)
                 if target:return self._decision(base,[target],'recovery_item','現在読めた品名・カーソル・使用法から回復/食料の操作を1段階だけ進める。')
+            if kind=='inventory' and skill=='inspect_inventory':
+                review=self._inspect_inventory(base,native,current)
+                if review:return review
             if kind and cancel:
                 if skill=='recover':self.recovery_request=None
-                return self._decision(base,[cancel],'close_known_menu','回復は未完了。現在の品・使用法・カーソルを確定できず、盲目的に使用せずメニューを閉じて再検討する。' if skill=='recover' else '必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')
+                return self._decision(base,[cancel],'close_known_menu','回復は未完了。現在の品・使用法・カーソルを確定できず、盲目的に使用せずメニューを閉じて再検討する。' if skill=='recover' else '表示中の品への説明確認の試行を終了し、既知のメニューを閉じる。未読・未表示ページを確認済みとはしない。' if kind=='inventory' and skill=='inspect_inventory' else '必要な確認を記録し、既知のメニューを閉じて進行へ戻る。')
             if confirm and not kind and current_interface:return self._decision(base,[confirm],'dialogue_advance','現在の文章枠を決定入力で1回進め、次の表示を確認する。')
         return None
+    def _inspect_inventory(self,base,native,current):
+        from .world_model import Inventory
+        if 'num7' not in self.cfg.allowed_keys:return None
+        rows=(native or {}).get('_current_inventory_rows',[])
+        selected=[r for r in rows if r.get('selected')]
+        if len(selected)!=1 or not selected[0].get('box'):return None
+        step=current['step']
+        if self.inventory_review is None:
+            self.inventory_review={'until':step+64,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':copy.deepcopy(current.get('floor')),'seen':set(),'attempts':{},'moves':0}
+        review=self.inventory_review
+        if step>review['until'] or review['moves']>=40:return None
+        def key(r):return (r['display_name'],round(r['box'][1]/8))
+        for candidate in rows:
+            if candidate.get('known_description',{}).get('status')=='description_text_observed':review['seen'].add(key(candidate))
+        item=selected[0];token=key(item)
+        # Num7 is a toggle, not an idempotent open command. At most two
+        # accepted toggles per row allow an initially visible panel to reopen.
+        if token not in review['seen'] and review['attempts'].get(token,0)<2 and 'num7' in self.cfg.allowed_keys:
+            self.review_pending={'key':'num7','token':token,'action':'description'}
+            return self._decision(base,['num7'],'inventory_description','現在選択中の品の説明表示を1回切り替え、同じ行の説明文を取得する。開閉を連打せず入力後に再観測する。')
+        choices=[r for r in rows if r.get('box') and key(r) not in review['seen'] and review['attempts'].get(key(r),0)<2]
+        choices.sort(key=lambda r:abs(r['box'][1]-item['box'][1]))
+        if not choices:return None
+        direction='下' if choices[0]['box'][1]>item['box'][1] else '上'
+        key_input=next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and v.startswith(direction)),None)
+        if key_input:
+            self.review_pending={'key':key_input,'token':token,'action':'move'}
+            return self._decision(base,[key_input],'inventory_review_navigation','未確認の品の行へ上下で1段階進み、現在のカーソル位置を再観測する。')
+        return None
+
     def _recovery_cursor_probe(self,ledger):
         scope=ledger.current['scope']
         # Two distinct navigation probes per scope, not blind confirmation/use.
@@ -84,15 +120,28 @@ class OperationalControl:
             if key and self.trials.get((scope,(key,)),0)==0:return key
         return None
     def _cursor_toward(self,native,target,vertical=False):
+        from .world_model import Inventory
+        InventoryBox=Inventory.line_box
         lines=(native or {}).get('lines',[]);selected=[];targets=[]
         visual=(native or {}).get('_visual_selection') or {}
         observed=compact_text(visual.get('text','')) if visual.get('frame_sha256') and visual['frame_sha256']==(native or {}).get('frame_sha256') else ''
-        for line in lines:
+        index=visual.get('line_index') if observed else None
+        for line_index,line in enumerate(lines):
             label=compact_text(line.get('text',''));prefix=bool(re.match(r'^[▶►▷>→]',label));clean=label.lstrip('▶►▷>→')
-            if (label==observed if observed else prefix):selected.append(line)
+            chosen=(line_index==index and label==observed) if type(index) is int else label==observed if observed else prefix
+            if chosen:selected.append(line)
             if clean==target or clean.startswith(target+'('):targets.append(line)
-        if len(selected)!=1 or len(targets)!=1:return None
-        if selected[0] is targets[0]:return 'selected'
+        if len(selected)!=1 or not targets:return None
+        if selected[0] in targets:return 'selected'
+        # Duplicate names are distinct rows. Move toward the nearest observed
+        # row with that label, without claiming which instance it is.
+        if len(targets)>1:
+            origin=InventoryBox(selected[0])
+            choices=[(abs(InventoryBox(t)[1]-origin[1]),t) for t in targets if origin is not None and InventoryBox(t) is not None]
+            if not choices:return None
+            choices.sort(key=lambda v:v[0])
+            if len(choices)>1 and choices[0][0]==choices[1][0]:return None
+            targets=[choices[0][1]]
         def pos(line):
             boxes=[w.get('box') for w in line.get('words',[]) if len(w.get('box',[]))==4]
             return (min(b[0] for b in boxes),min(b[1] for b in boxes)) if boxes else None
@@ -311,6 +360,12 @@ class OperationalControl:
         progress=route_progress or assumed_frontier or floor_progress or coverage_progress or any(values[k] for k in ('damage_dealt','enemy_defeated','hp_gain','food_gain','item_change'))
 
         actual=row.get('observed_keys',[]);applied=actual==op.get('selected_keys') and row.get('executed') and (row.get('input_receipt') or {}).get('os_submission')=='accepted' and row.get('turn_kind')!='aborted'
+        pending=self.review_pending;self.review_pending=None
+        if pending and self.inventory_review and applied and actual==[pending['key']] and op.get('selected_source')=='interface':
+            review=self.inventory_review;review['moves']+=1
+            if pending['action']=='description':
+                token=pending['token'];review['attempts'][token]=review['attempts'].get(token,0)+1
+                if (row.get('item_description_observation') or {}).get('status')=='description_text_observed' or review['attempts'][token]>=2:review['seen'].add(token)
         healing=op.get('healing_check')
         if healing and applied and op.get('selected_source')=='natural_recovery':
             self.healing_trials[healing['trial']]=self.healing_trials.get(healing['trial'],0)+1

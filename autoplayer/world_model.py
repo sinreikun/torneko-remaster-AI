@@ -76,9 +76,13 @@ class VisualSense:
             if sum(abs(v-mid)<.009 for v in self.pitch_samples)>=3:self.pitch=mid
 
 class Inventory:
-    def __init__(self,scope='',confirm_key='num1'):self.confirm_key=confirm_key;self.scope=scope;self.rows=[];self.pages={};self.selected=None;self.serial=0;self.last_seen=None;self.effects=[];self.identifications={};self.age=0;self.selected_age=0;self.was_inventory=False
+    def __init__(self,scope='',confirm_key='num1'):self.confirm_key=confirm_key;self.scope=scope;self.rows=[];self.pages={};self.selected=None;self.serial=0;self.last_seen=None;self.effects=[];self.identifications={};self.age=0;self.selected_age=0;self.was_inventory=False;self.description_reads=[];self.description_text=set()
     @staticmethod
-    def cursor_line(native,png=None):
+    def line_box(line):
+        boxes=[w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
+        return [min(b[0] for b in boxes),min(b[1] for b in boxes),max(b[0]+b[2] for b in boxes),max(b[1]+b[3] for b in boxes)] if boxes else None
+    @staticmethod
+    def cursor_index(native,png=None):
         from .interfaces import torneko_menu_kind, MAIN_MENU_LABELS, ITEM_ACTION_LABELS, compact_text, ordinary_choice
         lines=(native or {}).get('lines',[])
         clean=lambda text:compact_text(text).lstrip('▶►▷>●→')
@@ -88,7 +92,7 @@ class Inventory:
         # on the underlying item list or main menu. No screen coordinates here.
         targets={'はい','いいえ','Yes','No','yes','no'} if ordinary_choice(native) else ITEM_ACTION_LABELS if kind=='item_actions' or {'投げる','置く'}<=visible else MAIN_MENU_LABELS if kind=='main_menu' else None
         candidates=[line for line in lines if clean(line.get('text','')) and (targets is None or clean(line.get('text','')) in targets)]
-        explicit=[line.get('text','') for line in candidates if re.match(r'^[▶►▷>●→]',compact_text(line.get('text','')))]
+        explicit=[lines.index(line) for line in candidates if re.match(r'^[▶►▷>●→]',compact_text(line.get('text','')))]
         if len(explicit)==1:return explicit[0]
         if explicit:return None
         def bounds(line):
@@ -106,7 +110,7 @@ class Inventory:
                 b=bounds(line)
                 if not b:continue
                 h=max(a[3]-a[1],b[3]-b[1]);gap=b[0]-a[2]
-                if h>0 and -h*.2<=gap<=h*2 and abs((a[1]+a[3]-b[1]-b[3])/2)<=h*.4:near.append((max(0,gap),line.get('text','')))
+                if h>0 and -h*.2<=gap<=h*2 and abs((a[1]+a[3]-b[1]-b[3])/2)<=h*.4:near.append((max(0,gap),lines.index(line)))
             near.sort()
             if near and (len(near)==1 or near[0][0]+2<near[1][0]):detached.append(near[0][1])
         if len(detached)==1:return detached[0]
@@ -138,13 +142,19 @@ class Inventory:
                     for xx,yy in region:rows[yy-top_edge]+=1
                     center=max(1,len(rows)//3)
                     if sum(rows[center:-center])/max(1,len(rows)-2*center)>max(sum(rows[:center]),sum(rows[-center:]))/center*1.35:
-                        found.append(line.get('text',''));break
+                        found.append(lines.index(line));break
         except (OSError,ValueError):return None
         return found[0] if len(found)==1 else None
+
+    @staticmethod
+    def cursor_line(native,png=None):
+        index=Inventory.cursor_index(native,png)
+        return (native or {}).get('lines',[])[index].get('text','') if index is not None else None
 
     def observe(self,native,png=None):
         from .interfaces import torneko_menu_kind
         self.age+=1
+        from .interfaces import compact_text
         text=labels(native);kind=torneko_menu_kind(native or {})
         if self.age-self.selected_age>3:self.selected=None
         for quote in text:
@@ -164,27 +174,38 @@ class Inventory:
             if m:page=[int(m[1]),int(m[2])]
         previous={}
         for row in self.rows:previous.setdefault(row['display_name'],[]).append(row)
-        rows=[];self.selected=None;cursor=self.cursor_line(native,png)
-        for line in (native or {}).get('lines',[]):
+        rows=[];self.selected=None;cursor_index=self.cursor_index(native,png)
+        cursor_box=self.line_box((native or {}).get('lines',[])[cursor_index]) if cursor_index is not None else None
+        for line_index,line in enumerate((native or {}).get('lines',[])):
             raw=unicodedata.normalize('NFKC',line.get('text','')).strip()
+            box=self.line_box(line)
+            if compact_text(raw) in self.description_text:continue
+            if cursor_box and box:
+                h=cursor_box[3]-cursor_box[1]
+                if abs(box[0]-cursor_box[0])>h*1.3 or not h*.65<=box[3]-box[1]<=h*1.5:continue
             # Require a list entry/cursor or equipment indicator; headings and
             # arbitrary dialogue must never become possessions.
             m=re.match(r'^([▶►▷>●]|[a-zA-Z][).:：]|[0-9]+[).:：]|[EＥ]\s+)[ \t]*(.+)$',raw)
             if not m:
-                if not line.get('words') or re.search(r'道具|詳細表示|整理|持ち物|装備|HP|Lv|満腹|ちから|剣の強さ|盾の強さ|ページ|所持金|[0-9]+\s*/\s*[0-9]+',raw) or re.fullmatch(r'\d+\s*階|\d+\s*[GＧ]',raw) or raw in ('投げる','置く','食べる','飲む','読む','振る','説明','外す') or not re.search(r'[ぁ-んァ-ン一-龥]',raw):continue
+                if not line.get('words') or re.search(r'道具|詳細表示|整理|持ち物|装備|HP|Lv|満腹|^ちから$|剣の強さ|盾の強さ|ページ|所持金|[0-9]+\s*/\s*[0-9]+',raw) or re.fullmatch(r'\d+\s*階|\d+\s*[GＧ]',raw) or raw in ('投げる','置く','食べる','飲む','読む','振る','説明','外す') or not re.search(r'[ぁ-んァ-ン一-龥]',raw):continue
                 name=raw;prefix=''
             else:name=m[2].strip();prefix=m[1]
             if not name or name in ('装備','道具','持ち物','使う','食べる','投げる','置く'):continue
             quantity=None;q=re.search(r'[×x]\s*(\d+)$',name)
             if q:quantity=int(q[1]);name=name[:q.start()].rstrip()
-            candidates=previous.get(name,[]);old=candidates.pop(0) if len(candidates)==1 else None
+            candidates=previous.get(name,[])
+            same_slot=[r for r in candidates if box and r.get('box') and abs(r['box'][1]-box[1])<=max(2,(box[3]-box[1])*.3)]
+            old=same_slot[0] if len(same_slot)==1 else candidates[0] if len(candidates)==1 else None
+            if old:candidates.remove(old)
             if old:identifier=old['id']
             else:self.serial+=1;identifier=f'item_{self.scope}{self.serial:06d}'
-            selected=prefix in ('▶','►','▷','>','●') or (cursor is not None and raw==cursor)
+            selected=prefix in ('▶','►','▷','>','●') or (cursor_index is not None and line_index==cursor_index)
             row={'id':identifier,'display_name':name,'game_alias':name if re.search(r'未識別|未鑑定|仮名',raw) else None,'name_status':'game_alias_unidentified' if re.search(r'未識別|未鑑定|仮名',raw) else 'unknown','true_name':None,'quantity':quantity,
                 'equipped':True if prefix.strip()=='E' else None,'quote':raw,'selected':selected,
-                'identity_status':'matched_display_name' if old else 'new_or_ambiguous','page':page}
+                'identity_status':'matched_display_name' if old else 'new_or_ambiguous','page':page,'line_index':line_index,'box':self.line_box(line)}
             if name in self.identifications:row.update(self.identifications[name],name_status='identified_message_unverified_ocr')
+            known=self.known_description(row)
+            if known:row['known_description']=known
             rows.append(row)
             if selected:self.selected=identifier;self.selected_age=self.age
         occupancy=None;counts=set();height=int.from_bytes(png[20:24],'big') if png and png.startswith(b'\x89PNG') and len(png)>=24 else None
@@ -205,6 +226,40 @@ class Inventory:
         return {'status':'observed' if rows or empty else 'unreadable_entries','rows':copy.deepcopy(rows),'page':page,
             'occupancy':occupancy,'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
             'rule':'表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。'}
+    def known_description(self,row):
+        from .interfaces import compact_text
+        name=compact_text(row.get('display_name',''))
+        for record in reversed(self.description_reads):
+            if record.get('status')!='description_text_observed' or not record.get('quotes'):continue
+            if compact_text(record.get('item_name',''))!=name:continue
+            if record.get('identity_scope')!='profile_display_name' and record.get('inventory_scope')!=self.scope:continue
+            return copy.deepcopy(record)
+        return None
+
+    def read_description(self,row,before_native,after_native,before_png,after_png):
+        from .interfaces import compact_text,torneko_menu_kind
+        if row.get('observed_keys')!=['num7'] or not row.get('executed') or row.get('dry_run') or row.get('turn_kind')=='aborted' or (row.get('input_receipt') or {}).get('os_submission')!='accepted':return None
+        if torneko_menu_kind(before_native)!='inventory' or torneko_menu_kind(after_native)!='inventory':return None
+        if any(not png or native.get('frame_sha256')!=hashlib.sha256(png).hexdigest() for native,png in ((before_native,before_png),(after_native,after_png))):return {'status':'frame_mismatch_unlinked'}
+        old=self.cursor_index(before_native,before_png);new=self.cursor_index(after_native,after_png)
+        if old is None or new is None:return {'status':'unlinked_selection','reason':'選択行を両画像で確定できない'}
+        a=before_native['lines'][old];b=after_native['lines'][new]
+        clean=lambda t:compact_text(t).lstrip('▶►▷>●→')
+        box_a=self.line_box(a);box_b=self.line_box(b)
+        if not box_a or not box_b or abs(box_a[1]-box_b[1])>max(2,(box_a[3]-box_a[1])*.4):return {'status':'selection_position_changed_unlinked'}
+        if clean(a.get('text',''))!=clean(b.get('text','')):return {'status':'selection_changed_unlinked'}
+        old_text={compact_text(l.get('text','')) for l in before_native.get('lines',[])}
+        row_labels={compact_text(r['quote']) for r in self.rows}
+        added=[l.get('text','')[:800] for l in after_native.get('lines',[]) if compact_text(l.get('text','')) not in old_text|row_labels and len(compact_text(l.get('text','')))>=5 and compact_text(l.get('text','')) not in ('満腹度','詳細表示切替','整理') and not re.match(r'^(?:HP\s*\d|Lv\s*\d|\d)',l.get('text',''),re.I)]
+        result={'status':'description_text_observed' if added else 'toggle_without_new_readable_text','item_name':clean(a.get('text','')),'selected_line_box':self.line_box(a),'quotes':added[:12],'before_frame':before_native.get('frame_sha256'),'after_frame':after_native.get('frame_sha256'),'step':row.get('step'),'source':'current_inventory_num7_toggle','effect_verified':False}
+        item_name=clean(a.get('text',''))
+        alias=bool(re.search(r'未識別|未鑑定|仮名|^(?:赤|青|黄|緑|白|黒|紫|茶|桃|灰|銀|金|橙|水|ピンク|オレンジ)(?:い|色の|色い)?(?:草|巻物|杖|指輪)$',item_name))
+        result.update(inventory_scope=self.scope,identity_scope='inventory_alias' if alias else 'profile_display_name',knowledge_kind='game_description_ocr_not_verified_effect')
+        self.description_text.update(compact_text(t) for t in added)
+        if len(self.description_text)>256:self.description_text=set(compact_text(t) for r in self.description_reads[-20:] for t in r.get('quotes',[]))
+        self.description_reads=(self.description_reads+[result])[-40:]
+        return result
+
     def learn(self,row,before,after,old_ocr,new_ocr,natural,before_png=None):
         text=labels(new_ocr);old_text=labels(old_ocr)
         selection=self.cursor_line(old_ocr,before_png)
@@ -245,6 +300,7 @@ class WorldModel:
             self.db.executescript('''CREATE TABLE IF NOT EXISTS world_events(id INTEGER PRIMARY KEY,profile TEXT,session TEXT,created REAL,kind TEXT,data TEXT);
             CREATE INDEX IF NOT EXISTS world_events_profile ON world_events(profile,id);
             CREATE TABLE IF NOT EXISTS item_use_stats(profile TEXT,item_key TEXT,command TEXT,context TEXT,data TEXT,PRIMARY KEY(profile,item_key,command,context));''');self.db.commit()
+            self.inventory.description_reads=[json.loads(r[0])['observation'] for r in reversed(self.db.execute("SELECT data FROM world_events WHERE profile=? AND kind='item_description_observation' ORDER BY id DESC LIMIT 40",(self.profile,)).fetchall())]
     def save(self,kind,data):
         if self.db:
             self.db.execute('INSERT INTO world_events(profile,session,created,kind,data) VALUES(?,?,?,?,?)',(self.profile,self.session,time.time(),kind,json.dumps({'episode':self.episode,'observation':data},ensure_ascii=False)));self.db.commit()
@@ -376,6 +432,9 @@ class WorldModel:
         a=(before or {}).get('minimap',{}).get('player_cell');b=(after or {}).get('minimap',{}).get('player_cell')
         if a and b and metrics(before).get('floor')==metrics(after).get('floor') and row.get('executed'):
             self.visual.correlate(before_png,after_png,[b[i]-a[i] for i in (0,1)])
+        description=self.inventory.read_description(row,old_ocr,new_ocr,before_png,after_png)
+        if description:
+            row['item_description_observation']=description;self.save('item_description_observation',description)
         effect=self.inventory.learn(row,before,after,old_ocr,new_ocr,natural,before_png)
         if effect:
             self.state_snapshot.request('item_use_or_equipment_effect',row.get('step'))
@@ -434,4 +493,4 @@ class WorldModel:
             'floor_exploration':self.floor_navigation.context(),
             'last_known_metrics':copy.deepcopy(self.last_known_metrics),
             'objects':[{k:v for k,v in o.items() if k not in ('variants',)} for o in l.get('objects',[])[:20]],
-            'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}
+            'item_description_observations':copy.deepcopy(self.inventory.description_reads[-20:]),'item_effects':self.inventory.effects[-4:],'delayed_item_effects':self.delayed[-4:],'item_value_estimates':self.item_values()}

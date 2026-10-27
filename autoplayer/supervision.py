@@ -69,7 +69,8 @@ class StateLedger:
         selected=visual.get('text') if visual.get('frame_sha256') and visual['frame_sha256']==native.get('frame_sha256') else None
         cursor=[compact_text(t).lstrip('▶►▷>→') for t in lines if re.match(r'^[▶►▷>→]',compact_text(t))]
         if selected is None and len(cursor)==1:selected=cursor[0]
-        selection_key=hashlib.sha256(compact_text(selected).encode()).hexdigest()[:16] if selected else None
+        selection_identity=[compact_text(selected),visual.get('line_index')] if selected and type(visual.get('line_index')) is int else compact_text(selected) if selected else None
+        selection_key=hashlib.sha256(json.dumps(selection_identity,ensure_ascii=False).encode()).hexdigest()[:16] if selected else None
         self.previous=self.current
         self.current={'step':step,'epoch':self.epoch,'scope':scope,'region':region,'floor':floor,'interface':kind,
           'text_overlay_hypothesis':overlay,'metrics':copy.deepcopy(metrics),'last_known_metrics':copy.deepcopy((world or {}).get('last_known_metrics',{})),

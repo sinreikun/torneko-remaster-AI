@@ -454,7 +454,7 @@ class SupervisorRequestTests(unittest.TestCase):
         import hashlib
         from unittest.mock import patch
         image=b'cursor-contract';n=dict(native('道具','マップ','足元','その他'),frame_sha256=hashlib.sha256(image).hexdigest())
-        with patch('autoplayer.world_model.Inventory.cursor_line',return_value='道具') as cursor:
+        with patch('autoplayer.world_model.Inventory.cursor_index',return_value=0) as cursor:
             result=Controller._operational_ocr(n,image,{})
             self.assertEqual(result['_visual_selection']['text'],'道具');self.assertNotIn('_visual_selection',n)
             self.assertIs(Controller._operational_ocr(n,b'other-current-frame',{}),n);self.assertEqual(cursor.call_count,1)
