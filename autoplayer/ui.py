@@ -81,7 +81,7 @@ class Application:
         graph_controls=toolbar
         from .dashboard import SERIES
         for key,(label,color) in SERIES.items():
-            var=tk.BooleanVar(value=self.ui_state.get('graph_series',{}).get(key,key in ('coverage','novelty','reward')));self.overlay_layers[key]=var
+            var=tk.BooleanVar(value=self.ui_state.get('graph_series',{}).get(key,key in ('forecast','novelty','uncertainty')));self.overlay_layers[key]=var
             ttk.Checkbutton(graph_controls,text=label,variable=var,command=self.configure_overlay).pack(side='left')
         ttk.Button(graph_controls,text='全種',command=lambda:self.select_graphs(True)).pack(side='left')
         ttk.Button(graph_controls,text='全解除',command=lambda:self.select_graphs(False)).pack(side='left')
@@ -97,7 +97,7 @@ class Application:
         self.dry=tk.BooleanVar(value=False);ttk.Checkbutton(options,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
         fast_bar=toolbar
         self.supervised_learning=tk.BooleanVar(value=self.cfg.supervised_learning)
-        ttk.Checkbutton(fast_bar,text='LLM監督・自律学習',variable=self.supervised_learning).pack(side='left')
+        ttk.Label(fast_bar,text='経験予測コア v2 / 非同期LLM監督').pack(side='left')
         self.fast_learning=tk.BooleanVar(value=True);self.review_interval=tk.IntVar(value=self.cfg.llm_review_interval)
         ttk.Label(fast_bar,text='観測・操作は常時高速 / 状況に応じて精査').pack(side='left')
         review_group=ttk.Frame(fast_bar);review_group.pack(side='left')
@@ -909,7 +909,7 @@ class Application:
                     if not passed:summary.update(status='stopped',reason='診断を中断しました。');return
                     if separation:summary.update(status='diagnostic_completed',reason='10分間のOS経路・無入力観測を完了。ゲーム反応・キー分離は未検証。');return
                 if not control.checkpoint():summary.update(status='stopped',reason=control.reason or '停止要求');return
-                memory=MemoryStore(DATA/'memory.sqlite',cfg)
+                memory=MemoryStore(DATA/'memory.sqlite',cfg) if console or demonstration else None
                 if console:
                     from .console_play import ConsolePlayer
                     from .demonstrations import DemonstrationStore
@@ -943,18 +943,22 @@ class Application:
                 total_steps=0;retry=0;agent=None
                 def agent_event(row):
                     nonlocal total_steps,retry
-                    if row.get('event')=='result':retry=0;total_steps+=1
+                    if row.get('event')=='result':
+                        retry=0;total_steps+=1
+                        row={**row,'controller_step':row.get('step'),'step':total_steps}
+                    elif row.get('event')=='decision':row={**row,'controller_step':row.get('step'),'step':total_steps+1}
                     self.queue.put(('decision',row))
                 self.queue.put(('status','現在の画面から目標と操作を判断します。未知の状況は未確認として記録します。'))
                 while control.checkpoint() and (not cfg.max_steps or total_steps<cfg.max_steps):
                     runtime_cfg=replace(cfg,max_steps=max(1,cfg.max_steps-total_steps) if cfg.max_steps else 0)
                     # New controller/LLM after an interruption: never reuse pending input,
                     # neutral baseline, motion masks, or an old goal-completion verdict.
-                    memory.last_row=None
+                    if memory:memory.last_row=None
                     if hasattr(backend,'observer'):del backend.observer
                     try:
                         llm=LocalLLM(runtime_cfg);llm.operator_guidance=self.operator_guidance;llm.public_references=reference_context(references)
-                        agent=Controller(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
+                        from .nextgen.controller import NextGenController
+                        agent=NextGenController(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                         agent.run(dry);break
                     except OperationCancelled:
                         if not control.intervention.is_set():raise
@@ -966,6 +970,7 @@ class Application:
                         from .console_play import ConsolePlayer
                         from .demonstrations import DemonstrationStore
                         from .ocr import ScreenOCR
+                        if memory is None:memory=MemoryStore(DATA/'memory.sqlite',cfg)
                         manual_control=SessionControl(self.stop)
                         runner=ConsolePlayer(recorded,DemonstrationStore(memory,cfg),ScreenOCR(cfg.ocr_engine),manual_control,self.interventions,
                             lambda row:self.queue.put(('decision',row)),DATA/'runs'/(session+'.jsonl'),recorder)
@@ -981,7 +986,7 @@ class Application:
                             self.interventions.set_ready(not self.stop.is_set())
                         continue
                     except TargetUnavailable:
-                        memory.runtime_navigation=None;memory.runtime_world=None
+                        if memory:memory.runtime_navigation=None;memory.runtime_world=None
                         if not recovery:raise
                         target=recovery.recover(control)
                         if not target:break
@@ -1005,8 +1010,8 @@ class Application:
                         control.wait(min(30,5*2**min(retry-1,3)))
                 completed=bool(agent and agent.completed)
                 summary.update(status='verified_complete' if completed else 'stopped',reason='別観測で目標達成を確認' if completed else control.reason or ('停止要求' if self.stop.is_set() else 'ループ終了・手数上限または安全条件'))
-                self.queue.put(('memory',memory.context()))
-                cumulative=memory.db.execute('SELECT COUNT(*) FROM experiences WHERE profile=?',(memory.profile,)).fetchone()[0]
+                self.queue.put(('memory',{'provisional_claims':getattr(agent,'summary',{}),'known_transitions':[]}))
+                cumulative=getattr(agent,'summary',{}).get('steps',0)
                 self.queue.put(('cumulative',cumulative))
             except Exception as error:
                 from .background import BackgroundUnavailable
@@ -1061,6 +1066,8 @@ class Application:
                 f"入力: {value.get('observed_keys',[])} / {value.get('hold_ms','?')}ms | {value.get('reason','')}\n"
                 f"結果: 変化={value.get('changed')} / {value.get('turn_kind','')} | 観測={learning.get('observed','?')}回（因果は未確定）\n"
                 f"処理: {value.get('performance',{}).get('total_ms','?')}ms / 学習選択: {value.get('active_input',{}).get('source','方策・モデル')}\n")
+            if value.get('generation')==2:
+                ng=value['nextgen'];text+=f"予測一致: {ng['result'].get('match')} / 不確実性: {ng['metrics']['uncertainty']:.3f} / 新規状態: {ng['result'].get('new_state')}\n選択: 情報利得 {ng['selected']['information_gain_proxy']:.3f} / 目標価値 {ng['selected']['expected_goal_value']:.3f} / 観測上の損失リスク {ng['selected']['observed_loss_risk']:.3f}\n"
             if value.get('item_description_observation'):
                 item=value['item_description_observation'];text+=f"品の説明: {item.get('item_name','未確定')} / {item.get('status')} / {item.get('quotes',[])}\n"
             stages=value.get('performance',{}).get('stages_ms',{})
@@ -1117,6 +1124,22 @@ class Application:
         if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='supervisor_plan':
             self.set_panel('運用計画',value['plan']);return
+        if event=='decision' and value.get('generation')==2:
+            self.run_counts['decisions']+=1;self.last_row=value;self.status.set(value['subgoal'])
+            self.set_panel('目的',{'全体目標':self.cfg.goal,'局所目標':value['subgoal']})
+            self.set_panel('選択行動と理由',{'入力':value['keys'],'保持ms':value['hold_ms'],'理由':value['reason']})
+            self.set_panel('候補と評価',value['nextgen']['candidates']);return
+        if event=='result' and value.get('generation')==2:
+            ng=value['nextgen'];m=ng['metrics'];r=ng['result'];selected=ng['selected']
+            def number(key):
+                v=m.get(key);return '未評価' if v is None else f'{v:.3g}'
+            self.set_panel('行動学習',f"事前予測一致率: {number('prediction_accuracy')} / 不確実性: {number('uncertainty')}\n新規情報: {number('information_gain')} / 反復率: {number('repetition_rate')}\nLLM要求/手: {number('llm_intervention_rate')} / 選択時間: {number('decision_ms')}ms\n規則: {r.get('rule_status','未学習')} / 条件細分化: {r.get('condition_split_node')}\n観測上の局所目標: {number('goal_progress')}（ゲームクリアとは別）")
+            self.set_panel('仮説',{'作用の仮説':ng['hypotheses'],'外見の未確認解釈':ng.get('semantic_interpretations',[])});self.set_panel('候補と評価',ng['candidates'])
+            self.set_panel('目的',ng['objective']);self.set_panel('運用計画',value.get('supervision'))
+            self.set_panel('現在状態',{'現在観測':value['policy_after']['metrics'],'保持した過去値':value['policy_after'].get('retained'),'状態識別':value['policy_after']['state_identification'],'匿名の追跡候補':value['policy_after']['objects']})
+            self.set_panel('自己改善',ng['parameters']);self.set_panel('結果',{'予測':ng['prediction_before_input'],'実測':r.get('effects'),'一致':r.get('match'),'因果':r.get('attribution'),'遅延':r.get('delayed'),'処理時間':value['performance']})
+            self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
+            return
         if event=='result':
             if value.get('supervision'):
                 self.set_panel('運用計画',value['supervision'])
@@ -1176,7 +1199,7 @@ class Application:
         self._ui_health_at=now
         try:
             DATA.mkdir(parents=True,exist_ok=True)
-            value={'at':time.time(),'version':__version__,'poll_ms':round(seconds*1000,2),'preview_draw_ms':round(getattr(self,'preview_draw_seconds',0)*1000,2),'queue':self.queue.snapshot(),'trace_samples':len(self.traces.samples),'turn':self.traces.turn}
+            value={'at':time.time(),'version':__version__,'decision_update_ms':round(getattr(self,'ui_decision_ms',0),2),'poll_ms':round(seconds*1000,2),'preview_draw_ms':round(getattr(self,'preview_draw_seconds',0)*1000,2),'queue':self.queue.snapshot(),'trace_samples':len(self.traces.samples),'turn':self.traces.turn}
             path=DATA/'ui-performance.json';temporary=path.with_suffix('.tmp')
             temporary.write_text(json.dumps(value,ensure_ascii=False),encoding='utf-8');temporary.replace(path)
         except (OSError,AttributeError):pass
@@ -1231,7 +1254,8 @@ class Application:
                 elif kind=='status':self.status.set(value)
                 elif kind=='progress':self.progress.set(value)
                 elif kind=='model':self.vars['model'].set(value);self.vars['provider'].set('ollama');self.progress.set('モデルの取得が完了しました。')
-                elif kind=='decision':self.update_decision(value)
+                elif kind=='decision':
+                    update_started=time.monotonic();self.update_decision(value);self.ui_decision_ms=(time.monotonic()-update_started)*1000
                 elif kind=='connected':
                     previous=self.backend
                     self.backend,self.connection_title=value

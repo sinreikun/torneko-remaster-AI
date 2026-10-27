@@ -3,7 +3,12 @@ from collections import deque
 import math
 
 SERIES={'coverage':('初期観測充足','#59d8ff'),'reward':('観測報酬','#7df08a'),'novelty':('新規性','#ffc66d'),
-        'q':('過去Q値','#d79aff'),'forecast':('予測一致','#ff7f9d'),'confidence':('LLM自己評価','#e8eaf0')}
+        'q':('過去Q値','#d79aff'),'forecast':('予測一致率','#ff7f9d'),'confidence':('LLM自己評価','#e8eaf0')}
+
+SERIES.update({'uncertainty':('不確実性','#78aaff'),'information_gain':('情報獲得量','#6fe7dd'),
+ 'repetition':('反復率','#ff967f'),'llm_rate':('LLM要求率','#d6b8ff'),'decision_ms':('選択ms','#b4dd64'),
+ 'observation_ms':('観測ms','#ffdf83'),'goal_progress':('局所目標進展','#64d6af'),
+ 'tracking':('追跡候補継続率','#f4a7df'),'position':('位置信頼度','#a3c8ed')})
 
 class LearningTraces:
     def __init__(self):self.samples=deque(maxlen=240);self.turn=0
@@ -12,6 +17,9 @@ class LearningTraces:
         if row.get('event')=='human_console_result' and not row.get('keys'):return
         step=row.get('step')
         self.turn=max(self.turn,step) if type(step) is int and step>0 else self.turn+1
+        if row.get('generation')==2:
+            m=row.get('nextgen',{}).get('metrics',{});fields={'forecast':'prediction_accuracy','novelty':'novelty','uncertainty':'uncertainty','information_gain':'information_gain','repetition':'repetition_rate','llm_rate':'llm_intervention_rate','decision_ms':'decision_ms','observation_ms':'observation_ms','goal_progress':'goal_progress','tracking':'tracking_success','position':'position_confidence'}
+            self.samples.append({'turn':self.turn,**{key:m.get(source) for key,source in fields.items()}});return
         actions=(row.get('information_exploration') or {}).get('actions',[])
         update=row.get('input_coverage',{})
         if update.get('situation')==(row.get('information_exploration') or {}).get('situation'):
@@ -28,7 +36,7 @@ class LearningTraces:
         canvas.create_text(x+7,y+6,text=('学習状態 / 手 '+str(self.samples[0]['turn'])+'〜'+str(self.samples[-1]['turn'])+' / 系列別の範囲') if self.samples else '学習状態 / ターンの観測待ち',anchor='nw',fill='#e6edf7',font=('',8),tags='learning_graph')
         if not self.samples:
             canvas.create_text(x+8,y+35,text='操作結果の取得後に描画します',anchor='nw',fill='#b9c7dc',tags='learning_graph');return
-        chosen=[key for key in SERIES if selected.get(key)];plot_top=y+24;plot_bottom=y+h-12-11*len(chosen)
+        chosen=[key for key in SERIES if selected.get(key)];plot_top=y+24;plot_bottom=y+h-12-11*((len(chosen)+1)//2)
         for key in chosen:
             points=[(i,s.get(key)) for i,s in enumerate(self.samples) if isinstance(s.get(key),(int,float)) and math.isfinite(s[key])]
             label,color=SERIES[key]
@@ -45,7 +53,7 @@ class LearningTraces:
                 if len(segment)>=4:canvas.create_line(*segment,fill=color,width=2,tags='learning_graph')
                 legend=f'{label}: {values[-1]:.3g} [{low:.2g}〜{high:.2g}]'
             else:legend=label+': 未観測'
-            canvas.create_text(x+7,y+h-10-11*len(chosen)+11*chosen.index(key),text=legend,anchor='nw',fill=color,font=('',8),tags='learning_graph')
+            canvas.create_text(x+7+(chosen.index(key)%2)*(w//2),y+h-10-11*((len(chosen)+1)//2)+11*(chosen.index(key)//2),text=legend,anchor='nw',fill=color,font=('',8),tags='learning_graph')
 
 def replace_text(widget,text):
     """Keep the same top logical line and horizontal position after replacement."""

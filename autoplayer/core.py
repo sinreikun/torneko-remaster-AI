@@ -341,7 +341,7 @@ class LocalLLM:
         from .performance import vision_image
         from .performance import model_data,clean_text,bounded_request_prompt,fallback_schema
         guidance=prompt.get('operator_guidance')
-        if is_torneko(self.cfg.window_title) and prompt.get('task')!='operational_supervision':prompt=model_data(prompt);system=clean_text(system)
+        if is_torneko(self.cfg.window_title) and prompt.get('task') not in ('operational_supervision','world_model_supervision'):prompt=model_data(prompt);system=clean_text(system)
         if guidance:prompt['operator_guidance']=guidance
         prompt={k:v for k,v in prompt.items() if not k.startswith('_')}
         if getattr(self,'context_compaction',False):
@@ -371,7 +371,7 @@ class LocalLLM:
                 path='/api/chat'
                 body={'model':cfg.model,'stream':False,'format':'json' if fallback else (schema or 'json'),'keep_alive':'10m','messages':[
                     {'role':'system','content':request_system},{'role':'user','content':json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':')),**({'images':[encoded]} if encoded else {})}],
-                    'options':{'temperature':0,'num_predict':900,'num_ctx':8192,'num_thread':2,**({'num_gpu':0} if cfg.compute_mode=='cpu_only' else {})}}
+                    'options':{'temperature':0,'num_predict':1600 if role=='world_model_supervision' else 900,'num_ctx':8192,'num_thread':2,**({'num_gpu':0} if cfg.compute_mode=='cpu_only' else {})}}
             else:
                 path='/chat/completions' if cfg.endpoint.rstrip('/').endswith('/v1') else '/v1/chat/completions'
                 body={'model':cfg.model,'temperature':0,'max_tokens':900,'messages':[

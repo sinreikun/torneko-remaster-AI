@@ -9,6 +9,7 @@ from .interfaces import compact_text
 
 def brief(row):
     value={k:row.get(k) for k in ('step','scene','observed_keys','hold_ms','reason','input_receipt','turn_kind','loop_guard','battle_observations','current_evidence')}
+    if row.get('generation')==2:value['nextgen']={k:row.get('nextgen',{}).get(k) for k in ('metrics','objective','result')}
     native=row.get('ocr') or {}
     value['ocr']={k:native.get(k) for k in ('frame_sha256','captured_at','engine','status')}
     value['ocr']['lines']=[{'text':line.get('text','')[:200]} for line in native.get('lines',[])[:40]]

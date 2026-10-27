@@ -108,7 +108,7 @@ def export_diagnostics(data,destination,detailed=False):
     temporary=destination.with_name(destination.name+'.part')
     try:
         with tempfile.TemporaryDirectory(prefix='gamepilot-export-') as folder,zipfile.ZipFile(temporary,'w',zipfile.ZIP_DEFLATED) as archive:
-            for name in ('memory.sqlite','diagnostics.sqlite'):
+            for name in ('memory.sqlite','diagnostics.sqlite','world-v2.sqlite'):
                 path=data/name
                 if not path.exists(): report['databases'][name]={'status':'not_run'};continue
                 source=None;target=None
@@ -121,6 +121,11 @@ def export_diagnostics(data,destination,detailed=False):
                     source.backup(target,pages=256,sleep=.05,progress=progress)
                     check=target.execute('PRAGMA integrity_check').fetchone()[0]
                     entry={'status':'ok' if check=='ok' else 'failed','integrity':check}
+                    if name=='world-v2.sqlite':
+                        from .nextgen.store import diagnostic_summary
+                        entry['generation_two']=diagnostic_summary(target)
+                        encoded=json.dumps(entry['generation_two'],ensure_ascii=False).encode()
+                        archive.writestr('nextgen/summary.json',encoded);remaining-=len(encoded)
                     if name=='diagnostics.sqlite':
                         entry['runs']=[dict(zip(('id','kind','status','detail'),r)) for r in target.execute('SELECT id,kind,status,detail FROM runs ORDER BY id DESC LIMIT 20')]
                         entry['recent_cycles']=[r[0][:8192] for r in target.execute('SELECT data FROM cycles ORDER BY id DESC LIMIT 100')]
