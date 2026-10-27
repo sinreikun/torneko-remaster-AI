@@ -948,7 +948,7 @@ class Application:
             if stages:text+=f"内訳ms: OCR {stages.get('ocr_ms','?')} / 地図取得 {stages.get('map_capture_ms',0)} / 自然観測 {stages.get('neutral_observation_ms',0)} / 入力後観測 {stages.get('input_response_observation_ms',0)} / 学習・保存 {stages.get('learning_save_ms',0)}\n"
             if value.get('supervision'):
                 sup=value['supervision'];op=value.get('operation',{});evaluation=value.get('operation_evaluation',{})
-                text+=f"監督: {op.get('skill')} / {op.get('selected_source')} / 計画残り{sup.get('remaining')}手 / 推論{'中' if sup.get('review_running') else '待機'} / 方針採用{sup.get('adoptions')}回\n"
+                text+=f"監督: {op.get('skill')} / {op.get('selected_source')} / 段階 {op.get('execution_stage','未記録')} / 計画残り{sup.get('remaining')}手 / 推論{'中' if sup.get('review_running') else '待機'} / 方針採用{sup.get('adoptions')}回\n"
                 text+=f"作用照合: {value.get('action_effect_learning',{}).get('role')} / 進行={evaluation.get('progress')} / 準備={evaluation.get('preparation')} / 検証={value.get('operational_experiment')}\n"
             if value.get('learning_connection'):
                 from .learning_connection import summary as learning_summary

@@ -19,7 +19,7 @@ class NoveltyTests(unittest.TestCase):
         self.addCleanup(self.memory.close);self.explorer=NoveltyExplorer(self.memory,self.cfg)
         self.menu=ocr('道具','3/20','詳細表示切替','整理')
 
-    def test_untried_candidates_precede_old_action_and_survive_reopening(self):
+    def test_missing_menu_purpose_uses_bounded_cancel_and_keeps_evidence(self):
         from autoplayer.core import parse_decision
         from test_agent import change
         import json
@@ -30,9 +30,15 @@ class NoveltyTests(unittest.TestCase):
         self.assertLess(result['reward'],0)
         reopened=NoveltyExplorer(self.memory,self.cfg)
         chosen,info=reopened.choose_menu(decision,self.menu)
-        self.assertNotEqual(chosen.keys,[first]);self.assertEqual(info['selected']['trials'],0)
+        self.assertEqual(chosen.keys,['num2']);self.assertEqual(info['selected']['trials'],1)
         blocked=[[k] for k in ('w','a','s','d','num0','num2')]
         self.assertIsNone(reopened.choose_menu(decision,self.menu,blocked)[1])
+
+    def test_valid_menu_input_is_not_replaced_by_novelty(self):
+        from autoplayer.core import Decision
+        decision=Decision('menu','','','',.8,'continue',['s'],80,600)
+        chosen,info=self.explorer.choose_menu(decision,self.menu)
+        self.assertIs(chosen,decision);self.assertIsNone(info)
 
     def test_repeated_transition_is_not_a_repeated_discovery(self):
         after=ocr('道具','マップ','足元','その他')

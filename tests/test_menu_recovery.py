@@ -30,7 +30,7 @@ class MenuObservationTests(unittest.TestCase):
             observed=policy.observe(b'coordinate contract',self.inventory)
         self.assertTrue(observed['menu_evidence']);self.assertFalse(observed['eligible'])
 
-    def test_controller_explores_distinct_menu_inputs_instead_of_fixed_cancel(self):
+    def test_missing_menu_purpose_does_not_trigger_unrelated_direction_sweep(self):
         import tempfile,json
         from pathlib import Path
         from unittest.mock import Mock
@@ -55,8 +55,7 @@ class MenuObservationTests(unittest.TestCase):
                 rows=[json.loads(l) for l in agent.journal.read_text().splitlines() if json.loads(l)['event']=='result']
             finally:memory.close()
         self.assertEqual(len(backend.actions),3)
-        self.assertEqual(len({tuple(a[0]) for a in backend.actions}),3)
-        self.assertTrue(all(a[0][0] in 'wasd' for a in backend.actions))
+        self.assertTrue(all(a[0]==['num2'] for a in backend.actions))
         self.assertEqual(rows[-1]['llm_proposal']['keys'],[])
-        self.assertEqual(rows[-1]['decision_policy']['source'],'novelty_exploration')
-        self.assertEqual(rows[-1]['policy_learning']['status'],'trained')
+        self.assertEqual(rows[-1]['decision_policy']['source'],'menu_cancel_unconfirmed_goal')
+        self.assertFalse(rows[-1]['policy_learning'].get('positive_progress_proxy',False))

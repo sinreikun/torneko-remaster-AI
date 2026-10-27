@@ -59,6 +59,29 @@ class ItemActionFragmentTests(unittest.TestCase):
             if not p.get('hint_consumed'):p.update(request_text_key=l.current['text_key'],request_selection=l.current['selection_key'])
             self.assertEqual(actor.interface(base,n,s,p,l,[]).keys,[expected])
 
+    def test_active_item_operation_is_not_replaced_by_a_new_supervisor_suggestion(self):
+        from autoplayer.supervision import StateLedger
+        n=normalize_item_menu(self.supplied());s=state();l=StateLedger()
+        effects=Mock(bindings=REFERENCE['keys']);effects.keys.side_effect=lambda role:{'confirm':['num1'],'cancel':['num2']}.get(role,[])
+        actor=OperationalControl(Settings(),effects)
+        index=next(i for i,line in enumerate(n['lines']) if line['text']=='投げる')
+        n['_visual_selection']={'text':'投げる','line_index':index,'frame_sha256':n['frame_sha256']}
+        l.observe(n,s,{}, {}, {'revision':0},0,1)
+        base=Decision('menu','','','',.8,'continue',[],80,600)
+        def plan(action):
+            p=proposal();p.update(skill='interface',interface_role='confirm',interface_quote=action,request_text_key=l.current['text_key'],request_selection=l.current['selection_key']);return p
+        self.assertEqual(actor.interface(base,n,s,plan('飲む'),l,[]).keys,['w'])
+        self.assertEqual(actor.interface(base,n,s,plan('投げる'),l,[]).keys,['w'])
+        self.assertEqual(actor.execution_context()['item_action']['action'],'飲む')
+    def test_current_urgent_hp_precedes_equipment_status_and_old_inspection_plan(self):
+        from test_supervision import native
+        s=state();s['metrics']['hp']['values']=[4,15]
+        s['retained_state']={'refresh_reasons':['equipment_status_after_change']}
+        effects=Mock(bindings=REFERENCE['keys']);effects.keys.side_effect=lambda role:{'confirm':['num1'],'cancel':['num2']}.get(role,[])
+        actor=OperationalControl(Settings(),effects);p=proposal();p['skill']='inspect_inventory'
+        d=actor.interface(Decision('menu','','','',.8,'continue',[],80,600),native('▶薬草','道具','詳細表示切替','整理','1/20'),s,p,ledger(s),[])
+        self.assertEqual(d.keys,['num1']);self.assertEqual(d.execution_stage,'recovery_item')
+
     def test_equipment_check_requires_fresh_abilities_and_survives_inventory_only(self):
         from autoplayer.world_model import WorldModel
         from autoplayer.state_snapshot import StateSnapshot

@@ -10,7 +10,7 @@ class OperationalControl:
     def _decision(self,base,keys,source,reason,expected=None):
         return replace(base,keys=list(keys),hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),confidence=.8,risk='normal',
           intent={},forecast={'horizon':1,'first_expected':expected or {},'continuations':[]},plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={},
-          reason=reason,goal_success='次の観測で位置・HP・敵・現在画面の変化を別々に確認する。')
+          execution_stage=source,reason=reason,goal_success='次の観測で位置・HP・敵・現在画面の変化を別々に確認する。')
     def _key(self,role):
         keys=self.effects.keys(role)
         return keys[0] if keys else None
@@ -45,7 +45,10 @@ class OperationalControl:
         step=ledger.current['step'];request=self.recovery_request;current=ledger.current
         if request and (step>request['until'] or request['control']!=current['control_revision'] or request['guidance']!=current['operator_guidance'].get('revision',0) or request['floor'] and current['floor'] and request['floor']!=current['floor']):
             self.recovery_request=None;request=None
-        if request:skill='recover'
+        hp=state.get('metrics',{}).get('hp',{});food=state.get('metrics',{}).get('fullness',{})
+        hp_values=hp.get('values');food_values=food.get('values')
+        urgent=bool(hp_values and not hp.get('retained') and hp_values[0]/max(1,hp_values[1])<.3 or food_values and not food.get('retained') and food_values[0]<=15)
+        if request or urgent:skill='recover'
         if step<=self.inspection_until and skill!='recover':skill='inspect_inventory'
         if kind!='inventory' or self.inventory_review and (self.inventory_review['control']!=current['control_revision'] or self.inventory_review['guidance']!=current['operator_guidance'].get('revision',0) or self.inventory_review.get('floor')!=current.get('floor')):self.inventory_review=None
         if self.inventory_review and step<=self.inventory_review['until'] and self.inventory_review['control']==current['control_revision'] and self.inventory_review['guidance']==current['operator_guidance'].get('revision',0) and skill!='recover':skill='inspect_inventory'
@@ -61,17 +64,19 @@ class OperationalControl:
         if not text:hint_current=plan.get('request_frame')==ledger.current.get('frame_sha256') and role!='none'
         current_interface=bool(kind or ledger.current.get('interface'))
         if current_interface or hint_current and role!='none' and not state.get('eligible'):
-            if kind=='inventory' and 'equipment_status_after_change' in state.get('retained_state',{}).get('refresh_reasons',[]) and cancel:
-                return self._decision(base,[cancel],'equipment_status_check','装備変更後の能力値を先に読み取るため、一覧から主メニューへ戻る。')
             if kind in ('inventory','item_actions') and skill=='recover':
                 target=self._recovery_item(native,state,kind,current)
-                if target:return self._decision(base,[target],'recovery_item','現在読めた品名・選択行・使用法を照合して回復を1段階進める。別の使用方法を決定しない。')
+                if target:
+                    self.item_action_request=None
+                    return self._decision(base,[target],'recovery_item','現在読めた品名・選択行・使用法を照合して回復を1段階進める。別の使用方法を決定しない。')
+            if kind=='inventory' and 'equipment_status_after_change' in state.get('retained_state',{}).get('refresh_reasons',[]) and cancel:
+                return self._decision(base,[cancel],'equipment_status_check','装備変更後の能力値を先に読み取るため、一覧から主メニューへ戻る。')
             if kind not in ('inventory','item_actions') or self.item_action_request and self.item_action_request.get('kind')!=kind:self.item_action_request=None
             menu_signature=tuple(sorted(compact_text(l.get('text','')).lstrip('▶►▷>●→') for l in native.get('lines',[])))
             request=self.item_action_request
             if request and (step>request['until'] or request['control']!=current['control_revision'] or request['guidance']!=current['operator_guidance'].get('revision',0) or request['text_key']!=menu_signature):
                 self.item_action_request=None;request=None
-            if kind in ('inventory','item_actions') and hint_current and not plan.get('hint_consumed') and role=='confirm':
+            if kind in ('inventory','item_actions') and request is None and hint_current and not plan.get('hint_consumed') and role=='confirm':
                 from .interfaces import ITEM_ACTION_LABELS
                 action=compact_text(quote).lstrip('▶►▷>→')
                 rows=native.get('_current_inventory_rows',[])
@@ -138,6 +143,14 @@ class OperationalControl:
             self.review_pending={'key':key_input,'token':token,'action':'move'}
             return self._decision(base,[key_input],'inventory_review_navigation','未確認の品の行へ上下で1段階進み、現在のカーソル位置を再観測する。')
         return None
+
+    def execution_context(self):
+        request=self.item_action_request or {};item=self.item_context or {};review=self.inventory_review or {}
+        return {'recovery_active':self.recovery_request is not None,
+          'item_action':{k:request[k] for k in ('kind','action','until') if k in request},
+          'recovery_item':{k:item[k] for k in ('name','phase','step') if k in item},
+          'description_review':{'active':bool(review),'until':review.get('until'),'completed_rows':len(review.get('seen',[]))},
+          'rule':'有効な操作は同じ対象で続ける。危機・対象/画面/制御設定の変化・期限超過で中断する。'}
 
     def _recovery_cursor_probe(self,ledger):
         scope=ledger.current['scope']
@@ -371,7 +384,7 @@ class OperationalControl:
           'healing_check':copy.deepcopy(chosen['detail']) if source=='natural_recovery' else None,'expected_signal':'hp_gain' if source=='natural_recovery' else plan['expected_signal'],'experiment':experiment if experiment_active else None,
           'rule_evidence':chosen.get('rule_evidence'),'prediction':chosen.get('estimate',self.effects.estimate(state,d.keys)),
           'candidates':[{'source':c['source'],'keys':c['decision'].keys,'score':round(c['score'],4),'priority':c['priority'],'skill':c['skill']} for c in candidates][:12],
-          'selected_keys':list(d.keys),'scope':current['scope'],'selection_rule':'現在の条件を満たす候補を一度だけ比較。後段の総当たりで上書きしない。'}
+          'execution_stage':d.execution_stage or source,'selected_keys':list(d.keys),'scope':current['scope'],'selection_rule':'現在の条件を満たす候補を一度だけ比較。後段の総当たりで上書きしない。'}
         self.last_selection=operation
         return d,pc,combat_trial,prediction_context,operation
     def feedback(self,row):

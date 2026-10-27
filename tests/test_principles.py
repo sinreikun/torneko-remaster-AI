@@ -58,3 +58,11 @@ class PrincipleTests(unittest.TestCase):
         first,second=client._request.call_args_list
         self.assertNotIn('completion_principles',first.args[2])
         self.assertEqual(second.args[2]['completion_principles'],action_principles(True)['box_retrieval'])
+
+class OrderedProtocolTests(unittest.TestCase):
+    def test_strategy_order_comes_from_the_shared_protocol(self):
+        from autoplayer.decision_protocol import STRATEGY_ORDER,EXECUTION_ORDER,SUPERVISION_INSTRUCTION
+        from autoplayer.principles import action_principles
+        self.assertEqual(action_principles(True)['priority_order'],list(STRATEGY_ORDER))
+        self.assertLess(EXECUTION_ORDER.index('urgent_recovery'),EXECUTION_ORDER.index('continue_scoped_operation'))
+        self.assertIn('主メニューで道具→一覧で目的の品の行→使用方法で目的の操作名→決定→結果確認',SUPERVISION_INSTRUCTION)

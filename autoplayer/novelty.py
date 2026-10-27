@@ -47,13 +47,13 @@ class NoveltyExplorer:
             return decision,None
         # Keep grounded confirm/use/dialogue proposals with the existing model
         # and safety checks. Never invent an item use or destructive operation.
-        if decision.keys and any(k not in ('w','a','s','d','num0','num2') for k in decision.keys):return decision,None
+        if decision.keys or getattr(decision,'execution_stage',''):return decision,None
         signature=self.state(native)
         if not signature:return decision,None
         stats={r[0]:r[1:] for r in self.db.execute('SELECT action,trials,discoveries,reward,last_used FROM novelty_actions WHERE profile=? AND state=?',(self.profile,signature))}
         transitions={r[0]:(r[1],r[2]) for r in self.db.execute('SELECT action,SUM(count),SUM(CASE WHEN destination<>state THEN count ELSE 0 END) FROM novelty_outcomes WHERE profile=? AND state=? GROUP BY action',(self.profile,signature))}
         candidates=[]
-        for key in ('w','a','s','d','num0','num2'):
+        for key in ('num2',):
             if key not in self.cfg.allowed_keys or [key] in blocked:continue
             n,new,reward,last=stats.get(key,(0,0,0.,0.))
             samples,changes=transitions.get(key,(0,0))
@@ -66,13 +66,13 @@ class NoveltyExplorer:
         # Once tried, observed effects and reward outrank balanced trial counts.
         candidates.sort(key=lambda c:(c['trials']>0,-c['priority'],c['last_used']))
         selected=candidates[0]
-        reason=('現在のOCRでメニューを確認。この画面で未試行の許可済みキーを1回試して再観測します。' if selected['trials']==0 else
-            '候補はすべて試行済み。試行回数の均等化ではなく、観測された状態変化と報酬を優先して次の状態へ進む操作を選びます。')
-        return replace(decision,scene='menu',keys=[selected['key']],confidence=.85,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),
-            observation='現在のOCRにメニュー固有の複数項目があります。',subgoal='未経験の画面または操作結果を観測する',reason=reason,
-            goal_success='操作後のメニュー項目・選択表示・場面の変化を観測する。',plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={}),{
-                'source':'novelty_exploration','state':signature,'kind':kind,'selected':selected,'candidates':candidates,
-                'note':'固定のキャンセル復帰ではなく未試行優先。無反応を故障や壁と断定しない。'}
+        reason='現在のメニューで実行する目的が不明。総当たりや既定の決定をせず、取消を1回送り次の画面で目的を再設定する。'
+        return replace(decision,scene='menu',keys=[selected['key']],confidence=0.,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(600,self.cfg.max_wait_ms),
+            observation='現在のOCRにメニュー固有の複数項目があります。',subgoal='目的不明のメニュー操作を中断して再判断する',reason=reason,
+            goal_success='取消後の現在画面を再観測する。成功や進捗とは断定しない。',plan=[],progress=[],memory_updates=[],goal_evidence=[],knowledge_assessments=[],progress_test={}),{
+                'source':'menu_cancel_unconfirmed_goal','state':signature,'kind':kind,'selected':selected,'candidates':candidates,
+                'note':'有効な目的がない場合の限定的な取消。未試行キーの総当たりではない。'}
+
 
     def repeated_menu_opening(self,native,policy,decision):
         """Do not let a repeatedly observed menu cycle override fresh map exploration."""

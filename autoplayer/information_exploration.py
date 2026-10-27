@@ -49,10 +49,13 @@ class InformationExploration:
             data=self.stats(situation,action);needed=4 if len(data['outcomes'])>1 else 2
             rows.append({'keys':action,'observed':data['observed'],'required':needed,'sent':data['sent']})
         return {'situation':situation,'initial_coverage_ready':all(r['observed']>=r['required'] for r in rows),
-            'actions':rows,'rule':'情報収集は全体目標への手段。未試行・観測不足の操作を優先する。回数は初期情報の目安で、理解・成功・因果確定ではない。'}
+            'actions':rows,'rule':'情報収集は全体目標への手段。現在の目的に必要な候補の中で観測不足を比較し、継続中の操作を上書きしない。回数は初期情報の目安で、理解・成功・因果確定ではない。'}
     def choose(self,decision,native,state,blocked=()):
         context=self.context(decision,native,state)
         text='\n'.join(l.get('text','') for l in (native or {}).get('lines',[]))
+        if torneko_menu_kind(native) or getattr(decision,'execution_stage',''):
+            context['deferred_reason']='current_menu_or_owned_operation'
+            return decision,context
         if (state or {}).get('white_frame_evidence',{}).get('visible'):return decision,context
         if decision.status!='continue' or DANGEROUS.search(text) or result_screen(native) or re.search(r'はい|いいえ|ロード中|読み込み中',text):return decision,context
         if context['initial_coverage_ready']:return decision,context

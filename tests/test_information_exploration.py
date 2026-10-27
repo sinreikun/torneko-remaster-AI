@@ -21,6 +21,15 @@ class InformationTests(unittest.TestCase):
         d,c=model.choose(self.decision,self.native,self.state)
         self.assertTrue(c['initial_coverage_ready']);self.assertIs(d,self.decision)
         self.assertEqual(self.cfg.goal,'箱を持ち帰る')
+    def test_information_coverage_does_not_override_a_menu_or_owned_step(self):
+        from dataclasses import replace
+        model=InformationExploration(self.cfg)
+        menu={'status':'ok','lines':[{'text':t} for t in ('道具','マップ','足元','その他')]}
+        decision,context=model.choose(self.decision,menu,self.state)
+        self.assertIs(decision,self.decision);self.assertEqual(context['deferred_reason'],'current_menu_or_owned_operation')
+        owned=replace(self.decision,execution_stage='requested_item_action')
+        self.assertIs(model.choose(owned,self.native,self.state)[0],owned)
+
     def test_scene_and_action_labels_do_not_define_observed_situation(self):
         from dataclasses import replace
         model=InformationExploration(self.cfg)
