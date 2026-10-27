@@ -260,7 +260,17 @@ class Inventory:
             if record.get('status')!='description_text_observed' or not record.get('quotes'):continue
             if all(compact_text(t).lstrip('▶►▷>●→') in list_labels for t in record['quotes']):continue
             if compact_text(record.get('item_name',''))!=name:continue
-            if row.get('name_status')=='game_alias_unidentified' and (record.get('inventory_scope')!=self.scope or record.get('item_id') not in (None,row.get('id'))):continue
+            if row.get('name_status')=='game_alias_unidentified' and (record.get('inventory_scope')!=self.scope or record.get('item_id') not in (None,row.get('id'))):
+                # A type's base performance is common knowledge, not this
+                # instance's identification, modifier or curse state.
+                quotes=record.get('quotes',[])
+                if re.search(r'剣|盾',name) and any(re.search(r'(?:攻撃|防御)力.*基本',unicodedata.normalize('NFKC',q)) for q in quotes):
+                    common=[q for q in quotes if not re.search(r'呪|のろ|識別|鑑定|現在|[+−-]\s*\d',unicodedata.normalize('NFKC',q))]
+                    if common:
+                        result=copy.deepcopy(record);result.pop('item_id',None)
+                        result.update(quotes=common,identity_scope='profile_common_equipment_description',knowledge_kind='common_type_description_not_individual_identification',individual_details_unconfirmed=True)
+                        return result
+                continue
             if record.get('identity_scope')!='profile_display_name' and record.get('inventory_scope')!=self.scope:continue
             return copy.deepcopy(record)
         return None

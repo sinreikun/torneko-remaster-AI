@@ -18,6 +18,7 @@ class OperationalControl:
         self.recovery_policy=RecoveryPolicy()
     def prepare_inventory_audit(self,state,current,native):
         self.inventory_audit.prepare(state,current,native,self.inventory_review)
+        self.equipment_preparation.review(self,state,current,native)
         follow=self.menu_followup
         if not follow:return
         hp=current.get('metrics',{}).get('hp',{}).get('values');food=current.get('metrics',{}).get('fullness',{}).get('values')
@@ -116,6 +117,9 @@ class OperationalControl:
             if self.equipment_preparation.active:
                 equipment=self.equipment_preparation.choose(self,base,native,state,current,kind)
                 if equipment:return equipment
+            if kind=='inventory' and skill!='recover' and not self.item_action_request and not (hint_current and role=='confirm' and 'インパス' in quote):
+                equipment=self.equipment_preparation.choose(self,base,native,state,current,kind,allow_start=True)
+                if equipment:return equipment
             if kind not in ('inventory','item_actions') or self.item_action_request and self.item_action_request.get('kind')!=kind:self.item_action_request=None
             menu_signature=tuple(sorted(compact_text(l.get('text','')).lstrip('▶►▷>●→') for l in native.get('lines',[])))
             request=self.item_action_request
@@ -147,9 +151,9 @@ class OperationalControl:
                 if key and [key] not in blocked:
                     plan['hint_consumed']=True
                     return self._decision(base,[key],'scoped_interface_hint','現在の同じ表示と引用を確認し、監督役が指定した役割の入力を1回試す。')
-            if kind=='inventory' and skill!='recover' and role=='none':
-                equipment=self.equipment_preparation.choose(self,base,native,state,current,kind,allow_start=True)
-                if equipment:return equipment
+            if kind=='main_menu' and any(x['token'] not in self.equipment_preparation.attempted for x in self.equipment_preparation.opportunities.values()) and not self.equipment_preparation.prohibited(current):
+                target=self._cursor_toward(native,'道具')
+                if target and confirm:return self._decision(base,[confirm if target=='selected' else target],'equipment_upgrade_navigation','未完了の装備比較を継続し、現在の道具一覧へ戻る。')
             if kind=='main_menu' and skill in ('inspect_inventory','recover'):
                 target=self._cursor_toward(native,'道具')
                 if target and confirm:return self._decision(base,[confirm if target=='selected' else target],'inventory_navigation','現在のメニュー項目とカーソルから道具へ1段階進める。')
@@ -213,6 +217,7 @@ class OperationalControl:
     def execution_context(self):
         request=self.item_action_request or {};item=self.item_context or {};review=self.inventory_review or {}
         return {'recovery_active':self.recovery_request is not None,'recovery_checks':copy.deepcopy(self.recovery_policy.checks),
+          'equipment_opportunities':[{'display_name':x['target_row']['display_name'],'slot':x['slot'],'candidate_base':x['base'],'last_observed_ability':x['before'],'status':x['status'],'individual_details_unconfirmed':x['individual_details_unconfirmed']} for x in list(self.equipment_preparation.opportunities.values())[:4]],
           'equipment_preparation':{k:copy.deepcopy(v) for k,v in (self.equipment_preparation.active or {}).items() if k in ('quote','slot','phase','until')},
           'item_action':{k:request[k] for k in ('kind','action','until') if k in request},
           'recovery_item':{k:item[k] for k in ('name','phase','step') if k in item},
@@ -319,7 +324,7 @@ class OperationalControl:
         def offer(decision,source,skill,score,detail=None):
             if decision is not None and (decision.keys or decision.status=='complete'):
                 if not ledger.current.get('interface') and not self.recovery_policy.allows_move(state,decision.keys,self.effects.bindings):return
-                priority=105 if source=='strength_growth' else 88 if source=='recovery_retreat' else 100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
+                priority=105 if source=='strength_growth' else 88 if source=='recovery_retreat' else 100 if source=='interface' else 95 if source=='natural_recovery' else 90 if source=='inventory_inspection' and skill=='recover' else 85 if source=='inventory_inspection' and ((detail or {}).get('tactical_inventory') or (detail or {}).get('equipment_followup')) else 78 if source=='equipment_upgrade_pending' else 80 if source=='combat' else 75 if source=='inventory_inspection' and ((detail or {}).get('before_combat') or (detail or {}).get('periodic_audit')) else 65 if source=='inventory_inspection' and (detail or {}).get('item_followup') else 70 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind')=='enemy' else 60 if source=='floor_navigation' and (detail or {}).get('route',{}).get('target_kind') in ('items','inspect_marker') else 50 if source=='floor_navigation' else 45 if source=='inventory_inspection' else 40
                 candidates.append({'decision':decision,'source':source,'skill':skill,'score':score,'priority':priority,'detail':detail or {}})
         quote=plan.get('interface_quote','')
         if plan['skill']=='verify_goal' and quote and quote in ledger.current.get('text','') and re.search(r'持ち帰|帰還|クリア|おめでとう',quote):
@@ -353,6 +358,8 @@ class OperationalControl:
             if state.get('eligible') and combat:
                 d,trial=combat.choose(base,state,stable,blocked)
                 if trial:offer(d,'combat','combat',2.,{'trial':trial})
+            upgrade=self.equipment_preparation.request(self,base,state,current,native)
+            if upgrade:offer(upgrade,'equipment_upgrade_pending','inspect_inventory',2.)
             retained=state.get('retained_state',{});revision=retained.get('revision')
             enemies=state.get('minimap',{}).get('enemies',[])
             prepare_combat=bool(retained.get('before_combat_check_needed') and enemies and not any(max(abs(x),abs(y))<=1 for x,y in enemies))
@@ -475,7 +482,8 @@ class OperationalControl:
     def feedback(self,row):
         self.strength_growth.feedback(row)
         if row.get('policy_state') and row.get('policy_after'):self.recovery_policy.observe_result(row,next((k for k,v in self.effects.bindings.items() if '足踏み' in v),None))
-        if self.equipment_preparation.active:self.equipment_preparation.feedback(row,self._key('confirm'))
+        if self.equipment_preparation.active or (row.get('operation') or {}).get('selected_source')=='equipment_upgrade_pending':
+            self.equipment_preparation.feedback(row,self._key('confirm') if self.equipment_preparation.active else None)
         e=(row.get('action_effect_learning') or {}).get('effects',{});op=row.get('operation',{})
         values={'position':e.get('moved') is True,'damage_dealt':bool(e.get('new_hit_message')),'enemy_defeated':bool(e.get('new_defeat_message')),
           'hp_gain':e.get('hp_gain_net',0)>0,'food_gain':e.get('food_gain_net',0)>0,'interface_change':e.get('text_changed') is True,

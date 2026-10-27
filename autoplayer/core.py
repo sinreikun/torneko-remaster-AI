@@ -1083,7 +1083,8 @@ class Controller:
                     self.monitor_checkpoint.restore(policy_state,normal_observation_image,self.policy.map_sensor,self.world.floor_navigation,self.world)
                 world_observation=self.world.observe(normal_observation_image,native,policy_state,neutral_image)
                 if world_observation.get('new_adventure') and self.policy:
-                    if operation_control:operation_control.recovery_policy.reset()
+                    if operation_control:
+                        operation_control.recovery_policy.reset();operation_control.equipment_preparation.reset();operation_control.strength_growth.active=None
                     from .pacing import AdaptivePacing
                     self.pacing=AdaptivePacing(self.cfg.max_wait_ms)
                     self.policy.map_sensor.reset();self.policy.routes.reset();self.world.floor_navigation.reset();self.executive.cancel('new_adventure')
