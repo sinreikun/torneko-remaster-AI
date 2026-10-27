@@ -110,7 +110,11 @@ class Application:
         emergency_button.configure(style='Emergency.Toolbar.TButton')
         toolbar.schedule()
         self.status=tk.StringVar(value='待機中 — ゲームに接続するとライブ画面を表示します。')
-        ttk.Label(root,textvariable=self.status,padding=(10,4),wraplength=1400).pack(fill='x')
+        status_host=ttk.Frame(root,padding=(10,4));status_host.pack(fill='x')
+        self.status_text=tk.Text(status_host,width=1,height=2,wrap='word',state='disabled',relief='flat',takefocus=False)
+        self.status_text.pack(side='left',fill='x',expand=True)
+        status_scroll=ttk.Scrollbar(status_host,command=self.status_text.yview);status_scroll.pack(side='right',fill='y');self.status_text.configure(yscrollcommand=status_scroll.set)
+        self.status.trace_add('write',self.refresh_status_text);self.refresh_status_text()
         self.tabs=ttk.Notebook(root);self.tabs.pack(fill='both',expand=True,padx=8,pady=5)
         dashboard=ttk.Frame(self.tabs);config_tab=ttk.Frame(self.tabs);config=self.scroll_frame(config_tab);self.setup_tab=ttk.Frame(self.tabs)
         self.tabs.add(dashboard,text='攻略・観測・検証');self.tabs.add(config_tab,text='目標・攻略知識・接続設定');self.tabs.add(self.setup_tab,text='セットアップ')
@@ -270,6 +274,12 @@ class Application:
         frame.bind('<Configure>',lambda event:canvas.configure(scrollregion=canvas.bbox('all')))
         canvas.bind('<Configure>',lambda event:canvas.itemconfigure(window,width=event.width))
         return frame
+
+    def refresh_status_text(self,*args):
+        from .dashboard import replace_text
+        text=self.status.get()
+        if getattr(self.status_text,'_last_text',None)==text:return
+        replace_text(self.status_text,text);self.status_text._last_text=text
 
     def set_panel(self,title,value):
         from .dashboard import replace_text

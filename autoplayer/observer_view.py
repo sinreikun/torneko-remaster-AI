@@ -35,6 +35,7 @@ class ObserverDigest:
         return value[:limit] if isinstance(value,str) else display_json(value,limit)
     def update(self,row):
         event=row.get('event')
+        if event is None and 'scene' in row and 'keys' in row:event='decision'
         if event not in ('decision','sent','result','human_console_result'):return False
         if event in ('decision','sent'):
             operation=row.get('operation') or {}

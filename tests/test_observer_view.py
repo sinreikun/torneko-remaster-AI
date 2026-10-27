@@ -40,3 +40,8 @@ class ObserverViewTests(unittest.TestCase):
         app.observer_shown_section='予測と結果';app.observer_section=SimpleNamespace(get=lambda:'目的・手順');app.observer_positions={'目的・手順':('4.0',0.)};app.ui_state={};app.save_ui=Mock();app.refresh_observer_section=Mock()
         app.change_observer_section()
         self.assertEqual(app.observer_positions['予測と結果'],('8.0',.1));app.detail_body.yview.assert_called_with('4.0');self.assertEqual(app.ui_state['observer_section'],'目的・手順')
+
+    def test_controller_decision_without_event_updates_current_purpose(self):
+        digest=ObserverDigest()
+        self.assertTrue(digest.update({'scene':'gameplay','step':65,'keys':['num6'],'subgoal':'HPの回復','reason':'足踏みで回復'}))
+        self.assertIn('HPの回復',digest.summary());self.assertIn('num6',digest.summary());self.assertIn('次の入力',digest.summary())
