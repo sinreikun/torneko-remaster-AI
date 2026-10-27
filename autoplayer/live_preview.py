@@ -15,19 +15,18 @@ class PreviewBudget:
         if now-self.last_adjust<1.:return
         self.last_adjust=now
         if self.cost>self.period*.8:
-            if self.scale>.56:self.scale=max(.55,self.scale*.85)
-            else:self.period=min(.125,max(.05,self.cost*1.2))
+            self.period=min(.125,max(.05,self.cost*1.2))
         elif self.cost<self.period*.45:
-            self.period=max(.05,self.period*.9);self.scale=min(1.,self.scale+.05)
+            self.period=max(.05,self.period*.9)
     def size(self,viewport):
         w,h=viewport
-        return max(160,min(1024,round(w*self.scale))),max(90,min(768,round(h*self.scale)))
+        return max(160,min(1280,round(w))),max(90,min(960,round(h)))
 
 class PreviewFrameCache:
     """One recent window-owned frame; only previews may reuse it."""
-    def __init__(self):self.image=None;self.hwnd=None;self.at=0.;self.wall=0.;self.sequence=0
+    def __init__(self):self.image=None;self.hwnd=None;self.at=0.;self.wall=0.;self.sequence=0;self.from_preview=False
     def frame(self,hwnd,capture,now,wall,preview=False):
-        if not preview or self.image is None or hwnd!=self.hwnd or not 0<=now()-self.at<=.04:
+        if not preview or not self.from_preview or self.image is None or hwnd!=self.hwnd or not 0<=now()-self.at<=.04:
             image=capture(hwnd);image.thumbnail((1280,960))
-            self.image=image;self.hwnd=hwnd;self.at=now();self.wall=wall();self.sequence+=1
+            self.image=image;self.hwnd=hwnd;self.at=now();self.wall=wall();self.sequence+=1;self.from_preview=preview
         return self.image,self.wall,self.sequence

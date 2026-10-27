@@ -368,7 +368,7 @@ class Application:
     def preview_loop(self):
         from PIL import Image
         from .live_preview import PreviewBudget
-        budget=PreviewBudget();last_observed=None;last_sequence=None
+        budget=PreviewBudget();last_sequence=None
         while not self.preview_done.is_set():
             started=time.monotonic();backend=self.backend
             if backend is None or not getattr(self,'preview_visible',True):
@@ -383,11 +383,6 @@ class Application:
                             self.frame_slot=(Image.frombytes('RGB',tuple(value['size']),value['pixels']),at)
                         last_sequence=sequence
                         budget.sample(time.monotonic()-started,getattr(self,'preview_draw_seconds',0),time.monotonic())
-                else:self.frame_slot=(backend.capture(),time.time())
-                if value is None:
-                    observed=getattr(backend,'last_capture_at',None)
-                    if observed is not None and observed!=last_observed and getattr(backend,'last_frame',None):
-                        self.frame_slot=(backend.last_frame,observed);last_observed=observed
             except Exception as error:
                 from .cancellation import OperationCancelled
                 if not isinstance(error,OperationCancelled):self.frame_slot=(None,str(error))
@@ -439,7 +434,7 @@ class Application:
         if not force:self.live_paint_times.append(time.monotonic())
         ratio=min(max(1,self.live.winfo_width())/width,max(1,self.live.winfo_height())/height)
         size=(max(1,round(width*ratio)),max(1,round(height*ratio)))
-        image=source.resize(size,Image.Resampling.BILINEAR) if size!=source.size else source.copy()
+        image=source.resize(size,Image.Resampling.LANCZOS if size[0]<width or size[1]<height else Image.Resampling.NEAREST) if size!=source.size else source.copy()
         if not isinstance(frame[0],Image.Image):source.close()
         self.live_photo=ImageTk.PhotoImage(image)
         if getattr(self,'live_image_id',None):

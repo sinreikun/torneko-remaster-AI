@@ -12,6 +12,7 @@ class CaptureTimeout(RuntimeError):
 
 
 def capture_worker(pipe):
+    from PIL import Image
     from .window_capture import WindowCapture
     try:
         from .live_preview import PreviewFrameCache
@@ -24,9 +25,9 @@ def capture_worker(pipe):
             try:
                 image,captured_at,sequence=cache.frame(hwnd,capture.grab,time.monotonic,time.time,preview=preview)
                 if preview:
-                    size=request[2] if len(request)==3 else (1024,768)
-                    if not isinstance(size,(tuple,list)) or len(size)!=2 or not all(type(n) is int and 1<=n<=1024 for n in size):raise ValueError('Invalid preview dimensions')
-                    frame=image.copy();frame.thumbnail(tuple(size))
+                    size=request[2] if len(request)==3 else (1280,960)
+                    if not isinstance(size,(tuple,list)) or len(size)!=2 or not all(type(n) is int and 1<=n<=1280 for n in size):raise ValueError('Invalid preview dimensions')
+                    frame=image.copy();frame.thumbnail(tuple(size),Image.Resampling.LANCZOS)
                     pipe.send(('ok',{'pixels':frame.tobytes(),'size':frame.size,'source_size':image.size,'captured_at':captured_at,'sequence':sequence}))
                 else:
                     output=io.BytesIO();image.save(output,format='PNG')
@@ -82,7 +83,7 @@ class CaptureService:
                     if status=='unsupported':raise BackgroundUnavailable(value)
                     if status!='ok':raise RuntimeError(value)
                     if preview:
-                        if not isinstance(value,dict) or not isinstance(value.get('size'),(tuple,list)) or len(value['size'])!=2 or not all(type(n) is int and 1<=n<=1024 for n in value['size']) or not isinstance(value.get('pixels'),bytes) or len(value['pixels'])!=value['size'][0]*value['size'][1]*3:raise ValueError('Invalid preview response')
+                        if not isinstance(value,dict) or not isinstance(value.get('size'),(tuple,list)) or len(value['size'])!=2 or not all(type(n) is int and 1<=n<=1280 for n in value['size']) or not isinstance(value.get('pixels'),bytes) or len(value['pixels'])!=value['size'][0]*value['size'][1]*3:raise ValueError('Invalid preview response')
                         return value
                     if not isinstance(value,bytes) or not value.startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid capture response')
                     return value
