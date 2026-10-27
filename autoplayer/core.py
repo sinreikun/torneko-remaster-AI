@@ -834,6 +834,7 @@ class Controller:
         if selected:result['_visual_selection']={'text':selected,'line_index':selected_index,'frame_sha256':native['frame_sha256'],'source':'current_cursor_geometry_hypothesis'}
         inventory=(world or {}).get('inventory') or {}
         if inventory.get('status')=='observed':result['_current_inventory_rows']=copy.deepcopy(inventory.get('rows',[]))
+        if inventory.get('status')=='observed' and inventory.get('description_panel'):result['_description_panel']=copy.deepcopy(inventory['description_panel'])
         return result
     def hide_map(self,image,state):
         """Use the user-confirmed game menu once, only for a detected overlay."""

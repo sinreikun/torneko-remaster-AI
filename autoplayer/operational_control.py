@@ -166,9 +166,11 @@ class OperationalControl:
             signature=tuple(r['display_name'] for r in rows)
             descriptions={compact_text(t) for r in rows for t in r.get('known_description',{}).get('quotes',[])}
             panel=any(compact_text(l.get('text','')) in descriptions for l in native.get('lines',[]))
+            measured=native.get('_description_panel') or {}
+            panel=panel or measured.get('status')=='located' and measured.get('frame_sha256')==native.get('frame_sha256')
             if self.inventory_audit.active and panel and signature not in review.get('hidden_panels',set()):
                 self.review_pending={'key':'num7','token':signature,'action':'hide_panel'}
-                return self._decision(base,['num7'],'inventory_uncover_rows','説明で隠れた所持品の行を確認するためNum7を1回入力し、一覧と所持数を読み直す。')
+                return self._decision(base,['num7'],'inventory_uncover_rows','選択行に応じた位置の説明を閉じ、隠れた所持品の行を確認するためNum7を1回入力し、一覧と所持数を読み直す。')
             audit=self.inventory_audit.active
             if audit and audit['stage']=='collect' and audit['page_pending']:
                 key_input=next((k for k,v in self.effects.bindings.items() if k in self.cfg.allowed_keys and v.startswith('右')),None)

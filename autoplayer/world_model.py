@@ -76,7 +76,7 @@ class VisualSense:
             if sum(abs(v-mid)<.009 for v in self.pitch_samples)>=3:self.pitch=mid
 
 class Inventory:
-    def __init__(self,scope='',confirm_key='num1'):self.confirm_key=confirm_key;self.scope=scope;self.rows=[];self.pages={};self.selected=None;self.serial=0;self.last_seen=None;self.effects=[];self.identifications={};self.age=0;self.selected_age=0;self.was_inventory=False;self.description_reads=[];self.description_text=set()
+    def __init__(self,scope='',confirm_key='num1'):self.confirm_key=confirm_key;self.scope=scope;self.rows=[];self.pages={};self.selected=None;self.serial=0;self.last_seen=None;self.effects=[];self.identifications={};self.age=0;self.selected_age=0;self.was_inventory=False;self.description_reads=[];self.description_text=set();self.description_panel={}
     @staticmethod
     def line_box(line):
         boxes=[w['box'] for w in line.get('words',[]) if len(w.get('box',[]))==4]
@@ -167,6 +167,7 @@ class Inventory:
             for row in self.rows:
                 if row['id']==self.selected:row['equipment_affordance']={'action':'装備','source':'current_selected_item_actions_ocr','true_name_confirmed':False}
         if kind!='inventory':
+            self.description_panel={'status':'not_visible'}
             self.was_inventory=False
             return {'status':'not_visible','last_observed':self.last_seen,'complete':False,'selected_id':self.selected,'rows':[]}
         if not self.was_inventory:self.pages={}
@@ -181,7 +182,12 @@ class Inventory:
         stored_descriptions={compact_text(t) for r in self.description_reads if r.get('status')=='description_text_observed' and not all(compact_text(q).lstrip('▶►▷>●→') in item_labels for q in r.get('quotes',[])) for t in r.get('quotes',[])}
         rows=[];self.selected=None;cursor_index=self.cursor_index(native,png)
         cursor_box=self.line_box((native or {}).get('lines',[])[cursor_index]) if cursor_index is not None else None
+        from .inventory_description import locate_description
+        self.description_panel=locate_description(native,png,cursor_index,[r['display_name'] for r in self.rows])
+        self.description_panel['frame_sha256']=(native or {}).get('frame_sha256')
+        description_indices=set(self.description_panel.get('line_indices',[]))
         for line_index,line in enumerate((native or {}).get('lines',[])):
+            if line_index in description_indices:continue
             raw=unicodedata.normalize('NFKC',line.get('text','')).strip()
             box=self.line_box(line)
             if compact_text(raw) in stored_descriptions or compact_text(raw) in self.description_text-item_labels or re.search(r'[。！？]',raw):continue
@@ -229,7 +235,7 @@ class Inventory:
         if page and 1<=page[0]<=page[1]<=100:self.pages[page[0]]={'total':page[1],'rows':copy.deepcopy(rows)}
         complete=bool(page and all(i in self.pages and self.pages[i]['total']==page[1] for i in range(1,page[1]+1)))
         return {'status':'observed' if rows or empty else 'unreadable_entries','rows':copy.deepcopy(rows),'page':page,
-            'occupancy':occupancy,'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
+            'description_panel':copy.deepcopy(self.description_panel),'occupancy':occupancy,'complete':complete,'selected_id':self.selected,'last_observed':self.last_seen,
             'rule':'表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。'}
     @staticmethod
     def equipment_evidence(row):
@@ -266,7 +272,18 @@ class Inventory:
         old_text={compact_text(l.get('text','')) for l in before_native.get('lines',[])}
         row_labels={clean(r['quote']) for r in self.rows}|{clean(r['display_name']) for r in self.rows}
         added=[l.get('text','')[:800] for l in after_native.get('lines',[]) if compact_text(l.get('text','')) not in old_text and clean(l.get('text','')) not in row_labels and len(compact_text(l.get('text','')))>=5 and compact_text(l.get('text','')) not in ('満腹度','詳細表示切替','整理') and not re.match(r'^(?:HP\s*\d|Lv\s*\d|\d)',l.get('text',''),re.I)]
+        from .inventory_description import locate_description
+        before_panel=locate_description(before_native,before_png,old,row_labels)
+        after_panel=locate_description(after_native,after_png,new,row_labels)
+        source_phase='after'
+        if after_panel['status']=='located':
+            changed_panel=before_panel['status']!='located' or before_panel['rectangles']!=after_panel['rectangles'] or before_panel['quotes']!=after_panel['quotes']
+            added=after_panel['quotes'] if changed_panel else []
+        elif before_panel['status']=='located' and after_panel['status']=='not_detected':added=before_panel['quotes'];source_phase='before'
+        elif 'ambiguous' in (before_panel['status'],after_panel['status']):added=[]
         result={'status':'description_text_observed' if added else 'toggle_without_new_readable_text','item_name':clean(a.get('text','')),'selected_line_box':self.line_box(a),'quotes':added[:12],'before_frame':before_native.get('frame_sha256'),'after_frame':after_native.get('frame_sha256'),'step':row.get('step'),'source':'current_inventory_num7_toggle','effect_verified':False}
+        result.update(description_layout_before=before_panel,description_layout_after=after_panel,
+            description_source_phase=source_phase,description_source_frame=(before_native if source_phase=='before' else after_native).get('frame_sha256'))
         item_name=clean(a.get('text',''))
         alias=bool(re.search(r'未識別|未鑑定|仮名|^(?:赤|青|黄|緑|白|黒|紫|茶|桃|灰|銀|金|橙|水|ピンク|オレンジ)(?:い|色の|色い)?(?:草|巻物|杖|指輪)$',item_name))
         result.update(inventory_scope=self.scope,identity_scope='inventory_alias' if alias else 'profile_display_name',knowledge_kind='game_description_ocr_not_verified_effect')
