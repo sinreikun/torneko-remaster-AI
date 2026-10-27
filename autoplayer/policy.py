@@ -110,7 +110,9 @@ class ExperiencePolicy:
         menu=bool((reference or {}).get('menu_evidence') or torneko_menu_kind(native) or result_screen(native)) or any(token in text for token in ('メニュー','持ち物','どうぐ','道具','装備','設定','セーブ','選択してください','キャンセル','はい','いいえ'))
         hp=metrics.get('hp',{}).get('values');floor=metrics.get('floor',{}).get('values')
         minimap=self.track_pose(minimap,floor)
-        eligible=minimap.get('status')=='observed' and bool(hp and floor) and not menu
+        # Navigation evidence is independent of a missing HP OCR value.
+        # Never reinterpret a readable dungeon as an unknown-key probe scene.
+        eligible=minimap.get('status')=='observed' and not minimap.get('retained') and minimap.get('player_cell') is not None and bool(floor) and not menu
         food=metrics.get('fullness',{}).get('values')
         objective='survive' if hp and hp[0]/hp[1]<.3 else ('forage' if food and food[0]<20 else 'explore')
         visual=[];frame_size=[]
@@ -132,7 +134,7 @@ class ExperiencePolicy:
             if not has_text_content(native):payload['visual']=visual
         state=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()[:24]
         location=hashlib.sha256(json.dumps([floor,minimap.get('shape'),minimap.get('player_cell')]).encode()).hexdigest()[:24] if eligible else state
-        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and (has_text_content(native) or eligible)),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'interface_kind':interface_kind,'floor_confirmation':confirmation,
+        return {'metrics_source_frame_sha256':reference.get('frame_sha256') if reference else digest,'metrics_source':'normal_capture_before_map_display' if reference else 'current_frame','frame_sha256':digest,'observable':bool(visual and (has_text_content(native) or eligible)),'visual':visual,'text_key':text_key,'text_reliable':text_reliable,'interface_layout_group':layout_group(native,frame_size,metrics),'id':state,'location':location,'eligible':eligible,'health_observation':'observed' if hp else 'unavailable_not_zero','objective':objective,'minimap':minimap,'metrics':metrics,'menu_evidence':menu,'interface_kind':interface_kind,'floor_confirmation':confirmation,
             'note':'状態は画面内の地図形状・位置等の推定。ワールド座標や因果関係は未検証。'}
     def values(self,state):
         rows=self.db.execute('SELECT action,trials,q,positive,reward_sum,goal_trials,goal_wins FROM policy_actions WHERE profile=? AND state=? AND objective=?',

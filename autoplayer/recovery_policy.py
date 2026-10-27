@@ -54,9 +54,9 @@ class RecoveryPolicy:
         pos,enemies=self.cells(state);hp=fresh(state,'hp');floor=fresh(state,'floor')
         passive=[list(cell) for cell in enemies if self.floor==floor and self.idle.get(cell,0)>=3 and max(abs(cell[0]-pos[0]),abs(cell[1]-pos[1]))>1]
         return {'recovery_check':copy.deepcopy(self.checks.get(self.need(state))), 'automatic_recheck_blocked':self.blocked(state),
-          'avoid_initiating_combat':bool(hp and hp[0]/max(1,hp[1])<.75),'stationary_enemy_cells':passive,
+          'avoid_initiating_combat':not hp or hp[0]/max(1,hp[1])<.75,'stationary_enemy_cells':passive,
           'retreat_rule':'等速の敵から距離を増やすだけの移動を自動退避として優先しない。階段への観測済み経路など具体的な目的、状態効果・速度差・接触数減少の証拠を必要とする。低HPだけでは逃げ続けない。',
-          'rule':'HP75%未満では遠い敵へ自分から接近しない。静止候補は受理したターン消費行動の前後で3回以上同位置を観測したマークであり、睡眠や安全の確定ではない。隣接敵への対処は維持する。'}
+          'rule':'HPが未確認または75%未満なら遠い敵へ自分から接近しない。静止候補は受理したターン消費行動の前後で3回以上同位置を観測したマークであり、睡眠や安全の確定ではない。隣接敵への対処は維持する。'}
     @staticmethod
     def delta(keys,bindings):
         directions={'上':(0,-1),'左':(-1,0),'下':(0,1),'右':(1,0),'up':(0,-1),'left':(-1,0),'down':(0,1),'right':(1,0)}
@@ -69,7 +69,7 @@ class RecoveryPolicy:
         return delta if values and max(map(abs,delta))==1 else None
     def allows_move(self,state,keys,bindings):
         pos,enemies=self.cells(state);hp=fresh(state,'hp');delta=self.delta(keys,bindings)
-        if not pos or not enemies or not hp or hp[0]/max(1,hp[1])>=.75 or not delta or not state.get('eligible'):return True
+        if not pos or not enemies or hp and hp[0]/max(1,hp[1])>=.75 or not delta or not state.get('eligible'):return True
         distance=min(max(abs(e[0]-pos[0]),abs(e[1]-pos[1])) for e in enemies)
         if distance<=1:return True # Defensive repositioning/combat is evaluated separately.
         target=(pos[0]+delta[0],pos[1]+delta[1])
