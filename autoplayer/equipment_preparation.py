@@ -30,18 +30,18 @@ class EquipmentPreparation:
                 token=json.dumps([scope,row['display_name'],slot,estimate,values[0]],ensure_ascii=False)
                 if token in self.attempted:continue
                 quote=compact_text(row['quote']).lstrip('▶►▷>●→')
-                if actor._cursor_toward(native,quote,vertical=True) is None:continue
-                candidates.append((estimate-values[0],estimate,quote,slot,values[0],token))
+                if actor._cursor_toward(native,row,vertical=True) is None:continue
+                candidates.append((estimate-values[0],estimate,quote,slot,values[0],token,copy.deepcopy(row)))
             if candidates:
-                _,estimate,quote,slot,baseline,token=max(candidates)
+                _,estimate,quote,slot,baseline,token,target_row=max(candidates,key=lambda x:x[:6])
                 self.attempted[token]=step
                 while len(self.attempted)>64:self.attempted.pop(next(iter(self.attempted)))
-                a={'scope':copy.deepcopy(scope),'until':step+10,'phase':'inventory','quote':quote,'slot':slot,'base':estimate,'before':baseline,'pending':None}
+                a={'scope':copy.deepcopy(scope),'until':step+10,'phase':'inventory','quote':quote,'target_row':target_row,'slot':slot,'base':estimate,'before':baseline,'pending':None}
                 self.active=a
         if not a:return None
         expected='inventory' if a['phase']=='inventory' else 'item_actions'
         if kind!=expected:self.active=None;return None
-        target=actor._cursor_toward(native,a['quote'] if kind=='inventory' else '装備',vertical=kind=='inventory')
+        target=actor._cursor_toward(native,a.get('target_row',a['quote']) if kind=='inventory' else '装備',vertical=kind=='inventory')
         if not target:self.active=None;return None
         key=actor._key('confirm') if target=='selected' else target
         a['pending']='open' if kind=='inventory' and target=='selected' else 'equip' if target=='selected' else 'navigate'

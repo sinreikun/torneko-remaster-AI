@@ -166,7 +166,8 @@ class OperationalControl:
             self.inventory_review={'until':step+(96 if self.inventory_audit.active else 64),'max_moves':80 if self.inventory_audit.active else 40,'control':current['control_revision'],'guidance':current['operator_guidance'].get('revision',0),'floor':copy.deepcopy(current.get('floor')),'seen':set(),'attempts':{},'moves':0}
         review=self.inventory_review
         if step>review['until'] or review['moves']>=review.get('max_moves',40):return None
-        def key(r):return (r['display_name'],round(r['box'][1]/8))
+        from .inventory_identity import review_key
+        key=review_key
         for candidate in rows:
             if candidate.get('known_description',{}).get('status')=='description_text_observed':review['seen'].add(key(candidate))
         item=selected[0];token=key(item)
@@ -222,6 +223,12 @@ class OperationalControl:
         from .interfaces import normalize_item_menu
         native=normalize_item_menu(native)
         InventoryBox=Inventory.line_box
+        target_row=target if isinstance(target,dict) else None
+        if target_row:
+            matches=[r for r in native.get('_current_inventory_rows',[]) if r.get('id')==target_row.get('id')]
+            if len(matches)!=1:return None
+            target_line=matches[0].get('line_index');target=compact_text(matches[0].get('quote','')).lstrip('▶►▷>●→')
+        else:target_line=None
         lines=(native or {}).get('lines',[]);selected=[];targets=[]
         visual=(native or {}).get('_visual_selection') or {}
         observed=compact_text(visual.get('text','')) if visual.get('frame_sha256') and visual['frame_sha256']==(native or {}).get('frame_sha256') else ''
@@ -230,7 +237,7 @@ class OperationalControl:
             label=compact_text(line.get('text',''));prefix=bool(re.match(r'^[▶►▷>→]',label));clean=label.lstrip('▶►▷>→')
             chosen=(line_index==index and label==observed) if type(index) is int else label==observed if observed else prefix
             if chosen:selected.append(line)
-            if clean==target or clean.startswith(target+'('):targets.append(line)
+            if (line_index==target_line if target_row else clean==target or clean.startswith(target+'(')):targets.append(line)
         if len(selected)!=1 or not targets:return None
         if selected[0] in targets:return 'selected'
         # Duplicate names are distinct rows. Move toward the nearest observed

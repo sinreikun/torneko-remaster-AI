@@ -41,7 +41,8 @@ class InventoryAudit:
             if count.get('count')==0:a.update(stage='analyse',coverage='observed_empty',analysis_started=time.monotonic(),analysis_step=step)
             return
         signature=tuple(r.get('display_name','') for r in rows)
-        known=all(r.get('known_description',{}).get('status')=='description_text_observed' or review and (r['display_name'],round(r['box'][1]/8)) in review['seen'] for r in rows if r.get('box'))
+        from .inventory_identity import review_key
+        known=all(r.get('known_description',{}).get('status')=='description_text_observed' or review and review_key(r) in review['seen'] for r in rows if r.get('box'))
         if not known and not (review and (step>review['until'] or review['moves']>=review.get('max_moves',40))):return
         count=(state.get('retained_state',{}).get('last_observed_inventory') or {}).get('occupancy') or {}
         if a['page_pending'] and not a.get('page_submitted') and signature not in a['pages']:

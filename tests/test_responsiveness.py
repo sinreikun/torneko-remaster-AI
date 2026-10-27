@@ -84,6 +84,19 @@ class CaptureIsolationTests(unittest.TestCase):
         process.terminate.assert_called_once()
         self.assertTrue(service.lock.acquire(blocking=False));service.lock.release()
 
+    def test_preview_uses_validated_raw_pixels_without_changing_analysis_png_protocol(self):
+        service,parent,_,_,_=self.service()
+        value={'pixels':bytes([1,2,3]),'size':(1,1),'source_size':(1280,720)}
+        parent.poll.return_value=True;parent.recv.return_value=('ok',value)
+        self.assertEqual(service.grab_preview(123),value)
+        parent.send.assert_called_once_with((123,'preview'));service.close()
+
+    def test_invalid_preview_size_or_pixel_count_is_rejected(self):
+        for value in ({'pixels':b'a','size':(1,1)},{'pixels':b'','size':(2000,2000)}):
+            service,parent,_,_,_=self.service();parent.poll.return_value=True;parent.recv.return_value=('ok',value)
+            with self.assertRaises(ValueError):service.grab_preview(123)
+            service.close()
+
     def test_completed_capture_preserves_its_payload(self):
         service,parent,_,process,_=self.service();png=b'\x89PNG\r\n\x1a\ntransport-contract'
         parent.poll.return_value=True;parent.recv.return_value=('ok',png)

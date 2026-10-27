@@ -7,6 +7,19 @@ from autoplayer.core import Settings,LocalLLM
 from test_agent import change
 
 class GameGuideTests(unittest.TestCase):
+    def test_ring_alias_gets_identification_guidance_without_invented_effect(self):
+        context=GameGuide(Settings()).context({'lines':[{'text':'エメラルドの指輪'}]},'inventory',{}, {})
+        self.assertIn('ring-identification-curses',context['selected_foundation_ids'])
+        self.assertFalse(any(x.startswith('ring-effect-') for x in context['selected_ids']))
+        rule=next(r for r in context['foundations'] if r['id']=='ring-identification-curses')
+        self.assertIn('初代',rule['verify_or_revise']);self.assertIn('リマスター',rule['verify_or_revise'])
+
+    def test_named_ring_and_curse_sources_are_injected_with_edition_scope(self):
+        context=GameGuide(Settings()).context({'lines':[{'text':'ハラヘラズの指輪 シャナク 呪い'}]},'inventory',{}, {})
+        self.assertIn('ring-effect-0',context['selected_ids'])
+        self.assertIn('remove-curses-current-equipment',context['selected_ids'])
+        self.assertTrue(any(s['edition']=='sfc' for s in context['sources']))
+
     def test_adjacent_contact_receives_action_preconditions_not_enemy_identity(self):
         guide=GameGuide(Settings());ctx=guide.context({'status':'ok','lines':[]},'gameplay',{'relative_contacts':{'contacts':[{'adjacent':True}]}},{'floor':{'values':[1]},'hp':{'values':[9,15]}})
         self.assertIn('adjacent-attack',ctx['selected_ids']);self.assertEqual(ctx['current_keys']['attack'],['num1']);self.assertEqual(ctx['current_keys']['face'],['num5'])

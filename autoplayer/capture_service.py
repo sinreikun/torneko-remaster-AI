@@ -16,12 +16,16 @@ def capture_worker(pipe):
     try:
         capture=WindowCapture()
         while True:
-            hwnd=pipe.recv()
-            if hwnd is None:break
+            request=pipe.recv()
+            if request is None:break
+            preview=isinstance(request,tuple) and len(request)==2 and request[1]=='preview'
+            hwnd=request[0] if preview else request
             try:
-                image=capture.grab(hwnd);image.thumbnail((1280,960))
-                output=io.BytesIO();image.save(output,format='PNG')
-                pipe.send(('ok',output.getvalue()))
+                image=capture.grab(hwnd);source_size=image.size;image.thumbnail((1024,768) if preview else (1280,960))
+                if preview:pipe.send(('ok',{'pixels':image.tobytes(),'size':image.size,'source_size':source_size}))
+                else:
+                    output=io.BytesIO();image.save(output,format='PNG')
+                    pipe.send(('ok',output.getvalue()))
             except Exception as error:
                 pipe.send(('unsupported' if isinstance(error,BackgroundUnavailable) else 'error',str(error)))
     except (EOFError,BrokenPipeError,OSError):pass
@@ -50,7 +54,11 @@ class CaptureService:
             if not process.is_alive():process.close()
         if pipe is not None:pipe.close()
 
-    def grab_png(self,hwnd,cancel=None):
+    def grab_png(self,hwnd,cancel=None):return self._grab(hwnd,cancel)
+
+    def grab_preview(self,hwnd,cancel=None):return self._grab(hwnd,cancel,preview=True)
+
+    def _grab(self,hwnd,cancel=None,preview=False):
         cancel=cancel or self.cancel
         deadline=time.monotonic()+self.timeout
         while not self.lock.acquire(timeout=.05):
@@ -58,7 +66,7 @@ class CaptureService:
             if time.monotonic()>=deadline:raise CaptureTimeout('画面取得の待機時間を超えました。')
         try:
             if cancel and cancel.is_set():raise OperationCancelled('画面取得を停止しました。')
-            self._start();self.pipe.send(int(hwnd))
+            self._start();self.pipe.send((int(hwnd),'preview') if preview else int(hwnd))
             while True:
                 if cancel and cancel.is_set():
                     self._discard();raise OperationCancelled('画面取得を停止しました。')
@@ -68,6 +76,9 @@ class CaptureService:
                     status,value=self.pipe.recv()
                     if status=='unsupported':raise BackgroundUnavailable(value)
                     if status!='ok':raise RuntimeError(value)
+                    if preview:
+                        if not isinstance(value,dict) or not isinstance(value.get('size'),(tuple,list)) or len(value['size'])!=2 or not all(type(n) is int and 1<=n<=1024 for n in value['size']) or not isinstance(value.get('pixels'),bytes) or len(value['pixels'])!=value['size'][0]*value['size'][1]*3:raise ValueError('Invalid preview response')
+                        return value
                     if not isinstance(value,bytes) or not value.startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid capture response')
                     return value
                 if not self.process.is_alive():

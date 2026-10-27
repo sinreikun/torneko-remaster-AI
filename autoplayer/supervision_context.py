@@ -16,7 +16,8 @@ def compact_supervision_prompt(prompt,budget=6500,tight=False):
         if not rows:rows=(source.get('last_observed_inventory') or {}).get('rows',[])
         inventory=[]
         for row in rows[:20]:
-            item=pick(row,('display_name','quote','quantity','equipped','selected','name_status','true_name'))
+            item=pick(row,('display_name','quote','quantity','equipped','selected','name_status','true_name','identification_required'))
+            if sum(r.get('display_name')==row.get('display_name') for r in rows)>1:item.update(row_id=row.get('id'),page=row.get('page'),line_index=row.get('line_index'))
             description=row.get('known_description') or {}
             if description.get('status')=='description_text_observed':
                 text=' / '.join(description.get('quotes',[]));item['description_ocr']=text[:160]

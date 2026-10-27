@@ -204,17 +204,24 @@ class Inventory:
             if not name or name in ('装備','道具','持ち物','使う','食べる','投げる','置く'):continue
             quantity=None;q=re.search(r'[×x]\s*(\d+)$',name)
             if q:quantity=int(q[1]);name=name[:q.start()].rstrip()
-            candidates=previous.get(name,[])
-            same_slot=[r for r in candidates if box and r.get('box') and abs(r['box'][1]-box[1])<=max(2,(box[3]-box[1])*.3)]
-            old=same_slot[0] if len(same_slot)==1 else candidates[0] if len(candidates)==1 else None
-            if old:candidates.remove(old)
+            from .inventory_identity import same_label,orange_text,equipped_indicator
+            available=[r for values in previous.values() for r in values if r.get('page')==page and same_label(r['display_name'],name)]
+            same_slot=[r for r in available if box and r.get('box') and abs((r['box'][1]+r['box'][3]-box[1]-box[3])/2)<=max(3,min(r['box'][3]-r['box'][1],box[3]-box[1])*.4)]
+            old=same_slot[0] if len(same_slot)==1 else available[0] if len(available)==1 and not box and not available[0].get('box') else None
+            if old:
+                previous[old['display_name']].remove(old)
+                if name!=old['display_name'] and same_label(name,old['display_name']):name=min((name,old['display_name']),key=len)
+            color=orange_text(png,box)
+            equipped_mark=equipped_indicator(png,box)
+            if equipped_mark and name.startswith('巨') and (name[1:] in previous or any(compact_text(l.get('text','')).lstrip('▶►▷>●→')==name[1:] for l in (native or {}).get('lines',[]))):name=name[1:]
+            alias=bool(re.search(r'未識別|未鑑定|仮名',raw) or color['status']=='orange_unidentified')
             if old:identifier=old['id']
             else:self.serial+=1;identifier=f'item_{self.scope}{self.serial:06d}'
             selected=prefix in ('▶','►','▷','>','●') or (cursor_index is not None and line_index==cursor_index)
-            row={'id':identifier,'display_name':name,'game_alias':name if re.search(r'未識別|未鑑定|仮名',raw) else None,'name_status':'game_alias_unidentified' if re.search(r'未識別|未鑑定|仮名',raw) else 'unknown','true_name':None,'quantity':quantity,
-                'equipped':True if prefix.strip()=='E' else None,'quote':raw,'selected':selected,
-                'equipment_affordance':copy.deepcopy(old.get('equipment_affordance')) if old else None,'identity_status':'matched_display_name' if old else 'new_or_ambiguous','page':page,'line_index':line_index,'box':self.line_box(line)}
-            if name in self.identifications:row.update(self.identifications[name],name_status='identified_message_unverified_ocr')
+            row={'id':identifier,'display_name':name,'game_alias':name if alias else None,'name_status':'game_alias_unidentified' if alias else 'unknown','identification_evidence':color,'identification_required':alias,'curse_status':'unknown','true_name':None,'quantity':quantity,
+                'equipped':True if prefix.strip()=='E' or equipped_mark else None,'quote':raw,'selected':selected,
+                'equipment_affordance':copy.deepcopy(old.get('equipment_affordance')) if old else None,'identity_status':'matched_page_row_not_verified_instance' if old else 'new_or_ambiguous','page':page,'line_index':line_index,'box':self.line_box(line)}
+            if name in self.identifications and not alias:row.update(self.identifications[name],name_status='identified_message_unverified_ocr')
             known=self.known_description(row)
             if known:row['known_description']=known
             rows.append(row)
@@ -253,6 +260,7 @@ class Inventory:
             if record.get('status')!='description_text_observed' or not record.get('quotes'):continue
             if all(compact_text(t).lstrip('▶►▷>●→') in list_labels for t in record['quotes']):continue
             if compact_text(record.get('item_name',''))!=name:continue
+            if row.get('name_status')=='game_alias_unidentified' and (record.get('inventory_scope')!=self.scope or record.get('item_id') not in (None,row.get('id'))):continue
             if record.get('identity_scope')!='profile_display_name' and record.get('inventory_scope')!=self.scope:continue
             return copy.deepcopy(record)
         return None
@@ -286,6 +294,8 @@ class Inventory:
             description_source_phase=source_phase,description_source_frame=(before_native if source_phase=='before' else after_native).get('frame_sha256'))
         item_name=clean(a.get('text',''))
         alias=bool(re.search(r'未識別|未鑑定|仮名|^(?:赤|青|黄|緑|白|黒|紫|茶|桃|灰|銀|金|橙|水|ピンク|オレンジ)(?:い|色の|色い)?(?:草|巻物|杖|指輪)$',item_name))
+        alias=alias or any(r.get('selected') and r.get('name_status')=='game_alias_unidentified' for r in self.rows)
+        result['item_id']=next((r['id'] for r in self.rows if r.get('selected')),None)
         result.update(inventory_scope=self.scope,identity_scope='inventory_alias' if alias else 'profile_display_name',knowledge_kind='game_description_ocr_not_verified_effect')
         self.description_text.update(compact_text(t) for t in added)
         if len(self.description_text)>256:self.description_text=set(compact_text(t) for r in self.description_reads[-20:] for t in r.get('quotes',[]))

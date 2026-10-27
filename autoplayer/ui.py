@@ -199,7 +199,7 @@ class Application:
         reports=sorted((DATA/'exports').glob('*.zip'),key=lambda p:p.stat().st_mtime,reverse=True)
         if reports:self.latest_zip=reports[0]
         self.preview=threading.Thread(target=self.preview_loop,daemon=True);self.preview.start()
-        root.protocol('WM_DELETE_WINDOW',self.close);root.after(100,self.poll)
+        root.protocol('WM_DELETE_WINDOW',self.close);root.after(100,self.poll);root.after(33,self.refresh_live)
 
     def configure_theme(self):
         from tkinter import font
@@ -366,13 +366,44 @@ class Application:
         except OSError as error:self.status.set('表示設定の保存に失敗: '+str(error))
 
     def preview_loop(self):
-        while not self.preview_done.wait(.4):
-            backend=self.backend
-            if backend is None:continue
-            try:self.frame_slot=(backend.capture(),time.time())
+        from PIL import Image
+        last_observed=None
+        while not self.preview_done.is_set():
+            started=time.monotonic();backend=self.backend
+            if backend is None:
+                self.preview_done.wait(.1);continue
+            try:
+                observed=getattr(backend,'last_capture_at',None)
+                if observed is not None and observed!=last_observed and getattr(backend,'last_frame',None):
+                    self.frame_slot=(backend.last_frame,observed);last_observed=observed
+                if hasattr(backend,'capture_preview'):
+                    value=backend.capture_preview(self.preview_done)
+                    if value:self.frame_slot=(Image.frombytes('RGB',tuple(value['size']),value['pixels']),time.time())
+                else:self.frame_slot=(backend.capture(),time.time())
             except Exception as error:
                 from .cancellation import OperationCancelled
                 if not isinstance(error,OperationCancelled):self.frame_slot=(None,str(error))
+            # Deadline pacing includes capture time; no fixed extra 400ms delay.
+            self.preview_done.wait(max(.01,.05-(time.monotonic()-started)))
+
+    def refresh_live(self):
+        if self.preview_done.is_set():return
+        try:self.draw_frame();self.draw_live_status()
+        except Exception as error:self.live_info.set('LIVE表示エラー: '+str(error))
+        finally:
+            try:self.root.after(33,self.refresh_live)
+            except tk.TclError:pass
+
+    def draw_live_status(self):
+        if not getattr(self,'preview_bounds',None) or not self.frame_slot or self.frame_slot[0] is None:return
+        from .live_preview import live_status
+        text=live_status(getattr(self,'live_paint_times',()),self.frame_slot[1],time.monotonic(),time.time())
+        self.live.delete('live_status');x,y,w,h=self.preview_bounds
+        tag=self.live.create_text(x+7,y+h-7,text=text,anchor='sw',fill='#d7e6ed',font=('Segoe UI',9),tags='live_status')
+        box=self.live.bbox(tag)
+        if box:
+            background=self.live.create_rectangle(box[0]-4,box[1]-2,box[2]+4,box[3]+2,fill='#14202b',outline='',tags='live_status')
+            self.live.tag_lower(background,tag)
 
     def draw_frame(self,force=False):
         frame=self.frame_slot
@@ -383,13 +414,16 @@ class Application:
             self.live.create_text(20,20,anchor='nw',text=frame[1],fill='white',tags='image');return
         from PIL import Image,ImageTk
         import io
-        image=Image.open(io.BytesIO(frame[0]));width,height=image.size
+        image=frame[0].copy() if isinstance(frame[0],Image.Image) else Image.open(io.BytesIO(frame[0]));width,height=image.size
+        from collections import deque
+        if not hasattr(self,'live_paint_times'):self.live_paint_times=deque(maxlen=60)
+        if not force:self.live_paint_times.append(time.monotonic())
         image.thumbnail((max(1,self.live.winfo_width()),max(1,self.live.winfo_height())))
         self.live_photo=ImageTk.PhotoImage(image)
         self.live.create_image(self.live.winfo_width()/2,self.live.winfo_height()/2,image=self.live_photo,tags='image')
         self.preview_image=image.copy()
         self.preview_bounds=((self.live.winfo_width()-image.width)/2,(self.live.winfo_height()-image.height)/2,image.width,image.height)
-        self.draw_learning_graph()
+        self.draw_learning_graph();self.draw_live_status()
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
 
     def connect(self):

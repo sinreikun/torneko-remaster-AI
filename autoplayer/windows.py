@@ -102,6 +102,15 @@ class WindowsGame:
             import time
             self.last_frame=image;self.last_capture_at=time.time()
             return image
+    def capture_preview(self,cancel=None):
+        # A live preview must not queue behind, or interrupt, an action/map
+        # capture. The UI reuses last_frame while the gameplay lock is held.
+        if not self.capture_lock.acquire(blocking=False):return None
+        try:
+            self.ready();frame=self.window_capture.grab_preview(self.hwnd,cancel);self.ready()
+            return frame
+        finally:self.capture_lock.release()
+
     def _capture(self):
         self.ready()
         png=self.window_capture.grab_png(self.hwnd)
