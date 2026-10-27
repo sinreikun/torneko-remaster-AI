@@ -53,8 +53,12 @@ class RecoveryPolicyTests(unittest.TestCase):
         self.assertTrue(r.allows_move(s,['a'],REFERENCE['keys']));self.assertTrue(r.allows_move(s,['num1'],REFERENCE['keys']))
         s['minimap']['enemies']=[[1,0]];self.assertTrue(r.allows_move(s,['d'],REFERENCE['keys']))
         s['minimap']['enemies']=[[3,0]];s['metrics']['hp']['values']=[14,15];self.assertTrue(r.allows_move(s,['d'],REFERENCE['keys']))
-    def test_retreat_uses_only_confirmed_floor_and_respects_failed_moves(self):
+    def test_retreat_requires_observed_destination_and_respects_failed_moves(self):
         s=self.low();s['minimap']['enemies']=[[1,0]];r=RecoveryPolicy()
+        self.assertIsNone(r.retreat(s,REFERENCE['keys'],[]))
+        s['map_route_hint']={'key':'a','keys':['a'],'target_kind':'stairs','target_cell':[9,10]}
+        self.assertIsNone(r.retreat(s,REFERENCE['keys'],[]))
+        s['minimap']['stairs']=[[-1,0]]
         self.assertEqual(r.retreat(s,REFERENCE['keys'],[]),'a')
         self.assertIsNone(r.retreat(s,REFERENCE['keys'],[['a']]))
     def test_natural_recovery_remains_available_after_negative_inventory_check(self):

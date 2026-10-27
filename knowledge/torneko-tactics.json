@@ -93,6 +93,14 @@
       "edition": "user_environment",
       "kind": "user_supplied",
       "accessed": "2026-10-27"
+    },
+    {
+      "id": "user-equal-speed-pursuit-20261027",
+      "url": "knowledge/SOURCES.md#2026-10-27-等速追跡と退避",
+      "title": "利用者提供：通常は敵も1マス移動し、距離だけを目的に離れることには利益がない",
+      "edition": "user_environment",
+      "kind": "user_supplied",
+      "accessed": "2026-10-27"
     }
   ],
   "rules": [
@@ -886,6 +894,28 @@
     "item_details": "持ち物画面では選択中の品の説明枠を切り替える。通常場面の同じキーのマップ表示とは区別し、現在画面での1回の入力結果を確認する。"
   },
   "foundations": [
+    {
+      "id": "equal-speed-pursuit",
+      "roles": [
+        "move",
+        "attack",
+        "face",
+        "item",
+        "step"
+      ],
+      "precondition": "敵との距離を取る移動や低HP時の退避を検討する。",
+      "expected_effect": "通常は敵も1手に1マス追跡する。自分が1マス離れるだけでは敵の手番後の距離や有利さは増えない。単純な逃走を繰り返さず、必要な戦闘・回復・道具・目的のある地形利用を比較する。",
+      "verify_or_revise": "退避には、鈍足や行動制限・自分の速度優位・複数敵との接触を減らす地形・階段への到達など具体的な利益を必要とする。見た目だけで速度差や状態効果を確定しない。静止している敵を鈍足と決め付けない。移動前後の敵位置・HP・目的地への進捗で確認する。",
+      "sources": [
+        "user-equal-speed-pursuit-20261027"
+      ],
+      "applicability": "user_environment",
+      "when": [
+        "combat",
+        "ranged",
+        "low_hp"
+      ]
+    },
     {
       "id": "item-value-policy",
       "when": [

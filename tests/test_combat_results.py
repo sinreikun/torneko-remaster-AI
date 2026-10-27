@@ -51,8 +51,17 @@ class CombatTests(unittest.TestCase):
         evaluation=self.combat.record(trial,row,native(['HP14/15']))
         self.assertLess(evaluation['reward'],0);self.assertFalse(evaluation['enemy_indicator_disappeared'])
         other,trial=self.combat.choose(self.decision,hurt,True)
-        self.assertEqual(trial['stage'],'movement_trial');self.assertNotEqual(other.keys,['num1'])
+        self.assertEqual(trial['stage'],'orient_trial');self.assertEqual(other.keys,['num5','a'])
         self.assertEqual(self.memory.db.execute('SELECT SUM(trials) FROM combat_actions').fetchone()[0],1)
+
+    def test_old_reward_for_moving_away_does_not_create_a_combat_candidate(self):
+        _,trial=self.combat.choose(self.decision,self.s,True)
+        self.combat.pending=None
+        self.memory.db.execute('INSERT INTO combat_actions VALUES(?,?,?,?,?)',
+            (self.combat.profile,trial['context'],'step_d',100,1000.))
+        chosen,new_trial=self.combat.choose(self.decision,self.s,True)
+        self.assertEqual(new_trial['stage'],'orient_trial')
+        self.assertEqual(chosen.keys,['num5','a'])
 
     def test_turn_damage_is_retained_but_changed_target_requires_new_orientation(self):
         _,trial=self.combat.choose(self.decision,self.s,True)

@@ -329,7 +329,7 @@ class OperationalControl:
                 natural=self.natural_recovery(base,state,current,stable,blocked)
                 if natural:offer(natural[0],'natural_recovery','recover',2.4,natural[1])
             retreat=self.recovery_policy.retreat(state,self.effects.bindings,blocked)
-            if retreat:offer(self._decision(base,[retreat],'recovery_retreat','低HPのため、現在確認した床のうち敵との距離を増やせる方向へ1マス退避する。通過後に敵・HP・地形を再確認する。'),'recovery_retreat','recover',2.3)
+            if retreat:offer(self._decision(base,[retreat],'recovery_retreat','低HPだが距離だけを目的に逃げない。観測済み階段への具体的な経路を1マス進み、敵・HP・目的地までの経路を再確認する。逃げ切れるとは仮定しない。'),'recovery_retreat','recover',2.3)
             if state.get('eligible') and combat:
                 d,trial=combat.choose(base,state,stable,blocked)
                 if trial:offer(d,'combat','combat',2.,{'trial':trial})

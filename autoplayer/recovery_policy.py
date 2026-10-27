@@ -55,6 +55,7 @@ class RecoveryPolicy:
         passive=[list(cell) for cell in enemies if self.floor==floor and self.idle.get(cell,0)>=3 and max(abs(cell[0]-pos[0]),abs(cell[1]-pos[1]))>1]
         return {'recovery_check':copy.deepcopy(self.checks.get(self.need(state))), 'automatic_recheck_blocked':self.blocked(state),
           'avoid_initiating_combat':bool(hp and hp[0]/max(1,hp[1])<.75),'stationary_enemy_cells':passive,
+          'retreat_rule':'等速の敵から距離を増やすだけの移動を自動退避として優先しない。階段への観測済み経路など具体的な目的、状態効果・速度差・接触数減少の証拠を必要とする。低HPだけでは逃げ続けない。',
           'rule':'HP75%未満では遠い敵へ自分から接近しない。静止候補は受理したターン消費行動の前後で3回以上同位置を観測したマークであり、睡眠や安全の確定ではない。隣接敵への対処は維持する。'}
     @staticmethod
     def delta(keys,bindings):
@@ -77,8 +78,13 @@ class RecoveryPolicy:
         pos,enemies=self.cells(state);hp=fresh(state,'hp')
         if not pos or not enemies or not hp or hp[0]/max(1,hp[1])>=.5 or not state.get('eligible'):return None
         m=state['minimap'];known={tuple(p) for p in m.get('accumulated_cells',[])}|{(pos[0]+x,pos[1]+y) for x,y in m.get('known_cells',[])}
+        # Equal-speed pursuers normally restore the same distance in their turn.
+        # Low HP plus a farther square is not, by itself, a useful escape plan.
+        hint=state.get('map_route_hint') or {};keys=hint.get('keys') or [hint.get('key')]
+        stairs={(pos[0]+x,pos[1]+y) for x,y in m.get('stairs',[])}|{tuple(p) for p in state.get('floor_exploration',{}).get('stairs_cells',[])}
+        if hint.get('target_kind')!='stairs' or tuple(hint.get('target_cell') or ()) not in stairs or len(keys)!=1:return None
         current=min(max(abs(e[0]-pos[0]),abs(e[1]-pos[1])) for e in enemies);options=[]
-        for key in bindings:
+        for key in keys:
             delta=self.delta([key],bindings)
             if not delta or [key] in blocked or [key] in state.get('floor_exploration',{}).get('ineffective_actions_here',[]):continue
             target=(pos[0]+delta[0],pos[1]+delta[1])

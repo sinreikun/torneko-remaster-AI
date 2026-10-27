@@ -11,6 +11,15 @@ class GameGuideTests(unittest.TestCase):
         guide=GameGuide(Settings());ctx=guide.context({'status':'ok','lines':[]},'gameplay',{'relative_contacts':{'contacts':[{'adjacent':True}]}},{'floor':{'values':[1]},'hp':{'values':[9,15]}})
         self.assertIn('adjacent-attack',ctx['selected_ids']);self.assertEqual(ctx['current_keys']['attack'],['num1']);self.assertEqual(ctx['current_keys']['face'],['num5'])
         self.assertLessEqual(len(ctx['rules']),4);self.assertIn('仮説',ctx['instruction'])
+    def test_equal_speed_pursuit_guidance_reaches_current_enemy_and_wounded_context(self):
+        guide=GameGuide(Settings())
+        for contacts,metrics in (([{'adjacent':True}],{}),([{'adjacent':False}],{}),([],{'hp':{'values':[3,15]}})):
+            context=guide.context({},'gameplay',{'relative_contacts':{'contacts':contacts}},metrics)
+            rule=next(r for r in context['foundations'] if r['id']=='equal-speed-pursuit')
+            self.assertIn('1マス',rule['expected_effect'])
+            self.assertIn('速度差',rule['verify_or_revise'])
+            self.assertIn('静止',rule['verify_or_revise'])
+
     def test_eight_way_and_one_gap_tactics_reach_adjacent_and_ranged_context(self):
         guide=GameGuide(Settings())
         for adjacent in (True,False):

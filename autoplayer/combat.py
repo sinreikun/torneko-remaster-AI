@@ -145,9 +145,14 @@ class CombatExperiments:
         if stage is None:
             if all(k in self.cfg.allowed_keys for k in facing+['num1']) and facing not in blocked and ['num1'] not in blocked:
                 candidates.append(('orient_attack',facing,'orient_trial'))
-            # Short movement experiments remain available, including game risk.
-            for key,delta in sorted(MOVES.items(),key=lambda item:-math.dist(item[1],target)):
-                if key in self.cfg.allowed_keys and [key] not in blocked:candidates.append(('step_'+key,[key],'movement_trial'))
+            # Moving farther from an equal-speed enemy does not create distance
+            # after its turn. Keep only a concrete observed escape destination,
+            # not arbitrary movement experiments or learned step rewards.
+            from .recovery_policy import RecoveryPolicy
+            from .controls import ACTIONS
+            retreat=RecoveryPolicy().retreat(state,self.cfg.key_bindings or ACTIONS,blocked)
+            if retreat and retreat in self.cfg.allowed_keys:
+                candidates.append(('step_'+retreat,[retreat],'movement_trial'))
             if not candidates:return decision,None
             ranked=[]
             for name,ks,phase in candidates:
@@ -164,7 +169,7 @@ class CombatExperiments:
             'prediction':{'samples':stats.get(action,(0,0))[0],'mean_observed_reward':stats.get(action,(0,0))[1]/max(1,stats.get(action,(0,0))[0]),'scope':'同じ方向の隣接表示に対する操作の関連性。現在の敵種や勝率は未確認。'}}
         reason=('隣接敵の相対方向へNum5と方向キーによる向き変更を試し、位置・HPを再観測する。向き変更の成功は未確認。' if stage=='orient_trial' else
             ('直前の命中メッセージと同じ自位置の隣接敵を再観測。向き直しを挟まず攻撃を1回試し、結果を再確認する。' if continuation_basis=='new_hit_message_and_current_contact' else '向き変更入力後も同じ自位置と隣接敵を観測。攻撃を1回試し、命中を仮定せず敵位置とHPの変化を評価する。') if stage=='attack_trial' else
-            '隣接敵に対する未試行の短い移動、または観測結果の良い移動を試し、敵との相対位置とHPを再確認する。')
+            '観測済みの階段へ向かう具体的な経路を1マス進み、敵との相対位置・HP・目的地までの経路を再確認する。距離を増やすだけの逃走とは区別する。')
         return replace(decision,scene='gameplay',keys=keys,hold_ms=min(80,self.cfg.max_hold_ms),wait_ms=min(800,self.cfg.max_wait_ms),
             intent={'kind':'attack','target_id':''},confidence=.85,observation='自分を原点とする隣接敵の相対位置を画素解析で観測。',reason=reason,
             subgoal='隣接敵に対する操作と結果を検証して進行する',goal_success='自位置・敵との相対位置・HPの変化を次の観測で比較する。',
