@@ -7,6 +7,7 @@ from .state import StateBuilder,digest,effects
 from .store import ExperienceStore
 from .model import ForwardModel,AdaptivePolicy,snapshot,target_score
 from .supervisor import SemanticSupervisor
+from .meta import MetaController
 from ..controls import is_torneko
 from ..cancellation import OperationCancelled
 from ..observation_store import message_candidates
@@ -50,10 +51,11 @@ class NextGenController:
         context=state['context'];samples=self.durations.get(context,[])
         base=350 if protect else 140
         if samples:base=max(base,min(1500,int(sorted(samples)[int((len(samples)-1)*.9)]*1.15+70)))
-        return min(self.cfg.max_wait_ms,base)
+        return min(self.cfg.max_wait_ms,base+getattr(self,'observation_policy',{}).get('settle_extra_ms',0))
     def run(self,dry_run=False):
         profile=digest([self.cfg.profile_id or self.cfg.window_title,sorted(self.cfg.allowed_keys),self.cfg.key_bindings])
-        store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy()
+        store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal)
+        self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
         supervisor=SemanticSupervisor(self.cfg,self.llm,self.send_event,self.cancel);candidates=model.candidates(self.cfg)
         for appearance in store.load('appearances',limit=128):self.builder.tracker.variants[appearance['id']]=appearance['variants']
         self.builder.restore_candidates=store.load('states')
@@ -71,7 +73,8 @@ class NextGenController:
                     last_revision=revision
                     source=getattr(self.llm,'operator_guidance',None);guidance=source.snapshot() if source else {'revision':0,'text':''}
                     t=time.monotonic();image=self.backend.capture();stages['capture_ms']=(time.monotonic()-t)*1000
-                    full=bool(step==0 or step%12==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
+                    self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
+                    full=bool(step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
                     t=time.monotonic();before=self.builder.build(image,full);stages.update(before['timing']);stages['observation_ms']=(time.monotonic()-t)*1000
                     neutral=None;natural_confidence=.4
                     if hasattr(self.backend,'observe_turn') and (step%8==0 or before['quality']<.5):
@@ -82,15 +85,21 @@ class NextGenController:
                         after_neutral=self.builder.build(sample.image,full)
                         neutral=effects(before,after_neutral);natural_confidence=.85;before=after_neutral;image=sample.image
                         stages['neutral_observation_ms']=(time.monotonic()-t)*1000
+                    for _ in range(self.observation_policy['extra_captures']):
+                        if self.cancel.wait(.08):break
+                        image=self.backend.capture()
                     before=self.sense(image,full)
+                    meta.prepare(before,step)
                     t=time.monotonic();requests_before=supervisor.requests
-                    plan,adoption=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last)
+                    plan,adoption=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
                     if adoption:
+                        meta.accept(adoption['plan'],before,step)
                         model.add_hypotheses(adoption['plan']['hypotheses'],adoption['state'],candidates)
                         for interpretation in adoption['plan']['interpretations']:
                             identifier=digest([adoption['state']['frame_sha256'],interpretation])
                             store.put('interpretations',{**interpretation,'source_frame':adoption['state']['frame_sha256'],'context':adoption['state']['context'],'status':'llm_interpretation_unverified'},step,key=identifier)
                     stages['supervisor_dispatch_ms']=(time.monotonic()-t)*1000
+                    plan=meta.guide(plan,before,candidates)
                     t=time.monotonic();chosen,ranking,choice_ms=model.choose(before,candidates,plan,adaptive.weight)
                     stages['action_selection_ms']=max(0,choice_ms-model.search_ms-model.prediction_ms);stages['experience_search_ms']=model.search_ms;stages['world_prediction_ms']=model.prediction_ms;stages['experience_search_and_prediction_ms']=(time.monotonic()-t)*1000
                     action=chosen['candidate'];prediction=chosen['prediction']
@@ -100,7 +109,7 @@ class NextGenController:
                     shown_before={k:v for k,v in before.items() if k!='visual_vector'}
                     decision={'event':'decision','step':step+1,'scene':'observed_interface_hypothesis' if before['interface_hypothesis'] else 'observed_state',
                       'subgoal':plan['objective'],'reason':f"経験 {prediction['trials']}件 / 情報獲得見込 {chosen['information_gain_proxy']:.3f} / 目標価値 {chosen['expected_goal_value']:.3f} / 観測損失リスク {chosen['observed_loss_risk']:.3f}。"+plan['reason'],'observation':'現在の画面・OCRと結果予測から単発入力を比較','observed_keys':action['keys'],'keys':action['keys'],'hold_ms':action['hold_ms'],'confidence':before['quality'],
-                      'policy_state':shown_before,'action_prediction':{'expected':prediction['expected']},'execution_stage':'experience_model_selection','generation':2,'operator_guidance':guidance,'supervision':supervisor.context(step),
+                      'policy_state':shown_before,'action_prediction':{'expected':prediction['expected']},'execution_stage':'experience_model_selection','generation':2,'operator_guidance':guidance,'supervision':supervisor.context(step),'autonomy':meta.context(before),
                       'nextgen':{'current':{'observed':before['metrics'],'retained':before['retained'],'state_kind':before['state_identification']},'objective':plan['objective'],'hypotheses':model.hypotheses[-8:],'selected':shown_chosen,'candidates':shown_ranking}}
                     self.send_event(decision)
                     if dry_run:
@@ -109,7 +118,8 @@ class NextGenController:
                     if revision!=getattr(self.control,'revision',0) or source and source.snapshot()['revision']!=guidance['revision']:model.pending.clear();continue
                     # Revalidate after OCR/semantic scheduling. Do not execute a stale screen plan.
                     t=time.monotonic();fresh=self.backend.capture();difference=self.difference(image,fresh);stages['image_difference_ms']=(time.monotonic()-t)*1000
-                    if difference>.12:
+                    if difference>self.observation_policy['stale_difference']:
+                        self.send_event(meta.nonexecution(before,step,(time.monotonic()-started)*1000))
                         self.send_event({'event':'nextgen_stale_plan','reason':'入力直前に画面が大きく変化','learning':False,'difference':difference});model.pending.clear();self.previous=None;continue
                     protect=bool(before['interface_hypothesis'] or before['minimap'].get('enemies') or any('攻撃' in self.cfg.key_bindings.get(k,'') or 'attack' in self.cfg.key_bindings.get(k,'').casefold() for k in action['keys']))
                     wait=self.wait_time(before,protect)
@@ -152,6 +162,8 @@ class NextGenController:
                     step+=1;t=time.monotonic()
                     result=model.observe(before,action,after,prediction,receipt,step,neutral,kind,natural_confidence)
                     self.last=result
+                    autonomy=meta.observe(before,action,after,result,receipt,step,(time.monotonic()-started)*1000,neutral)
+                    self.send_event(autonomy)
                     if result.get('match') is not None:accuracy.append(float(result['match']))
                     trial=adaptive.update(result)
                     if trial:store.put('parameter_trial',trial,step);self.send_event(trial)
@@ -170,7 +182,7 @@ class NextGenController:
                       'llm_intervention_rate':supervisor.requests/step,'decision_ms':choice_ms,'observation_ms':stages['observation_ms']+stages['result_observation_ms'],
                       'goal_progress':sum(known_goals)/len(known_goals) if known_goals else None,'tracking_success':after['tracking_success'],'position_confidence':after['position_confidence'],
                       'local_action_fraction':local_steps/step,'goal_evaluation':'observed_local_conditions_not_game_completion'}
-                    row={**decision,'event':'result','step':step,'executed':receipt.get('os_submission')=='accepted','input_receipt':receipt,'action_kind':'input','turn_kind':kind,
+                    row={**decision,'event':'result','step':step,'autonomy':meta.context(after),'executed':receipt.get('os_submission')=='accepted','input_receipt':receipt,'action_kind':'input','turn_kind':kind,
                       'changed':before['frame_sha256']!=after['frame_sha256'],'policy_after':{k:v for k,v in after.items() if k!='visual_vector'},'policy_state':shown_before,'ocr':copy.deepcopy(self.builder.cache.get(before['frame_sha256'],{}).get('native',{'status':'unavailable','lines':[]})),
                       'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},

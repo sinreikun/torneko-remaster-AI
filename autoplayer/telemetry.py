@@ -5,11 +5,13 @@ import time
 class RecognitionState:
     def __init__(self):
         self.floor_exploration={};self.map={};self.tentative={};self.metrics={};self.objects=[];self.floor_state={};self.remaining=None
-        self.inference=set();self.observed_at=None;self.phase='待機';self.revision=0
+        self.inference=set();self.observed_at=None;self.phase='待機';self.revision=0;self.autonomy={}
     @property
     def thinking(self):return bool(self.inference)
     def update(self,row):
         event=row.get('event')
+        if row.get('autonomy'):self.autonomy=copy.deepcopy(row['autonomy'])
+        elif event=='autonomy_update':self.autonomy=copy.deepcopy(row.get('state',{}))
         if 'mapless_navigation' in row:self.tentative=copy.deepcopy(row['mapless_navigation'])
         if event=='llm_activity':
             request=row.get('request_id','default')
@@ -105,12 +107,19 @@ class RecognitionState:
     def summary(self):
         def val(name):
             values=self.metrics.get(name,{}).get('values')
-            return '/'.join(str(v) for v in values) if values else '不明'
+            if not values:return '不明'
+            metric=self.metrics[name];mark='保' if metric.get('retained') else '仮' if metric.get('hypothesis') else '推' if metric.get('estimated') else '読' if metric.get('unverified_ocr') else '観'
+            return '/'.join(str(v) for v in values)+'['+mark+']'
         age='未観測' if self.observed_at is None else f'{int(time.monotonic()-self.observed_at)}秒前'
         count='分析中' if self.thinking else '未設定' if self.remaining is None else '次の判断で分析' if self.remaining==0 else f'あと{self.remaining}手（状況変化で前倒し）'
         retained=' / '.join({'strength':'ちから','sword':'剣','shield':'盾','experience':'経験値','max_floor':'最深階','level':'Lv','gold':'所持金'}.get(k,k) for k,v in self.metrics.items() if v.get('retained'))
         note='\n保持値（未再確認）: '+retained if retained else ''
         if self.tentative.get('active') or self.tentative.get('display_retained'):note+='\n仮経路地図 / '+self.tentative.get('mode','')+' / '+self.tentative.get('calibration','')+(' / 白枠あり:地形更新停止' if self.tentative.get('white_frame_evidence',{}).get('visible') else '')+'\n'+self.tentative.get('unit','仮の移動単位・実マス未保証')+' / 黄枠:推定位置 橙:障害候補'
+        if self.autonomy:
+            a=self.autonomy;g=a.get('current_goal') or {};r=a.get('recovery') or {}
+            note+='\n進行[推定]: '+str(a.get('phase','未確認'))[:90]+'\n目標[計画]: '+str(g.get('label','未設定'))[:100]
+            note+='\n不足能力: '+','.join(a.get('missing_capabilities',[]))+' / 復旧: '+str(r.get('method','なし'))
+            note+='\n観=観測 読=OCR未検証 保=保持 推=推定 仮=仮説。未知は空欄。'
         f=self.floor_exploration
         if f.get('status')=='observed_floor' and not self.tentative.get('active'):
             goal=f.get('goal',{});phase=goal.get('phase','')

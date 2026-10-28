@@ -24,7 +24,7 @@ class PrincipleTests(unittest.TestCase):
             self.assertEqual(store.select(target,Settings()).goal,'出口を探す')
     def test_goal_floors_are_targets_and_names_are_not_invented(self):
         p=action_principles(True);box=p['box_retrieval']
-        self.assertEqual(box['target_floor_candidates'],[10,27,99]);self.assertIsNone(box['target_name'])
+        self.assertEqual(box['target_floor_candidates'],[10,27,30]);self.assertIsNone(box['target_name']);self.assertEqual(box['additional_objective']['name'],'証明の巻物');self.assertEqual(box['additional_objective']['floor'],99)
         self.assertTrue(p['not_current_observation']);self.assertIn('上り階段',box['after_acquisition'])
         self.assertIn('脱出',box['success']);self.assertIn('持ち帰り',box['success'])
         self.assertIn('同時回収する前提を置かない',box['attempt_scope'])
@@ -35,7 +35,7 @@ class PrincipleTests(unittest.TestCase):
         client.decide(b'captured-image',[],False)
         prompt=client._request.call_args.args[2]
         self.assertEqual(prompt['goal'],TORNEKO_GOAL)
-        self.assertEqual(prompt['action_principles']['box_retrieval']['target_floor_candidates'],[10,27,99])
+        self.assertEqual(prompt['action_principles']['box_retrieval']['target_floor_candidates'],[10,27,30])
     def test_every_plan_repair_review_keeps_principles_after_compaction_but_observer_is_independent(self):
         requests=[]
         def response(request,timeout):

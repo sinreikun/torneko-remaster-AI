@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-25",
+  "updated": "2026-10-28",
   "sources": [
     {
       "id": "sfc-wiki",
@@ -51,6 +51,12 @@
       "url": "knowledge/SOURCES.md#利用者提供の操作と観測",
       "accessed": "2026-10-25",
       "kind": "user_supplied"
+    },
+    {
+      "id": "user-progression-20261028",
+      "title": "利用者提示：進行段階設計の実例",
+      "kind": "user_supplied",
+      "accessed": "2026-10-28"
     }
   ],
   "facts": [
@@ -490,6 +496,26 @@
       ],
       "priority": 80,
       "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "progression-design-example",
+      "summary": "利用者提示のリマスター攻略参考情報：ちょっと不思議、不思議、もっと不思議にはそれぞれ目標物と帰還・進行イベントがある。奇妙な箱は30階以降、99階には証明の巻物。99階の箱という以前の仮目標は訂正する。これは設計実例となる参考知識であり、現在の所持・到達・解放を示す観測でも、固定攻略分岐でもない。",
+      "terms": [
+        "ちょっと不思議",
+        "不思議",
+        "もっと不思議",
+        "奇妙な箱",
+        "証明の巻物",
+        "帰還"
+      ],
+      "editions": [
+        "remaster"
+      ],
+      "sources": [
+        "user-progression-20261028"
+      ],
+      "priority": 80,
+      "authority": "user_report_not_game_verified"
     }
   ]
 }

@@ -4,21 +4,39 @@ from .protocol import decode_parts
 
 TESTS=['none','interface_closed','interface_opened','text_appears','text_disappears','selection_matches','state_changes','metric_increases','metric_decreases']
 
-def schema_for(aliases):
+def schema_for(aliases,planning=False):
     text={'type':'string','maxLength':240}
-    return {'type':'object','additionalProperties':False,'properties':{
+    schema={'type':'object','additionalProperties':False,'properties':{
       'local_objective':{**text,'minLength':1,'description':'今の画面から数手で達成する具体的な目的。長期目標の転記ではない'},
       'reason':{**text,'minLength':1},'preferred':{'type':'array','maxItems':3,'items':{'type':'string','enum':list(aliases)}},
       'discouraged':{'type':'array','maxItems':3,'items':{'type':'string','enum':list(aliases)}},
       'success_test':{'type':'string','enum':TESTS},'success_text':text,
       'review_after':{'type':'integer','minimum':8,'maximum':128}},
       'required':['local_objective','reason','preferred','discouraged','success_test','success_text','review_after']}
+    from .progress import CAPABILITIES
+    schema['properties']['required_capability']={'type':'string','enum':list(CAPABILITIES)}
+    if planning:
+        condition={'type':'object','additionalProperties':False,'properties':{
+          'feature':{'type':'string','maxLength':100},'operator':{'type':'string','enum':['eq','ne','contains','not_contains','ge','le']},
+          'value':{'type':['string','number','boolean']}},'required':['feature','operator','value']}
+        node={'type':'object','additionalProperties':False,'properties':{
+          'id':{'type':'string','maxLength':80},'label':text,'parent':text,
+          'requires':{'type':'array','maxItems':8,'items':{'type':'string'}},
+          'scope':{'type':'string','enum':['campaign','session']},
+          'conditions':{'type':'array','minItems':1,'maxItems':4,'items':condition},
+          'counterconditions':{'type':'array','maxItems':4,'items':condition},
+          'capabilities':{'type':'array','maxItems':4,'items':{'type':'string','enum':list(CAPABILITIES)}},'source':text},
+          'required':['id','label','parent','requires','scope','conditions','counterconditions','capabilities','source']}
+        schema['properties']['session_boundary']={'type':'array','maxItems':4,'items':condition,'description':'冒険の終了/再開始を示す現在観測可能な条件。複数フレームで検証する提案。不要なら空配列。'}
+        schema['properties']['progress_nodes']={'type':'array','maxItems':6,'items':node,'description':'計画案のみ。資料は証拠でない。featureはtext/selection_text/interface_open/map_observed/metric.NAME.INDEX。既存IDを上書きしない。'}
+    return schema
+
 
 def decode(value,aliases,candidates,state,validate):
     # Archived protocol replies remain readable, but live requests use only the
     # smaller schema. No numeric score/hold-time coercion or guessed key mapping.
     if isinstance(value,dict) and 'local_objective' not in value:return decode_parts(value,aliases,candidates,state,validate)
-    if not isinstance(value,dict) or set(value)!=set(schema_for(aliases)['required']):raise ValueError('短期監督応答の項目が不正')
+    if not isinstance(value,dict) or not set(schema_for(aliases)['required'])<=set(value) or set(value)-set(schema_for(aliases)['required'])-{'required_capability','progress_nodes','session_boundary'}:raise ValueError('短期監督応答の項目が不正')
     for field in ('local_objective','reason'):
         if not isinstance(value[field],str) or not 1<=len(value[field])<=240:raise ValueError('短期目的と理由が必要')
     if type(value['review_after']) is not int or not 8<=value['review_after']<=128:raise ValueError('見直し間隔が不正')
@@ -42,6 +60,19 @@ def decode(value,aliases,candidates,state,validate):
         if type(current) not in (int,float):raise ValueError('未観測の数値を増減目標には使えません')
         plan['targets']=[{'feature':text,'operator':'ge' if test=='metric_increases' else 'le','value':current+(1 if test=='metric_increases' else -1),'weight':1}]
     elif test=='state_changes':plan['targets']=[{'feature':'node','operator':'ne','value':state['id'],'weight':1}]
+    if 'required_capability' in value:
+        from .progress import CAPABILITIES
+        if value['required_capability'] not in CAPABILITIES:raise ValueError('Unknown capability')
+        plan['required_capability']=value['required_capability']
+    if 'progress_nodes' in value:
+        from .progress import validate_nodes
+        # Existing dependencies are checked again by ProgressManager on adoption.
+        known=state.get('progress_node_ids',[])
+        plan['progress_nodes']=validate_nodes(value['progress_nodes'],known)
+    if 'session_boundary' in value:
+        from .progress import validate_condition
+        if not isinstance(value['session_boundary'],list) or len(value['session_boundary'])>4:raise ValueError('Invalid session boundary')
+        plan['session_boundary']=[validate_condition(c) for c in value['session_boundary']]
     # Values above are constructed from enums, never model-supplied program code.
     return plan,[]
 

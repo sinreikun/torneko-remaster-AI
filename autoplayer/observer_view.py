@@ -3,6 +3,7 @@ from collections import deque
 from .presentation import display_json
 
 SECTIONS={
+    '自律運用':('進行・能力','復旧・観測調整'),
     '予測と結果':('観察ダイジェスト','結果'),
     '目的・手順':('目的','運用計画','選択行動と理由'),
     '学習・仮説':('行動学習','自己改善','仮説'),
@@ -29,12 +30,13 @@ class ObserverPanels:
         return '\n\n'.join(parts)[:24000]
 
 class ObserverDigest:
-    def __init__(self):self.current={};self.history=deque(maxlen=6);self.last_result='結果の観測待ち'
+    def __init__(self):self.current={};self.history=deque(maxlen=6);self.last_result='結果の観測待ち';self.autonomy={}
     @staticmethod
     def short(value,limit=650):
         return value[:limit] if isinstance(value,str) else display_json(value,limit)
     def update(self,row):
         event=row.get('event')
+        if row.get('autonomy'):self.autonomy=row['autonomy']
         if event is None and 'scene' in row and 'keys' in row:event='decision'
         if event not in ('decision','sent','result','human_console_result'):return False
         if event in ('decision','sent'):
@@ -58,6 +60,8 @@ class ObserverDigest:
     def summary(self):
         c=self.current
         label='次の入力' if c.get('pending') else '直近の入力'
-        return f"目的: {c.get('purpose','未設定')}\n\n手 {c.get('step','?')} / {label}: {c.get('keys',[])}\n手順: {c.get('stage','未設定')}\n根拠: {c.get('reason','観測待ち')}\n\n期待: {c.get('expected','予測未設定')}\n\n直前の観測結果\n{self.last_result}"
+        a=self.autonomy;goal=a.get('current_goal') or {};recovery=a.get('recovery') or {}
+        prefix=(f"進行: {a.get('phase','未確認')}\n学習課題: {goal.get('label','未設定')}\n失敗: {', '.join(a.get('failure_classes',[])) or '未検出'} / 復旧: {recovery.get('method','なし')}\n\n") if a else ''
+        return prefix+f"目的: {c.get('purpose','未設定')}\n\n手 {c.get('step','?')} / {label}: {c.get('keys',[])}\n手順: {c.get('stage','未設定')}\n根拠: {c.get('reason','観測待ち')}\n\n期待: {c.get('expected','予測未設定')}\n\n直前の観測結果\n{self.last_result}"
     def journal(self):
         return '入力送信・画面変化・進展・目標達成は別の判定です。\n\n'+'\n\n────────\n\n'.join(self.history) if self.history else '操作結果を取得すると、直近6手の入力・予測・結果を表示します。'

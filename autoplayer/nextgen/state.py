@@ -64,21 +64,34 @@ class AnonymousTracker:
 
 class StateBuilder:
     def __init__(self,cfg,ocr):
-        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity()
+        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={}
+    def read_metrics(self,native):
+        metrics=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else {}
+        if not is_torneko(self.cfg.window_title):
+            for line in native.get('lines',[]):
+                match=re.fullmatch(r'\s*([^\d:：]{1,24})\s*[:：]\s*(\d{1,7})(?:\s*/\s*(\d{1,7}))?\s*',line.get('text',''))
+                if match:metrics['text:'+match[1].strip()]={'values':[int(x) for x in match.groups()[1:] if x is not None],'quote':line['text'],'source':'visible_text'}
+        return metrics
     def analyze(self,png,full=True):
         sha=hashlib.sha256(png).hexdigest();cached=self.cache.get(sha)
-        if cached and (cached['full'] or not full):
+        uses=self.cache_uses.get(sha,0)
+        policy_cached=cached and uses<self.observation_policy.get('cache_uses',12)
+        if policy_cached and (cached['full'] or not full):
+            self.cache_uses[sha]=uses+1
             self.hits+=1;value=copy.deepcopy(cached);value['timing']={'ocr_ms':0.,'object_recognition_ms':0.,'map_geometry_ms':0.,'analysis_cache_hit':True};return value
         frame_started=time.monotonic();frames=cached['white_frame'] if cached else interface_frames(png);frame_ms=(time.monotonic()-frame_started)*1000
         full=full or frames.get('visible') is True
-        started=time.monotonic();native=self.ocr.read(png) if full or not is_torneko(self.cfg.window_title) or not hasattr(self.ocr,'read_regions') else self.ocr.read_regions(png)
-        ocr_ms=(time.monotonic()-started)*1000
+        started=time.monotonic();self.ocr.force_fresh=bool(cached and not policy_cached)
+        try:native=self.ocr.read(png) if full or not is_torneko(self.cfg.window_title) or not hasattr(self.ocr,'read_regions') else self.ocr.read_regions(png)
+        finally:self.ocr.force_fresh=False
+        ocr_ms=(time.monotonic()-started)*1000;self.cache_uses[sha]=0
+        self.cache_uses={k:v for k,v in self.cache_uses.items() if k in self.cache}
         if native.get('frame_sha256')!=sha:native={'status':'unavailable','lines':[],'frame_sha256':sha,'reason':'source_mismatch'}
         native=copy.deepcopy(native)
         full=full or native.get('ocr_scope')!='hud_and_messages'
         if cached:
             value=copy.deepcopy(cached);value.update(native=native,full=full)
-            value['metrics']=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else cached['metrics']
+            value['metrics']=self.read_metrics(native)
             value['timing']['ocr_ms']=ocr_ms;value['timing']['geometry_cache_hit']=True
             self.cache[sha]=copy.deepcopy(value);return value
         with Image.open(io.BytesIO(png)) as source:
@@ -86,11 +99,7 @@ class StateBuilder:
         t=time.monotonic();grid=read_grid(png) if is_torneko(self.cfg.window_title) else {'status':'unavailable'}
         visual_ms=(time.monotonic()-t)*1000
         # No previous Q values, role predictions or model descriptions here.
-        metrics=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else {}
-        if not is_torneko(self.cfg.window_title):
-            for line in native.get('lines',[]):
-                match=re.fullmatch(r'\s*([^\d:：]{1,24})\s*[:：]\s*(\d{1,7})(?:\s*/\s*(\d{1,7}))?\s*',line.get('text',''))
-                if match:metrics['text:'+match[1].strip()]={'values':[int(x) for x in match.groups()[1:] if x is not None],'quote':line['text'],'source':'visible_text'}
+        metrics=self.read_metrics(native)
         confirmation=self.floor.update(metrics.get('floor',{}).get('values'),sha)
         if confirmation.get('changed'):self.map_sensor.reset();self.map_domain=uuid.uuid4().hex[:16];self.restoration_checked=True
         if grid.get('status')=='observed' and confirmation.get('status') in ('initialized','confirmed','changed'):grid=self.map_sensor.accumulate(copy.deepcopy(grid),confirmation['confirmed'])
