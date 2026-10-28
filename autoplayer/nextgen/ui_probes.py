@@ -14,7 +14,9 @@ class UIProbes:
         if ui.get('selection',{}).get('status')=='supported_association':return None
         if 'selection_text_correspondence_unknown' not in ui.get('needs_observation',[]):return None
         if not ui.get('layout'):return None
-        return digest(['paired_origin_observer_v1',ui['layout'],ui.get('difference_threshold',18),policy.get('ui_region_ocr',0)])
+        signature=['paired_origin_observer_v1',ui['layout'],ui.get('difference_threshold',18),policy.get('ui_region_ocr',0)]
+        if ui.get('interaction_model',{}).get('text_flow_suspended'):signature.append('editable_ui_requires_selection')
+        return digest(signature)
     @staticmethod
     def direction(candidate):
         return len(candidate.get('keys',[]))==1 and bool({m.strip().casefold() for m in candidate.get('declared_meanings',[])} & {'up','down','left','right','上移動','下移動','左移動','右移動'})

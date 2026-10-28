@@ -36,3 +36,10 @@ class UIProbeContracts(unittest.TestCase):
                 for _ in range(2):m.ui_probes.observe(s,self.short,{'status':'updated'},{'os_submission':'accepted'},m.observer.policy)
                 m.save();store.queue.join();other=MetaController(store,'目的');self.assertFalse(other.ui_probes.priors(s,[self.short,self.long],other.observer.policy));self.assertEqual(s['ui_visual']['interaction_model']['actions'][0]['trials'],99)
             finally:store.close()
+    def test_refuted_text_flow_gets_one_distinct_experiment_scope(self):
+        p=UIProbes();s=self.state()
+        for _ in range(2):p.observe(s,self.short,{'status':'updated'},{'os_submission':'accepted'},{})
+        self.assertFalse(p.priors(s,[self.short],{}));changed=copy.deepcopy(s);changed['ui_visual']['interaction_model']['text_flow_suspended']=True
+        self.assertTrue(p.priors(changed,[self.short],{}))
+        for _ in range(2):p.observe(changed,self.short,{'status':'updated'},{'os_submission':'accepted'},{})
+        self.assertFalse(p.priors(changed,[self.short],{}));self.assertFalse(p.priors(s,[self.short],{}))

@@ -186,11 +186,13 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
     current=prompt.get('current',{})
     base={k:copy.deepcopy(prompt[k]) for k in ('task','goal','operator_guidance','reason','candidates','user_key_bindings','protocol','features','known_state_ids','instruction','observation_limits') if k in prompt}
     if 'candidates' in base:base['candidates']=[{k:v for k,v in c.items() if k in ('id','keys')} for c in base['candidates']]
-    fields=('id','context','frame_sha256','observed_at','metrics','retained','quality','interface_hypothesis','selection_observation')
+    fields=('id','context','frame_sha256','observed_at','metrics','retained','quality','interface_hypothesis','selection_observation','editable_content_candidates')
     base['current']={k:copy.deepcopy(current[k]) for k in fields if k in current}
     visual_ui=role=='ui' or current.get('interface_hypothesis')
     if visual_ui:
         ui=current.get('spatial_ui',{});base['current']['spatial_ui']={k:copy.deepcopy(ui[k]) for k in ('layout','selection','needs_observation') if k in ui}
+        interaction=ui.get('interaction',{})
+        if interaction:base['current']['spatial_ui']['interaction']={k:interaction[k] for k in ('selection_requirement','text_flow_suspended','basis') if k in interaction}
     else:base['current']['minimap']=copy.deepcopy(current.get('minimap',{}))
     hierarchy=prompt.get('goal_hierarchy',{})
     base['goal_hierarchy']={k:copy.deepcopy(hierarchy[k]) for k in ('phase','current_goal','parent_goal','missing_capabilities','failure_classes','planning_issue') if k in hierarchy}

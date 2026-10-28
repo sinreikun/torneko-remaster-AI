@@ -124,3 +124,23 @@ class UIInteractionContracts(unittest.TestCase):
         s['ui_visual']['candidates']=[{'status':'symbol_hypothesis'}];model.attach(s)
         self.assertNotEqual(family_of(s),previous_family)
         self.assertFalse(any(v['id']=='confirm' and v['value']>0 for v in model.priors(s,[self.confirm,self.direction],True)))
+
+class EditableContextContracts(unittest.TestCase):
+    def test_old_text_flow_is_suspended_when_editable_visual_cue_is_observed(self):
+        model=UIInteractionModel();action={'id':'confirm','keys':['q'],'hold_ms':80,'declared_meanings':['confirm']}
+        for i in range(4):model.observe(panel('paragraph'+str(i),i),action,panel('paragraph'+str(i+1),i+1),{'status':'updated'},{'os_submission':'accepted'},i,{'panel_pixel_change':10},{'ui_text_content_changed':0})
+        s=panel('paragraph4',4);model.attach(s);self.assertEqual(s['ui_visual']['interaction_model']['selection_requirement'],'not_required_for_supported_text_flow')
+        s['editable_content_candidates']=['***'];model.attach(s)
+        self.assertEqual(s['ui_visual']['interaction_model']['selection_requirement'],'unknown');self.assertTrue(s['ui_visual']['interaction_model']['text_flow_suspended']);self.assertIn('selection_text_correspondence_unknown',s['ui_visual']['needs_observation'])
+        self.assertFalse(any(v['value']>0 for v in model.priors(s,[action])));self.assertLess(s['ui_visual']['coverage'],1)
+        self.assertEqual(model.model(s)['actions']['confirm']['text_responses'],4) # history retained, applicability changed
+    def test_editing_and_display_switches_do_not_accumulate_paragraph_flow(self):
+        model=UIInteractionModel();action={'id':'switch','keys':['x'],'hold_ms':80}
+        for i in range(5):
+            a=panel('set'+str(i),i);b=panel('set'+str(i+1),i+1);a['editable_content_candidates']=['***'];b['editable_content_candidates']=['****']
+            model.observe(a,action,b,{'status':'updated'},{'os_submission':'accepted'},i,{'panel_pixel_change':10},{'ui_text_content_changed':0})
+        self.assertEqual(model.model(a)['actions']['switch']['text_responses'],0)
+    def test_evidence_survives_blank_edit_and_restore_without_forcing_cursor_truth(self):
+        model=UIInteractionModel();s=panel('label',1);s['editable_content_candidates']=['***'];model.attach(s)
+        restored=UIInteractionModel();restored.restore(list(model.models.values()));blank=panel('label',2);restored.attach(blank)
+        self.assertTrue(blank['ui_visual']['interaction_model']['text_flow_suspended']);self.assertEqual(blank['ui_visual']['selection']['status'],'unknown')
