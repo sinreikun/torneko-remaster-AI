@@ -4,12 +4,19 @@ from .progress import CAPABILITIES,condition_value
 from .state import digest
 
 
-def scope(state):
+def scope(state,name=None):
+    interaction=state.get('ui_visual',{}).get('interaction_model',{})
+    if interaction.get('family') and (name=='advance_interface' or interaction.get('selection_requirement')=='not_required_for_supported_text_flow'):
+        return {'visual_evidence_generation':1,'interaction_evidence_generation':1,'interface':True,'condition':interaction['family']}
     return {**({'visual_evidence_generation':1} if state.get('ui_visual') else {}),'interface':state.get('interface_hypothesis'),
             'condition':state.get('interface_layout') if state.get('interface_hypothesis') else state.get('context')}
 
 def test_effect(before,after,name,conditions=()):
     if min(before.get('quality',0),after.get('quality',0))<.5:return None
+    if name=='advance_interface':
+        effect=after.get('ui_visual',{}).get('interaction_effect',{})
+        if effect.get('natural_confound'):return None
+        return True if effect.get('text_response') else False if effect.get('no_response') else None
     if conditions:
         a=[condition_value(before,c) for c in conditions];b=[condition_value(after,c) for c in conditions]
         if any(v is None for v in b):return None
@@ -47,15 +54,15 @@ class CapabilityManager:
     def observe(self,before,action,after,result,step,requested=None,conditions=(),neutral=None):
         if result.get('status')!='updated':return []
         changed=[]
-        names=list(dict.fromkeys(['close_interface','change_selection','move','transition']+([requested] if requested in CAPABILITIES else [])))
+        names=list(dict.fromkeys(['close_interface','change_selection','move','transition','advance_interface']+([requested] if requested in CAPABILITIES else [])))
         for name in names:
             checks=list(conditions) if name==requested else []
             outcome=test_effect(before,after,name,checks)
             # Known natural motion/UI changes cannot establish an input skill.
-            feature={'move':('dx','dy'),'close_interface':('interface_changed',),'change_selection':('text_changed',),'transition':('floor_changed',),'inspect':('text_changed',)}.get(name,())
+            feature={'move':('dx','dy'),'close_interface':('interface_changed',),'change_selection':('text_changed',),'transition':('floor_changed',),'inspect':('text_changed',),'advance_interface':('ui_text_content_changed',)}.get(name,())
             if neutral and any(neutral.get(k) for k in feature):outcome=None
             if outcome is None:continue
-            applicability=scope(before);key=digest([name,applicability,action['id'],checks])
+            applicability=scope(before,name);key=digest([name,applicability,action['id'],checks])
             skill=self.skills.setdefault(key,{'id':key,'name':name,'scope':applicability,'input':copy.deepcopy(action),'conditions':checks,
               'successes':[],'failures':[],'trials':0,'confidence':0.,'unknown_conditions':['未観測の画面・配置への転用'],'interrupt':['手動介入','条件不一致','観測欠測'],'causality':'observed_input_outcome_association'})
             evidence={'before':before['frame_sha256'],'after':after['frame_sha256'],'step':step,'session':self.store.session}
@@ -68,10 +75,10 @@ class CapabilityManager:
         while len(self.skills)>256:self.skills.pop(next(iter(self.skills)))
         return changed
     def matching(self,name,state,conditions=None):
-        return sorted([s for s in self.skills.values() if s['name']==name and s['scope']==scope(state) and s['status']=='supported_conditionally' and (conditions is None or s['conditions']==list(conditions))],key=lambda s:-s['confidence'])
+        return sorted([s for s in self.skills.values() if s['name']==name and s['scope']==scope(state,name) and s['status']=='supported_conditionally' and (conditions is None or s['conditions']==list(conditions))],key=lambda s:-s['confidence'])
     def missing(self,names,state,conditions=()):return [n for n in names if not self.matching(n,state,conditions)]
     def priors(self,name,state,candidates,conditions=()):
         allowed={c['id'] for c in candidates}
         return [{'id':s['input']['id'],'value':min(1.5,s['confidence']),'reason':'同じ観測条件で成功した技能 '+name} for s in self.matching(name,state,conditions)[:3] if s['input']['id'] in allowed]
     def summary(self,state):
-        return [{'name':s['name'],'confidence':round(s['confidence'],3),'status':s['status'],'applicable':s['scope']==scope(state),'successes':len(s['successes']),'failures':len(s['failures'])} for s in list(self.skills.values())[-24:]]
+        return [{'name':s['name'],'confidence':round(s['confidence'],3),'status':s['status'],'applicable':s['scope']==scope(state,s['name']),'successes':len(s['successes']),'failures':len(s['failures'])} for s in list(self.skills.values())[-24:]]

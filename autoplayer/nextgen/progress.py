@@ -4,7 +4,7 @@ from .model import value_at
 from .state import digest
 
 CAPABILITIES=('close_interface','change_selection','confirm','move','cross_obstacle',
-              'approach','acquire','verify_possession','handle_target','find_exit','transition','inspect','enter_text','select_target')
+              'approach','acquire','verify_possession','handle_target','find_exit','transition','inspect','enter_text','select_target','advance_interface')
 
 def validate_condition(c):
     if not isinstance(c,dict) or set(c)!={'feature','operator','value'}:raise ValueError('Invalid evidence condition')
@@ -68,6 +68,10 @@ class ProgressManager:
     def propose(self,nodes,origin='llm_hypothesis'):
         additions=validate_nodes(nodes,self.nodes)
         if len(self.nodes)+len(additions)>128:raise ValueError('Progress graph capacity')
+        def semantic_key(n):return digest([n['scope'],n['parent'],sorted(n['requires']),sorted(digest(c) for c in n['conditions']),sorted(digest(c) for c in n['counterconditions'])])
+        for n in additions:
+            same=next((old for old in self.nodes.values() if old.get('status')=='disputed' and semantic_key(old)==semantic_key(n)),None)
+            if same:raise ValueError('Equivalent contradicted progression conditions already exist: '+same['id']+'; inspect observed counterevidence or change prerequisites')
         for n in additions:
             n.update(status='unconfirmed',intent_tag=self.intent_tag,revision=0,origin=origin,evidence=[],counterevidence=[],session=self.session,unknown=[c['feature'] for c in n['conditions']])
             self.nodes[n['id']]=n;self.save(n)

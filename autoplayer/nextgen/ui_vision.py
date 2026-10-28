@@ -212,6 +212,12 @@ class UIVision:
         old=self.frames[a['frame_sha256']];new=self.frames[b['frame_sha256']]
         if old.size!=new.size:return {**raw,'status':'image_size_changed'}
         boxes,fraction=difference_regions(old,new,b.get('difference_threshold',18))
+        rects=before.get('interface_observation',{}).get('rectangles',[])
+        panel_changes=[]
+        for region in rects[:8]:
+            crop=tuple(round(v*(old.width if i%2==0 else old.height)) for i,v in enumerate(region))
+            if crop[2]>crop[0] and crop[3]>crop[1]:panel_changes.append(sum(ImageStat.Stat(ImageChops.difference(old.crop(crop),new.crop(crop))).mean)/3)
+        raw['panel_pixel_change']=max(panel_changes,default=0.)
         if a['layout']!=b['layout'] or fraction>=.35:
             raw.update(status='visual_reorganization',change_fraction=fraction)
             model['edges'].append({'origin':a['selection'].get('element_id') or 'layout:'+a['layout'],'destination':'layout:'+b['layout'],'action':action['id'],'kind':'visual_reorganization','confidence':.3,'before_frame':a['frame_sha256'],'after_frame':b['frame_sha256'],'step':step})

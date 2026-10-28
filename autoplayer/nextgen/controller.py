@@ -35,8 +35,8 @@ class NextGenController:
     def difference(a,b):
         with Image.open(io.BytesIO(a)) as x,Image.open(io.BytesIO(b)) as y:
             return ImageStat.Stat(ImageChops.difference(x.convert('RGB').resize((32,24)),y.convert('RGB').resize((32,24)))).mean[0]/255
-    def sense(self,png,full=True,step=0):
-        state=self.builder.build(png,full)
+    def sense(self,png,full=True,step=0,base_state=None):
+        state=base_state if base_state is not None and base_state.get('frame_sha256')==hashlib.sha256(png).hexdigest() else self.builder.build(png,full)
         # This adapter only measures the user's map legend, never chooses actions.
         floor=state['floor_confirmation'];valid_floor=floor.get('status') in ('initialized','confirmed','changed') and floor.get('confirmed') is not None
         can_map=is_torneko(self.cfg.window_title) and 'num7' in self.cfg.allowed_keys and valid_floor and not state['interface_hypothesis']
@@ -61,6 +61,7 @@ class NextGenController:
         self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
         supervisor=SemanticSupervisor(self.cfg,self.llm,self.send_event,self.cancel);candidates=model.candidates(self.cfg)
         self.builder.ui_vision.restore(store.load('ui_models',limit=64))
+        self.builder.ui_interactions.restore(store.load('ui_interactions',limit=64))
         for appearance in store.load('appearances',limit=128):self.builder.tracker.variants[appearance['id']]=appearance['variants']
         self.builder.restore_candidates=store.load('states')
         for saved in self.builder.restore_candidates:
@@ -77,7 +78,7 @@ class NextGenController:
                     last_revision=revision
                     source=getattr(self.llm,'operator_guidance',None);guidance=source.snapshot() if source else {'revision':0,'text':''}
                     t=time.monotonic();image=self.backend.capture();stages['capture_ms']=(time.monotonic()-t)*1000
-                    self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
+                    self.observation_policy=meta.observer.effective_policy(self.previous);self.builder.observation_policy=self.observation_policy
                     full=bool(step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
                     t=time.monotonic();before=self.builder.build(image,full);stages.update(before['timing']);stages['observation_ms']=(time.monotonic()-t)*1000
                     neutral=None;neutral_regions=None;natural_confidence=.4
@@ -95,7 +96,7 @@ class NextGenController:
                     for _ in range(self.observation_policy['extra_captures']):
                         if self.cancel.wait(.08):break
                         image=self.backend.capture()
-                    before=self.sense(image,full)
+                    before=self.sense(image,full,base_state=before)
                     meta.prepare(before,step)
                     t=time.monotonic();requests_before=supervisor.requests
                     plan,adoption=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
@@ -173,6 +174,10 @@ class NextGenController:
                     ui_model=self.builder.ui_vision.models.get(after.get('ui_visual',{}).get('layout'))
                     if ui_model:store.put('ui_models',ui_model,step,key=ui_model['key'])
                     result=model.observe(before,action,after,prediction,receipt,step,neutral,kind,natural_confidence)
+                    interaction=self.builder.ui_interactions.observe(before,action,after,result,ui_receipt,step,ui_transition,neutral)
+                    interaction_model=self.builder.ui_interactions.model(before)
+                    if interaction_model:store.put('ui_interactions',interaction_model,step,key=interaction_model['key'])
+                    self.builder.ui_vision.last=copy.deepcopy(after.get('ui_visual',{}))
                     self.last=result
                     autonomy=meta.observe(before,action,after,result,receipt,step,(time.monotonic()-started)*1000,neutral)
                     self.send_event(autonomy)
@@ -196,7 +201,7 @@ class NextGenController:
                       'local_action_fraction':local_steps/step,'goal_evaluation':'observed_local_conditions_not_game_completion'}
                     row={**decision,'event':'result','step':step,'autonomy':meta.context(after),'executed':receipt.get('os_submission')=='accepted','input_receipt':receipt,'action_kind':'input','turn_kind':kind,
                       'changed':before['frame_sha256']!=after['frame_sha256'],'policy_after':{k:v for k,v in after.items() if k!='visual_vector'},'policy_state':shown_before,'ocr':copy.deepcopy(self.builder.cache.get(before['frame_sha256'],{}).get('native',{'status':'unavailable','lines':[]})),
-                      'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
+                      'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'ui_interaction':interaction,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},
                       'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None},
                       'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}

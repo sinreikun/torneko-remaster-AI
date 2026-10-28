@@ -124,6 +124,8 @@ class RecognitionState:
         if self.ui_visual:
             selection=self.ui_visual.get('selection',{})
             note+='\nUI選択[関連仮説]: '+str(selection.get('quote') or selection.get('element_id') or '不明')+' / '+str(round(selection.get('confidence',0),2))
+            flow=self.ui_visual.get('interaction_model',{})
+            if flow.get('selection_requirement')=='not_required_for_supported_text_flow':note+=' / 文章送りの入力反応を支持（選択位置は未確定）'
             note+=' / 位置付き文字 '+str(len(self.ui_visual.get('elements',[])))+' / 未解決 '+str(len(self.ui_visual.get('needs_observation',[])))
         f=self.floor_exploration
         if f.get('status')=='observed_floor' and not self.tentative.get('active'):

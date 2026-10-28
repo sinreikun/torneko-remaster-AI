@@ -12,6 +12,7 @@ from ..appearance import descriptor
 from .state_hash import digest
 from .identity import InterfaceIdentity
 from .ui_vision import UIVision
+from .ui_interactions import UIInteractionModel,text_signature
 from .brief_protocol import unavailable_key_hints
 from .text_evidence import collect
 def numbers(metrics):return {k:v['values'] for k,v in metrics.items() if v.get('values') is not None and not v.get('retained')}
@@ -65,7 +66,7 @@ class AnonymousTracker:
 
 class StateBuilder:
     def __init__(self,cfg,ocr):
-        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={};self.ui_vision=UIVision();self.ui_expected=False
+        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={};self.ui_vision=UIVision();self.ui_expected=False;self.ui_interactions=UIInteractionModel()
     def read_metrics(self,native):
         metrics=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else {}
         if not is_torneko(self.cfg.window_title):
@@ -183,6 +184,8 @@ class StateBuilder:
           'floor_confirmation':value['floor_confirmation'],'objects':value['objects'],'tracking_success':value['tracking'],'quality':quality,
           'map_domain':self.map_domain if pose else None,'visual_vector':value['vector'],'position_confidence':.95 if pose else None,'condition_evidence':{'local_map':local,'metrics':conditions},'state_identification':'minimap_measurement' if pose else 'appearance_text_hypothesis',
           'unavailable_input_hints':unavailable_key_hints(quotes,self.cfg.allowed_keys),'measurement_status':native.get('status'),'timing':value['timing']}
+        self.ui_interactions.attach(state)
+        self.ui_vision.last=copy.deepcopy(ui)
         if ui['active']:self.apply_ui_selection(state)
         state['timing']['state_construction_ms']=(time.monotonic()-started)*1000
         return state
@@ -211,6 +214,7 @@ def effects(before,after):
     delta['editable_content_changed']=int(before.get('editable_content_candidates',[])!=after.get('editable_content_candidates',[])) if before['measurement_status']==after['measurement_status']=='ok' else None
     ua=before.get('ui_visual',{});ub=after.get('ui_visual',{})
     if ua and ub:
+        delta['ui_text_content_changed']=int(text_signature(before)!=text_signature(after)) if before.get('measurement_status')==after.get('measurement_status')=='ok' else None
         delta['ui_local_change']=int(ua['frame_sha256']!=ub['frame_sha256'] and bool(ub.get('candidates')))
         sa=ua.get('selection',{});sb=ub.get('selection',{})
         delta['ui_selection_changed']=int(sa['element_id']!=sb['element_id']) if sa.get('status')==sb.get('status')=='supported_association' else None

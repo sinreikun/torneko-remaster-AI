@@ -32,6 +32,8 @@ class MetaController:
     def planning_context(self,state,step):
         c=self.context(state)
         c['unverified_goal_literals']=[{'id':n['id'],'values':n.get('unverified_literals',[])} for n in self.progress.nodes.values() if n.get('unverified_literals')][:8]
+        c['blocked_progress']=[{k:n.get(k) for k in ('id','label','conditions','counterconditions','counterevidence')} for n in self.progress.nodes.values() if n.get('status')=='disputed'][-3:]
+        for node in c['blocked_progress']:node['counterevidence']=node.get('counterevidence',[])[-1:]
         c['skills']=c['skills'][-4:];c['progress']=c['progress'][-8:]
         c['observation_policy']={'settings':self.observer.policy,'trial':(self.observer.summary()['trial'] or {}).get('item')}
         if self.needs_plan(step):
@@ -60,7 +62,9 @@ class MetaController:
                     n['unverified_literals']=[c['value'] for c in n['conditions'] if c['feature']=='text' and c['operator']=='contains' and isinstance(c['value'],str) and c['value'] in CAPABILITIES and c['value'].casefold() not in visible and c['value'].casefold() not in self.reference_text]
                     self.progress.save(n)
                 self.history.append({'event':'progress_proposed','count':count,'step':step,'status':'hypotheses_not_facts'})
-            except ValueError as error:self.history.append({'event':'progress_rejected','reason':str(error),'step':step})
+            except ValueError as error:
+                self.planning_missing+=1;self.planning_issue=str(error);self.last_proposal=step
+                self.history.append({'event':'progress_rejected','reason':str(error),'step':step})
         # A brief plan is a local suggestion, never a campaign completion report.
         targets=[{k:t[k] for k in ('feature','operator','value')} for t in plan.get('targets',[]) if t.get('feature')!='node']
         if targets and not all(condition_value(state,c) is True for c in targets):
@@ -73,10 +77,15 @@ class MetaController:
         if any(t['feature']=='interface_open' and t['value']==0 for t in targets):return 'close_interface'
         if any(t['feature']=='selection_text' for t in targets):return 'change_selection'
         return 'confirm' if state.get('interface_hypothesis') else 'move' if state.get('minimap',{}).get('player_cell') else 'inspect'
+    @staticmethod
+    def bootstrap_capability(state):
+        flow=state.get('ui_visual',{}).get('interaction_model',{})
+        if flow.get('selection_requirement')=='not_required_for_supported_text_flow':return 'advance_interface'
+        return 'change_selection' if state.get('interface_hypothesis') and state.get('selection_observation',{}).get('line_index') is not None else 'move' if not state.get('interface_hypothesis') and state.get('minimap',{}).get('player_cell') else 'inspect'
     def ensure_local(self,state,step):
         node=self.progress.current()
         if self.local and self.local.get('origin')=='capability_acquisition':
-            expected='change_selection' if state.get('interface_hypothesis') and state.get('selection_observation',{}).get('line_index') is not None else 'move' if not state.get('interface_hypothesis') and state.get('minimap',{}).get('player_cell') else 'inspect'
+            expected=self.bootstrap_capability(state)
             if self.local['capability']!=expected:
                 self.history.append({'event':'capability_observation_condition_mismatch','step':step,'old':self.local['capability'],'new':expected})
                 self.local=None;self.recovery=None
@@ -85,7 +94,7 @@ class MetaController:
             cap=next(iter(node['capabilities']),'inspect')
             self.local={'id':'node:'+node['id'],'label':node['label'],'parent':node['id'],'conditions':copy.deepcopy(node['conditions']),'capability':cap,'origin':'progress_graph','created':step,'deadline':step+48,'start_frame':state['frame_sha256']}
         else:
-            cap='change_selection' if state.get('interface_hypothesis') and state.get('selection_observation',{}).get('line_index') is not None else 'move' if not state.get('interface_hypothesis') and state.get('minimap',{}).get('player_cell') else 'inspect'
+            cap=self.bootstrap_capability(state)
             conditions=[{'feature':'interface_open','operator':'eq','value':0}] if cap=='close_interface' else []
             self.local={'id':'ability:'+cap,'label':'現在の観測条件で操作の効果を検証する: '+cap,'parent':None,'conditions':conditions,'capability':cap,'origin':'capability_acquisition','created':step,'deadline':step+24,'start_frame':state['frame_sha256']}
         self.goal_epoch+=1
@@ -100,7 +109,7 @@ class MetaController:
         if state.get('state_identification')=='appearance_text_hypothesis' and state.get('quality',0)<.7:reasons.append('state_identification_failure')
         if result.get('match') is False:reasons.append('world_prediction_failure')
         if any(h.get('status')=='contradicted' for h in result.get('hypothesis_checks',[])):reasons.append('llm_measurement_mismatch')
-        if result.get('loop'):reasons.append('repetition_stagnation')
+        if result.get('loop') or ui.get('interaction_model',{}).get('cycle_detected'):reasons.append('repetition_stagnation')
         if len(self.recent)>=12 and len({x['node'] for x in self.recent})<=3 and not any(x['progress'] for x in self.recent):reasons.append('repetition_stagnation')
         if self.local:
             cap=self.local['capability'];conditions=self.local['conditions']
@@ -195,11 +204,16 @@ class MetaController:
         if self.recovery and self.recovery['method'] in ('alternative_skill','replan'):
 
             for action in self.recovery['attempted_actions'][-6:]:values[action]={'id':action,'value':-1.5,'reason':'有限復旧中に試した入力。別候補を比較する'}
+        interaction=state.get('ui_visual',{}).get('interaction_model',{})
+        action_stats={a['id']:a for a in interaction.get('actions',[])}
         if 'ui_observation_missing' in self.failures:
             for candidate in candidates:
                 meanings={m.strip().casefold() for m in candidate.get('declared_meanings',[])}
-                if len(candidate['keys'])==1 and meanings&{'up','down','left','right','上移動','下移動','左移動','右移動'}:
-                    values[candidate['id']]={'id':candidate['id'],'value':.8,'reason':'選択を観測するため、利用者指定の方向入力を有限比較する。決定・設定変更より位置の追加証拠を優先。'}
+                if len(candidate['keys'])==1 and meanings&{'up','down','left','right','上移動','下移動','左移動','右移動'} and action_stats.get(candidate['id'],{}).get('trials',0)<2:
+                    values[candidate['id']]={'id':candidate['id'],'value':.8,'reason':'方向入力の位置変化を有限回検証する。無反応の反復へ初期探索加点を与え続けない。'}
+        from .ui_interactions import UIInteractionModel
+        if self.local['capability'] in ('inspect','advance_interface') or not conditions:
+            for value in UIInteractionModel.priors(state,candidates,explore='ui_observation_missing' in self.failures):values[value['id']]=value
         from .ui_vision import first_ui_action
         for target in conditions:
             if target['feature'] in ('selection_text','selection_id') and target['operator'] in ('contains','eq'):
@@ -251,4 +265,4 @@ class MetaController:
           'required_capabilities':[cap] if cap else [],'missing_capabilities':self.capabilities.missing([cap],state,self.local['conditions']) if cap and state else [],
           'failure_classes':list(self.failures),'recovery':{k:v for k,v in self.recovery.items() if k not in ('resume','attempted_actions')} if self.recovery else None,
           'observation_policy':self.observer.summary(),'skills':self.capabilities.summary(state) if state else [],
-          'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
+          'ui_interaction':state.get('ui_visual',{}).get('interaction_model',{}),'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
