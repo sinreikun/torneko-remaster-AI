@@ -353,3 +353,39 @@ def emergency_stop_requested():
     u.GetAsyncKeyState.argtypes=[C.c_int];u.GetAsyncKeyState.restype=C.c_short
     pressed=lambda vk:bool(u.GetAsyncKeyState(vk)&0x8000)
     return pressed(0x77) or (pressed(0x11) and pressed(0x10) and pressed(0x78))
+
+
+def process_parents():
+    """OS process metadata only; no game memory or process injection."""
+    if sys.platform!='win32':return []
+    kernel=C.WinDLL('kernel32',use_last_error=True)
+    class Entry(C.Structure):
+        _fields_=[('size',W.DWORD),('usage',W.DWORD),('pid',W.DWORD),('heap',C.c_size_t),
+                  ('module',W.DWORD),('threads',W.DWORD),('parent_pid',W.DWORD),('priority',W.LONG),('flags',W.DWORD),('name',W.WCHAR*260)]
+    kernel.CreateToolhelp32Snapshot.argtypes=[W.DWORD,W.DWORD];kernel.CreateToolhelp32Snapshot.restype=W.HANDLE
+    kernel.Process32FirstW.argtypes=[W.HANDLE,C.POINTER(Entry)];kernel.Process32NextW.argtypes=[W.HANDLE,C.POINTER(Entry)]
+    kernel.CloseHandle.argtypes=[W.HANDLE]
+    handle=kernel.CreateToolhelp32Snapshot(2,0)
+    if handle==C.c_void_p(-1).value:return []
+    rows=[]
+    try:
+        entry=Entry();entry.size=C.sizeof(entry);more=kernel.Process32FirstW(handle,C.byref(entry))
+        while more:
+            rows.append({'pid':entry.pid,'parent_pid':entry.parent_pid,'name':entry.name})
+            more=kernel.Process32NextW(handle,C.byref(entry))
+    finally:kernel.CloseHandle(handle)
+    return rows
+
+
+def process_executable(pid):
+    if sys.platform!='win32' or not pid:return ''
+    kernel=C.WinDLL('kernel32',use_last_error=True)
+    kernel.OpenProcess.argtypes=[W.DWORD,W.BOOL,W.DWORD];kernel.OpenProcess.restype=W.HANDLE
+    kernel.QueryFullProcessImageNameW.argtypes=[W.HANDLE,W.DWORD,W.LPWSTR,C.POINTER(W.DWORD)]
+    kernel.CloseHandle.argtypes=[W.HANDLE]
+    handle=kernel.OpenProcess(0x1000,False,pid)
+    if not handle:return ''
+    try:
+        path=C.create_unicode_buffer(32768);size=W.DWORD(32768)
+        return path.value if kernel.QueryFullProcessImageNameW(handle,0,path,C.byref(size)) else ''
+    finally:kernel.CloseHandle(handle)

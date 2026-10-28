@@ -38,7 +38,7 @@ class ProfileStore:
             raise ValueError('プロファイルIDが不正です。')
         cfg.profile_id = identity
         value = {'id': identity, 'name': target['title'],
-                 'target': {k: target.get(k, '') for k in ('title', 'executable', 'class_name')},
+                 'target': {k: target.get(k, '') for k in ('title', 'executable', 'class_name','launch_executable')},
                  'settings': asdict(cfg)}
         self.folder.mkdir(parents=True, exist_ok=True)
         path = self.folder / (identity + '.json')

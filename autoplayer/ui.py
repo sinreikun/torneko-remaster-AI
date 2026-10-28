@@ -496,7 +496,11 @@ class Application:
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
 
     def connect(self):
-        if self.busy():return
+        if self.busy():
+            control=getattr(self,'control',None)
+            if control and not control.stop.is_set():
+                control.request_reconnect();self.status.set('攻略を維持したまま接続を再確認します。保留中の入力は破棄します。')
+            return
         title=self.vars['window_title'].get().strip()
         cfg=self.settings()
         target=dict(self.selected_target) if self.selected_target else None
@@ -839,7 +843,7 @@ class Application:
         from .console_play import ConsoleCommands
         self.interventions=ConsoleCommands(cfg);self.intervention_capable=not (demonstration or console or dry or separation)
         self.stop.clear();self.control=SessionControl(self.stop,0 if separation else seconds)
-        control=self.control;self.status.set('お手本記録：ゲームを手動で前面にして操作してください。ツールは入力しません。停止で保存・ZIP生成。' if demonstration else '攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_finished=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
+        control=self.control;control.reconnect_interruptible=False;self.status.set('お手本記録：ゲームを手動で前面にして操作してください。ツールは入力しません。停止で保存・ZIP生成。' if demonstration else '攻略を開始しています。停止ボタンで中断できます。');self.run_started=time.time();self.run_finished=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0}
         def work():
             from .windows import WindowsGame
             from .recording import FrameRecorder,RecordedBackend
@@ -862,14 +866,18 @@ class Application:
                     folder=DATA/'runs';folder.mkdir(parents=True,exist_ok=True)
                     with (folder/(session+'.jsonl')).open('a',encoding='utf-8') as stream:
                         stream.write(json.dumps(row,ensure_ascii=False)+'\n')
-                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and cfg.resilient and not dry and not separation and not demonstration and not console else None
+                recovery=TargetRecovery(selected_target,recovery_event) if selected_target and not dry and not separation and not demonstration and not console else None
                 def reconnect(target):
+                    control.reconnect_requested.clear()
                     while control.checkpoint():
                         try:
                             value=self.open_target(cfg.window_title,target) if target else self.backend if self.backend and self.connection_title==cfg.window_title else WindowsGame(cfg.window_title)
                             value.window_capture.cancel=control.stop
                             value.capture()
-                            if recovery:recovery.target.update(pid=value.process_id.value,hwnd=int(value.hwnd))
+                            if recovery:
+                                from .windows import window_targets
+                                metadata=next((w for w in window_targets() if w['pid']==value.process_id.value and w['hwnd']==int(value.hwnd)),None)
+                                recovery.target.update(metadata or {'pid':value.process_id.value,'hwnd':int(value.hwnd)})
                             return value
                         except TargetUnavailable:
                             if not recovery:raise
@@ -880,9 +888,20 @@ class Application:
                             recovery_event({'event':'capture_timeout','reason':str(error),'learning':False,'status':'retrying'})
                             control.wait(2)
                     return None
+                def recover_connection():
+                    if not recovery:raise TargetUnavailable('自動復旧対象が未設定です。')
+                    target=recovery.recover(control)
+                    if not target:return None
+                    value=reconnect(target)
+                    if value is not None:self.queue.put(('connected',(value,cfg.window_title,dict(recovery.target))))
+                    return value
                 backend=reconnect(selected_target)
                 if backend is None:summary.update(status='stopped',reason='復旧待機を停止');return
-                self.queue.put(('connected',(backend,cfg.window_title)))
+                if recovery is None and not (dry or separation or demonstration or console):
+                    from .windows import window_targets
+                    metadata=next((w for w in window_targets() if w['pid']==backend.process_id.value and w['hwnd']==int(backend.hwnd)),None)
+                    if metadata:recovery=TargetRecovery(metadata,recovery_event)
+                self.queue.put(('connected',(backend,cfg.window_title,dict(recovery.target))) if recovery else ('connected',(backend,cfg.window_title)))
                 summary['connection']={'hwnd':int(backend.hwnd),'process_id':backend.process_id.value,
                     'window_title':backend._text(backend.hwnd),'capture':'PrintWindow','input':'window_message'}
                 recorder=FrameRecorder(DATA/'recordings'/session);recorded=RecordedBackend(backend,recorder)
@@ -958,9 +977,15 @@ class Application:
                     try:
                         llm=LocalLLM(runtime_cfg);llm.operator_guidance=self.operator_guidance;llm.public_references=reference_context(references)
                         from .nextgen.controller import NextGenController
+                        control.reconnect_interruptible=True
                         agent=NextGenController(runtime_cfg,recorded,llm,agent_event,DATA/'runs'/(session+'.jsonl'),self.stop,memory,control,lambda row:diagnostic_store.cycle(exploration_run,row))
                         agent.run(dry);break
                     except OperationCancelled:
+                        if control.reconnect_requested.is_set() and not self.stop.is_set():
+                            backend=recover_connection()
+                            if backend is None:break
+                            recorded=RecordedBackend(backend,recorder);summary['reconnections']=summary.get('reconnections',0)+1
+                            continue
                         if not control.intervention.is_set():raise
                         # The automatic controller has unwound and released its
                         # keys. Only this worker can now send the manual input.
@@ -988,12 +1013,9 @@ class Application:
                     except TargetUnavailable:
                         if memory:memory.runtime_navigation=None;memory.runtime_world=None
                         if not recovery:raise
-                        target=recovery.recover(control)
-                        if not target:break
-                        backend=reconnect(target)
+                        backend=recover_connection()
                         if backend is None:break
                         recorded=RecordedBackend(backend,recorder)
-                        self.queue.put(('connected',(backend,cfg.window_title)))
                         summary['reconnections']=summary.get('reconnections',0)+1
                     except BackgroundUnavailable:raise
                     except OperationCancelled:
@@ -1263,7 +1285,9 @@ class Application:
                     update_started=time.monotonic();self.update_decision(value);self.ui_decision_ms=(time.monotonic()-update_started)*1000
                 elif kind=='connected':
                     previous=self.backend
-                    self.backend,self.connection_title=value
+                    self.backend,self.connection_title=value[:2]
+                    if len(value)>2:
+                        self.selected_target=dict(value[2]);self.profiles.save(self.selected_target,self.cfg)
                     self.recognition.update({'event':'disconnected'})
                     if self.overlay:self.overlay.connect(self.backend)
                     if previous is not None and previous is not self.backend:self.close_capture(previous)

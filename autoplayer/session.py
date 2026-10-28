@@ -6,11 +6,13 @@ class SessionControl:
     def __init__(self, stop=None, seconds=0):
         if seconds not in (0,600,1200,1800,3600): raise ValueError('Invalid run duration')
         self.stop=stop if stop is not None else threading.Event()
-        self.paused=threading.Event();self.intervention=threading.Event();self.revision=0
+        self.paused=threading.Event();self.intervention=threading.Event();self.reconnect_requested=threading.Event();self.revision=0
         self.deadline=time.monotonic()+seconds if seconds else None
         self.reason='';self.timer=None
         if seconds:
             self.timer=threading.Timer(seconds,self.expire);self.timer.daemon=True;self.timer.start()
+    def request_reconnect(self):
+        self.revision+=1;self.reconnect_requested.set()
     def expire(self):
         self.reason='実行時間の上限に到達';self.stop.set()
     def toggle_pause(self):
@@ -19,11 +21,11 @@ class SessionControl:
         else: self.paused.set()
         return self.paused.is_set()
     def checkpoint(self):
-        while self.paused.is_set() and not self.intervention.is_set() and not self.stop.wait(.05): pass
+        while self.paused.is_set() and not self.reconnect_requested.is_set() and not self.intervention.is_set() and not self.stop.wait(.05): pass
         if self.deadline is not None and time.monotonic()>=self.deadline: self.expire()
         return not self.stop.is_set()
     def is_set(self):
-        return self.stop.is_set() or self.paused.is_set() or self.intervention.is_set()
+        return self.stop.is_set() or self.paused.is_set() or self.intervention.is_set() or (self.reconnect_requested.is_set() and getattr(self,'reconnect_interruptible',True))
     def wait(self,seconds):
         end=time.monotonic()+seconds
         while not self.is_set():

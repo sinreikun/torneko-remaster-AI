@@ -20,6 +20,9 @@ class NextGenController:
         self.builder=StateBuilder(cfg,llm.ocr);self.diagnostic_sink=diagnostic_sink;self.last={};self.durations={};self.events=[];self.previous=None;self.stream=None
         self.data=self.journal.parent.parent;self.completed=False;self.summary={};self.journal_lock=threading.RLock()
     def checkpoint(self):
+        if self.control and getattr(self.control,'reconnect_requested',None) and self.control.reconnect_requested.is_set():
+            from ..recovery import TargetUnavailable
+            raise TargetUnavailable('接続更新要求。保留中の操作を破棄して再接続します。')
         if self.control and self.control.intervention.is_set():raise OperationCancelled('手動介入へ切替')
         return self.control.checkpoint() if self.control else not self.stop.is_set()
     def log(self,value,durable=False):

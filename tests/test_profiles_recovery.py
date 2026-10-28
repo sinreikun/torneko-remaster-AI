@@ -148,7 +148,7 @@ class RecoveryTests(unittest.TestCase):
             scans=iter([[],[],[new]]);events=[];launch=Mock(return_value=SimpleNamespace(pid=99,poll=lambda:None));control=SessionControl()
             control.wait=lambda _:False
             recovery=TargetRecovery(target,events.append,windows=lambda:next(scans),alive=lambda pid:pid==99,launch=launch)
-            self.assertEqual(recovery.recover(control),new);launch.assert_called_once_with(str(path))
+            self.assertEqual(recovery.recover(control),{**new,'launch_executable':str(path)});launch.assert_called_once_with(str(path))
             self.assertTrue(all(e['learning'] is False for e in events));control.close()
 
     def test_multiple_matches_and_unknown_executable_never_launch(self):
