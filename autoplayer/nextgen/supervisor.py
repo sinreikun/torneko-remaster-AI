@@ -226,7 +226,7 @@ class SemanticSupervisor:
             state_copy=copy.deepcopy(protocol_state);candidate_copy=copy.deepcopy(candidates)
             def work():
                 from ..core import LocalLLM
-                started=time.monotonic();answer=None;error=None;raw='';issues=[];requested=[]
+                started=time.monotonic();answer=None;error=None;raw='';issues=[];requested=[];extra_round_used=False
                 try:
                     client=LocalLLM(replace(self.cfg,timeout=min(self.cfg.timeout,90)));client.cancel=cancel;client.activity=self.emit
                     if hasattr(self.llm,'operator_guidance'):client.operator_guidance=self.llm.operator_guidance
@@ -250,10 +250,24 @@ class SemanticSupervisor:
                             if estimate_tokens(follow)<=context_budget and fitted-already:
                                 self.emit({'event':'knowledge_retrieval','requests':requested,'results':follow['information_results'],'learning':False})
                                 client.cfg=replace(client.cfg,timeout=max(1,min(client.cfg.timeout,90-(time.monotonic()-started))))
+                                extra_round_used=True
                                 raw=client._request(image,BRIEF_SYSTEM,follow,request_schema)
                     if requested and not new_records:
                         self.emit({'event':'knowledge_retrieval','requests':requested,'status':'already_loaded_or_deferred_to_owner_lookup','learning':False})
-                    answer,issues=decode_brief(json.loads(raw),aliases,candidate_copy,state_copy,validate)
+                    try:answer,issues=decode_brief(json.loads(raw),aliases,candidate_copy,state_copy,validate)
+                    except (ValueError,TypeError) as invalid:
+                        # One shared extra-round budget: retrieval OR protocol
+                        # repair. Never adopt or execute the rejected response.
+                        if extra_round_used or cancel.is_set() or time.monotonic()-started>=45:raise
+                        from .knowledge_access import retry_view
+                        repair=retry_view(base_prompt)
+                        repair['validation_feedback']={'rejected':str(invalid),'observed_texts':state_copy.get('quotes',[])[:12],'rule':'前の応答は不採用。画面に無い内部IDを選択目標にしない。検証可能な原文が無ければsuccess_testはnoneとし、現在証拠に基づく許可候補を選び直す。'}
+                        if estimate_tokens(repair)>context_budget:raise
+                        self.emit({'event':'supervisor_repair','reason':str(invalid),'extra_round':'protocol_repair','learning':False})
+                        extra_round_used=True;client.cfg=replace(client.cfg,timeout=max(1,min(client.cfg.timeout,90-(time.monotonic()-started))))
+                        raw=client._request(image,BRIEF_SYSTEM,repair,request_schema)
+                        answer,issues=decode_brief(json.loads(raw),aliases,candidate_copy,state_copy,validate)
+                    requested=answer.get('information_requests',requested)
                     if answer['objective'] in ('interface_closed','interface_opened') and any(t['feature']=='interface_open' and t['value']!=int(answer['objective']=='interface_opened') for t in answer['targets']):raise ValueError('目的のプロトコル名と成功条件が矛盾')
                     if planning_requested and not answer.get('progress_nodes'):issues.append('progress_generation_missing')
                 except Exception as failure:error=str(failure)[:500]

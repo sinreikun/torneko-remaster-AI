@@ -31,6 +31,13 @@ class MetaController:
     def needs_plan(self,step):return (not self.progress.nodes or not self.progress.available() or bool(self.exhausted) or self.planning_missing>0) and step-self.last_proposal>=(16 if self.planning_missing or not self.progress.nodes else 128)
     def planning_context(self,state,step):
         c=self.context(state)
+        # Capability identifiers are protocol labels, not text to find in the
+        # game. Keep the identifier separate from the user-facing local goal.
+        goal=c.get('current_goal')
+        if goal and goal.get('origin')=='capability_acquisition':
+            labels={'inspect':'現在画面から入力の作用を確認できる情報を得る','change_selection':'選択を示す要素が入力で移動するか確認する','confirm':'現在項目への決定入力の作用を確認する','move':'入力による位置の変化を確認する','advance_interface':'文章を進める入力の作用を確認する'}
+            goal['label']=labels.get(goal.get('capability'),'現在の観測で必要な操作の効果を検証する')
+            goal['identifier_rule']='capability/idは内部識別子。画面内文字の証拠ではない。選択対象は現在の位置付きOCRから選ぶ。'
         c['unverified_goal_literals']=[{'id':n['id'],'values':n.get('unverified_literals',[])} for n in self.progress.nodes.values() if n.get('unverified_literals')][:8]
         c['blocked_progress']=[{k:n.get(k) for k in ('id','label','conditions','counterconditions','counterevidence')} for n in self.progress.nodes.values() if n.get('status')=='disputed'][-3:]
         for node in c['blocked_progress']:node['counterevidence']=node.get('counterevidence',[])[-1:]

@@ -183,3 +183,40 @@ class TaskBudgetContracts(unittest.TestCase):
         p=self.prompt();n={'id':'G1','conditions':[{'feature':'text','operator':'contains','value':'a'}],'counterconditions':[],'counterevidence':[{'frame':'f','conditions':[{'value':'a'}]}]}
         p['goal_hierarchy']['blocked_progress']=[n,{**n,'id':'G2'}];v=context_view(p,self.snapshot(),'progress',3076)
         self.assertEqual(len(v['goal_hierarchy']['blocked_progress']),1);self.assertEqual(v['goal_hierarchy']['blocked_progress'][0]['equivalent_ids'],['G1','G2'])
+    def test_ui_replanning_does_not_lose_progress_to_duplicate_blocked_goals(self):
+        snap=self.snapshot();node={'id':'G1','label':'証拠を得る','conditions':[{'feature':'text','operator':'contains','value':'項目'}],'counterconditions':[{'feature':'text','operator':'contains','value':'反証'}],'counterevidence':[{'frame':'f','conditions':[{'value':'反証'}]}]}
+        snap['pool']['progress_node']=[KnowledgeAccess.entry('progress_node',node)]
+        p=self.prompt();p['goal_hierarchy']['planning_material']={'long_term_intent':'最終目的を保ちつつ現状を理解する','new_node_ids':['G2']}
+        p['goal_hierarchy']['blocked_progress']=[{**node,'id':str(i)} for i in range(10)]
+        v=context_view(p,snap,'ui',2500);self.assertTrue(any(r['topic']=='progress_node' for r in v['knowledge']['records']));self.assertLessEqual(estimate_tokens(v),2500)
+
+class SupervisorRepairContracts(unittest.TestCase):
+    def test_invalid_selection_is_repaired_once_without_adopting_bad_target(self):
+        import threading
+        from unittest.mock import patch
+        from autoplayer.core import Settings,LocalLLM
+        from autoplayer.nextgen.supervisor import SemanticSupervisor
+        from autoplayer.nextgen.model import ForwardModel
+        from test_nextgen import measured
+        cfg=Settings(window_title='generic',allowed_keys=['a']);calls=[];events=[]
+        bad={'local_objective':'確認','reason':'観測する','preferred':['A00'],'discouraged':[],'success_test':'selection_matches','success_text':'inspect','review_after':16}
+        good={**bad,'success_test':'none','success_text':''}
+        def reply(image,system,prompt,schema):
+            calls.append(prompt)
+            return json.dumps(bad if len(calls)==1 else good)
+        with tempfile.TemporaryDirectory() as folder,patch.object(LocalLLM,'_request',side_effect=reply):
+            store=ExperienceStore(Path(folder)/'w.sqlite','p','s');model=ForwardModel(store);supervisor=SemanticSupervisor(cfg,LocalLLM(cfg),events.append,threading.Event())
+            try:
+                supervisor.tick(measured(),model.candidates(cfg),0,0,{},None,model,{})
+                packet=supervisor.results.get(timeout=2);self.assertIsNone(packet['error']);self.assertEqual(len(calls),2);self.assertIn('validation_feedback',calls[1]);self.assertEqual(packet['plan']['targets'],[])
+                self.assertTrue(any(e['event']=='supervisor_repair' for e in events))
+            finally:supervisor.close();store.close()
+    def test_bootstrap_goal_labels_do_not_use_internal_enum_as_screen_target(self):
+        from autoplayer.nextgen.meta import MetaController
+        from test_nextgen import measured
+        with tempfile.TemporaryDirectory() as folder:
+            store=ExperienceStore(Path(folder)/'w.sqlite','p','s')
+            try:
+                meta=MetaController(store,'長期目的');meta.prepare(measured(),0);context=meta.planning_context(measured(),0)
+                self.assertNotIn('inspect',context['current_goal']['label']);self.assertEqual(context['current_goal']['capability'],'inspect');self.assertIn('内部識別子',context['current_goal']['identifier_rule'])
+            finally:store.close()

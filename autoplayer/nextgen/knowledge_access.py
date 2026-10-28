@@ -229,6 +229,12 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
     if hierarchy.get('planning_issue'):add(['goal_hierarchy','planning_issue'],hierarchy['planning_issue'])
     if hierarchy.get('planning_material'):
         add(['goal_hierarchy','planning_material','long_term_intent'],hierarchy['planning_material'].get('long_term_intent',''))
+    primary=['recent_failures','observer_history'] if role=='recovery' else ['progress_node'] if role=='progress' or hierarchy.get('planning_material') else []
+    seen=set()
+    for topic in primary:
+        for entry in snapshot['pool'].get(topic,[])[:1]:
+            if add(['knowledge','records'],base['knowledge']['records']+[project(entry)]):
+                seen.add((topic,entry['id']));base['knowledge']['available'][topic]['status']='partially_loaded'
     blocked=[];groups={}
     for node in hierarchy.get('blocked_progress',[]):
         signature=digest([node.get('conditions'),node.get('counterconditions')])
@@ -237,12 +243,6 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
         item['equivalent_ids']=[node['id']];item['counterevidence']=[{k:e[k] for k in ('frame','step','conditions') if k in e} for e in node.get('counterevidence',[])[-1:]]
         groups[signature]=item
         if add(['goal_hierarchy','blocked_progress'],blocked+[item]):blocked.append(item)
-    primary=['recent_failures','observer_history'] if role=='recovery' else ['progress_node'] if role=='progress' or hierarchy.get('planning_material') else []
-    seen=set()
-    for topic in primary:
-        for entry in snapshot['pool'].get(topic,[])[:1]:
-            if add(['knowledge','records'],base['knowledge']['records']+[project(entry)]):
-                seen.add((topic,entry['id']));base['knowledge']['available'][topic]['status']='partially_loaded'
     hot_limit=max(estimate_tokens(base),int(budget*.70))
     for q in current.get('quotes',[]):
         if q in quotes:continue
