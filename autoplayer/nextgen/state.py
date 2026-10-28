@@ -11,6 +11,7 @@ from ..appearance import descriptor
 
 from .state_hash import digest
 from .identity import InterfaceIdentity
+from .brief_protocol import unavailable_key_hints
 def numbers(metrics):return {k:v['values'] for k,v in metrics.items() if v.get('values') is not None and not v.get('retained')}
 
 class AnonymousTracker:
@@ -162,10 +163,10 @@ class StateBuilder:
         for k,v in metrics.items():self.retained[k]={**copy.deepcopy(v),'source_frame':sha}
         quality=.95 if pose and metrics else .8 if native.get('status')=='ok' and quotes else .45
         state={'id':node,'context':context,'frame_sha256':sha,'observed_at':time.time(),'quotes':quotes,'metrics':metrics,'retained':retained,'minimap':grid,
-          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'interface_layout':layout,'semantic_text_key':semantic_key,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
+          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'interface_layout':layout,'semantic_text_key':semantic_key,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_observation':value['white_frame'],'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
           'floor_confirmation':value['floor_confirmation'],'objects':value['objects'],'tracking_success':value['tracking'],'quality':quality,
           'map_domain':self.map_domain if pose else None,'visual_vector':value['vector'],'position_confidence':.95 if pose else None,'condition_evidence':{'local_map':local,'metrics':conditions},'state_identification':'minimap_measurement' if pose else 'appearance_text_hypothesis',
-          'measurement_status':native.get('status'),'timing':value['timing']}
+          'unavailable_input_hints':unavailable_key_hints(quotes,self.cfg.allowed_keys),'measurement_status':native.get('status'),'timing':value['timing']}
         state['timing']['state_construction_ms']=(time.monotonic()-started)*1000
         return state
 

@@ -79,7 +79,7 @@ class Settings:
         if not self.window_title.strip(): raise ValueError('対象ウィンドウ名が必要です。')
         if is_torneko(self.window_title) and isinstance(self.allowed_keys,list) and all(isinstance(key,str) and key in KEYS for key in self.allowed_keys):
             previous=list(self.allowed_keys)
-            self.allowed_keys=[key for key in previous if key in PROFILE_KEYS]
+            self.allowed_keys=[key for key in previous if key in PROFILE_KEYS or isinstance(self.key_bindings,dict) and key in self.key_bindings]
             if not self.allowed_keys and previous and set(previous)<=set(('enter','space')):self.allowed_keys=list(PROFILE_KEYS)
         if not isinstance(self.allowed_keys,list) or any(not isinstance(k,str) for k in self.allowed_keys) or not self.allowed_keys or not set(self.allowed_keys) <= KEYS: raise ValueError('許可キーが不正です。')
         if type(self.max_steps) is not int or not 0 <= self.max_steps <= 100000: raise ValueError('手数上限が不正です。')

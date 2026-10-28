@@ -12,10 +12,15 @@ def snapshot(state):
     return {k:copy.deepcopy(v) for k,v in state.items() if k not in ('timing','retained','visual_vector')}
 def value_at(state,path):
     if path=='node':return state['id']
-    if path=='text':return '\n'.join(state['quotes'])
+    if path=='interface_open':
+        visible=state.get('interface_observation',{}).get('visible',state.get('interface_hypothesis'))
+        return int(visible) if type(visible) is bool else None
+    if path=='selection_text':return (state.get('selection_observation') or {}).get('quote')
+    if path=='text':return '\n'.join(state['quotes']) if state.get('measurement_status')=='ok' else None
     if path.startswith('metric.'):
         try:
-            _,name,index=path.split('.');return state['metrics'][name]['values'][int(index)]
+            _,name,index=path.split('.');metric=state['metrics'][name]
+            return metric['values'][int(index)] if not metric.get('retained') else None
         except (ValueError,KeyError,IndexError):return None
     return None
 
@@ -23,7 +28,7 @@ def target_score(state,target):
     value=value_at(state,target['feature'])
     if value is None:return None
     wanted=target['value'];op=target['operator']
-    try:return float(wanted in value if op=='contains' and isinstance(value,str) else value==wanted if op=='eq' else value>=wanted if op=='ge' else value<=wanted if op=='le' else False)
+    try:return float(wanted not in value if op=='not_contains' and isinstance(value,str) else value!=wanted if op=='ne' else wanted in value if op=='contains' and isinstance(value,str) else value==wanted if op=='eq' else value>=wanted if op=='ge' else value<=wanted if op=='le' else False)
     except TypeError:return None
 
 class ForwardModel:
@@ -100,7 +105,7 @@ class ForwardModel:
         return [{'id':action_id(k,h),'keys':k,'hold_ms':h} for k in [[x] for x in keys]+chords for h in holds]
     def choose(self,state,candidates,plan=None,weight=.6):
         started=time.monotonic();plan=plan or {};ranked=[];self.prediction_ms=0.;self.search_ms=0.
-        goals=plan.get('targets',[]);current_goal=[target_score(state,t) for t in goals]
+        goals=[t for t in plan.get('targets',[]) if target_score(state,t)!=1];current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         for action in candidates:
             if state['interface_hypothesis'] and len(action['keys'])>1:
@@ -125,7 +130,7 @@ class ForwardModel:
                         temporary=copy.deepcopy(state);_,name,index=feature.split('.');temporary['metrics'][name]['values'][int(index)]=predicted
                         later=target_score(temporary,target)
                         if later is not None:goal+=target.get('weight',1)*(later-current_goal[i])
-                    if feature in ('text','node'):
+                    if feature in ('text','node','interface_open','selection_text'):
                         observed=[target_score(x['outcome'],target) for x in samples if x.get('outcome')]
                         if observed:goal+=target.get('weight',1)*(sum(v for v in observed if v is not None)/len(observed)-(current_goal[i] or 0))
             else:novelty=1.;gain=1.
@@ -180,7 +185,7 @@ class ForwardModel:
             # Natural differences confound attribution; retain raw effects too.
             active=sum(bool(v) for v in effect.values());background=sum(bool(v) for v in neutral.values())
             confidence*=max(.2,1-background/max(1,active+background))
-        rule['samples'].append({'signature':sig,'destination_context':after['context'],'effects':effect,'node':after['id'],'confidence':confidence,'outcome':{'id':after['id'],'quotes':after['quotes'][:12],'metrics':copy.deepcopy(after['metrics'])}});rule['samples']=rule['samples'][-32:]
+        rule['samples'].append({'signature':sig,'destination_context':after['context'],'effects':effect,'node':after['id'],'confidence':confidence,'outcome':{'id':after['id'],'quotes':after['quotes'][:12],'metrics':copy.deepcopy(after['metrics']),'measurement_status':after['measurement_status'],'interface_observation':copy.deepcopy(after.get('interface_observation',{})),'interface_hypothesis':after['interface_hypothesis'],'selection_observation':copy.deepcopy(after.get('selection_observation',{}))}});rule['samples']=rule['samples'][-32:]
         if match is not None:
             rule['checks'].append(int(match));rule['checks']=rule['checks'][-64:]
             if not match:rule['revisions']+=1
