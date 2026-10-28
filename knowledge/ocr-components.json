@@ -1,0 +1,104 @@
+{
+  "origin": "Uploaded GameKouryakuKun v0.14.1 components/manifest.json",
+  "origin_sha256": "6e288a1540255f543fa4b4b336ca036d2ae0f56118747160c453230318c777a8",
+  "components": [
+    {
+      "id": "ocr-paddle-v5",
+      "display_name": "PaddleOCR モデル (PP-OCRv5 mobile, ONNX)【推奨】",
+      "description": "PP-OCRv5 mobile の文字領域検出と多言語（日本語を含む）認識のONNXモデル、文字辞書、および日本語の文字一覧（PP-OCRv4 日本語辞書。簡体字への揺れを防ぐため出力文字を制限）。v4 よりアイコン付きの数値行（例: HP15/15）の読み取りが大幅に良い。PaddleOCR 公式モデルを RapidOCR プロジェクトが ONNX へ変換・配布したもの。",
+      "kind": "model",
+      "required": false,
+      "feature": "ocr-paddle",
+      "version": "ppocrv5-mobile-rapidocr-3.4.0",
+      "license": {
+        "spdx": "Apache-2.0",
+        "url": "https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE",
+        "notes": "変換・配布: RapidOCR（Apache-2.0, https://github.com/RapidAI/RapidOCR）。ModelScope RapidAI/RapidOCR リポジトリ（License: Apache License 2.0）の v3.4.0 タグ。"
+      },
+      "source": {
+        "homepage": "https://www.modelscope.cn/models/RapidAI/RapidOCR",
+        "urls": []
+      },
+      "files": [
+        {
+          "path": "det.onnx",
+          "size_bytes": 4819576,
+          "sha256": "4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/onnx/PP-OCRv5/det/ch_PP-OCRv5_mobile_det.onnx"
+          ]
+        },
+        {
+          "path": "rec.onnx",
+          "size_bytes": 16631306,
+          "sha256": "5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/onnx/PP-OCRv5/rec/ch_PP-OCRv5_rec_mobile_infer.onnx"
+          ]
+        },
+        {
+          "path": "dict.txt",
+          "size_bytes": 74012,
+          "sha256": "d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/paddle/PP-OCRv5/rec/ch_PP-OCRv5_rec_mobile_infer/ppocrv5_dict.txt"
+          ]
+        },
+        {
+          "path": "allowed_chars.txt",
+          "size_bytes": 17332,
+          "sha256": "1dcfcb41eec90576a945b3084f22ade11ced506e24f14879245b071698f308e8",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/paddle/PP-OCRv4/rec/japan_PP-OCRv4_rec_infer/japan_dict.txt"
+          ]
+        }
+      ],
+      "install_dir": "components/ocr-paddle-v5/ppocrv5-mobile-rapidocr-3.4.0"
+    },
+    {
+      "id": "ocr-paddle-ja",
+      "display_name": "PaddleOCR 日本語モデル (PP-OCRv4, ONNX)【旧・v5 未導入時の予備】",
+      "description": "文字領域検出（PP-OCRv4 det）と日本語認識（japan PP-OCRv4 rec）のONNXモデル、文字辞書。PaddleOCR 公式モデルを RapidOCR プロジェクトが ONNX へ変換・配布したもの。",
+      "kind": "model",
+      "required": false,
+      "feature": "ocr-paddle",
+      "version": "ppocrv4-rapidocr-3.4.0",
+      "license": {
+        "spdx": "Apache-2.0",
+        "url": "https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE",
+        "notes": "変換・配布: RapidOCR（Apache-2.0, https://github.com/RapidAI/RapidOCR）。ModelScope RapidAI/RapidOCR リポジトリ（License: Apache License 2.0）の v3.4.0 タグ。"
+      },
+      "source": {
+        "homepage": "https://www.modelscope.cn/models/RapidAI/RapidOCR",
+        "urls": []
+      },
+      "files": [
+        {
+          "path": "det.onnx",
+          "size_bytes": 4745517,
+          "sha256": "d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/onnx/PP-OCRv4/det/ch_PP-OCRv4_det_infer.onnx"
+          ]
+        },
+        {
+          "path": "rec_japan.onnx",
+          "size_bytes": 9753335,
+          "sha256": "e1075a67dba758ecfc7ebc78a10ae61c95ac8fb66a9c86fab5541e33f085cb7a",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/onnx/PP-OCRv4/rec/japan_PP-OCRv4_rec_infer.onnx"
+          ]
+        },
+        {
+          "path": "japan_dict.txt",
+          "size_bytes": 17332,
+          "sha256": "1dcfcb41eec90576a945b3084f22ade11ced506e24f14879245b071698f308e8",
+          "urls": [
+            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.4.0/paddle/PP-OCRv4/rec/japan_PP-OCRv4_rec_infer/japan_dict.txt"
+          ]
+        }
+      ],
+      "install_dir": "components/ocr-paddle-ja/ppocrv4-rapidocr-3.4.0"
+    }
+  ]
+}

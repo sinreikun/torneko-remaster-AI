@@ -1,0 +1,521 @@
+{
+  "schema_version": 1,
+  "updated": "2026-10-28",
+  "sources": [
+    {
+      "id": "sfc-wiki",
+      "title": "初代：Wikipedia 日本語",
+      "url": "https://ja.wikipedia.org/wiki/トルネコの大冒険_不思議のダンジョン",
+      "accessed": "2026-10-19",
+      "kind": "secondary",
+      "content_sha256": "7b95b5d108d388f722b1db1d94bc783b8b23894e25d1a8787512935fcd86d30f",
+      "retrieval_run": "39179810874"
+    },
+    {
+      "id": "official",
+      "title": "リマスター公式サイト",
+      "url": "https://www.dragonquest.jp/torneko_re/",
+      "accessed": "2026-10-19",
+      "kind": "publisher",
+      "content_sha256": "a351f1cd05e0d66f905b8b1a46eab990c7e715e4144a67a34c13f6c5319220c9",
+      "retrieval_run": "39179913865"
+    },
+    {
+      "id": "steam",
+      "title": "Steam本編ストア",
+      "url": "https://store.steampowered.com/app/4027450/?l=japanese",
+      "accessed": "2026-10-19",
+      "kind": "publisher_store",
+      "content_sha256": "08186d267ff1162794f916321a4bac5a2c0b325e07764bc38f4a75e8508877c3",
+      "retrieval_run": "39179913865"
+    },
+    {
+      "id": "dlc",
+      "title": "Steam追加ダンジョン",
+      "url": "https://store.steampowered.com/app/4483340/?l=japanese",
+      "accessed": "2026-10-19",
+      "kind": "publisher_store",
+      "content_sha256": "0497cd34aee15c1a6bdc6a1428b6b1cdb77cc675a91b7fc6a27cf4d0bebabc25",
+      "retrieval_run": "39179913865"
+    },
+    {
+      "id": "uploaded-profile",
+      "title": "ユーザー提供 source.zip の対象・入力プロファイル",
+      "url": "reference/README.md",
+      "accessed": "2026-10-19",
+      "kind": "user_supplied"
+    },
+    {
+      "id": "user-controls-20261025",
+      "title": "利用者提示の現在キー配置",
+      "url": "knowledge/SOURCES.md#利用者提供の操作と観測",
+      "accessed": "2026-10-25",
+      "kind": "user_supplied"
+    },
+    {
+      "id": "user-progression-20261028",
+      "title": "利用者提示：進行段階設計の実例",
+      "kind": "user_supplied",
+      "accessed": "2026-10-28"
+    }
+  ],
+  "facts": [
+    {
+      "id": "tutorial-goal",
+      "summary": "初代のちょっと不思議は地下10階の王様の宝石箱を持ち帰ってクリアし、メイン探索の許可を得る。10階に達するだけでは未達成。",
+      "terms": [
+        "ちょっと不思議",
+        "宝石箱",
+        "王様"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 95,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "main-goal",
+      "summary": "初代の主目的は地下27階以降の幸せの箱を入手し、生還すること。店の最大成長は取得の前提ではない。持ち帰り・エンディングの可視確認まで完了を宣言しない。",
+      "terms": [
+        "幸せの箱",
+        "しあわせの箱",
+        "27階",
+        "不思議のダンジョン"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 100,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "postgame",
+      "summary": "初代は幸せの箱を開けた状態で入るともっと不思議、閉じると通常。不確定アイテム範囲や持込制約が異なる。通常クリアと追加攻略を混同しない。",
+      "terms": [
+        "もっと不思議",
+        "幸せの箱",
+        "閉じる",
+        "開ける"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 85,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "postgame-box",
+      "summary": "初代のもっと不思議は地下30階以降の奇妙な箱を持ち帰ると村の最終発展につながる。通常の幸せの箱とは別の目標。",
+      "terms": [
+        "奇妙な箱",
+        "30階",
+        "もっと不思議"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "turns",
+      "summary": "初代は移動・攻撃・道具使用で敵も動く。無入力の実時間待機はターン経過による回復を意味しない。倍速・鈍足など例外も確認する。",
+      "terms": [
+        "HP",
+        "移動",
+        "攻撃",
+        "ターン"
+      ],
+      "editions": [
+        "sfc",
+        "remaster"
+      ],
+      "sources": [
+        "sfc-wiki",
+        "steam"
+      ],
+      "priority": 90,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "random-map",
+      "summary": "初代およびリマスターは再挑戦ごとに地形・敵・道具が変化。前の冒険の座標経路を現在地の確定経路として再利用しない。",
+      "terms": [
+        "階",
+        "地図",
+        "ダンジョン"
+      ],
+      "editions": [
+        "sfc",
+        "remaster"
+      ],
+      "sources": [
+        "sfc-wiki",
+        "steam"
+      ],
+      "priority": 85,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "hunger",
+      "summary": "初代は行動で満腹度が減り、0になるとHPが減少する。パン等の確定食料を把握し、食料不足時は安全な補給・退避を小目標候補にする。",
+      "terms": [
+        "満腹度",
+        "パン",
+        "空腹"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 98,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "healing",
+      "summary": "初代は通常ターン経過でHPが回復。ただし空腹、敵の隣接、遠隔攻撃、状態異常を確認して安全に行動する。無入力待機と足踏み操作を区別する。",
+      "terms": [
+        "HP",
+        "薬草",
+        "弟切草"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 92,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "food-values",
+      "summary": "初代のパンは満腹度50回復、大きいパンは全回復。くさったパンは副作用がある。リマスターの調整設定には未検証のため数値を固定適用しない。",
+      "terms": [
+        "パン",
+        "大きいパン",
+        "くさったパン"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "heal-items",
+      "summary": "初代の薬草はHP25、弟切草はHP100回復が資料上の値。現在の版・バランス設定・説明文で確認する。HP満タン時の効果も通常回復と異なる。",
+      "terms": [
+        "薬草",
+        "弟切草"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "inventory",
+      "summary": "初代の道具所持上限は20個。空き、食料、回復、緊急脱出、装備の優先度を可視持物から判断する。未識別品の効果は断定しない。",
+      "terms": [
+        "持ち物",
+        "道具",
+        "いっぱい",
+        "空き"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "escape",
+      "summary": "初代では地下20階にリレミトの巻物があるとされ、読むと脱出する。所持と選択中のコマンド、帰還目的を先に画面確認。名前が見えるだけで所持と判定しない。",
+      "terms": [
+        "リレミト",
+        "20階"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 80,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "safe",
+      "summary": "初代では地下10階に鉄の金庫。金庫は倒れた時のゴールド保全に関係するが、道具やクリア達成の保証ではない。",
+      "terms": [
+        "鉄の金庫",
+        "10階"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "death",
+      "summary": "初代・リマスターは敗北で道具を失い、次の探索はレベル1・地下1階から。敗北画面で旧階層・旧装備を現在の状態として扱わない。",
+      "terms": [
+        "倒れ",
+        "力尽き",
+        "レベル1",
+        "やられ"
+      ],
+      "editions": [
+        "sfc",
+        "remaster"
+      ],
+      "sources": [
+        "sfc-wiki",
+        "steam"
+      ],
+      "priority": 90,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "shop",
+      "summary": "持帰品や稼ぎで店が発展し倉庫を使える。強化品・脱出品の保管を進行状況から検討する。倉庫解放を未確認のまま前提にしない。",
+      "terms": [
+        "倉庫",
+        "店",
+        "ゴールド"
+      ],
+      "editions": [
+        "sfc",
+        "remaster"
+      ],
+      "sources": [
+        "sfc-wiki",
+        "steam"
+      ],
+      "priority": 75,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "cursed",
+      "summary": "初代は呪われた装備が外せなくなる。未識別品への付替えを無条件に安全とみなさず、説明・呪い表示・解呪手段を確認。",
+      "terms": [
+        "呪い",
+        "呪われ",
+        "シャナク"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "earthquake",
+      "summary": "初代は同一階に長く滞在すると地震で下階へ落とされる。他シリーズの突風即敗北と混同しない。警告が出たら長期稼ぎを見直す。",
+      "terms": [
+        "地震",
+        "揺れ",
+        "ゆれ"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "monster-house",
+      "summary": "初代の通常ダンジョンは地下3階以降に罠やモンスターハウスが現れる。大量の敵がいる時は通路退避・範囲対処・脱出を検討。",
+      "terms": [
+        "モンスターハウス",
+        "罠",
+        "ワナ"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "ghost",
+      "summary": "初代のゴーストは倍速移動。通常歩行だけで逃げ切れると仮定しない。隣接攻撃は移動回数と区別。",
+      "terms": [
+        "ゴースト"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "ranged",
+      "summary": "初代のリリパットは矢の遠隔攻撃。射線・敵との位置関係を画面から調べ、距離だけで安全と判断しない。",
+      "terms": [
+        "リリパット",
+        "矢"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "sanctuary",
+      "summary": "初代の聖域の巻物は床に置いて上に乗る使い方。遠隔矢・炎・爆弾岩・大目玉等には例外があり無敵とみなさない。",
+      "terms": [
+        "聖域",
+        "爆弾岩",
+        "大目玉"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "identification",
+      "summary": "初代の通常では杖・指輪、もっと不思議では草・巻物も未識別。不確定名は見た目・別冒険の名前対応だけで確定しない。",
+      "terms": [
+        "未識別",
+        "指輪",
+        "杖",
+        "巻物"
+      ],
+      "editions": [
+        "sfc"
+      ],
+      "sources": [
+        "sfc-wiki"
+      ],
+      "priority": 50,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "remaster-balance",
+      "summary": "リマスターにはゲームバランス調整機能がある。現在の設定は未観測であり、初代の数値・敵挙動・難易度をそのまま確定値にしない。設定は攻略中に勝手に変更しない。",
+      "terms": [
+        "ゲームバランス",
+        "難易度",
+        "調整",
+        "リマスター"
+      ],
+      "editions": [
+        "remaster"
+      ],
+      "sources": [
+        "steam"
+      ],
+      "priority": 100,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "remaster-dlc",
+      "summary": "Steam追加DLCには視聴者コメントが介入するふしぎな声の導きのダンジョンがある。通常の箱の階層・クリア条件と同一視せず、画面説明から目的を再設定する。",
+      "terms": [
+        "ふしぎな声",
+        "視聴者",
+        "配信",
+        "コメント"
+      ],
+      "editions": [
+        "remaster"
+      ],
+      "sources": [
+        "dlc",
+        "official"
+      ],
+      "priority": 100,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "input-profile",
+      "summary": "提供ソースの対象はTornekosMysteryDungeon-Win64-Shipping。現在の操作の意味は利用者提示のキー配置に従う。古い初期キーや他版のボタンを使わず、実行時に渡される現在の割当と画面・結果を照合する。",
+      "terms": [
+        "操作",
+        "キー",
+        "ボタン"
+      ],
+      "editions": [
+        "remaster"
+      ],
+      "sources": [
+        "uploaded-profile",
+        "user-controls-20261025"
+      ],
+      "priority": 80,
+      "authority": "source_report_not_game_verified"
+    },
+    {
+      "id": "progression-design-example",
+      "summary": "利用者提示のリマスター攻略参考情報：ちょっと不思議、不思議、もっと不思議にはそれぞれ目標物と帰還・進行イベントがある。奇妙な箱は30階以降、99階には証明の巻物。99階の箱という以前の仮目標は訂正する。これは設計実例となる参考知識であり、現在の所持・到達・解放を示す観測でも、固定攻略分岐でもない。",
+      "terms": [
+        "ちょっと不思議",
+        "不思議",
+        "もっと不思議",
+        "奇妙な箱",
+        "証明の巻物",
+        "帰還"
+      ],
+      "editions": [
+        "remaster"
+      ],
+      "sources": [
+        "user-progression-20261028"
+      ],
+      "priority": 80,
+      "authority": "user_report_not_game_verified"
+    }
+  ]
+}
