@@ -1,0 +1,21 @@
+{
+  "url": "https://www.google.co.jp/search?hl=ja&as_eq=wikipedia&q=%22%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA+%E4%B8%8D%E6%80%9D%E8%AD%B0%E3%81%AE%E3%83%80%E3%83%B3%E3%82%B8%E3%83%A7%E3%83%B3%22&num=50",
+  "status": 200,
+  "final_url": "https://www.google.co.jp/search?hl=ja&as_eq=wikipedia&q=%22%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA+%E4%B8%8D%E6%80%9D%E8%AD%B0%E3%81%AE%E3%83%80%E3%83%B3%E3%82%B8%E3%83%A7%E3%83%B3%22&num=50",
+  "sha256": "4c38248a09bf2c3be233c88ebaed69feabcee5fa342042b4842b74cd9f166684",
+  "text": " Google Search 数秒たってもリダイレクトされない場合は、 ここをクリック してください。 Google 検索にアクセスできない場合は、 ここをクリック するか、 フィードバック を送信してください。 ",
+  "links": [
+    {
+      "url": "https://www.google.co.jp/httpservice/retry/enablejs?sei=4obhaqe6GfenqtsPvq_L-QU",
+      "label": "ここをクリック"
+    },
+    {
+      "url": "https://www.google.co.jp/search?q=%22%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA+%E4%B8%8D%E6%80%9D%E8%AD%B0%E3%81%AE%E3%83%80%E3%83%B3%E3%82%B8%E3%83%A7%E3%83%B3%22+-wikipedia&sca_esv=4612fe5cf33ff7ec&hl=ja&sxsrf=APpeQntHYAYCDlMFIeLHESovwhLfz9lFcg:1793165026423&emsg=SG_REL&sei=4obhaqe6GfenqtsPvq_L-QU",
+      "label": "ここをクリック"
+    },
+    {
+      "url": "https://support.google.com/websearch",
+      "label": "フィードバック"
+    }
+  ]
+}
