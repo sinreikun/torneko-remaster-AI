@@ -1123,7 +1123,7 @@ class Application:
             self.set_panel('自己改善',value);self.status.set('反復を検出し、実行器が局所目標を切り替えます。' if event=='loop_detected' else '反復脱出の結果: '+value.get('reason','未確認'));return
         if event=='autonomy_update':
             a=value['state']
-            self.set_panel('進行・能力',{k:a.get(k) for k in ('phase','current_goal','parent_goal','required_capabilities','missing_capabilities','skills','progress')})
+            self.set_panel('進行・能力',{k:a.get(k) for k in ('phase','current_goal','parent_goal','required_capabilities','missing_capabilities','skills','progress','planning_missing')})
             self.set_panel('復旧・観測調整',{k:a.get(k) for k in ('failure_classes','recovery','observation_policy')})
             return
         if event=='self_improvement':self.set_panel('自己改善',value);return

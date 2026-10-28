@@ -28,7 +28,8 @@ def schema_for(aliases,planning=False):
           'capabilities':{'type':'array','maxItems':4,'items':{'type':'string','enum':list(CAPABILITIES)}},'source':text},
           'required':['id','label','parent','requires','scope','conditions','counterconditions','capabilities','source']}
         schema['properties']['session_boundary']={'type':'array','maxItems':4,'items':condition,'description':'冒険の終了/再開始を示す現在観測可能な条件。複数フレームで検証する提案。不要なら空配列。'}
-        schema['properties']['progress_nodes']={'type':'array','maxItems':6,'items':node,'description':'計画案のみ。資料は証拠でない。featureはtext/selection_text/interface_open/map_observed/metric.NAME.INDEX。既存IDを上書きしない。'}
+        schema['properties']['progress_nodes']={'type':'array','minItems':1,'maxItems':3,'items':node,'description':'計画案のみ。資料は証拠でない。featureはtext/selection_text/interface_open/map_observed/metric.NAME.INDEX。既存IDを上書きしない。'}
+        schema['required'].append('progress_nodes')
     return schema
 
 
@@ -48,6 +49,7 @@ def decode(value,aliases,candidates,state,validate):
     plan={'objective':value['local_objective'],'reason':value['reason'],'review_after':value['review_after'],'targets':[],
       'candidate_values':[{'id':aliases[a],'value':1 if key=='preferred' else -1,'reason':value['reason']} for key in ('preferred','discouraged') for a in value[key]],'hypotheses':[],'interpretations':[]}
     test=value['success_test'];text=value['success_text']
+    if value['local_objective'] in TESTS and value['local_objective']!=test:raise ValueError('目的のプロトコル名と成功条件が矛盾')
     if test in ('text_appears','text_disappears','selection_matches'):
         if not text.strip():raise ValueError('文字条件には比較する原文が必要')
         if test=='selection_matches' and text not in '\n'.join(state['quotes']):raise ValueError('未観測の選択項目')

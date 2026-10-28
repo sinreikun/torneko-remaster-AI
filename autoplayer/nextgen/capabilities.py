@@ -26,6 +26,9 @@ def test_effect(before,after,name,conditions=()):
         a=before.get('minimap',{}).get('player_cell');b=after.get('minimap',{}).get('player_cell')
         if not a or not b or before.get('map_domain')!=after.get('map_domain') or before.get('floor_confirmation',{}).get('confirmed')!=after.get('floor_confirmation',{}).get('confirmed'):return None
         return a!=b
+    if name=='inspect':
+        if before.get('measurement_status')!=after.get('measurement_status') or after.get('measurement_status')!='ok':return None
+        return bool(set(after.get('quotes',[]))-set(before.get('quotes',[])))
     if name=='transition':
         a=before.get('floor_confirmation',{});b=after.get('floor_confirmation',{})
         return True if b.get('status')=='changed' and a.get('confirmed')!=b.get('confirmed') else None
@@ -42,7 +45,7 @@ class CapabilityManager:
             checks=list(conditions) if name==requested else []
             outcome=test_effect(before,after,name,checks)
             # Known natural motion/UI changes cannot establish an input skill.
-            feature={'move':('dx','dy'),'close_interface':('interface_changed',),'change_selection':('text_changed',),'transition':('floor_changed',)}.get(name,())
+            feature={'move':('dx','dy'),'close_interface':('interface_changed',),'change_selection':('text_changed',),'transition':('floor_changed',),'inspect':('text_changed',)}.get(name,())
             if neutral and any(neutral.get(k) for k in feature):outcome=None
             if outcome is None:continue
             applicability=scope(before);key=digest([name,applicability,action['id'],checks])

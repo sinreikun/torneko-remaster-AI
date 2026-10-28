@@ -125,6 +125,7 @@ class AutonomyContracts(unittest.TestCase):
         m=MetaController(self.store,'達成');c=m.capabilities
         for i in range(2):c.observe(state('a'+str(i),True),self.action,state('b'+str(i)),result(),i)
         s=state('now',True);m.prepare(s,3);m.recovery=None
+        m.accept({'objective':'閉じる効果を検証','targets':[{'feature':'interface_open','operator':'eq','value':0}],'required_capability':'close_interface'},s,3)
         base={'objective':'fallback','targets':[],'candidate_values':[]}
         # The generic bootstrap uses interface closure, whose condition is checked per input.
         for i in range(2):c.observe(state('c'+str(i),True),self.action,state('d'+str(i)),result(),i,'close_interface',m.local['conditions'])
