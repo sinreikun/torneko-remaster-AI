@@ -212,6 +212,9 @@ class SemanticSupervisor:
             try:
                 prompt=context_view(prompt,knowledge_snapshot,retrieval_role,context_budget,self.knowledge_requests)
                 self.knowledge_context={'role':retrieval_role,'budget':context_budget,'estimated_tokens':estimate_tokens(prompt),'available':prompt['knowledge']['available'],'loaded':[{k:r[k] for k in ('id','topic','source','status')} for r in prompt['knowledge']['records']]}
+                required_topics=['recent_failures','observer_history'] if retrieval_role=='recovery' else ['progress_node'] if retrieval_role=='progress' or planning_requested else []
+                self.knowledge_context['task_evidence_not_loaded']=[topic for topic in required_topics if knowledge_snapshot['pool'].get(topic) and not any(r['topic']==topic for r in prompt['knowledge']['records'])]
+                self.knowledge_context['hot_coverage']=prompt['knowledge']['hot_coverage']
                 self.emit({'event':'knowledge_context',**self.knowledge_context,'learning':False})
             except ValueError as failure:
                 self.pending=None;self.errors+=1;self.last_error=str(failure)

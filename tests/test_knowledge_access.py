@@ -157,3 +157,29 @@ class ClaimPreservation(unittest.TestCase):
         out=project(rule)['data'];self.assertEqual(out['recent_samples'][0]['effects']['state_changed'],1);self.assertEqual(out['prediction_checks'],[0,1])
         ui=project(KnowledgeAccess.entry('ui_history',{'key':'u','relations':{'left':{'support':2,'counterexamples':1}},'edges':[{'origin':'a','destination':'b'}]}))
         self.assertEqual(ui['data']['relations']['left']['counterexamples'],1);self.assertEqual(ui['data']['edges'][0]['destination'],'b')
+
+class TaskBudgetContracts(unittest.TestCase):
+    def snapshot(self):
+        topics=['progress_node','recent_failures','observer_history','hypotheses']
+        pool={t:[] for t in topics}
+        return {'pool':pool,'available':{t:{'status':'available_not_loaded','count':1} for t in topics}}
+    def prompt(self):
+        return {'task':'world_model_supervision','goal':'現在の目標','candidates':[{'id':'A'+str(i),'keys':['a']} for i in range(20)],'current':{'interface_hypothesis':True,'quotes':['候補A','候補B'],'spatial_ui':{'selection':{'status':'unknown'},'elements':[{'id':str(i),'text':'候補'+str(i),'bbox':[.1,.2,.3,.4]} for i in range(80)]}},'goal_hierarchy':{'current_goal':{'label':'現在の目標'}}}
+    def test_progress_evidence_and_intent_are_loaded_before_large_visual_detail(self):
+        snap=self.snapshot();node={'id':'G1','label':'次段階','conditions':[{'feature':'text','operator':'contains','value':'証拠'}],'counterconditions':[{'feature':'text','operator':'contains','value':'反証'}],'status':'disputed','evidence':[{'frame':str(i),'conditions':[{'value':'証拠'}]} for i in range(30)],'counterevidence':[{'frame':str(i),'conditions':[{'value':'反証'}]} for i in range(30)]}
+        snap['pool']['progress_node']=[KnowledgeAccess.entry('progress_node',node)]
+        p=self.prompt();p['goal_hierarchy']['planning_material']={'long_term_intent':'長期の目的','new_node_ids':['G2'],'existing_node_ids':['G1']}
+        v=context_view(p,snap,'progress',3076)
+        self.assertEqual(v['goal_hierarchy']['planning_material']['long_term_intent'],'長期の目的');self.assertTrue(any(r['topic']=='progress_node' for r in v['knowledge']['records']))
+        record=next(r for r in v['knowledge']['records'] if r['topic']=='progress_node');self.assertTrue(record['data']['counterevidence']);self.assertEqual(record['data']['counterconditions'],node['counterconditions']);self.assertLessEqual(estimate_tokens(v),3076)
+    def test_recovery_gets_both_failure_and_observer_evidence_and_spatial_ui(self):
+        snap=self.snapshot();snap['pool']['recent_failures']=[KnowledgeAccess.entry('recent_failures',{'id':'M','attempted':{str(i):'large'*100 for i in range(100)},'recovery':{'failure':'ui_observation_missing','method':'observe','resume':{'id':'goal','conditions':['big']*100}},'history':[{'event':'recovery_finished','status':'expired'}]})]
+        snap['pool']['observer_history']=[KnowledgeAccess.entry('observer_history',{'id':'O','policy':{'full_ocr_period':1},'history':[{'status':'rollback','baseline':{'quality':.8},'measured':{'quality':.4}}]})]
+        p=self.prompt();p['planning_feedback']={'last_protocol_error':'選択目標の原文が空です'};v=context_view(p,snap,'recovery',3076)
+        topics={r['topic'] for r in v['knowledge']['records']};self.assertTrue({'recent_failures','observer_history'}<=topics)
+        self.assertTrue(v['current']['spatial_ui']['elements']);self.assertEqual(v['goal_hierarchy']['last_protocol_error'],'選択目標の原文が空です')
+        obs=next(r for r in v['knowledge']['records'] if r['topic']=='observer_history');self.assertEqual(obs['data']['history'][0]['measured']['quality'],.4)
+    def test_equivalent_blocked_goals_share_conditions_without_losing_ids(self):
+        p=self.prompt();n={'id':'G1','conditions':[{'feature':'text','operator':'contains','value':'a'}],'counterconditions':[],'counterevidence':[{'frame':'f','conditions':[{'value':'a'}]}]}
+        p['goal_hierarchy']['blocked_progress']=[n,{**n,'id':'G2'}];v=context_view(p,self.snapshot(),'progress',3076)
+        self.assertEqual(len(v['goal_hierarchy']['blocked_progress']),1);self.assertEqual(v['goal_hierarchy']['blocked_progress'][0]['equivalent_ids'],['G1','G2'])

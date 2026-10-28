@@ -156,8 +156,17 @@ class KnowledgeAccess:
 def project(entry):
     r=entry['data'];keep=('id','key','subject','predicate','value','entity_kind','scope','conditions','counterconditions','label','name','status','capability','input','successes','failures','confidence','evidence','counterevidence','source','observed_at','reason','kind','effects','settings','trial','rules','trials','success_conditions','expected','input','action','unconfirmed','unknown','identity_status','reference_sources','intent')
     data={k:r[k] for k in keep if k in r}
-    if entry['topic']=='recent_failures':data={k:r[k] for k in ('recovery','attempted','planning_issue','deferred') if k in r};data['history']=[e for e in r.get('history',[]) if any(word in e.get('event','') for word in ('recovery','missing','rejected','mismatch'))][-4:]
-    if entry['topic']=='observer_history':data={k:r[k] for k in ('policy','trial') if k in r};data['history']=r.get('history',[])[-4:]
+    if entry['topic']=='recent_failures':
+        recovery=r.get('recovery') or {}
+        data={'recovery':{k:recovery[k] for k in ('failure','method','deadline','success','resume') if k in recovery},'planning_issue':r.get('planning_issue'),'attempted_count':len(r.get('attempted',{})),'history':[e for e in r.get('history',[]) if any(word in e.get('event','') for word in ('recovery','missing','rejected','mismatch'))][-2:]}
+        if isinstance(data['recovery'].get('resume'),dict):data['recovery']['resume']={k:data['recovery']['resume'][k] for k in ('id','label') if k in data['recovery']['resume']}
+    if entry['topic']=='observer_history':
+        trial=r.get('trial') or {}
+        data={'policy':r.get('policy',{}),'trial':{k:trial[k] for k in ('item','old','new','deadline','scope') if k in trial},'history':[{k:e[k] for k in ('event','item','status','reason','before','after','comparison','baseline','measured','old','tested') if k in e} for e in r.get('history',[])[-1:]]}
+    if entry['topic'] in ('progress_node','progress_history'):
+        data={k:r[k] for k in ('id','label','parent','requires','scope','conditions','counterconditions','capabilities','status','source','unknown') if k in r}
+        for field in ('evidence','counterevidence'):
+            data[field]=[{k:e[k] for k in ('frame','step','conditions','channels') if k in e} for e in r.get(field,[])[-1:]]
     if entry['topic']=='long_term_intent':data={k:r[k] for k in ('intent','session') if k in r}
     if not data:data={k:v for k,v in list(r.items())[:6] if k not in ('history','checks','variants')}
     if entry['topic']=='rules':
@@ -167,7 +176,8 @@ def project(entry):
         if isinstance(data.get(field),list):data[field+'_recorded_count']=len(data[field]);data[field]=data[field][-2:]
     # Keep support and counterevidence together, not just an appealing summary.
     for key in ('evidence','counterevidence'):
-        if isinstance(data.get(key),list):data[key]=data[key][-2:]
+        if isinstance(data.get(key),list):
+            data[key+'_recorded_count']=len(r.get(key,[]));data[key]=data[key][-2:]
     return {k:v for k,v in entry.items() if k!='data'}|{'data':data}
 
 
@@ -178,7 +188,8 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
     if 'candidates' in base:base['candidates']=[{k:v for k,v in c.items() if k in ('id','keys')} for c in base['candidates']]
     fields=('id','context','frame_sha256','observed_at','metrics','retained','quality','interface_hypothesis','selection_observation')
     base['current']={k:copy.deepcopy(current[k]) for k in fields if k in current}
-    if role=='ui':
+    visual_ui=role=='ui' or current.get('interface_hypothesis')
+    if visual_ui:
         ui=current.get('spatial_ui',{});base['current']['spatial_ui']={k:copy.deepcopy(ui[k]) for k in ('layout','selection','needs_observation') if k in ui}
     else:base['current']['minimap']=copy.deepcopy(current.get('minimap',{}))
     hierarchy=prompt.get('goal_hierarchy',{})
@@ -204,26 +215,49 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
     # relationships are whole records, never clipped strings.
     base['knowledge']['hot_coverage']={'quotes_loaded':0,'quotes_available':len(current.get('quotes',[])),'spatial_elements_loaded':0,'spatial_elements_available':len(current.get('spatial_ui',{}).get('elements',[]))}
     if estimate_tokens(base)>budget:raise ValueError('context_required_fields_exceed_budget')
-    hot_limit=max(estimate_tokens(base),int(budget*.70))
+    # Reserve the evidence needed by the requested task before optional
+    # visual detail/history. At least a few current quotes remain grounded.
     quotes=[]
+    for q in current.get('quotes',[])[:4]:
+        if add(['current','quotes'],quotes+[q],max(estimate_tokens(base),int(budget*.75))):quotes.append(q)
+    if visual_ui:
+        ui=current.get('spatial_ui',{});selected=(ui.get('selection') or {}).get('element_id')
+        ordered=sorted(ui.get('elements',[]),key=lambda e:e.get('id')!=selected)
+        if ordered:add(['current','spatial_ui','elements'],ordered[:1])
+    error=prompt.get('planning_feedback',{}).get('last_protocol_error')
+    if error and not hierarchy.get('planning_issue'):add(['goal_hierarchy','last_protocol_error'],error)
+    if hierarchy.get('planning_issue'):add(['goal_hierarchy','planning_issue'],hierarchy['planning_issue'])
+    if hierarchy.get('planning_material'):
+        add(['goal_hierarchy','planning_material','long_term_intent'],hierarchy['planning_material'].get('long_term_intent',''))
+    blocked=[];groups={}
+    for node in hierarchy.get('blocked_progress',[]):
+        signature=digest([node.get('conditions'),node.get('counterconditions')])
+        if signature in groups:groups[signature]['equivalent_ids'].append(node['id']);continue
+        item={k:copy.deepcopy(node[k]) for k in ('id','label','conditions','counterconditions') if k in node}
+        item['equivalent_ids']=[node['id']];item['counterevidence']=[{k:e[k] for k in ('frame','step','conditions') if k in e} for e in node.get('counterevidence',[])[-1:]]
+        groups[signature]=item
+        if add(['goal_hierarchy','blocked_progress'],blocked+[item]):blocked.append(item)
+    primary=['recent_failures','observer_history'] if role=='recovery' else ['progress_node'] if role=='progress' or hierarchy.get('planning_material') else []
+    seen=set()
+    for topic in primary:
+        for entry in snapshot['pool'].get(topic,[])[:1]:
+            if add(['knowledge','records'],base['knowledge']['records']+[project(entry)]):
+                seen.add((topic,entry['id']));base['knowledge']['available'][topic]['status']='partially_loaded'
+    hot_limit=max(estimate_tokens(base),int(budget*.70))
     for q in current.get('quotes',[]):
+        if q in quotes:continue
         if add(['current','quotes'],quotes+[q],hot_limit):quotes.append(q)
-    if role=='ui':
-        elements=[];ui=current.get('spatial_ui',{});selected=(ui.get('selection') or {}).get('element_id')
+    if visual_ui:
+        elements=copy.deepcopy(base['current']['spatial_ui'].get('elements',[]));ui=current.get('spatial_ui',{});selected=(ui.get('selection') or {}).get('element_id')
         for e in sorted(ui.get('elements',[]),key=lambda e:e.get('id')!=selected):
+            if any(old.get('id')==e.get('id') for old in elements):continue
             if add(['current','spatial_ui','elements'],elements+[e],hot_limit):elements.append(e)
         add(['current','spatial_ui','selection_candidates'],ui.get('selection_candidates',[])[:3])
-    if role!='ui':
+    if not visual_ui:
         objects=[]
         for obj in current.get('objects',[]):
             if add(['current','objects'],objects+[obj],hot_limit):objects.append(obj)
-    if hierarchy.get('blocked_progress'):add(['goal_hierarchy','blocked_progress'],hierarchy['blocked_progress'])
-    if hierarchy.get('planning_issue'):add(['goal_hierarchy','planning_issue'],hierarchy['planning_issue'])
-    if role=='progress' or hierarchy.get('planning_material'):
-        add(['goal_hierarchy','planning_material','long_term_intent'],hierarchy.get('planning_material',{}).get('long_term_intent',''))
-        add(['goal_hierarchy','blocked_progress'],hierarchy.get('blocked_progress',[]))
     topics=[r['topic'] for r in requests if r.get('topic') in TOPICS]+(['progress_node','long_term_intent','external'] if hierarchy.get('planning_material') else [])+ROLE_TOPICS[role]
-    seen=set()
     for topic in dict.fromkeys(topics):
         wanted={r.get('target_id') for r in requests if r.get('topic')==topic and r.get('target_id')}
         entries=[r for r in snapshot['pool'].get(topic,[]) if not wanted or r['id'] in wanted or r['data'].get('subject') in wanted]
