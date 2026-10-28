@@ -44,7 +44,7 @@ def validate(value,candidates,state):
         if not isinstance(item,dict) or set(item)!={'source_id','description','quote','confidence'} or item['source_id'] not in objects or not text(item['description']) or not isinstance(item['quote'],str) or len(item['quote'])>240 or item['quote'] and item['quote'] not in '\n'.join(state['quotes']) or not number(item['confidence']) or not 0<=item['confidence']<=.9:raise ValueError('外見の解釈に現在の対象・引用の根拠がありません')
     return copy.deepcopy(value)
 
-def compact_prompt(prompt,budget=7500):
+def compact_prompt(prompt,budget=6000):
     prompt=copy.deepcopy(prompt)
     size=lambda:len(json.dumps(prompt,ensure_ascii=False,separators=(',',':')))
     if prompt.get('loop'):
@@ -78,6 +78,25 @@ def compact_prompt(prompt,budget=7500):
         if prompt.get('planning_feedback'):prompt['planning_feedback']['recent_inputs']=prompt['planning_feedback'].get('recent_inputs',[])[-4:]
     if size()>budget and spatial:spatial['elements']=spatial.get('elements',[])[:12]
     prompt['context_status']='bounded_excerpt_full_evidence_retained_locally'
+    # Bound nested autonomy/interaction histories too, rather than assuming
+    # that trimming a few legacy fields bounds the actual wire request.
+    protected={'task','operator_guidance','candidates','goal'}
+    while size()>budget:
+        choices=[]
+        def visit(value,path):
+            if isinstance(value,dict):
+                for k,v in value.items():visit(v,path+[k])
+            elif isinstance(value,list) and value:
+                choices.append((len(json.dumps(value,ensure_ascii=False)),path,value[:-1]))
+            elif isinstance(value,str) and len(value)>160:
+                choices.append((len(value),path,value[:max(160,len(value)//2)]))
+        for key,value in prompt.items():
+            if key not in protected:visit(value,[key])
+        if not choices:break
+        _,path,value=max(choices,key=lambda item:item[0])
+        target=prompt
+        for key in path[:-1]:target=target[key]
+        target[path[-1]]=value
     return prompt
 
 def guidance_quality(plan,candidates):

@@ -158,6 +158,14 @@ class UIVision:
             for c in previous['candidates'][:12]:
                 if rarity(small,c['bbox'],texts)>20:
                     candidates.append({**copy.deepcopy(c),'frame_sha256':sha,'activation':rarity(small,c['bbox'],texts),'relations':relationships(c['bbox'],texts or model.get('cells',[])),'status':'reobserved_visual_candidate'})
+        # One region can be rediscovered and reobserved in the same frame.
+        # Keep its current measurement once; stale duplicates must not crowd
+        # other candidates out of the finite tracking budget.
+        unique={}
+        for candidate in candidates:
+            key=candidate['id']
+            if key not in unique:unique[key]=candidate
+        candidates=list(unique.values())
         out={'frame_sha256':sha,'observed_at':native.get('captured_at',time.time()),'size':size,'layout':layout,'elements':texts,'unlocated_text':missing,
              'cells':copy.deepcopy(model.get('cells',[])),
              'candidates':sorted(candidates,key=lambda c:-c['salience'])[:32],'grid':grid_hypothesis(texts),'change_fraction':change_fraction,

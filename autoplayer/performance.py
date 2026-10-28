@@ -59,6 +59,9 @@ def compact_profile_prompt(prompt):
 
 def context_retry_prompt(prompt):
     """Drop optional historical context, preserving current evidence and controls."""
+    if prompt.get('task')=='world_model_supervision':
+        from .nextgen.supervisor import compact_prompt
+        return compact_prompt(prompt,budget=3500)
     if prompt.get('task')=='operational_supervision':
         from .supervision_context import compact_supervision_prompt
         return compact_supervision_prompt(prompt,budget=5000,tight=True)
@@ -125,6 +128,9 @@ def fallback_schema(schema):
 
 def bounded_request_prompt(prompt,budget=8500):
     """Bound optional planning context, never clip current metrics or controls."""
+    if prompt.get('task')=='world_model_supervision':
+        from .nextgen.supervisor import compact_prompt
+        return compact_prompt(prompt,budget=min(budget,6000))
     if prompt.get('task')=='operational_supervision':
         from .supervision_context import compact_supervision_prompt
         return compact_supervision_prompt(prompt,budget=min(budget,6500))
