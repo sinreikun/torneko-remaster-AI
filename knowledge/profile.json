@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "profile_id": "torneko-remaster",
+  "profile_version": "0.6.0",
+  "display_name": "トルネコの大冒険 不思議のダンジョン ちょっとステキなリマスター（Steam）",
+  "window": {
+    "process_name": "TornekosMysteryDungeon-Win64-Shipping",
+    "class_name": "UnrealWindow"
+  },
+  "input": {
+    "default_hold_ms": 80,
+    "min_interval_ms": 120,
+    "keys": {
+      "dpad_up": "W",
+      "dpad_left": "A",
+      "dpad_down": "S",
+      "dpad_right": "D",
+      "button1": "Num1",
+      "button2": "Num2",
+      "button3": "Num3",
+      "button4": "Num4",
+      "button5": "Num5",
+      "button6": "Num6",
+      "button7": "Num7",
+      "button8": "Num0"
+    },
+    "forbidden_keys": [
+      "Escape",
+      "F12",
+      "Alt",
+      "Tab"
+    ],
+    "forbidden_combos": [
+      "Shift+Tab",
+      "Alt+Enter",
+      "Ctrl+W",
+      "Ctrl+Q"
+    ]
+  },
+  "user_confirmed_controls": {
+    "revision": "torneko-user-20261019-v1",
+    "source": "ユーザーが提示した現在のキー配置・地図凡例",
+    "keys": {
+      "w": "上移動",
+      "a": "左移動",
+      "s": "下移動",
+      "d": "右移動",
+      "num1": "決定／攻撃／話す",
+      "num2": "キャンセル／ダッシュ",
+      "num5": "方向転換／整理",
+      "num0": "メニュー",
+      "num4": "矢をうつ",
+      "num3": "斜め移動補助",
+      "num7": "マップ表示",
+      "num6": "足踏み"
+    },
+    "unused_keys": [
+      "enter",
+      "space"
+    ],
+    "minimap": {
+      "blue": "視界に入ったことのある領域",
+      "yellow_square": "自分の位置",
+      "red_dot": "敵の位置",
+      "note": "青い表示全体はミニマップという表示であり、近づく対象物ではない。未知領域は壁か未探索か未確定。"
+    }
+  }
+}
