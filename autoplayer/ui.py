@@ -1137,7 +1137,7 @@ class Application:
             self.set_panel('仮説',{'作用の仮説':ng['hypotheses'],'外見の未確認解釈':ng.get('semantic_interpretations',[])});self.set_panel('候補と評価',ng['candidates'])
             self.set_panel('目的',ng['objective']);self.set_panel('運用計画',value.get('supervision'))
             self.set_panel('現在状態',{'現在観測':value['policy_after']['metrics'],'保持した過去値':value['policy_after'].get('retained'),'状態識別':value['policy_after']['state_identification'],'匿名の追跡候補':value['policy_after']['objects']})
-            self.set_panel('自己改善',ng['parameters']);self.set_panel('結果',{'予測':ng['prediction_before_input'],'実測':r.get('effects'),'一致':r.get('match'),'因果':r.get('attribution'),'遅延':r.get('delayed'),'処理時間':value['performance']})
+            self.set_panel('自己改善',ng['parameters']);self.set_panel('結果',{'予測':ng['prediction_before_input'],'実測':r.get('effects'),'一致':r.get('match'),'照合した項目':r.get('evaluated_features'),'欠測または未予測で対象外':r.get('unscored_features'),'因果':r.get('attribution'),'遅延':r.get('delayed'),'処理時間':value['performance']})
             self.run_counts['sent']+=int(value.get('executed',False));self.run_counts['changed']+=int(bool(value.get('changed')))
             return
         if event=='result':

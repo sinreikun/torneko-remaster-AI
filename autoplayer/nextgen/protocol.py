@@ -23,7 +23,7 @@ def wire_protocol(schema,candidates,state):
     schema['properties']['hypotheses']['items']['properties']['feature']={'type':'string','enum':effect_features}
     common={'type':'object','additionalProperties':False,'properties':{'weight':{'type':'number','minimum':0,'maximum':2}},'required':['feature','operator','value','weight']}
     variants=[]
-    for features,operators,value in [(['text'],['eq','contains'],{'type':'string','minLength':1,'maxLength':500}),(['node'],['eq'],{'type':'string','minLength':1,'maxLength':500}), (metric_features,['eq','ge','le'],{'type':'number'})]:
+    for features,operators,value in [(['text'],['eq','contains'],{'type':'string','minLength':1,'maxLength':500}),(['node'],['eq'],{'type':'string','enum':list(dict.fromkeys([state['id']]+state.get('known_nodes',[])))}), (metric_features,['eq','ge','le'],{'type':'number'})]:
         if not features:continue
         item=copy.deepcopy(common);item['properties'].update(feature={'type':'string','enum':features},operator={'type':'string','enum':operators},value=value);variants.append(item)
     schema['properties']['targets']['items']={'anyOf':variants}

@@ -52,16 +52,38 @@ class ForwardModel:
         return base
     def predict(self,state,action):
         rule=self.rule(state,action);samples=rule['samples'];counts=Counter();means={};weights=0.
+        observed_sets=[{k for k,v in item['effects'].items() if v is not None} for item in samples]
+        feature_mask=sorted(set.intersection(*observed_sets)) if observed_sets else []
+        context_known=bool(samples) and all('destination_context' in item for item in samples)
         for age,item in enumerate(reversed(samples)):
-            weight=.92**age*item['confidence'];counts[item['signature']]+=weight;weights+=weight
+            weight=.92**age*item['confidence']
+            projected={k:item['effects'][k] for k in feature_mask}
+            counts[signature(projected,item.get('destination_context') if context_known else None)]+=weight;weights+=weight
             for key,value in item['effects'].items():
                 if value is not None:
                     v=means.setdefault(key,[0.,0.]);v[0]+=value*weight;v[1]+=weight
         probs={key:v/max(weights,1e-8) for key,v in counts.items()};certainty=max(probs.values(),default=0.)
         entropy=-sum(p*math.log(max(p,1e-9)) for p in probs.values());uncertainty=min(1.,1/(1+len(samples)/3)+.65*(1-certainty))
         return {'action':action,'rule_key':rule['key'],'trials':len(samples),'probabilities':probs,'expected':{k:v[0]/v[1] for k,v in means.items()},
-          'uncertainty':uncertainty,'entropy':entropy,'confidence':certainty*min(1,len(samples)/6),'outcomes':[{'node':x['node'],'effects':x['effects'],'outcome':x.get('outcome')} for x in samples[-8:]],
+          'feature_mask':feature_mask,'destination_context_known':context_known,
+          'uncertainty':uncertainty,'entropy':entropy,'confidence':certainty*min(1,len(samples)/6),'outcomes':[{'node':x['node'],'effects':x['effects'],'destination_context':x.get('destination_context'),'outcome':x.get('outcome'),'confidence':x['confidence']} for x in samples[-8:]],
           'prequential_accuracy':sum(rule['checks'][-16:])/len(rule['checks'][-16:]) if rule['checks'] else None}
+    def interface_pool(self,state,action):
+        layout=state.get('interface_layout')
+        if not state.get('interface_hypothesis') or not layout:return None
+        key=digest(['interface_pool_v1',layout,action])
+        if key not in self.rules:
+            rows=self.store.load('rules',key)
+            self.rules[key]=rows[0] if rows else {'key':key,'type':'layout_input_observations','samples':[],'checks':[],'revisions':0}
+        self.rules.move_to_end(key)
+        while len(self.rules)>512:self.rules.popitem(last=False)
+        return self.rules[key]
+    def no_effect_transfer(self,state,action):
+        pool=self.interface_pool(state,action)
+        samples=pool['samples'] if pool else []
+        if len(samples)<3 or len({s['origin'] for s in samples})<2:return 0.
+        if any(any(v for v in s['effects'].values() if v is not None) for s in samples):return 0.
+        return min(.6,len(samples)*.08)
     def candidates(self,cfg):
         keys=list(dict.fromkeys(cfg.allowed_keys));chords=[]
         # Chords come only from the user's direction bindings, not game names.
@@ -111,9 +133,10 @@ class ForwardModel:
             attempts=sum(x['before']==state['id'] and x['action']==action['id'] for x in self.recent)
             info=p['uncertainty']/math.sqrt(1+p['trials'])
             # Predictability reduces exploration; surprise raises it in update().
-            score=goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
+            transfer=self.no_effect_transfer(state,action['id']) if not self.escape else 0.
+            score=-transfer+goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
             if self.escape and action['id'] in loop_actions:score-=5
-            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts})
+            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'layout_no_effect_discount':transfer})
         ranked.sort(key=lambda x:(-x['score'],x['candidate']['id']))
         best=ranked[0]
         # Bounded lookahead on observed graph only. Transit through known nodes is
@@ -138,23 +161,38 @@ class ForwardModel:
     def observe(self,before,action,after,prediction,receipt,step,neutral=None,kind='normal',natural_confidence=.5):
         if receipt.get('os_submission')!='accepted' or kind=='aborted':
             self.pending.clear();return {'status':'censored','reason':'delivery_or_observation_incomplete'}
-        effect=effects(before,after);sig=signature(effect,after['context']);rule=copy.deepcopy(self.rule(before,action['id']))
-        comparable=before['quality']>=.4 and after['quality']>=.4
-        probability=prediction['probabilities'].get(sig,0);match=None if not prediction['trials'] or not comparable else sig==max(prediction['probabilities'],key=prediction['probabilities'].get)
+        effect=effects(before,after);rule=copy.deepcopy(self.rule(before,action['id']))
+        mask=[k for k in prediction.get('feature_mask',[]) if effect.get(k) is not None]
+        counts=Counter()
+        for age,old in enumerate(reversed(rule['samples'])):
+            if all(k in old['effects'] and old['effects'][k] is not None for k in mask):
+                context=old.get('destination_context') if prediction.get('destination_context_known') else None
+                counts[signature({k:old['effects'][k] for k in mask},context)]+=old['confidence']*.92**age
+        context=after['context'] if prediction.get('destination_context_known') else None
+        measured_signature=signature({k:effect[k] for k in mask},context)
+        comparable=before['quality']>=.4 and after['quality']>=.4 and bool(mask) and bool(counts)
+        probability=counts.get(measured_signature,0)/max(1e-8,sum(counts.values()))
+        match=None if not prediction['trials'] or not comparable else measured_signature==max(counts,key=counts.get)
         surprise=None if match is None else min(8.,-math.log(max(.001,probability)))
+        sig=signature(effect,after['context'])
         confidence=min(before['quality'],after['quality'])*natural_confidence
         if neutral:
             # Natural differences confound attribution; retain raw effects too.
             active=sum(bool(v) for v in effect.values());background=sum(bool(v) for v in neutral.values())
             confidence*=max(.2,1-background/max(1,active+background))
-        rule['samples'].append({'signature':sig,'effects':effect,'node':after['id'],'confidence':confidence,'outcome':{'id':after['id'],'quotes':after['quotes'][:12],'metrics':copy.deepcopy(after['metrics'])}});rule['samples']=rule['samples'][-32:]
+        rule['samples'].append({'signature':sig,'destination_context':after['context'],'effects':effect,'node':after['id'],'confidence':confidence,'outcome':{'id':after['id'],'quotes':after['quotes'][:12],'metrics':copy.deepcopy(after['metrics'])}});rule['samples']=rule['samples'][-32:]
         if match is not None:
             rule['checks'].append(int(match));rule['checks']=rule['checks'][-64:]
             if not match:rule['revisions']+=1
         rule['status']='under_review' if match is False else 'supported_conditionally' if len(rule['checks'])>=6 and sum(rule['checks'][-8:])/len(rule['checks'][-8:])>=.75 else 'candidate'
         self.rules[rule['key']]=rule;self.rules.move_to_end(rule['key'])
         while len(self.rules)>512:self.rules.popitem(last=False)
-        self.store.put('rules',rule,key=rule['key']);self.visits[before['id']]+=1;new=after['id'] not in self.visits;self.visits[after['id']]+=1
+        self.store.put('rules',rule,key=rule['key'])
+        pool=self.interface_pool(before,action['id'])
+        if pool is not None and min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok':
+            pool['samples'].append({'origin':before['id'],'effects':copy.deepcopy(effect)});pool['samples']=pool['samples'][-12:]
+            self.store.put('rules',pool,key=pool['key'])
+        self.visits[before['id']]+=1;new=after['id'] not in self.visits;self.visits[after['id']]+=1
         edge={'origin':before['id'],'action':action['id'],'destination':after['id'],'confidence':min(before['quality'],after['quality']),'causal_confidence':confidence,'effects':effect,'observed_count':self.edges.get((before['id'],action['id'],after['id']),{}).get('observed_count',0)+1}
         self.edges[(before['id'],action['id'],after['id'])]=edge
         if len(self.edges)>2048:self.edges.pop(next(iter(self.edges)))
@@ -205,7 +243,7 @@ class ForwardModel:
             hypothesis['confidence']=(hypothesis['support']+1)/(hypothesis['support']+hypothesis['counterexamples']+2)
             self.store.put('hypotheses',hypothesis,key=hypothesis['id']);hypothesis_checks.append(copy.deepcopy(hypothesis))
         result={'status':'updated','effects':effect,'match':match,'surprise':surprise,'new_state':new,'uncertainty':prediction['uncertainty'],'information_gain':max(0,prediction['uncertainty']-self.predict(before,action['id'])['uncertainty']),
-          'confidence':confidence,'attribution':'observed_association_not_proven_cause','rule_status':rule['status'],'condition_split_node':rule.get('condition_node'),'revisions':rule['revisions'],'loop':loop,'delayed':delayed,'hypothesis_checks':hypothesis_checks}
+          'confidence':confidence,'evaluated_features':mask,'unscored_features':[k for k in effect if k not in mask],'attribution':'observed_association_not_proven_cause','rule_status':rule['status'],'condition_split_node':rule.get('condition_node'),'revisions':rule['revisions'],'loop':loop,'delayed':delayed,'hypothesis_checks':hypothesis_checks}
         self.checks.append({'match':match,'new_state':new,'loop':bool(loop and loop['event']=='loop_detected')})
         self.store.put('evaluation',result,step)
         return result

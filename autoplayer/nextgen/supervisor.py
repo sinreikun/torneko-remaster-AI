@@ -30,6 +30,8 @@ def validate(value,candidates,state):
         if target['feature'] in ('text','node'):
             if not text(target['value']) or target['operator'] not in ('contains','eq'):raise ValueError('文字目標が不正')
         elif not number(target['value']) or target['operator']=='contains':raise ValueError('数値目標が不正')
+    for target in value['targets']:
+        if target['feature']=='node' and target['value'] not in [state['id']]+state.get('known_nodes',[]):raise ValueError('未観測の状態ID。物体名をnodeとして使えません')
     for candidate in value['candidate_values']:
         if not isinstance(candidate,dict) or set(candidate)!={'id','value','reason'} or candidate['id'] not in allowed or not number(candidate['value']) or abs(candidate['value'])>2 or not text(candidate['reason']):raise ValueError('未許可候補または採点')
     for h in value['hypotheses']:
@@ -114,10 +116,12 @@ class SemanticSupervisor:
             packet={'scope':scope,'step':step,'cancel':cancel,'control_domain':control_domain};self.pending=packet
             # Bounded snapshot; worker never reads live state, model, DB or game.
             features=['text','node']+[f'metric.{k}.{i}' for k,v in state['metrics'].items() for i in range(len(v['values']))]
-            wire_candidates,aliases,request_schema=wire_protocol(SCHEMA,candidates,state)
+            protocol_state={**state,'known_nodes':list(dict.fromkeys([e['destination'] for e in list(model.edges.values())[-12:]]))}
+            wire_candidates,aliases,request_schema=wire_protocol(SCHEMA,candidates,protocol_state)
+            for candidate in wire_candidates:candidate['user_declared_meaning']=[self.cfg.key_bindings.get(key,'未指定') for key in candidate['keys']]
             prompt={'task':'world_model_supervision','goal':self.cfg.goal,'operator_guidance':copy.deepcopy(guidance),'reason':reason,
               'current':{k:copy.deepcopy(state[k]) for k in ('id','context','quotes','metrics','retained','minimap','quality','objects','state_identification','selection_observation','interface_hypothesis')},
-              'features':features,'user_key_bindings':copy.deepcopy(self.cfg.key_bindings),'candidates':wire_candidates,'recent_prediction_checks':copy.deepcopy(list(model.checks)[-8:]),'loop':copy.deepcopy(model.escape),'reference_knowledge':self.cfg.knowledge[:2000],'public_references':str(getattr(self.llm,'public_references',''))[:1200],'protocol':'id/candidateには列挙されたA00形式のIDをそのまま使う。text/nodeのvalueは空でない文字列、metricのvalueは数値。targets等が不要なら空配列。','instruction':'targetsは現在の可視条件。hypothesesのexpectedは入力前後の差。text/nodeは差の仮説に使用しない。'}
+              'known_state_ids':protocol_state['known_nodes'],'observation_limits':{'current_floor_observed':bool(state['metrics'].get('floor')),'current_map_observed':state['minimap'].get('status')=='observed','rule':'目標の階段/箱と、今それが見えていることは別。nodeは観測状態IDで、物体名ではない。キーの割当と目的が一致する理由を述べる。'},'features':features,'user_key_bindings':copy.deepcopy(self.cfg.key_bindings),'candidates':wire_candidates,'recent_prediction_checks':copy.deepcopy(list(model.checks)[-8:]),'loop':copy.deepcopy(model.escape),'reference_knowledge':self.cfg.knowledge[:2000],'public_references':str(getattr(self.llm,'public_references',''))[:1200],'protocol':'id/candidateには列挙されたA00形式のIDをそのまま使う。text/nodeのvalueは空でない文字列、metricのvalueは数値。targets等が不要なら空配列。','instruction':'targetsは現在の可視条件。hypothesesのexpectedは入力前後の差。text/nodeは差の仮説に使用しない。'}
             prompt['current']['metrics']={k:{f:v[f] for f in ('values','quote','unverified_ocr') if f in v} for k,v in state['metrics'].items()}
             prompt['current']['retained']={k:{f:v[f] for f in ('values','quote','retained','source_frame') if f in v} for k,v in state.get('retained',{}).items()}
             guide=getattr(self.llm,'game_guide',None)
@@ -132,7 +136,7 @@ class SemanticSupervisor:
             prompt['candidate_predictions']=[{'id':c['id'],**{k:p[k] for k in ('trials','uncertainty')},'expected':{k:v for k,v in p['expected'].items() if k in ('state_changed','interface_changed','text_changed','metric.hp.0')}} for c in wire_candidates for p in [model.predict(state,aliases[c['id']])]]
             prompt['effect_definitions']={'text_changed':'OCRから識別した文字/選択の変化。カメラ移動量ではない','state_changed':'観測状態の仮グループが変わった。攻略の進展の証明ではない','dx/dy':'実ミニマップで計測できたマス座標差。地図なしでは欠測','metric.*':'現在の数値の入力前後差。保持値ではない'}
             prompt=compact_prompt(prompt)
-            state_copy=copy.deepcopy(state);candidate_copy=copy.deepcopy(candidates)
+            state_copy=copy.deepcopy(protocol_state);candidate_copy=copy.deepcopy(candidates)
             def work():
                 from ..core import LocalLLM
                 started=time.monotonic();answer=None;error=None;raw='';issues=[]

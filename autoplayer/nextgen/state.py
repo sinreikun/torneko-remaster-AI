@@ -150,14 +150,14 @@ class StateBuilder:
                 ranked=sorted(matches.items(),key=lambda x:-x[1])
                 if len(ranked)==1 or len(ranked)>1 and ranked[0][1]-ranked[1][1]>.15:self.map_domain=ranked[0][0]
             self.restoration_checked=True
-        node=digest(['grid',self.map_domain,floor,pose]) if pose else digest(['interface',layout,selected_identity]) if menu else digest(['view',visual,layout,menu])
+        node=digest(['interface',layout,selected_identity]) if menu else digest(['grid',self.map_domain,floor,pose]) if pose else digest(['view',visual,layout,menu])
         local={k:grid.get(k,[]) for k in ('enemies','items','stairs')}
         local={k:[p for p in v if max(map(abs,p))<=3] for k,v in local.items()}
         conditions={k:v['values'] for k,v in metrics.items() if k not in ('hp','fullness','gold','experience')}
         hp=metrics.get('hp',{}).get('values');food=metrics.get('fullness',{}).get('values')
         conditions['hp_band']=int(4*hp[0]/max(1,hp[1])) if hp else None
         conditions['food_band']=int(food[0]/20) if food else None
-        context=digest(['v2.1',menu,semantic_key if menu else None,visual if not pose and not menu else None,local,{'floor':floor,'hp_band':conditions['hp_band']} if menu else conditions])
+        context=digest(['v2.1',menu,semantic_key if menu else None,visual if not pose and not menu else None,{} if menu else local,{'floor':floor,'hp_band':conditions['hp_band']} if menu else conditions])
         retained={k:{**v,'retained':True} for k,v in self.retained.items() if k not in metrics}
         for k,v in metrics.items():self.retained[k]={**copy.deepcopy(v),'source_frame':sha}
         quality=.95 if pose and metrics else .8 if native.get('status')=='ok' and quotes else .45
