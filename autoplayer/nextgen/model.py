@@ -81,10 +81,10 @@ class ForwardModel:
         goals=plan.get('targets',[]);current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         for action in candidates:
-            if state['interface_hypothesis'] and len(action['keys'])>1 and not self.escape:
+            if state['interface_hypothesis'] and len(action['keys'])>1:
                 preferred=any(v.get('id')==action['id'] or v.get('keys')==action['keys'] for v in plan.get('candidate_values',[]) if v.get('value',0)>0)
                 singles=[c for c in candidates if len(c['keys'])==1 and c['hold_ms']==min(x['hold_ms'] for x in candidates)]
-                if not preferred and any(len(self.rule(state,c['id'])['samples'])<2 for c in singles):continue
+                if not preferred:continue
             minimum=min(c['hold_ms'] for c in candidates if c['keys']==action['keys'])
             if action['hold_ms']>minimum and not self.escape:
                 base=self.rule(state,action_id(action['keys'],minimum))['samples']
@@ -187,6 +187,11 @@ class ForwardModel:
                 if all(values[i]==values[-period+i%period] for i in range(n)):
                     self.serial+=1;loop={'event':'loop_detected','id':self.serial,'period':period,'steps':[e['step'] for e in seq[-n:]],'sequence':seq[-n:],'nodes':list({e['before'] for e in seq[-n:]}),'actions':list({e['action'] for e in seq[-n:]}),'attempts':0,'learning':False}
                     self.escape=copy.deepcopy(loop);break
+            if loop is None and len(seq)>=16:
+                window=seq[-16:];nodes={e[k] for e in window for k in ('before','after')}
+                if len(nodes)<=4:
+                    self.serial+=1;loop={'event':'loop_detected','id':self.serial,'period':0,'reason':'unproductive_recurrence_with_varying_inputs','steps':[e['step'] for e in window],'sequence':window,'nodes':sorted(nodes),'actions':sorted({e['action'] for e in window}),'attempts':0,'learning':False}
+                    self.escape=copy.deepcopy(loop)
         if meaningful and not self.escape:self.recent.clear()
         # Hypotheses are prospective, explicit, and scoped. No caption becomes a fact.
         hypothesis_checks=[]

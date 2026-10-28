@@ -5,7 +5,7 @@ from PIL import Image,ImageChops
 from ..controls import is_torneko
 from ..knowledge import KnowledgeEngine
 from ..map_sensor import MapSensor,FloorConfirmation,read_grid
-from ..exterior_screen import white_frames
+from .frame_sensor import interface_frames
 from ..appearance import descriptor
 
 
@@ -67,6 +67,8 @@ class StateBuilder:
         sha=hashlib.sha256(png).hexdigest();cached=self.cache.get(sha)
         if cached and (cached['full'] or not full):
             self.hits+=1;value=copy.deepcopy(cached);value['timing']={'ocr_ms':0.,'object_recognition_ms':0.,'map_geometry_ms':0.,'analysis_cache_hit':True};return value
+        frame_started=time.monotonic();frames=cached['white_frame'] if cached else interface_frames(png);frame_ms=(time.monotonic()-frame_started)*1000
+        full=full or frames.get('visible') is True
         started=time.monotonic();native=self.ocr.read(png) if full or not is_torneko(self.cfg.window_title) or not hasattr(self.ocr,'read_regions') else self.ocr.read_regions(png)
         ocr_ms=(time.monotonic()-started)*1000
         if native.get('frame_sha256')!=sha:native={'status':'unavailable','lines':[],'frame_sha256':sha,'reason':'source_mismatch'}
@@ -80,7 +82,7 @@ class StateBuilder:
         with Image.open(io.BytesIO(png)) as source:
             image=source.convert('RGB');vector=[round(v/255,2) for v in image.resize((16,12)).tobytes()];size=list(image.size)
         t=time.monotonic();grid=read_grid(png) if is_torneko(self.cfg.window_title) else {'status':'unavailable'}
-        frames=white_frames(png);visual_ms=(time.monotonic()-t)*1000
+        visual_ms=(time.monotonic()-t)*1000
         # No previous Q values, role predictions or model descriptions here.
         metrics=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else {}
         if not is_torneko(self.cfg.window_title):
@@ -93,7 +95,7 @@ class StateBuilder:
         elif confirmation.get('status')=='pending':grid={'status':'unavailable','reason':'floor_pending'}
         t=time.monotonic();objects,tracking=self.tracker.observe(png)
         value={'sha':sha,'full':full,'native':native,'metrics':metrics,'minimap':grid,'white_frame':frames,'vector':vector,'size':size,'objects':objects,'tracking':tracking,'floor_confirmation':confirmation,
-          'timing':{'ocr_ms':ocr_ms,'object_recognition_ms':(time.monotonic()-t)*1000,'map_geometry_ms':visual_ms}}
+          'timing':{'ocr_ms':ocr_ms,'object_recognition_ms':(time.monotonic()-t)*1000,'map_geometry_ms':visual_ms,'interface_geometry_ms':frame_ms}}
         self.cache[sha]=copy.deepcopy(value)
         while len(self.cache)>12:self.cache.popitem(last=False)
         return value

@@ -138,7 +138,7 @@ class NextGenController:
                         if not self.checkpoint():break
                         continue
                     t=time.monotonic();after=self.sense(after_image,full or protect,step+1);stages['result_observation_ms']=(time.monotonic()-t)*1000
-                    for name in ('ocr_ms','object_recognition_ms','map_geometry_ms','state_construction_ms','map_capture_ms'):stages[name]=stages.get(name,0)+after['timing'].get(name,0)
+                    for name in ('ocr_ms','object_recognition_ms','map_geometry_ms','interface_geometry_ms','state_construction_ms','map_capture_ms'):stages[name]=stages.get(name,0)+after['timing'].get(name,0)
                     stages['llm_background_ms']=supervisor.last_ms
                     hp0=before['metrics'].get('hp',{}).get('values');hp1=after['metrics'].get('hp',{}).get('values');hp_loss=bool(hp0 and hp1 and hp1[0]<hp0[0])
                     from ..battle_messages import read_messages
