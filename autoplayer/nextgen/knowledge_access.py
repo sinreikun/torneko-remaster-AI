@@ -245,6 +245,7 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
         item['equivalent_ids']=[node['id']];item['counterevidence']=[{k:e[k] for k in ('frame','step','conditions') if k in e} for e in node.get('counterevidence',[])[-1:]]
         groups[signature]=item
         if add(['goal_hierarchy','blocked_progress'],blocked+[item]):blocked.append(item)
+    if visual_ui and current.get('spatial_ui',{}).get('grid'):add(['current','spatial_ui','grid'],current['spatial_ui']['grid'])
     hot_limit=max(estimate_tokens(base),int(budget*.70))
     for q in current.get('quotes',[]):
         if q in quotes:continue

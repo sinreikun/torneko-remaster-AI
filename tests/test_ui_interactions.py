@@ -144,3 +144,9 @@ class EditableContextContracts(unittest.TestCase):
         model=UIInteractionModel();s=panel('label',1);s['editable_content_candidates']=['***'];model.attach(s)
         restored=UIInteractionModel();restored.restore(list(model.models.values()));blank=panel('label',2);restored.attach(blank)
         self.assertTrue(blank['ui_visual']['interaction_model']['text_flow_suspended']);self.assertEqual(blank['ui_visual']['selection']['status'],'unknown')
+    def test_pixel_lattice_alone_does_not_override_empirical_paragraph_flow(self):
+        model=UIInteractionModel();action={'id':'confirm','keys':['q'],'hold_ms':80}
+        for i in range(4):model.observe(panel('paragraph'+str(i),i),action,panel('paragraph'+str(i+1),i+1),{'status':'updated'},{'os_submission':'accepted'},i,{'panel_pixel_change':10},{'ui_text_content_changed':0})
+        s=panel('paragraph4',4);s['ui_visual']['grid']={'status':'hypothesis','rows':3,'columns':20,'coordinate_source':'measured_contrast_components_not_ocr'};model.attach(s)
+        self.assertEqual(s['ui_visual']['interaction_model']['selection_requirement'],'not_required_for_supported_text_flow');self.assertTrue(model.priors(s,[action]))
+        first=family_of(s);s['ui_visual']['grid']['rows']=4;self.assertEqual(family_of(s),first)

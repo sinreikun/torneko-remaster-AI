@@ -139,7 +139,7 @@ class StateBuilder:
         menu=value['white_frame'].get('visible') is True
         # Text is observed, "menu" remains a geometric interface hypothesis.
         body=[re.sub(r'\d+','N',re.sub(r'\s+','',q)) for q in quotes]
-        ui=self.ui_vision.measure(png,native,self.observation_policy)
+        ui=self.ui_vision.measure(png,native,{**self.observation_policy,'ui_surface_observed':menu or bool(masked)})
         self.ui_expected=bool(menu or ui['grid'].get('status')=='hypothesis');ui['active']=self.ui_expected
         if self.ui_expected and not ui.get('regions'):ui['regions']=copy.deepcopy(value['white_frame'].get('rectangles',[])[:4])
         self.ui_vision.last=copy.deepcopy(ui)

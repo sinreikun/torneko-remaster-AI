@@ -16,7 +16,7 @@ def family_of(state):
     cue=any(c.get('status')=='symbol_hypothesis' for c in ui.get('candidates',[]))
     if not rects:return digest(['ui-layout-fallback-v1',ui['layout'],cue]) if ui.get('layout') else None
     boxes=sorted([[round(v*40)/40 for v in b] for b in rects[:8]])
-    grid=ui.get('grid',{});grid_shape=[grid.get('rows'),grid.get('columns')] if grid.get('status')=='hypothesis' else None
+    grid=ui.get('grid',{});grid_shape=[grid.get('rows'),grid.get('columns')] if grid.get('status')=='hypothesis' and grid.get('coordinate_source')!='measured_contrast_components_not_ocr' else None
     return digest(['ui-structure-v1',boxes,grid_shape,cue])
 
 class UIInteractionModel:
@@ -45,7 +45,7 @@ class UIInteractionModel:
                             'selection_responses':action['selection_responses'],'confidence':confidence,
                             'controlled_responses':action.get('controlled_responses',0),'status':'supported_text_flow_association' if successes>=3 and confidence>=.75 and len(action['distinct_text'])>=3 and action.get('controlled_responses',0)>=1 else 'hypothesis'})
         selection_history=any(a['selection_responses'] for a in actions)
-        selectable=any(c.get('status')=='symbol_hypothesis' for c in ui.get('candidates',[])) or ui.get('grid',{}).get('status')=='hypothesis' or ui.get('selection',{}).get('status')=='supported_association' or selection_history
+        selectable=any(c.get('status')=='symbol_hypothesis' for c in ui.get('candidates',[])) or (ui.get('grid',{}).get('status')=='hypothesis' and ui.get('grid',{}).get('coordinate_source')!='measured_contrast_components_not_ocr') or ui.get('selection',{}).get('status')=='supported_association' or selection_history
         flow=not m.get('editable_context_seen') and any(a['status']=='supported_text_flow_association' for a in actions)
         recent=m['recent'];cycle=len(recent)>=12 and not any(e.get('new_text') for e in recent[-6:]) and len({e['destination'] for e in recent[-12:]})<=6
         sequence=[e['destination'] for e in recent]
@@ -97,7 +97,7 @@ class UIInteractionModel:
     @staticmethod
     def priors(state,candidates,explore=False):
         ui=state.get('ui_visual',{});model=ui.get('interaction_model',{});actions={a['id']:a for a in model.get('actions',[])}
-        nongrid=ui.get('grid',{}).get('status')!='hypothesis';values=[]
+        nongrid=ui.get('grid',{}).get('status')!='hypothesis' or ui.get('grid',{}).get('coordinate_source')=='measured_contrast_components_not_ocr';values=[]
         for candidate in candidates:
             a=actions.get(candidate['id'],{});score=None;reason=''
             if not model.get('text_flow_suspended') and a.get('text_responses',0)>=2 and a.get('confidence',0)>=.65 and nongrid and not (model.get('selection_requirement')=='selection_capable' and ui.get('selection',{}).get('status')!='supported_association'):

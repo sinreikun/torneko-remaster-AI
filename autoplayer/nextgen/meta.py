@@ -89,7 +89,9 @@ class MetaController:
     def bootstrap_capability(state):
         flow=state.get('ui_visual',{}).get('interaction_model',{})
         if flow.get('selection_requirement')=='not_required_for_supported_text_flow':return 'advance_interface'
-        return 'change_selection' if state.get('interface_hypothesis') and state.get('selection_observation',{}).get('line_index') is not None else 'move' if not state.get('interface_hypothesis') and state.get('minimap',{}).get('player_cell') else 'inspect'
+        selected=state.get('selection_observation',{});ui=state.get('ui_visual',{})
+        located=bool(selected.get('status')=='supported_association' and selected.get('element_id')) if ui else selected.get('line_index') is not None
+        return 'change_selection' if (state.get('interface_hypothesis') or ui.get('active')) and located else 'move' if not state.get('interface_hypothesis') and state.get('minimap',{}).get('player_cell') else 'inspect'
     def ensure_local(self,state,step):
         node=self.progress.current()
         if self.local and self.local.get('origin')=='capability_acquisition':

@@ -79,8 +79,8 @@ def relationships(marker,texts):
         b=text['bbox'];tx,ty=text['center'];height=max(.008,b[3]-b[1]);width=max(.008,b[2]-b[0])
         if marker[0]<=tx<=marker[2] and marker[1]<=ty<=marker[3]:kind='contains';cost=abs(mx-tx)/width*.1+abs(my-ty)/height*.1
         elif overlap(marker,b)>.5 and width<max(.008,marker[2]-marker[0])*2:kind='overlap';cost=.25
-        elif abs(my-ty)<height*.8 and 0<=b[0]-marker[2]<height*2.5:kind='left_of_text';cost=.35+(b[0]-marker[2])/height*.15
-        elif abs(my-ty)<height*.8 and 0<=marker[0]-b[2]<height*2.5:kind='right_of_text';cost=.35+(marker[0]-b[2])/height*.15
+        elif abs(my-ty)<height*.8 and 0<=b[0]-marker[2]<height*2.5:kind='left_of_text';cost=.35+(b[0]-marker[2])/height*.45
+        elif abs(my-ty)<height*.8 and 0<=marker[0]-b[2]<height*2.5:kind='right_of_text';cost=.35+(marker[0]-b[2])/height*.45
         elif abs(mx-tx)<width*.6 and 0<=marker[1]-b[3]<height:kind='below_text';cost=.45
         else:continue
         out.append({'element_id':text['id'],'text':text['text'],'kind':kind,'cost':round(cost,3),'confidence':round(max(.05,.4-cost*.2),3),'status':'spatial_hypothesis'})
@@ -114,6 +114,9 @@ def movement_origins(old,new,boxes,old_elements,new_elements,target_box,target_r
         if not rs or len(rs)>1 and rs[1]['cost']-rs[0]['cost']<=.2:continue
         relation=rs[0]
         if relation['kind']!=target_relation['kind'] or relation['element_id']==target_relation['element_id']:continue
+        source=next((e for e in old_elements if e['id']==relation['element_id']),None)
+        target=next((e for e in new_elements if e['id']==target_relation['element_id']),None)
+        if source and target and overlap(source['bbox'],target['bbox'])>.5 and distance(source['bbox'],target['bbox'])<.025:continue
         width=max(.001,box[2]-box[0]);height=max(.001,box[3]-box[1])
         ratio=max(width/tw,tw/width,height/th,th/height)
         if ratio>3:continue
@@ -162,6 +165,9 @@ class UIVision:
             size=list(src.size);small=src.convert('RGB');small.thumbnail((320,180))
         previous=self.last
         texts,missing=text_elements(native,size,sha,previous.get('elements',[]) if previous else [])
+        from .visual_grid import glyph_grid,selection_elements
+        pixel_grid=glyph_grid(small,sha) if policy.get('ui_surface_observed') else {'status':'unknown','cells':[]}
+        targets=selection_elements(texts,pixel_grid['cells']) if pixel_grid['status']=='hypothesis' else texts
         layout=self._layout(texts);model=self.models.setdefault(layout,{'key':layout,'schema':1,'relations':{},'edges':[],'checks':[],'cells':[]})
         candidates=[];change_fraction=0.
         if previous and previous['frame_sha256']!=sha and previous['frame_sha256'] in self.frames and self.frames[previous['frame_sha256']].size==small.size:
@@ -169,15 +175,15 @@ class UIVision:
             for b in boxes:
                 nearest=sorted([(distance(b,c['bbox']),c) for c in self.tracks if distance(b,c['bbox'])<.1],key=lambda v:v[0])
                 identifier=nearest[0][1]['id'] if nearest and (len(nearest)==1 or nearest[1][0]-nearest[0][0]>.015) else 'region:'+digest([layout,[round(v*100) for v in b]])
-                candidates.append({'id':identifier,'bbox':b,'center':center(b),'salience':salience(small,b),'activation':rarity(small,b,texts)-rarity(self.frames[previous['frame_sha256']],b,previous['elements']),'relations':relationships(b,texts),'frame_sha256':sha,'previous_id':nearest[0][1]['id'] if nearest else None,'status':'visual_change_candidate'})
+                candidates.append({'id':identifier,'bbox':b,'center':center(b),'salience':salience(small,b),'activation':rarity(small,b,texts)-rarity(self.frames[previous['frame_sha256']],b,previous['elements']),'relations':relationships(b,targets),'frame_sha256':sha,'previous_id':nearest[0][1]['id'] if nearest else None,'status':'visual_change_candidate'})
         elif previous and previous['frame_sha256']==sha:candidates=copy.deepcopy(previous['candidates'])
         # OCR symbols are candidate evidence, never immediate selection truth.
         for e in texts:
-            if re.match(r'^\s*[▶►▷>→]',e['text']):candidates.append({'id':'symbol:'+e['id'],'bbox':e['bbox'],'center':e['center'],'salience':1.,'relations':relationships(e['bbox'],texts),'frame_sha256':sha,'previous_id':None,'status':'symbol_hypothesis'})
+            if re.match(r'^\s*[▶►▷>→]',e['text']):candidates.append({'id':'symbol:'+e['id'],'bbox':e['bbox'],'center':e['center'],'salience':1.,'relations':relationships(e['bbox'],targets),'frame_sha256':sha,'previous_id':None,'status':'symbol_hypothesis'})
         if previous and previous['layout']==layout:
             for c in previous['candidates'][:12]:
                 if rarity(small,c['bbox'],texts)>20:
-                    candidates.append({**copy.deepcopy(c),'frame_sha256':sha,'activation':rarity(small,c['bbox'],texts),'relations':relationships(c['bbox'],texts or model.get('cells',[])),'status':'reobserved_visual_candidate'})
+                    candidates.append({**copy.deepcopy(c),'frame_sha256':sha,'activation':rarity(small,c['bbox'],texts),'relations':relationships(c['bbox'],targets or model.get('cells',[])),'status':'reobserved_visual_candidate'})
         # One region can be rediscovered and reobserved in the same frame.
         # Keep its current measurement once; stale duplicates must not crowd
         # other candidates out of the finite tracking budget.
@@ -187,8 +193,9 @@ class UIVision:
             if key not in unique:unique[key]=candidate
         candidates=list(unique.values())
         out={'frame_sha256':sha,'observed_at':native.get('captured_at',time.time()),'size':size,'layout':layout,'elements':texts,'unlocated_text':missing,
-             'cells':copy.deepcopy(model.get('cells',[])),
-             'candidates':sorted(candidates,key=lambda c:(not bool(c.get('relations')),-c['salience']))[:32],'grid':grid_hypothesis(texts),'change_fraction':change_fraction,
+             'cells':copy.deepcopy(pixel_grid['cells'] if pixel_grid['status']=='hypothesis' else model.get('cells',[])),
+             'selection_elements':copy.deepcopy(targets),
+             'candidates':sorted(candidates,key=lambda c:(not bool(c.get('relations')),-c['salience']))[:32],'grid':pixel_grid if pixel_grid['status']=='hypothesis' else grid_hypothesis(texts),'change_fraction':change_fraction,
              'selection':{'status':'unknown','element_id':None,'quote':None,'confidence':0.},'needs_observation':[],
              'difference_threshold':policy.get('ui_diff_threshold',18),'graph':copy.deepcopy(model['edges'][-48:]),'hypotheses':copy.deepcopy(list(model['relations'].values())[-16:])}
         if out['grid']['status']=='unknown' and len(model.get('cells',[]))>=4:out['grid']=grid_hypothesis(model['cells'])
@@ -254,14 +261,15 @@ class UIVision:
             return {**raw,'status':'ui_context_unconfirmed'}
         bounds=after.get('interface_observation',{}).get('rectangles',[])
         unmapped=[box for box in boxes if not relationships(box,b['elements']) and (any(overlap(box,r)>.5 for r in bounds) if bounds else not b['elements'] or any(overlap(box,e['bbox'])>.2 for e in b['elements']))]
-        if unmapped:
+        if unmapped and b.get('grid',{}).get('coordinate_source')!='measured_contrast_components_not_ocr':
             cells=model.setdefault('cells',[])
             for box in unmapped:
                 identifier='cell:'+digest([round(v*100) for v in center(box)])
                 if not any(e['id']==identifier for e in cells):cells.append({'id':identifier,'bbox':box,'center':center(box),'text':None,'kind':'anonymous_cell_hypothesis','source_frames':[a['frame_sha256'],b['frame_sha256']]})
             model['cells']=cells[-128:];b['cells']=copy.deepcopy(model['cells'])
-        a_elements=a['elements']+model.get('cells',[]);b_elements=b['elements']+model.get('cells',[])
-        if model.get('cells'):b['grid']=grid_hypothesis(model['cells']) if len(model['cells'])>=4 else b['grid']
+        a_elements=a.get('selection_elements',a['elements'])+(model.get('cells',[]) if a.get('grid',{}).get('coordinate_source')!='measured_contrast_components_not_ocr' else [])
+        b_elements=b.get('selection_elements',b['elements'])+(model.get('cells',[]) if b.get('grid',{}).get('coordinate_source')!='measured_contrast_components_not_ocr' else [])
+        if model.get('cells') and b.get('grid',{}).get('coordinate_source')!='measured_contrast_components_not_ocr':b['grid']=grid_hypothesis(model['cells']) if len(model['cells'])>=4 else b['grid']
         natural=bool(neutral_regions is None and neutral and (neutral.get('ui_local_change') or neutral.get('text_changed')))
         ranked=[]
         for box in boxes:
@@ -347,7 +355,10 @@ def paint_ui(canvas,ui,bounds):
         b=e['bbox'];coords=[x+b[0]*w,y+b[1]*h,x+b[2]*w,y+b[3]*h]
         canvas.create_rectangle(*coords,outline='#59cf9c',tags='ui_boxes')
         canvas.create_text(coords[0],coords[1],text=e.get('text','')[:20],anchor='sw',fill='#a4f7d3',font=('',8),tags='ui_boxes')
-    by_id={e['id']:e for e in ui.get('elements',[])}
+    for cell in ui.get('cells',[])[:128]:
+        if cell.get('kind')=='visual_glyph_cell_hypothesis':
+            b=cell['bbox'];canvas.create_rectangle(x+b[0]*w,y+b[1]*h,x+b[2]*w,y+b[3]*h,outline='#8b9cae',dash=(2,3),tags='ui_boxes')
+    by_id={e['id']:e for e in ui.get('elements',[])+ui.get('cells',[])}
     for c in ui.get('candidates',[])[:12]:
         b=c['bbox'];canvas.create_rectangle(x+b[0]*w,y+b[1]*h,x+b[2]*w,y+b[3]*h,outline='#eeb94f',dash=(3,3),tags='ui_boxes')
         for r in c.get('relations',[])[:1]:

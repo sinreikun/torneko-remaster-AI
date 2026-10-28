@@ -21,6 +21,7 @@ class UIProbeContracts(unittest.TestCase):
         p=UIProbes();s=self.state()
         for _ in range(2):p.observe(s,self.short,{'status':'updated'},{'os_submission':'accepted'},{})
         changed=copy.deepcopy(s);changed['ui_visual']['layout']='menu-B';self.assertTrue(p.priors(changed,[self.short],{}));self.assertTrue(p.priors(s,[self.short],{'ui_region_ocr':1}));self.assertFalse(p.priors(s,[self.short],{}))
+        changed=copy.deepcopy(s);changed['ui_visual']['grid']={'coordinate_source':'measured_contrast_components_not_ocr'};self.assertTrue(p.priors(changed,[self.short],{}))
     def test_failed_submission_cancel_and_no_ui_do_not_become_experiments(self):
         p=UIProbes();s=self.state();p.observe(s,self.short,{'status':'updated'},{'os_submission':'failed'},{})
         p.observe(s,self.short,{'status':'censored'},{'os_submission':'accepted'},{})
