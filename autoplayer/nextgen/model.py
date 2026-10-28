@@ -81,6 +81,10 @@ class ForwardModel:
         goals=plan.get('targets',[]);current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         for action in candidates:
+            if state['interface_hypothesis'] and len(action['keys'])>1 and not self.escape:
+                preferred=any(v.get('id')==action['id'] or v.get('keys')==action['keys'] for v in plan.get('candidate_values',[]) if v.get('value',0)>0)
+                singles=[c for c in candidates if len(c['keys'])==1 and c['hold_ms']==min(x['hold_ms'] for x in candidates)]
+                if not preferred and any(len(self.rule(state,c['id'])['samples'])<2 for c in singles):continue
             minimum=min(c['hold_ms'] for c in candidates if c['keys']==action['keys'])
             if action['hold_ms']>minimum and not self.escape:
                 base=self.rule(state,action_id(action['keys'],minimum))['samples']

@@ -3,6 +3,7 @@ import copy,json,math,queue,threading,time
 from collections import OrderedDict
 from dataclasses import replace
 from .state import digest
+from .protocol import wire_protocol,decode_parts
 
 SCHEMA={'type':'object','additionalProperties':False,'properties':{
  'objective':{'type':'string'},'reason':{'type':'string'},'review_after':{'type':'integer','minimum':8,'maximum':512},
@@ -75,6 +76,7 @@ class SemanticSupervisor:
         except queue.Empty:packet=None
         if packet:
             self.pending=None;self.last_ms=packet.get('ms')
+            if packet.get('protocol_issues'):self.emit({'event':'supervisor_protocol_warning','issues':packet['protocol_issues'],'response_excerpt':packet.get('response_excerpt'),'learning':False})
             if packet['cancelled']:
                 self.discarded+=1;self.emit({'event':'supervisor_discarded','reason':'control_or_guidance_changed','detail':packet.get('error'),'learning':False})
             elif packet.get('plan'):
@@ -82,12 +84,13 @@ class SemanticSupervisor:
                 self.completed_plans.move_to_end(packet['scope'])
                 while len(self.completed_plans)>16:self.completed_plans.popitem(last=False)
             elif packet.get('error'):
-                self.errors+=1;self.last_error=packet['error'];self.emit({'event':'supervisor_error','reason':packet['error'],'learning':False})
+                self.errors+=1;self.last_error=packet['error'];self.emit({'event':'supervisor_error','reason':packet['error'],'response_excerpt':packet.get('response_excerpt'),'learning':False})
         cached=self.completed_plans.pop(scope,None)
         if cached and step-cached['completed_step']<=64:
             self.plan=copy.deepcopy(cached['plan'])
             for value in self.plan['candidate_values']:
                 value['keys']=next(c['keys'] for c in candidates if c['id']==value['id'])
+            self.plan['protocol_issues']=cached.get('protocol_issues',[])
             self.plan.update(anchor_context=cached['state']['context'],scope=scope,adopted_step=step,status='llm_proposal_not_fact')
             self.next_review=step+min(self.plan['review_after'],self.cfg.llm_review_interval);self.plan['expires_step']=step+2*min(self.plan['review_after'],self.cfg.llm_review_interval)
             self.adoptions+=1;adopted=cached;self.emit({'event':'supervisor_plan','plan':self.plan})
@@ -100,9 +103,10 @@ class SemanticSupervisor:
             packet={'scope':scope,'step':step,'cancel':cancel,'control_domain':control_domain};self.pending=packet
             # Bounded snapshot; worker never reads live state, model, DB or game.
             features=['text','node']+[f'metric.{k}.{i}' for k,v in state['metrics'].items() for i in range(len(v['values']))]
+            wire_candidates,aliases,request_schema=wire_protocol(SCHEMA,candidates,state)
             prompt={'task':'world_model_supervision','goal':self.cfg.goal,'operator_guidance':copy.deepcopy(guidance),'reason':reason,
               'current':{k:copy.deepcopy(state[k]) for k in ('id','context','quotes','metrics','retained','minimap','quality','objects','state_identification','selection_observation')},
-              'features':features,'user_key_bindings':copy.deepcopy(self.cfg.key_bindings),'candidates':copy.deepcopy(list({tuple(c['keys']):c for c in reversed(candidates)}.values())),'recent_prediction_checks':copy.deepcopy(list(model.checks)[-8:]),'loop':copy.deepcopy(model.escape),'reference_knowledge':self.cfg.knowledge[:2000],'public_references':str(getattr(self.llm,'public_references',''))[:1200],'instruction':'targetsは現在の可視条件。hypothesesのexpectedは入力前後の差。text/nodeは差の仮説に使用しない。'}
+              'features':features,'user_key_bindings':copy.deepcopy(self.cfg.key_bindings),'candidates':wire_candidates,'recent_prediction_checks':copy.deepcopy(list(model.checks)[-8:]),'loop':copy.deepcopy(model.escape),'reference_knowledge':self.cfg.knowledge[:2000],'public_references':str(getattr(self.llm,'public_references',''))[:1200],'protocol':'id/candidateには列挙されたA00形式のIDをそのまま使う。text/nodeのvalueは空でない文字列、metricのvalueは数値。targets等が不要なら空配列。','instruction':'targetsは現在の可視条件。hypothesesのexpectedは入力前後の差。text/nodeは差の仮説に使用しない。'}
             guide=getattr(self.llm,'game_guide',None)
             if guide:
                 prompt['reference_knowledge_catalog']=guide.context({'status':'ok','lines':[{'text':t} for t in state['quotes']]},'menu' if state['interface_hypothesis'] else 'gameplay',{},state['metrics'])
@@ -115,13 +119,14 @@ class SemanticSupervisor:
             state_copy=copy.deepcopy(state);candidate_copy=copy.deepcopy(candidates)
             def work():
                 from ..core import LocalLLM
-                started=time.monotonic();answer=None;error=None
+                started=time.monotonic();answer=None;error=None;raw='';issues=[]
                 try:
                     client=LocalLLM(replace(self.cfg,timeout=min(self.cfg.timeout,90)));client.cancel=cancel;client.activity=self.emit
                     if hasattr(self.llm,'operator_guidance'):client.operator_guidance=self.llm.operator_guidance
-                    answer=validate(json.loads(client._request(image,SYSTEM,prompt,SCHEMA)),candidate_copy,state_copy)
+                    raw=client._request(image,SYSTEM,prompt,request_schema)
+                    answer,issues=decode_parts(json.loads(raw),aliases,candidate_copy,state_copy,validate)
                 except Exception as failure:error=str(failure)[:500]
-                result={'scope':scope,'state':state_copy,'plan':answer,'error':error,'cancelled':cancel.is_set(),'ms':(time.monotonic()-started)*1000}
+                result={'scope':scope,'state':state_copy,'plan':answer,'error':error,'cancelled':cancel.is_set(),'ms':(time.monotonic()-started)*1000,'protocol_issues':issues,'response_excerpt':raw[:8000] if error or issues else None}
                 if not self.closed:
                     try:self.results.put_nowait(result)
                     except queue.Full:pass
