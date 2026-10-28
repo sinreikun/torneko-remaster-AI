@@ -57,9 +57,10 @@ class NextGenController:
         return min(self.cfg.max_wait_ms,base+getattr(self,'observation_policy',{}).get('settle_extra_ms',0))
     def run(self,dry_run=False):
         profile=digest([self.cfg.profile_id or self.cfg.window_title,sorted(self.cfg.allowed_keys),self.cfg.key_bindings])
-        store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal)
+        store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal,self.cfg.knowledge)
         self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
         supervisor=SemanticSupervisor(self.cfg,self.llm,self.send_event,self.cancel);candidates=model.candidates(self.cfg)
+        self.builder.ui_vision.restore(store.load('ui_models',limit=64))
         for appearance in store.load('appearances',limit=128):self.builder.tracker.variants[appearance['id']]=appearance['variants']
         self.builder.restore_candidates=store.load('states')
         for saved in self.builder.restore_candidates:
@@ -79,14 +80,17 @@ class NextGenController:
                     self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
                     full=bool(step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
                     t=time.monotonic();before=self.builder.build(image,full);stages.update(before['timing']);stages['observation_ms']=(time.monotonic()-t)*1000
-                    neutral=None;natural_confidence=.4
+                    neutral=None;neutral_regions=None;natural_confidence=.4
                     if hasattr(self.backend,'observe_turn') and (step%8==0 or before['quality']<.5):
                         t=time.monotonic();sample=self.backend.observe_turn(image,'neutral_observation',0,self.cancel)
                         if self.cancel.is_set():
                             if not self.checkpoint():break
                             continue
                         after_neutral=self.builder.build(sample.image,full)
-                        neutral=effects(before,after_neutral);natural_confidence=.85;before=after_neutral;image=sample.image
+                        neutral=effects(before,after_neutral)
+                        neutral_regions=([c['bbox'] for c in after_neutral.get('ui_visual',{}).get('candidates',[]) if c.get('status')=='visual_change_candidate'] if before['frame_sha256']!=after_neutral['frame_sha256'] else [])
+                        if after_neutral.get('ui_visual',{}).get('change_fraction',0)>=.35:neutral_regions=[[0,0,1,1]]
+                        natural_confidence=.85;before=after_neutral;image=sample.image
                         stages['neutral_observation_ms']=(time.monotonic()-t)*1000
                     for _ in range(self.observation_policy['extra_captures']):
                         if self.cancel.wait(.08):break
@@ -163,6 +167,11 @@ class NextGenController:
                             evidence=self.builder.message_evidence(frame)
                             text_evidence.append({'frame_sha256':evidence['sha'],'native':evidence['native'],'role':'message_evidence_only_not_current_state'})
                     step+=1;t=time.monotonic()
+                    ui_receipt=receipt if kind!='aborted' and revision==getattr(self.control,'revision',0) else {'os_submission':'censored'}
+                    ui_transition=self.builder.ui_vision.learn(before,after,action,ui_receipt,step,neutral,neutral_regions)
+                    self.builder.apply_ui_selection(after)
+                    ui_model=self.builder.ui_vision.models.get(after.get('ui_visual',{}).get('layout'))
+                    if ui_model:store.put('ui_models',ui_model,step,key=ui_model['key'])
                     result=model.observe(before,action,after,prediction,receipt,step,neutral,kind,natural_confidence)
                     self.last=result
                     autonomy=meta.observe(before,action,after,result,receipt,step,(time.monotonic()-started)*1000,neutral)
@@ -187,7 +196,7 @@ class NextGenController:
                       'local_action_fraction':local_steps/step,'goal_evaluation':'observed_local_conditions_not_game_completion'}
                     row={**decision,'event':'result','step':step,'autonomy':meta.context(after),'executed':receipt.get('os_submission')=='accepted','input_receipt':receipt,'action_kind':'input','turn_kind':kind,
                       'changed':before['frame_sha256']!=after['frame_sha256'],'policy_after':{k:v for k,v in after.items() if k!='visual_vector'},'policy_state':shown_before,'ocr':copy.deepcopy(self.builder.cache.get(before['frame_sha256'],{}).get('native',{'status':'unavailable','lines':[]})),
-                      'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
+                      'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},
                       'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None},
                       'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}
@@ -198,6 +207,7 @@ class NextGenController:
                     self.builder.tracker.dirty.clear()
                     stages['db_enqueue_ms']=(time.monotonic()-t)*1000;stages['db_commit_ms']=store.commit_ms
                     self.log(row);self.emit(row)
+                    self.emit({'event':'ui_vision_frame','image':after_image,'ui':copy.deepcopy(after.get('ui_visual',{}))})
                     if hasattr(self.backend,'record_important'):self.backend.record_important(row,image,after_image)
                     self.previous=after;self.summary={'generation':2,'steps':step,'metrics':metrics,'legacy_learning_imported':False}
                 except OperationCancelled:

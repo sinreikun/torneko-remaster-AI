@@ -5,7 +5,7 @@ from .state import digest
 
 
 def scope(state):
-    return {'interface':state.get('interface_hypothesis'),
+    return {**({'visual_evidence_generation':1} if state.get('ui_visual') else {}),'interface':state.get('interface_hypothesis'),
             'condition':state.get('interface_layout') if state.get('interface_hypothesis') else state.get('context')}
 
 def test_effect(before,after,name,conditions=()):
@@ -19,6 +19,13 @@ def test_effect(before,after,name,conditions=()):
         if before.get('interface_observation',{}).get('visible') is not True:return None
         visible=after.get('interface_observation',{}).get('visible')
         return not visible if type(visible) is bool else None
+    if name in ('change_selection','select_target') and (before.get('ui_visual') or after.get('ui_visual')):
+        a=before.get('selection_observation',{});b=after.get('selection_observation',{})
+        return a.get('element_id')!=b.get('element_id') if a.get('status')==b.get('status')=='supported_association' else None
+    if name=='enter_text':
+        evidence=after.get('ui_visual',{}).get('last_transition',{})
+        # A changed text region is an editing hypothesis, not a proven item use.
+        return True if evidence.get('status')=='text_region_changed' and evidence.get('editing_region',{}).get('status')=='supported_association' and after.get('ui_visual',{}).get('grid',{}).get('status')=='hypothesis' else None
     if name=='change_selection':
         a=before.get('selection_observation',{}).get('line_index');b=after.get('selection_observation',{}).get('line_index')
         return a!=b if a is not None and b is not None else None

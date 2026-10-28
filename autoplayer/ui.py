@@ -74,6 +74,7 @@ class Application:
         ttk.Button(tools_bar,text='提出用ZIPをコピー',command=self.copy_report).pack(side='left',padx=4)
         visual_bar=toolbar
         ttk.Button(visual_bar,text='認識モニターを別窓で開く',command=self.open_recognition).pack(side='left')
+        ttk.Button(visual_bar,text='UI観測画像',command=self.open_ui_eye).pack(side='left',padx=4)
         ttk.Button(visual_bar,text='作戦指示を入力',command=self.open_guidance).pack(side='left',padx=4)
         self.overlay_enabled=tk.BooleanVar(value=self.ui_state.get('preview_graph_enabled',False))
         ttk.Checkbutton(visual_bar,text='キャプチャに学習グラフ',variable=self.overlay_enabled,command=self.configure_overlay).pack(side='left',padx=8)
@@ -494,6 +495,30 @@ class Application:
         self.draw_learning_graph();self.draw_live_status()
         self.preview_draw_seconds=time.monotonic()-started
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
+
+    def open_ui_eye(self):
+        window=getattr(self,'ui_eye_window',None)
+        if window is not None and window.winfo_exists():window.deiconify();self.paint_ui_eye();return
+        self.ui_eye_window=tk.Toplevel(self.root);self.ui_eye_window.title('UIの目 — 観測時点の画像（LIVEとは別）')
+        self.ui_eye_window.geometry('880x540')
+        self.ui_eye_caption=ttk.Label(self.ui_eye_window,text='観測待ち',wraplength=850);self.ui_eye_caption.pack(fill='x')
+        self.ui_eye_canvas=tk.Canvas(self.ui_eye_window,bg='#131b28',highlightthickness=0);self.ui_eye_canvas.pack(fill='both',expand=True)
+        self.ui_eye_canvas.bind('<Configure>',lambda _:self.paint_ui_eye());self.ui_eye_window.protocol('WM_DELETE_WINDOW',self.ui_eye_window.withdraw)
+        self.paint_ui_eye()
+
+    def paint_ui_eye(self):
+        window=getattr(self,'ui_eye_window',None);frame=getattr(self,'ui_eye_frame',None)
+        if window is None or not window.winfo_exists() or not window.winfo_viewable() or not frame:return
+        from PIL import Image,ImageTk
+        from .nextgen.ui_vision import paint_ui
+        import io
+        png,ui=frame;canvas=self.ui_eye_canvas
+        with Image.open(io.BytesIO(png)) as source:
+            image=source.convert('RGB');image.thumbnail((max(1,canvas.winfo_width()),max(1,canvas.winfo_height())))
+        self.ui_eye_photo=ImageTk.PhotoImage(image);canvas.delete('all');canvas.create_image(0,0,anchor='nw',image=self.ui_eye_photo)
+        paint_ui(canvas,ui,(0,0,image.width,image.height))
+        selected=ui.get('selection',{});confidence=selected.get('confidence',0)
+        self.ui_eye_caption.configure(text=f"選択の推定: {selected.get('quote') or selected.get('element_id') or '不明'} / {confidence:.2f} / {selected.get('status','unknown')} / 緑:OCR位置 黄点線:候補と対応 水色:反復で支持された対応 / 元フレーム {ui.get('frame_sha256','')[:12]}")
 
     def connect(self):
         if self.busy():
@@ -1120,7 +1145,10 @@ class Application:
         self.follow_log_latest()
 
     def update_decision(self,value):
-        event=value.get('event');self.recognition.update(value);self.traces.update(value)
+        event=value.get('event')
+        if event=='ui_vision_frame':
+            self.ui_eye_frame=(value['image'],value['ui']);self.paint_ui_eye();return
+        self.recognition.update(value);self.traces.update(value)
         digest=getattr(self,'observer_digest',None)
         if digest and digest.update(value):
             self.set_panel('判断の要点',digest.summary());self.set_panel('観察ダイジェスト',digest.journal())
@@ -1161,6 +1189,8 @@ class Application:
             def number(key):
                 v=m.get(key);return '未評価' if v is None else f'{v:.3g}'
             self.set_panel('行動学習',f"事前予測一致率: {number('prediction_accuracy')} / 不確実性: {number('uncertainty')}\n新規情報: {number('information_gain')} / 反復率: {number('repetition_rate')}\nLLM要求/手: {number('llm_intervention_rate')} / 選択時間: {number('decision_ms')}ms\n規則: {r.get('rule_status','未学習')} / 条件細分化: {r.get('condition_split_node')}\n観測上の局所目標: {number('goal_progress')}（ゲームクリアとは別）")
+            ui=value['policy_after'].get('ui_visual',{})
+            self.set_panel('空間UI',{'現在選択の関連仮説':ui.get('selection'),'認識不能・追加観測':ui.get('needs_observation'),'選択候補と文字の対応':ui.get('candidates',[])[:8],'グリッド仮説':ui.get('grid'),'UI遷移':ui.get('graph',[])[-8:],'文字と位置':ui.get('elements',[])[:128],'未定位の文字':ui.get('unlocated_text'),'source_frame':ui.get('frame_sha256')});self.set_panel('UI入力反応',value.get('ui_transition',{}))
             self.set_panel('仮説',{'作用の仮説':ng['hypotheses'],'外見の未確認解釈':ng.get('semantic_interpretations',[])});self.set_panel('候補と評価',ng['candidates'])
             self.set_panel('目的',ng['objective']);self.set_panel('運用計画',value.get('supervision'))
             self.set_panel('現在状態',{'現在観測':value['policy_after']['metrics'],'保持した過去値':value['policy_after'].get('retained'),'画面に出ている許可外キー候補':value['policy_after'].get('unavailable_input_hints',[]),'状態識別':value['policy_after']['state_identification'],'匿名の追跡候補':value['policy_after']['objects']})

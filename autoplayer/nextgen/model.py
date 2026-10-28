@@ -13,9 +13,13 @@ def snapshot(state):
 def value_at(state,path):
     if path=='node':return state['id']
     if path=='interface_open':
+        if state.get('ui_visual',{}).get('active') and state.get('interface_observation',{}).get('visible') is False:return None
         visible=state.get('interface_observation',{}).get('visible',state.get('interface_hypothesis'))
         return int(visible) if type(visible) is bool else None
-    if path=='selection_text':return (state.get('selection_observation') or {}).get('quote')
+    if path in ('selection_text','selection_id'):
+        selected=state.get('selection_observation') or {}
+        if state.get('ui_visual') and selected.get('status')!='supported_association':return None
+        return selected.get('quote' if path=='selection_text' else 'element_id')
     if path=='text':return '\n'.join(state['quotes']) if state.get('measurement_status')=='ok' else None
     if path.startswith('metric.'):
         try:
@@ -130,7 +134,7 @@ class ForwardModel:
                         temporary=copy.deepcopy(state);_,name,index=feature.split('.');temporary['metrics'][name]['values'][int(index)]=predicted
                         later=target_score(temporary,target)
                         if later is not None:goal+=target.get('weight',1)*(later-current_goal[i])
-                    if feature in ('text','node','interface_open','selection_text'):
+                    if feature in ('text','node','interface_open','selection_text','selection_id'):
                         observed=[target_score(x['outcome'],target) for x in samples if x.get('outcome')]
                         if observed:goal+=target.get('weight',1)*(sum(v for v in observed if v is not None)/len(observed)-(current_goal[i] or 0))
             else:novelty=1.;gain=1.

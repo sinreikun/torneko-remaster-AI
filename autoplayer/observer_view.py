@@ -3,6 +3,7 @@ from collections import deque
 from .presentation import display_json
 
 SECTIONS={
+    'UIの目':('空間UI','UI入力反応'),
     '自律運用':('進行・能力','復旧・観測調整'),
     '予測と結果':('観察ダイジェスト','結果'),
     '目的・手順':('目的','運用計画','選択行動と理由'),

@@ -5,7 +5,7 @@ import time
 class RecognitionState:
     def __init__(self):
         self.floor_exploration={};self.map={};self.tentative={};self.metrics={};self.objects=[];self.floor_state={};self.remaining=None
-        self.inference=set();self.observed_at=None;self.phase='待機';self.revision=0;self.autonomy={}
+        self.inference=set();self.observed_at=None;self.phase='待機';self.revision=0;self.autonomy={};self.ui_visual={}
     @property
     def thinking(self):return bool(self.inference)
     def update(self,row):
@@ -31,6 +31,7 @@ class RecognitionState:
             after=row.get('after_features') or {}
             state={'minimap':{'status':'unavailable'},'metrics':{k:{'values':after[k]} for k in ('hp','floor','fullness') if after.get(k) is not None}}
         if state is not None:
+            self.ui_visual=copy.deepcopy(state.get('ui_visual',{}))
             confirmation=state.get('floor_confirmation',{})
             old_floor=self.metrics.get('floor',{}).get('values');new_floor=state.get('metrics',{}).get('floor',{}).get('values')
             if confirmation.get('changed') or world.get('new_adventure') or (old_floor and new_floor and old_floor!=new_floor and confirmation.get('status') in ('initialized','confirmed','changed')):
@@ -120,6 +121,10 @@ class RecognitionState:
             note+='\n進行[推定]: '+str(a.get('phase','未確認'))[:90]+'\n目標[計画]: '+str(g.get('label','未設定'))[:100]
             note+='\n不足能力: '+','.join(a.get('missing_capabilities',[]))+' / 復旧: '+str(r.get('method','なし'))
             note+='\n観=観測 読=OCR未検証 保=保持 推=推定 仮=仮説。未知は空欄。'
+        if self.ui_visual:
+            selection=self.ui_visual.get('selection',{})
+            note+='\nUI選択[関連仮説]: '+str(selection.get('quote') or selection.get('element_id') or '不明')+' / '+str(round(selection.get('confidence',0),2))
+            note+=' / 位置付き文字 '+str(len(self.ui_visual.get('elements',[])))+' / 未解決 '+str(len(self.ui_visual.get('needs_observation',[])))
         f=self.floor_exploration
         if f.get('status')=='observed_floor' and not self.tentative.get('active'):
             goal=f.get('goal',{});phase=goal.get('phase','')

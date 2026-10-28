@@ -4,18 +4,18 @@ from .model import value_at
 from .state import digest
 
 CAPABILITIES=('close_interface','change_selection','confirm','move','cross_obstacle',
-              'approach','acquire','verify_possession','handle_target','find_exit','transition','inspect')
+              'approach','acquire','verify_possession','handle_target','find_exit','transition','inspect','enter_text','select_target')
 
 def validate_condition(c):
     if not isinstance(c,dict) or set(c)!={'feature','operator','value'}:raise ValueError('Invalid evidence condition')
     f=c['feature'];op=c['operator'];v=c['value']
-    if not isinstance(f,str) or not (f in ('text','selection_text','interface_open','map_observed') or f.startswith('metric.') and len(f.split('.'))==3):raise ValueError('Unmeasurable evidence feature')
+    if not isinstance(f,str) or not (f in ('text','selection_text','selection_id','interface_open','map_observed') or f.startswith('metric.') and len(f.split('.'))==3):raise ValueError('Unmeasurable evidence feature')
     if op not in ('eq','ne','contains','not_contains','ge','le'):raise ValueError('Invalid evidence operator')
     if type(v) not in (str,int,float,bool) or isinstance(v,str) and not 0<len(v)<=160:raise ValueError('Invalid evidence value')
     if type(v) is float:
         import math
         if not math.isfinite(v):raise ValueError('Nonfinite evidence')
-    if f in ('text','selection_text') and (not isinstance(v,str) or op not in ('contains','not_contains','eq','ne')):raise ValueError('Invalid text evidence')
+    if f in ('text','selection_text','selection_id') and (not isinstance(v,str) or op not in ('contains','not_contains','eq','ne')):raise ValueError('Invalid text evidence')
     if f in ('interface_open','map_observed') and (type(v) not in (bool,int) or v not in (0,1) or op not in ('eq','ne')):raise ValueError('Invalid interface evidence')
     if f.startswith('metric.') and (type(v) not in (int,float) or op not in ('eq','ne','ge','le')):raise ValueError('Invalid metric evidence')
     return copy.deepcopy(c)
@@ -31,7 +31,7 @@ def condition_value(state,c):
 
 def channel(c):
     f=c['feature']
-    return 'ocr' if f in ('text','selection_text') or f.startswith('metric.') else 'map' if f=='map_observed' else 'geometry'
+    return 'ocr' if f in ('text','selection_text','selection_id') or f.startswith('metric.') else 'map' if f=='map_observed' else 'geometry'
 
 def validate_nodes(nodes,known=()):
     if not isinstance(nodes,list) or len(nodes)>12:raise ValueError('Progress proposal limit')
@@ -79,21 +79,23 @@ class ProgressManager:
             old=copy.deepcopy(n)
             if n['scope']=='session' and n.get('session')!=self.session:
                 n.update(status='unconfirmed',evidence=[],counterevidence=[],session=self.session)
+            visible='\n'.join(state.get('quotes',[])).casefold() if state.get('measurement_status')=='ok' else ''
+            n['unverified_literals']=[v for v in n.get('unverified_literals',[]) if v.casefold() not in visible]
             values=[condition_value(state,c) for c in n['conditions']]
             counter=[condition_value(state,c) for c in n['counterconditions']]
-            n['unknown']=[c['feature'] for c,v in zip(n['conditions'],values) if v is None]
+            n['unknown']=[c['feature'] for c,v in zip(n['conditions'],values) if v is None]+['literal_source:'+v for v in n.get('unverified_literals',[])]
             source=state['frame_sha256']
             # Only independent, current source frames count; cached OCR replays do not.
             if all(v is True for v in values) and not any(v is True for v in counter):
                 if not any(e['frame']==source for e in n['evidence']):
-                    n['evidence'].append({'frame':source,'step':step,'session':self.session,'channels':sorted({channel(c) for c in n['conditions']}),'conditions':copy.deepcopy(n['conditions']),'revision':n.get('revision',0)});n['evidence']=n['evidence'][-8:]
+                    n['evidence'].append({'frame':source,'step':step,'session':self.session,'channels':sorted({channel(c) for c in n['conditions']}),'conditions':copy.deepcopy(n['conditions']),'revision':n.get('revision',0),'ui_generation':1 if state.get('ui_visual') else 0});n['evidence']=n['evidence'][-8:]
             if any(v is True for v in counter):
                 if not any(e['frame']==source for e in n['counterevidence']):
                     n['revision']=n.get('revision',0)+1
                     n['counterevidence'].append({'frame':source,'step':step,'session':self.session,'conditions':[c for c,v in zip(n['counterconditions'],counter) if v is True]});n['counterevidence']=n['counterevidence'][-8:]
                 n['status']='disputed'
             else:
-                relevant=[e for e in n['evidence'] if e.get('revision',0)==n.get('revision',0)]
+                relevant=[e for e in n['evidence'] if e.get('revision',0)==n.get('revision',0) and (not any(c['feature'] in ('selection_text','selection_id') for c in n['conditions']) or e.get('ui_generation')==1)]
                 enough=len(relevant)>=2
                 diverse=len({channel(c) for c in n['conditions']})>=2
                 n['status']='confirmed' if enough and (n['scope']=='session' or diverse) else 'disputed' if n.get('counterevidence') and not enough else 'supported' if relevant else 'unconfirmed'
@@ -103,7 +105,7 @@ class ProgressManager:
         self.changed=bool(changes)
         return changes
     def available(self):
-        return [n for n in self.nodes.values() if (self.intent_tag is None or n.get('intent_tag')==self.intent_tag) and n['status'] not in ('confirmed','disputed') and all(self.nodes.get(k,{}).get('status')=='confirmed' for k in n['requires'])]
+        return [n for n in self.nodes.values() if (self.intent_tag is None or n.get('intent_tag')==self.intent_tag) and not n.get('unverified_literals') and n['status'] not in ('confirmed','disputed') and all(self.nodes.get(k,{}).get('status')=='confirmed' for k in n['requires'])]
     def current(self):
         available=self.available();parents={n['parent'] for n in available if n['parent']}
         # Work on actionable leaves before their higher-level mission nodes.

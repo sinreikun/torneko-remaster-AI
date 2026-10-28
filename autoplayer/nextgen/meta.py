@@ -9,27 +9,29 @@ from .state import digest
 FAILURES=('observation_missing','observation_conflict','state_identification_failure',
           'world_prediction_failure','capability_missing','skill_condition_mismatch',
           'input_not_delivered','repetition_stagnation','progress_unknown','goal_unreachable',
-          'llm_measurement_mismatch','unclassified')
-OBSERVATION_FAILURES={'observation_missing','observation_conflict','state_identification_failure','world_prediction_failure','llm_measurement_mismatch'}
+          'llm_measurement_mismatch','ui_observation_missing','unclassified')
+OBSERVATION_FAILURES={'observation_missing','observation_conflict','state_identification_failure','world_prediction_failure','llm_measurement_mismatch','ui_observation_missing'}
 
 class MetaController:
-    def __init__(self,store,intent):
+    def __init__(self,store,intent,reference_knowledge=""):
         self.store=store;self.progress=ProgressManager(store);self.capabilities=CapabilityManager(store);self.observer=ObserverAdaptation(store)
+        self.reference_text=(intent+"\n"+reference_knowledge).casefold()
         self.progress.intent_tag=digest(intent)
-        self.intent=intent;self.local=None;self.recovery=None;self.pending_local=None;self.history=deque(maxlen=32);self.failures=[];self.attempted={};self.recent=deque(maxlen=20);self.last_scope=None;self.phase='understanding';self.proposal_requests=0;self.planning_missing=0;self.completed_local={};self.plan_attempts=0;self.last_proposal=-1000;self.goal_epoch=0;self.last_state={};self.last_changes=[];self.exhausted=set();self.deferred=[];self.nonexecutions=0;self.restore_local=None;self.boundary={'conditions':[],'frames':[],'armed':True}
+        self.intent=intent;self.local=None;self.recovery=None;self.pending_local=None;self.history=deque(maxlen=32);self.failures=[];self.attempted={};self.recent=deque(maxlen=20);self.last_scope=None;self.phase='understanding';self.proposal_requests=0;self.planning_missing=0;self.planning_issue=None;self.completed_local={};self.plan_attempts=0;self.last_proposal=-1000;self.goal_epoch=0;self.last_state={};self.last_changes=[];self.exhausted=set();self.deferred=[];self.nonexecutions=0;self.restore_local=None;self.boundary={'conditions':[],'frames':[],'armed':True}
         rows=store.load('autonomy','manager')
         if rows and rows[0].get('intent')==intent:
             saved=rows[0];self.history.extend(saved.get('history',[]));self.goal_epoch=saved.get('goal_epoch',0)
             self.restore_local={'local':saved.get('local'),'scope':saved.get('scope')}
             self.boundary=saved.get('boundary',self.boundary)
-            self.completed_local=saved.get('completed_local',{});self.planning_missing=saved.get('planning_missing',0)
+            self.completed_local=saved.get('completed_local',{});self.planning_missing=saved.get('planning_missing',0);self.planning_issue=saved.get('planning_issue')
             self.attempted=saved.get('attempted',{});self.deferred=saved.get('deferred',[])[-16:]
         self.save()
     def save(self):
-        self.store.put('autonomy',{'intent':self.intent,'local':self.local,'recovery':self.recovery,'history':list(self.history),'goal_epoch':self.goal_epoch,'completed_local':self.completed_local,'planning_missing':self.planning_missing,'session':self.store.session,'boundary':self.boundary,'attempted':self.attempted,'deferred':self.deferred[-16:],'scope':scope(self.last_state) if self.last_state else None},key='manager')
-    def needs_plan(self,step):return (not self.progress.nodes or not self.progress.available() or bool(self.exhausted)) and step-self.last_proposal>=(16 if self.planning_missing or not self.progress.nodes else 128)
+        self.store.put('autonomy',{'intent':self.intent,'local':self.local,'recovery':self.recovery,'history':list(self.history),'goal_epoch':self.goal_epoch,'completed_local':self.completed_local,'planning_missing':self.planning_missing,'planning_issue':self.planning_issue,'session':self.store.session,'boundary':self.boundary,'attempted':self.attempted,'deferred':self.deferred[-16:],'scope':scope(self.last_state) if self.last_state else None},key='manager')
+    def needs_plan(self,step):return (not self.progress.nodes or not self.progress.available() or bool(self.exhausted) or self.planning_missing>0) and step-self.last_proposal>=(16 if self.planning_missing or not self.progress.nodes else 128)
     def planning_context(self,state,step):
         c=self.context(state)
+        c['unverified_goal_literals']=[{'id':n['id'],'values':n.get('unverified_literals',[])} for n in self.progress.nodes.values() if n.get('unverified_literals')][:8]
         c['skills']=c['skills'][-4:];c['progress']=c['progress'][-8:]
         c['observation_policy']={'settings':self.observer.policy,'trial':(self.observer.summary()['trial'] or {}).get('item')}
         if self.needs_plan(step):
@@ -37,11 +39,12 @@ class MetaController:
              'instruction':'意図から前提付き進行ノードを最大3件提案。見た/取得/所持/帰還/イベントを混同しない。資料は仮説。今検証できない条件は未確認のまま。現在の能力と場面から到達可能な目標を優先。'}
             self.last_proposal=step;self.plan_attempts+=1
         return c
-    def planning_feedback(self,plan,step):
+    def planning_feedback(self,plan,step,error=None):
         if not plan.get('progress_nodes'):
+            self.planning_issue=str(error or '進行案がありません。自己参照を避け、可視の検証条件を持つ新しいノードを提案してください。')[:500]
             self.planning_missing+=1
             self.history.append({'event':'progress_generation_missing','step':step,'failures':self.planning_missing,'next':'進行計画を明示要求し再生成'})
-        else:self.planning_missing=0
+        else:self.planning_missing=0;self.planning_issue=None
         self.save()
     def accept(self,plan,state,step):
         if plan.get('session_boundary') and not self.boundary['conditions']:
@@ -49,7 +52,14 @@ class MetaController:
         proposals=plan.get('progress_nodes',[])
         if proposals:
             try:
-                count=self.progress.propose(proposals);self.history.append({'event':'progress_proposed','count':count,'step':step,'status':'hypotheses_not_facts'})
+                count=self.progress.propose(proposals)
+                visible='\n'.join(state.get('quotes',[])).casefold()
+                for proposal in proposals:
+                    n=self.progress.nodes[proposal['id']]
+                    n['literal_grounding_version']=1
+                    n['unverified_literals']=[c['value'] for c in n['conditions'] if c['feature']=='text' and c['operator']=='contains' and isinstance(c['value'],str) and c['value'] in CAPABILITIES and c['value'].casefold() not in visible and c['value'].casefold() not in self.reference_text]
+                    self.progress.save(n)
+                self.history.append({'event':'progress_proposed','count':count,'step':step,'status':'hypotheses_not_facts'})
             except ValueError as error:self.history.append({'event':'progress_rejected','reason':str(error),'step':step})
         # A brief plan is a local suggestion, never a campaign completion report.
         targets=[{k:t[k] for k in ('feature','operator','value')} for t in plan.get('targets',[]) if t.get('feature')!='node']
@@ -82,6 +92,8 @@ class MetaController:
     def classify(self,state,result=None,receipt=None,plan=None):
         reasons=[];result=result or {}
         if self.nonexecutions>=3:reasons.append('state_identification_failure')
+        ui=state.get('ui_visual',{})
+        if ui and (state.get('interface_hypothesis') or ui.get('active')) and ui.get('needs_observation'):reasons.append('ui_observation_missing')
         if receipt and receipt.get('os_submission') not in ('accepted','unknown'):reasons.append('input_not_delivered')
         if state.get('measurement_status')!='ok' or state.get('quality',0)<.5:reasons.append('observation_missing')
         if state.get('floor_confirmation',{}).get('status')=='pending':reasons.append('observation_conflict')
@@ -93,10 +105,10 @@ class MetaController:
         if self.local:
             cap=self.local['capability'];conditions=self.local['conditions']
             if cap not in CAPABILITIES:reasons.append('unclassified')
-            elif not self.capabilities.matching(cap,state,conditions):
+            elif not ('ui_observation_missing' in reasons and cap in ('change_selection','select_target','confirm','enter_text')) and not self.capabilities.matching(cap,state,conditions):
                 reasons.append('skill_condition_mismatch' if any(s['name']==cap and s['status']=='supported_conditionally' for s in self.capabilities.skills.values()) else 'capability_missing')
             if self.local.get('parent') and self.progress.nodes.get(self.local['parent'],{}).get('status')=='disputed':reasons.append('goal_unreachable')
-        if not self.progress.nodes or (self.progress.current() or {}).get('unknown'):reasons.append('progress_unknown')
+        if self.planning_missing or not self.progress.nodes or (self.progress.current() or {}).get('unknown'):reasons.append('progress_unknown')
         elif not self.progress.available() and any(n['status']!='confirmed' for n in self.progress.nodes.values()):reasons.append('goal_unreachable')
         return list(dict.fromkeys(reasons))
     def new_recovery(self,state,step):
@@ -109,7 +121,7 @@ class MetaController:
             if key in self.attempted:continue
             self.attempted[key]=step
             while len(self.attempted)>128:self.attempted.pop(next(iter(self.attempted)))
-            self.recovery={'id':key,'failure':primary,'method':method,'resume':copy.deepcopy(self.local),'start':step,'deadline':step+8,'wall_deadline':time.monotonic()+45,'start_state':state['id'],'start_quality':state.get('quality',0),'start_conditions':[condition_value(state,c) for c in self.local['conditions']],'attempted_actions':[],'success_test':'元目標の新しい成立、能力獲得、または欠測解消。画面差だけは達成にしない。'}
+            self.recovery={'id':key,'failure':primary,'method':method,'resume':copy.deepcopy(self.local),'start':step,'deadline':step+8,'wall_deadline':time.monotonic()+45,'start_state':state['id'],'start_quality':state.get('quality',0),'start_ui_coverage':state.get('ui_visual',{}).get('coverage',0),'start_conditions':[condition_value(state,c) for c in self.local['conditions']],'attempted_actions':[],'success_test':'元目標の新しい成立、能力獲得、または欠測解消。画面差だけは達成にしない。'}
             if method=='observer_trial':self.observer.start(primary,step)
             if method=='replan':self.last_proposal=-1000
             self.history.append({'event':'recovery_started','step':step,'failure':primary,'method':method,'resume':self.local['id']});self.save();return
@@ -148,6 +160,13 @@ class MetaController:
         if self.recovery and time.monotonic()>=self.recovery['wall_deadline']:
             r=self.recovery;self.local=r['resume'];self.recovery=None
             self.history.append({'event':'recovery_finished','status':'wall_deadline_try_other_hypothesis','method':r['method'],'resume':self.local['id']})
+        if self.recovery and self.recovery['method']=='observer_trial' and not self.observer.trial:self.observer.start(self.recovery['failure'],step)
+        visible='\n'.join(state.get('quotes',[])).casefold()
+        for n in self.progress.nodes.values():
+            if not n.get('literal_grounding_version'):
+                n['literal_grounding_version']=1
+                n['unverified_literals']=[c['value'] for c in n['conditions'] if c['feature']=='text' and c['operator']=='contains' and isinstance(c['value'],str) and c['value'] in CAPABILITIES and c['value'].casefold() not in visible and c['value'].casefold() not in self.reference_text and not n.get('evidence')]
+                self.progress.save(n)
         self.last_state=state;self.check_boundary(state,step);self.last_changes=self.progress.update(state,step)
         if self.restore_local:
             saved=self.restore_local
@@ -176,6 +195,16 @@ class MetaController:
         if self.recovery and self.recovery['method'] in ('alternative_skill','replan'):
 
             for action in self.recovery['attempted_actions'][-6:]:values[action]={'id':action,'value':-1.5,'reason':'有限復旧中に試した入力。別候補を比較する'}
+        if 'ui_observation_missing' in self.failures:
+            for candidate in candidates:
+                meanings={m.strip().casefold() for m in candidate.get('declared_meanings',[])}
+                if len(candidate['keys'])==1 and meanings&{'up','down','left','right','上移動','下移動','左移動','右移動'}:
+                    values[candidate['id']]={'id':candidate['id'],'value':.8,'reason':'選択を観測するため、利用者指定の方向入力を有限比較する。決定・設定変更より位置の追加証拠を優先。'}
+        from .ui_vision import first_ui_action
+        for target in conditions:
+            if target['feature'] in ('selection_text','selection_id') and target['operator'] in ('contains','eq'):
+                action=first_ui_action(state.get('ui_visual',{}),target['value'],by_id=target['feature']=='selection_id')
+                if action and any(c['id']==action for c in candidates):values[action]={'id':action,'value':1.5,'reason':'入力同期の選択グラフから目的の文字へ向かう最初の一手。次手は再観測する。'}
         plan['candidate_values']=list(values.values());plan['meta_goal_id']=self.local['id']
         return plan
     def observe(self,before,action,after,result,receipt,step,ms,neutral=None):
@@ -190,12 +219,14 @@ class MetaController:
         while len(self.completed_local)>128:self.completed_local.pop(next(iter(self.completed_local)))
         progressed=fresh_completion or any(c['status']=='confirmed' for c in changes)
         coverage=sum(v is not None for v in values)/len(values) if values else 1.
+        if (after.get('interface_hypothesis') or after.get('ui_visual',{}).get('active')) and after.get('ui_visual'):
+            coverage=min(coverage,after['ui_visual'].get('coverage',0))
         comparison=self.observer.observe(after,result,ms,progressed,step,coverage)
         self.recent.append({'origin':before['id'],'node':after['id'],'action':action['id'],'progress':progressed,'step':step})
         self.failures=self.classify(after,result,receipt)
         if self.recovery:
             r=self.recovery;r['attempted_actions'].append(action['id']);r['attempted_actions']=r['attempted_actions'][-12:]
-            restored_measurement=r['failure'] in OBSERVATION_FAILURES and after.get('quality',0)>r['start_quality']+.1 and after.get('measurement_status')=='ok'
+            restored_measurement=r['failure'] in OBSERVATION_FAILURES and after.get('measurement_status')=='ok' and (after.get('quality',0)>r['start_quality']+.1 or r['failure']=='ui_observation_missing' and after.get('ui_visual',{}).get('coverage',0)>r.get('start_ui_coverage',0)+.15 and after.get('ui_visual',{}).get('selection',{}).get('status')=='supported_association')
             recovered=attained or learned and r['failure'] in ('capability_missing','skill_condition_mismatch') or restored_measurement or progressed
             if recovered or step>=r['deadline']:
                 self.history.append({'event':'recovery_finished','status':'verified_recovery' if recovered else 'expired_try_other_hypothesis','step':step,'method':r['method'],'resume':r['resume']['id']})
@@ -220,4 +251,4 @@ class MetaController:
           'required_capabilities':[cap] if cap else [],'missing_capabilities':self.capabilities.missing([cap],state,self.local['conditions']) if cap and state else [],
           'failure_classes':list(self.failures),'recovery':{k:v for k,v in self.recovery.items() if k not in ('resume','attempted_actions')} if self.recovery else None,
           'observation_policy':self.observer.summary(),'skills':self.capabilities.summary(state) if state else [],
-          'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
+          'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}

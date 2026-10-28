@@ -116,3 +116,29 @@ class ScreenOCR:
             self.cache[cache_key]=copy.deepcopy(value)
             while len(self.cache)>16:self.cache.popitem(last=False)
         return copy.deepcopy(value)
+
+
+def read_spatial_regions(reader,png,regions):
+    """Generic measured regions; restore word coordinates to the original frame."""
+    import io,math
+    from PIL import Image
+    sha=hashlib.sha256(png).hexdigest();lines=[];observed=[];errors=[]
+    with Image.open(io.BytesIO(png)) as src:
+        image=src.convert('RGB');w,h=image.size
+        for region in regions[:4]:
+            if not isinstance(region,(list,tuple)) or len(region)!=4 or any(type(v) not in (int,float) or not math.isfinite(v) for v in region):continue
+            b=[max(0,min(1,v)) for v in region]
+            if b[2]<=b[0] or b[3]<=b[1]:continue
+            x,y,right,bottom=[round(v*(w if i%2==0 else h)) for i,v in enumerate(b)]
+            if right<=x or bottom<=y:continue
+            stream=io.BytesIO();image.crop((x,y,right,bottom)).save(stream,format='PNG',compress_level=1)
+            value=reader.read(stream.getvalue())
+            if value.get('frame_sha256')!=hashlib.sha256(stream.getvalue()).hexdigest() or value.get('status')!='ok':errors.append(value.get('reason','region_ocr_unavailable'));continue
+            observed.append([x,y,right,bottom])
+            for line in copy.deepcopy(value.get('lines',[])):
+                for word in line.get('words',[]):
+                    box=word.get('box')
+                    if isinstance(box,list) and len(box)==4:box[0]+=x;box[1]+=y
+                line['region_source']=[x,y,right,bottom];line['source_frame']=sha;lines.append(line)
+    return {'status':'ok' if observed else 'unavailable','frame_sha256':sha,'captured_at':time.time(),'lines':lines[:300],
+            'ocr_scope':'spatial_regions','regions':observed,'errors':errors[:4],'full_screen_text_read':False}

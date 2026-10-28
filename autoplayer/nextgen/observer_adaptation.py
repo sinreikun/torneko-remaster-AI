@@ -2,8 +2,8 @@
 import copy,time
 from collections import deque
 
-DEFAULTS={'full_ocr_period':12,'cache_uses':12,'settle_extra_ms':0,'extra_captures':0,'stale_difference':.12}
-BOUNDS={'full_ocr_period':(1,24),'cache_uses':(0,24),'settle_extra_ms':(0,350),'extra_captures':(0,1),'stale_difference':(.06,.12)}
+DEFAULTS={'full_ocr_period':12,'cache_uses':12,'settle_extra_ms':0,'extra_captures':0,'stale_difference':.12,'ui_region_ocr':0,'ui_diff_threshold':18}
+BOUNDS={'full_ocr_period':(1,24),'cache_uses':(0,24),'settle_extra_ms':(0,350),'extra_captures':(0,1),'stale_difference':(.06,.12),'ui_region_ocr':(0,1),'ui_diff_threshold':(8,40)}
 
 class ObserverAdaptation:
     def __init__(self,store):
@@ -22,6 +22,7 @@ class ObserverAdaptation:
     def start(self,reason,step):
         if self.trial or len(self.samples)<4:return False
         options=[('full_ocr_period',1),('cache_uses',0),('extra_captures',1),('settle_extra_ms',200),('stale_difference',.08)]
+        if reason=='ui_observation_missing':options=[('ui_region_ocr',1),('ui_diff_threshold',10),('full_ocr_period',1),('extra_captures',1),('cache_uses',0)]
         if reason in ('world_prediction_failure','llm_measurement_mismatch','repetition_stagnation'):options=[options[3],options[0],options[2],options[1],options[4]]
         for item,value in options:
             key=item+':'+str(value)

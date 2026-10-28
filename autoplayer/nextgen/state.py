@@ -11,6 +11,7 @@ from ..appearance import descriptor
 
 from .state_hash import digest
 from .identity import InterfaceIdentity
+from .ui_vision import UIVision
 from .brief_protocol import unavailable_key_hints
 from .text_evidence import collect
 def numbers(metrics):return {k:v['values'] for k,v in metrics.items() if v.get('values') is not None and not v.get('retained')}
@@ -64,7 +65,7 @@ class AnonymousTracker:
 
 class StateBuilder:
     def __init__(self,cfg,ocr):
-        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={}
+        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={};self.ui_vision=UIVision();self.ui_expected=False
     def read_metrics(self,native):
         metrics=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else {}
         if not is_torneko(self.cfg.window_title):
@@ -74,15 +75,22 @@ class StateBuilder:
         return metrics
     def analyze(self,png,full=True):
         sha=hashlib.sha256(png).hexdigest();cached=self.cache.get(sha)
+        full=full or bool(self.ui_expected and self.ui_vision.last and self.ui_vision.last.get('needs_observation'))
         uses=self.cache_uses.get(sha,0)
         policy_cached=cached and uses<self.observation_policy.get('cache_uses',12)
         if policy_cached and (cached['full'] or not full):
             self.cache_uses[sha]=uses+1
             self.hits+=1;value=copy.deepcopy(cached);value['timing']={'ocr_ms':0.,'object_recognition_ms':0.,'map_geometry_ms':0.,'analysis_cache_hit':True};return value
         frame_started=time.monotonic();frames=cached['white_frame'] if cached else interface_frames(png);frame_ms=(time.monotonic()-frame_started)*1000
-        full=full or frames.get('visible') is True
+        full=full or frames.get('visible') is True or bool(self.ui_expected and self.ui_vision.last and self.ui_vision.last.get('needs_observation'))
         started=time.monotonic();self.ocr.force_fresh=bool(cached and not policy_cached)
-        try:native=self.ocr.read(png) if full or not is_torneko(self.cfg.window_title) or not hasattr(self.ocr,'read_regions') else self.ocr.read_regions(png)
+        try:
+            native=self.ocr.read(png) if full or not is_torneko(self.cfg.window_title) or not hasattr(self.ocr,'read_regions') else self.ocr.read_regions(png)
+            if self.observation_policy.get('ui_region_ocr') and self.ui_vision.last and self.ui_vision.last.get('regions'):
+                from ..ocr import read_spatial_regions
+                extra=read_spatial_regions(self.ocr,png,self.ui_vision.last['regions'])
+                if extra['status']=='ok':
+                    native=copy.deepcopy(native);native['lines']=(native.get('lines',[])+extra['lines'])[:300];native['spatial_region_requests']=extra['regions']
         finally:self.ocr.force_fresh=False
         ocr_ms=(time.monotonic()-started)*1000;self.cache_uses[sha]=0
         self.cache_uses={k:v for k,v in self.cache_uses.items() if k in self.cache}
@@ -129,16 +137,14 @@ class StateBuilder:
         menu=value['white_frame'].get('visible') is True
         # Text is observed, "menu" remains a geometric interface hypothesis.
         body=[re.sub(r'\d+','N',re.sub(r'\s+','',q)) for q in quotes]
-        selection=None
-        if menu:
-            if is_torneko(self.cfg.window_title):
-                from ..world_model import Inventory
-                selection=Inventory.cursor_index(native,png)
-            else:
-                explicit=[i for i,line in enumerate(quotes) if re.match(r'^\s*[▶►▷>→]',line)]
-                if len(explicit)==1:selection=explicit[0]
-        text_key=digest([body,selection])
-        layout,selected_identity=self.interfaces.observe(native,selection)
+        ui=self.ui_vision.measure(png,native,self.observation_policy)
+        self.ui_expected=bool(menu or ui['grid'].get('status')=='hypothesis');ui['active']=self.ui_expected
+        if self.ui_expected and not ui.get('regions'):ui['regions']=copy.deepcopy(value['white_frame'].get('rectangles',[])[:4])
+        self.ui_vision.last=copy.deepcopy(ui)
+        selected=ui['selection'];selection=next((e['line'] for e in ui['elements'] if e['id']==selected.get('element_id')),None)
+        text_key=digest([body,selected.get('element_id')])
+        layout,_=self.interfaces.observe(native,None)
+        selected_identity=selected.get('element_id') if selected.get('status')=='supported_association' else None
         semantic_key=digest([layout,selected_identity])
         nearest=None
         for identifier,vector in self.prototypes.items():
@@ -173,11 +179,23 @@ class StateBuilder:
         for k,v in metrics.items():self.retained[k]={**copy.deepcopy(v),'source_frame':sha}
         quality=.95 if pose and metrics else .8 if native.get('status')=='ok' and quotes else .45
         state={'id':node,'context':context,'frame_sha256':sha,'observed_at':time.time(),'quotes':quotes,'metrics':metrics,'retained':retained,'minimap':grid,
-          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'interface_layout':layout,'semantic_text_key':semantic_key,'footer_quotes':footer,'editable_content_candidates':masked,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_observation':value['white_frame'],'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
+          'ui_visual':ui,'selection_observation':{**selected,'line_index':selection,'frame_sha256':sha},'interface_layout':layout,'semantic_text_key':semantic_key,'footer_quotes':footer,'editable_content_candidates':masked,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_observation':value['white_frame'],'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
           'floor_confirmation':value['floor_confirmation'],'objects':value['objects'],'tracking_success':value['tracking'],'quality':quality,
           'map_domain':self.map_domain if pose else None,'visual_vector':value['vector'],'position_confidence':.95 if pose else None,'condition_evidence':{'local_map':local,'metrics':conditions},'state_identification':'minimap_measurement' if pose else 'appearance_text_hypothesis',
           'unavailable_input_hints':unavailable_key_hints(quotes,self.cfg.allowed_keys),'measurement_status':native.get('status'),'timing':value['timing']}
+        if ui['active']:self.apply_ui_selection(state)
         state['timing']['state_construction_ms']=(time.monotonic()-started)*1000
+        return state
+
+    def apply_ui_selection(self,state):
+        ui=state.get('ui_visual',{});selected=ui.get('selection',{})
+        state['selection_observation']={**copy.deepcopy(selected),'line_index':next((e['line'] for e in ui.get('elements',[]) if e['id']==selected.get('element_id')),None),'frame_sha256':state['frame_sha256']}
+        if state.get('interface_hypothesis') or ui.get('active'):
+            selected_id=selected.get('element_id') if selected.get('status')=='supported_association' else None
+            state['semantic_text_key']=digest([state['interface_layout'],selected_id])
+            hp=state.get('metrics',{}).get('hp',{}).get('values');band=int(4*hp[0]/max(1,hp[1])) if hp else None
+            state['context']=digest(['ui-context-v1',state['interface_layout'],selected_id,state.get('floor_confirmation',{}).get('confirmed'),band])
+            state['id']=digest(['spatial_interface',state['interface_layout'],selected.get('element_id') if selected.get('status')=='supported_association' else None])
         return state
 
 
@@ -191,6 +209,11 @@ def effects(before,after):
     delta['interface_changed']=int(before['interface_hypothesis']!=after['interface_hypothesis'])
     delta['text_changed']=int(before.get('semantic_text_key',before['text_key'])!=after.get('semantic_text_key',after['text_key'])) if before['measurement_status']==after['measurement_status']=='ok' else None
     delta['editable_content_changed']=int(before.get('editable_content_candidates',[])!=after.get('editable_content_candidates',[])) if before['measurement_status']==after['measurement_status']=='ok' else None
+    ua=before.get('ui_visual',{});ub=after.get('ui_visual',{})
+    if ua and ub:
+        delta['ui_local_change']=int(ua['frame_sha256']!=ub['frame_sha256'] and bool(ub.get('candidates')))
+        sa=ua.get('selection',{});sb=ub.get('selection',{})
+        delta['ui_selection_changed']=int(sa['element_id']!=sb['element_id']) if sa.get('status')==sb.get('status')=='supported_association' else None
     delta['state_changed']=int(before['id']!=after['id'])
     delta['floor_changed']=int(before['floor_confirmation'].get('confirmed')!=after['floor_confirmation'].get('confirmed')) if same_floor is False and after['floor_confirmation'].get('status')=='changed' else 0
     return delta

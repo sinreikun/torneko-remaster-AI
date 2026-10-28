@@ -1,3 +1,13 @@
+# 現行：0.26 空間・時間UI観測と自律上位層
+
+`StateBuilder → UIVision → 入力結果の対応・反証 → World Model / Capability / Meta`
+を接続する。UIVisionはOCR box、視覚候補、選択の関連仮説、UIグラフを持つ。
+選択がunknownなら文字列へ変換しない。追加観測はObserver Adaptationの比較対象。
+起動元/本体の追跡と単一ワーカーによる自動再接続を維持する。
+
+詳細は[視覚基盤](DESIGN-SPATIAL-UI.md)と[自律上位層](DESIGN-AUTONOMY.md)。
+以下は既存基盤と以前の設計履歴。
+
 # 現行：0.25 自律攻略上位層
 
 `nextgen/controller.py`の単一実行ループから`MetaController`を呼びます。
