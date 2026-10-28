@@ -6,6 +6,7 @@ from .state import digest
 from .protocol import wire_protocol,decode_parts
 from .brief_protocol import schema_for,decode as decode_brief
 from .model import target_score
+from .text_evidence import excerpt
 
 SCHEMA={'type':'object','additionalProperties':False,'properties':{
  'objective':{'type':'string'},'reason':{'type':'string'},'review_after':{'type':'integer','minimum':8,'maximum':512},
@@ -57,7 +58,7 @@ def compact_prompt(prompt,budget=7500):
             prompt['reference_knowledge_catalog']['rules']=catalog.get('rules',[])[:2]
             prompt['reference_knowledge_catalog'].pop('sources',None)
         prompt['current']['objects']=prompt['current']['objects'][:6]
-        prompt['current']['quotes']=[s[:120] for s in prompt['current']['quotes'][:16]]
+        prompt['current']['quotes']=[s[:120] for s in prompt['current']['quotes'][:20]]
     if size()>budget:
         prompt.pop('reference_knowledge_catalog',None);prompt['reference_knowledge']=prompt.get('reference_knowledge','')[:800]
         prompt['recent_prediction_checks']=prompt['recent_prediction_checks'][-4:]
@@ -138,6 +139,10 @@ class SemanticSupervisor:
             prompt={'task':'world_model_supervision','goal':self.cfg.goal,'operator_guidance':copy.deepcopy(guidance),'reason':reason,
               'current':{k:copy.deepcopy(state[k]) for k in ('id','context','quotes','metrics','retained','minimap','quality','objects','state_identification','selection_observation','interface_hypothesis')},
               'known_state_ids':protocol_state['known_nodes'],'observation_limits':{'unavailable_input_hints':state.get('unavailable_input_hints',[]),'current_floor_observed':bool(state['metrics'].get('floor')),'current_map_observed':state['minimap'].get('status')=='observed','rule':'目標の階段/箱と、今それが見えていることは別。nodeは観測状態IDで、物体名ではない。キーの割当と目的が一致する理由を述べる。'},'features':features,'user_key_bindings':copy.deepcopy(self.cfg.key_bindings),'candidates':[{k:v for k,v in c.items() if k!='hold_ms'} for c in wire_candidates],'recent_prediction_checks':copy.deepcopy(list(model.checks)[-8:]),'loop':copy.deepcopy(model.escape),'reference_knowledge':self.cfg.knowledge[:2000],'public_references':str(getattr(self.llm,'public_references',''))[:1200],'protocol':'preferred/discouragedはA00形式のIDを各3件まで選ぶ。数値の採点や押下時間は出力しない。local_objectiveは今の画面で数手以内に達成する短期目的、success_testで結果を確認する。すでに表示されている文字だけを出現目標にしない。','instruction':'長期目標は背景。今の画面と候補の観測結果から短期目的、優先と抑制、確認条件を答える。設定変更など長期目標と関係の弱い操作を無目的に続けない。'}
+            prompt['current']['quotes']=excerpt(state)
+            prompt['current']['footer_quotes']=state.get('footer_quotes',[])
+            prompt['current']['editable_content_candidates']=state.get('editable_content_candidates',[])
+            prompt['current']['unavailable_input_hints']=state.get('unavailable_input_hints',[])
             prompt['current']['metrics']={k:{f:v[f] for f in ('values','quote','unverified_ocr') if f in v} for k,v in state['metrics'].items()}
             prompt['current']['retained']={k:{f:v[f] for f in ('values','quote','retained','source_frame') if f in v} for k,v in state.get('retained',{}).items()}
             guide=getattr(self.llm,'game_guide',None)
@@ -149,8 +154,8 @@ class SemanticSupervisor:
             if len(json.dumps(prompt,ensure_ascii=False))>13000:
                 prompt['current']['minimap']={k:state['minimap'].get(k) for k in ('status','player_cell','enemies','items','stairs')};prompt['current']['objects']=prompt['current']['objects'][:6]
             prompt['planning_feedback']={'previous_guidance_quality':self.guidance_quality,'recent_inputs':list(model.recent)[-8:]}
-            prompt['candidate_predictions']=[{'id':c['id'],**{k:p[k] for k in ('trials','uncertainty')},'expected':{k:v for k,v in p['expected'].items() if k in ('state_changed','interface_changed','text_changed','metric.hp.0')}} for c in wire_candidates for p in [model.predict(state,aliases[c['id']])]]
-            prompt['effect_definitions']={'text_changed':'OCRから識別した文字/選択の変化。カメラ移動量ではない','state_changed':'観測状態の仮グループが変わった。攻略の進展の証明ではない','dx/dy':'実ミニマップで計測できたマス座標差。地図なしでは欠測','metric.*':'現在の数値の入力前後差。保持値ではない'}
+            prompt['candidate_predictions']=[{'id':c['id'],**{k:p[k] for k in ('trials','uncertainty')},'expected':{k:v for k,v in p['expected'].items() if k in ('state_changed','interface_changed','text_changed','editable_content_changed','metric.hp.0')}} for c in wire_candidates for p in [model.predict(state,aliases[c['id']])]]
+            prompt['effect_definitions']={'editable_content_changed':'反復記号などの表示内容の変化。画面終了の証明ではない','text_changed':'OCRから識別した文字/選択の変化。カメラ移動量ではない','state_changed':'観測状態の仮グループが変わった。攻略の進展の証明ではない','dx/dy':'実ミニマップで計測できたマス座標差。地図なしでは欠測','metric.*':'現在の数値の入力前後差。保持値ではない'}
             prompt=compact_prompt(prompt)
             state_copy=copy.deepcopy(protocol_state);candidate_copy=copy.deepcopy(candidates)
             def work():

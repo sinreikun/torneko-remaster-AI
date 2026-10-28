@@ -102,7 +102,7 @@ class ForwardModel:
         chords.extend([[m,d] for m in modifiers for d in directions.values() if m!=d])
         # At most three duration hypotheses per input. Time is part of the action.
         holds=sorted({min(cfg.max_hold_ms,x) for x in (80,140,220)})
-        return [{'id':action_id(k,h),'keys':k,'hold_ms':h} for k in [[x] for x in keys]+chords for h in holds]
+        return [{'id':action_id(k,h),'keys':k,'hold_ms':h,'declared_meanings':[cfg.key_bindings.get(key,'') for key in k]} for k in [[x] for x in keys]+chords for h in holds]
     def choose(self,state,candidates,plan=None,weight=.6):
         started=time.monotonic();plan=plan or {};ranked=[];self.prediction_ms=0.;self.search_ms=0.
         goals=[t for t in plan.get('targets',[]) if target_score(state,t)!=1];current_goal=[target_score(state,t) for t in goals]
@@ -139,9 +139,13 @@ class ForwardModel:
             info=p['uncertainty']/math.sqrt(1+p['trials'])
             # Predictability reduces exploration; surprise raises it in update().
             transfer=self.no_effect_transfer(state,action['id']) if not self.escape else 0.
-            score=-transfer+goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
+            closing=state.get('interface_hypothesis') and any(t.get('feature')=='interface_open' and t.get('operator')=='eq' and t.get('value')==0 for t in goals)
+            cancel_role=len(action['keys'])==1 and any(re.search(r'キャンセル|取消|戻る|cancel|back',meaning,re.I) for meaning in action.get('declared_meanings',[]))
+            cancel_attempts=sum(len(self.rule(state,c['id'])['samples']) for c in candidates if c['keys']==action['keys']) if closing and cancel_role else 0
+            affordance=.7 if closing and cancel_role and cancel_attempts<2 else 0.
+            score=affordance-transfer+goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
             if self.escape and action['id'] in loop_actions:score-=5
-            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'layout_no_effect_discount':transfer})
+            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
         ranked.sort(key=lambda x:(-x['score'],x['candidate']['id']))
         best=ranked[0]
         # Bounded lookahead on observed graph only. Transit through known nodes is

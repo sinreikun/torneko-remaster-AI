@@ -12,6 +12,7 @@ from ..appearance import descriptor
 from .state_hash import digest
 from .identity import InterfaceIdentity
 from .brief_protocol import unavailable_key_hints
+from .text_evidence import collect
 def numbers(metrics):return {k:v['values'] for k,v in metrics.items() if v.get('values') is not None and not v.get('retained')}
 
 class AnonymousTracker:
@@ -115,7 +116,7 @@ class StateBuilder:
     def build(self,png,full=True,measured_map=None):
         started=time.monotonic();value=self.analyze(png,full);native=value['native'];metrics=value['metrics'];grid=value['minimap'];sha=value['sha']
         if measured_map is not None:grid=self.map_sensor.accumulate(copy.deepcopy(measured_map),value['floor_confirmation'].get('confirmed'))
-        quotes=[x.get('text','')[:180] for x in native.get('lines',[])][:40]
+        quotes,footer,masked=collect(native,value['size'])
         menu=value['white_frame'].get('visible') is True
         # Text is observed, "menu" remains a geometric interface hypothesis.
         body=[re.sub(r'\d+','N',re.sub(r'\s+','',q)) for q in quotes]
@@ -163,7 +164,7 @@ class StateBuilder:
         for k,v in metrics.items():self.retained[k]={**copy.deepcopy(v),'source_frame':sha}
         quality=.95 if pose and metrics else .8 if native.get('status')=='ok' and quotes else .45
         state={'id':node,'context':context,'frame_sha256':sha,'observed_at':time.time(),'quotes':quotes,'metrics':metrics,'retained':retained,'minimap':grid,
-          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'interface_layout':layout,'semantic_text_key':semantic_key,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_observation':value['white_frame'],'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
+          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'interface_layout':layout,'semantic_text_key':semantic_key,'footer_quotes':footer,'editable_content_candidates':masked,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_observation':value['white_frame'],'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
           'floor_confirmation':value['floor_confirmation'],'objects':value['objects'],'tracking_success':value['tracking'],'quality':quality,
           'map_domain':self.map_domain if pose else None,'visual_vector':value['vector'],'position_confidence':.95 if pose else None,'condition_evidence':{'local_map':local,'metrics':conditions},'state_identification':'minimap_measurement' if pose else 'appearance_text_hypothesis',
           'unavailable_input_hints':unavailable_key_hints(quotes,self.cfg.allowed_keys),'measurement_status':native.get('status'),'timing':value['timing']}
@@ -180,6 +181,7 @@ def effects(before,after):
     if p and q and same_floor:delta.update(dx=q[0]-p[0],dy=q[1]-p[1])
     delta['interface_changed']=int(before['interface_hypothesis']!=after['interface_hypothesis'])
     delta['text_changed']=int(before.get('semantic_text_key',before['text_key'])!=after.get('semantic_text_key',after['text_key'])) if before['measurement_status']==after['measurement_status']=='ok' else None
+    delta['editable_content_changed']=int(before.get('editable_content_candidates',[])!=after.get('editable_content_candidates',[])) if before['measurement_status']==after['measurement_status']=='ok' else None
     delta['state_changed']=int(before['id']!=after['id'])
     delta['floor_changed']=int(before['floor_confirmation'].get('confirmed')!=after['floor_confirmation'].get('confirmed')) if same_floor is False and after['floor_confirmation'].get('status')=='changed' else 0
     return delta
