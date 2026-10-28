@@ -1183,7 +1183,7 @@ class Application:
         if event=='autonomy_update':
             a=value['state']
             self.set_panel('進行・能力',{k:a.get(k) for k in ('phase','current_goal','parent_goal','required_capabilities','missing_capabilities','skills','progress','planning_missing')})
-            self.set_panel('復旧・観測調整',{k:a.get(k) for k in ('failure_classes','recovery','observation_policy')})
+            self.set_panel('復旧・観測調整',{k:a.get(k) for k in ('failure_classes','recovery','observation_policy','ui_selection_experiment')})
             return
         if event=='self_improvement':self.set_panel('自己改善',value);return
         if event=='supervisor_plan':

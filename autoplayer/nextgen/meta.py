@@ -5,6 +5,7 @@ from .progress import ProgressManager,condition_value,CAPABILITIES
 from .capabilities import CapabilityManager,scope
 from .observer_adaptation import ObserverAdaptation
 from .state import digest
+from .ui_probes import UIProbes
 
 FAILURES=('observation_missing','observation_conflict','state_identification_failure',
           'world_prediction_failure','capability_missing','skill_condition_mismatch',
@@ -14,20 +15,20 @@ OBSERVATION_FAILURES={'observation_missing','observation_conflict','state_identi
 
 class MetaController:
     def __init__(self,store,intent,reference_knowledge=""):
-        self.store=store;self.progress=ProgressManager(store);self.capabilities=CapabilityManager(store);self.observer=ObserverAdaptation(store)
+        self.ui_probes=UIProbes();self.store=store;self.progress=ProgressManager(store);self.capabilities=CapabilityManager(store);self.observer=ObserverAdaptation(store)
         self.reference_text=(intent+"\n"+reference_knowledge).casefold()
         self.progress.intent_tag=digest(intent)
         self.intent=intent;self.local=None;self.recovery=None;self.pending_local=None;self.history=deque(maxlen=32);self.failures=[];self.attempted={};self.recent=deque(maxlen=20);self.last_scope=None;self.phase='understanding';self.proposal_requests=0;self.planning_missing=0;self.planning_issue=None;self.completed_local={};self.plan_attempts=0;self.last_proposal=-1000;self.goal_epoch=0;self.last_state={};self.last_changes=[];self.exhausted=set();self.deferred=[];self.nonexecutions=0;self.restore_local=None;self.boundary={'conditions':[],'frames':[],'armed':True}
         rows=store.load('autonomy','manager')
         if rows and rows[0].get('intent')==intent:
-            saved=rows[0];self.history.extend(saved.get('history',[]));self.goal_epoch=saved.get('goal_epoch',0)
+            saved=rows[0];self.ui_probes=UIProbes(saved.get('ui_probe_attempts'));self.history.extend(saved.get('history',[]));self.goal_epoch=saved.get('goal_epoch',0)
             self.restore_local={'local':saved.get('local'),'scope':saved.get('scope')}
             self.boundary=saved.get('boundary',self.boundary)
             self.completed_local=saved.get('completed_local',{});self.planning_missing=saved.get('planning_missing',0);self.planning_issue=saved.get('planning_issue')
             self.attempted=saved.get('attempted',{});self.deferred=saved.get('deferred',[])[-16:]
         self.save()
     def save(self):
-        self.store.put('autonomy',{'intent':self.intent,'local':self.local,'recovery':self.recovery,'history':list(self.history),'goal_epoch':self.goal_epoch,'completed_local':self.completed_local,'planning_missing':self.planning_missing,'planning_issue':self.planning_issue,'session':self.store.session,'boundary':self.boundary,'attempted':self.attempted,'deferred':self.deferred[-16:],'scope':scope(self.last_state) if self.last_state else None},key='manager')
+        self.store.put('autonomy',{'ui_probe_attempts':self.ui_probes.attempts,'intent':self.intent,'local':self.local,'recovery':self.recovery,'history':list(self.history),'goal_epoch':self.goal_epoch,'completed_local':self.completed_local,'planning_missing':self.planning_missing,'planning_issue':self.planning_issue,'session':self.store.session,'boundary':self.boundary,'attempted':self.attempted,'deferred':self.deferred[-16:],'scope':scope(self.last_state) if self.last_state else None},key='manager')
     def needs_plan(self,step):return (not self.progress.nodes or not self.progress.available() or bool(self.exhausted) or self.planning_missing>0) and step-self.last_proposal>=(16 if self.planning_missing or not self.progress.nodes else 128)
     def planning_context(self,state,step):
         c=self.context(state)
@@ -221,6 +222,8 @@ class MetaController:
         from .ui_interactions import UIInteractionModel
         if self.local['capability'] in ('inspect','advance_interface') or not conditions:
             for value in UIInteractionModel.priors(state,candidates,explore='ui_observation_missing' in self.failures):values[value['id']]=value
+        if 'ui_observation_missing' in self.failures:
+            for value in self.ui_probes.priors(state,candidates,self.observer.policy):values[value['id']]=value
         from .ui_vision import first_ui_action
         for target in conditions:
             if target['feature'] in ('selection_text','selection_id') and target['operator'] in ('contains','eq'):
@@ -229,6 +232,7 @@ class MetaController:
         plan['candidate_values']=list(values.values());plan['meta_goal_id']=self.local['id']
         return plan
     def observe(self,before,action,after,result,receipt,step,ms,neutral=None):
+        self.ui_probes.observe(before,action,result,receipt,self.observer.policy)
         self.nonexecutions=0;self.last_state=after;self.check_boundary(after,step);changes=self.progress.update(after,step);local=self.local or {};conditions=local.get('conditions',[])
         skills=self.capabilities.observe(before,action,after,result,step,local.get('capability'),conditions,neutral)
         values=[condition_value(after,c) for c in conditions];previous=[condition_value(before,c) for c in conditions]
@@ -272,4 +276,4 @@ class MetaController:
           'required_capabilities':[cap] if cap else [],'missing_capabilities':self.capabilities.missing([cap],state,self.local['conditions']) if cap and state else [],
           'failure_classes':list(self.failures),'recovery':{k:v for k,v in self.recovery.items() if k not in ('resume','attempted_actions')} if self.recovery else None,
           'observation_policy':self.observer.summary(),'skills':self.capabilities.summary(state) if state else [],
-          'ui_interaction':state.get('ui_visual',{}).get('interaction_model',{}),'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
+          'ui_selection_experiment':self.ui_probes.summary(),'ui_interaction':state.get('ui_visual',{}).get('interaction_model',{}),'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
