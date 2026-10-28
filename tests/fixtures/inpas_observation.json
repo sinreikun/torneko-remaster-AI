@@ -1,0 +1,891 @@
+{
+  "8": {
+    "ocr": {
+      "engine": "ocr-paddle-v5",
+      "status": "ok",
+      "frame_sha256": "6ed97b1a4ccc6bf6264f124493e0da88cba763540b3dca0a582a439fd2c141b9",
+      "captured_at": 1793110372.5239668,
+      "lines": [
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "3階",
+          "confidence": 0.9995,
+          "words": [
+            {
+              "text": "3階",
+              "box": [
+                20.0,
+                41.0,
+                57.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "Lv3",
+          "confidence": 0.97319,
+          "words": [
+            {
+              "text": "Lv3",
+              "box": [
+                189.0,
+                40.0,
+                78.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "HP28/28",
+          "confidence": 0.9924,
+          "words": [
+            {
+              "text": "HP28/28",
+              "box": [
+                311.0,
+                40.0,
+                182.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "満腹度",
+          "confidence": 0.99588,
+          "words": [
+            {
+              "text": "満腹度",
+              "box": [
+                618.0,
+                39.0,
+                96.0,
+                39.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "43%",
+          "confidence": 0.99689,
+          "words": [
+            {
+              "text": "43%",
+              "box": [
+                737.0,
+                41.0,
+                76.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "122G",
+          "confidence": 0.99819,
+          "words": [
+            {
+              "text": "122G",
+              "box": [
+                1120.0,
+                40.0,
+                101.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "青銅の盾",
+          "confidence": 0.99963,
+          "words": [
+            {
+              "text": "青銅の盾",
+              "box": [
+                287.0,
+                166.0,
+                120.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "青銅の盾",
+          "confidence": 0.99252,
+          "words": [
+            {
+              "text": "青銅の盾",
+              "box": [
+                286.0,
+                214.0,
+                121.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "レミーラの巻物",
+          "confidence": 0.99997,
+          "words": [
+            {
+              "text": "レミーラの巻物",
+              "box": [
+                288.0,
+                258.0,
+                208.0,
+                40.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "E",
+          "confidence": 0.96851,
+          "words": [
+            {
+              "text": "E",
+              "box": [
+                271.0,
+                309.0,
+                13.0,
+                14.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "鋼鉄の盾+3",
+          "confidence": 0.98744,
+          "words": [
+            {
+              "text": "鋼鉄の盾+3",
+              "box": [
+                285.0,
+                305.0,
+                175.0,
+                38.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "千里眼の巻物",
+          "confidence": 0.99988,
+          "words": [
+            {
+              "text": "千里眼の巻物",
+              "box": [
+                288.0,
+                352.0,
+                178.0,
+                38.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "エメラルドの指輪",
+          "confidence": 0.99898,
+          "words": [
+            {
+              "text": "エメラルドの指輪",
+              "box": [
+                287.0,
+                401.0,
+                235.0,
+                34.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "メッキの巻物",
+          "confidence": 0.99965,
+          "words": [
+            {
+              "text": "メッキの巻物",
+              "box": [
+                289.0,
+                447.0,
+                176.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "千里眼の巻物",
+          "confidence": 0.99994,
+          "words": [
+            {
+              "text": "千里眼の巻物",
+              "box": [
+                288.0,
+                492.0,
+                178.0,
+                38.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "パン",
+          "confidence": 0.99996,
+          "words": [
+            {
+              "text": "パン",
+              "box": [
+                288.0,
+                538.0,
+                62.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "道具",
+          "confidence": 0.99995,
+          "words": [
+            {
+              "text": "道具",
+              "box": [
+                1074.0,
+                566.0,
+                65.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "目薬草",
+          "confidence": 0.99995,
+          "words": [
+            {
+              "text": "目薬草",
+              "box": [
+                289.0,
+                586.0,
+                91.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "13/20",
+          "confidence": 0.99982,
+          "words": [
+            {
+              "text": "13/20",
+              "box": [
+                1099.0,
+                613.0,
+                102.0,
+                34.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "A",
+          "confidence": 0.62638,
+          "words": [
+            {
+              "text": "A",
+              "box": [
+                391.0,
+                678.0,
+                36.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "前",
+          "confidence": 0.99999,
+          "words": [
+            {
+              "text": "前",
+              "box": [
+                431.0,
+                680.0,
+                37.0,
+                34.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "次",
+          "confidence": 1.0,
+          "words": [
+            {
+              "text": "次",
+              "box": [
+                594.0,
+                678.0,
+                47.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "詳細表示切替",
+          "confidence": 0.99386,
+          "words": [
+            {
+              "text": "詳細表示切替",
+              "box": [
+                774.0,
+                677.0,
+                177.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110373.566696,
+          "text": "整理",
+          "confidence": 0.99985,
+          "words": [
+            {
+              "text": "整理",
+              "box": [
+                1086.0,
+                677.0,
+                66.0,
+                38.0
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "language": "ja",
+      "recognition_cache": {
+        "enabled": true,
+        "hits": 2,
+        "misses": 28
+      }
+    },
+    "rows": [
+      {
+        "id": "item_cb6369c2_0_000001",
+        "display_name": "青銅の盾",
+        "identification_required": false,
+        "quote": "青銅の盾",
+        "selected": false,
+        "page": null,
+        "line_index": 6,
+        "box": [
+          287.0,
+          166.0,
+          407.0,
+          201.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000002",
+        "display_name": "青銅の盾",
+        "identification_required": true,
+        "quote": "青銅の盾",
+        "selected": false,
+        "page": null,
+        "line_index": 7,
+        "box": [
+          286.0,
+          214.0,
+          407.0,
+          249.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000003",
+        "display_name": "レミーラの巻物",
+        "identification_required": false,
+        "quote": "レミーラの巻物",
+        "selected": false,
+        "page": null,
+        "line_index": 8,
+        "box": [
+          288.0,
+          258.0,
+          496.0,
+          298.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000004",
+        "display_name": "鋼鉄の盾+3",
+        "identification_required": false,
+        "quote": "鋼鉄の盾+3",
+        "selected": false,
+        "page": null,
+        "line_index": 10,
+        "box": [
+          285.0,
+          305.0,
+          460.0,
+          343.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000005",
+        "display_name": "千里眼の巻物",
+        "identification_required": false,
+        "quote": "千里眼の巻物",
+        "selected": false,
+        "page": null,
+        "line_index": 11,
+        "box": [
+          288.0,
+          352.0,
+          466.0,
+          390.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000006",
+        "display_name": "エメラルドの指輪",
+        "identification_required": true,
+        "quote": "エメラルドの指輪",
+        "selected": true,
+        "page": null,
+        "line_index": 12,
+        "box": [
+          287.0,
+          401.0,
+          522.0,
+          435.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000007",
+        "display_name": "メッキの巻物",
+        "identification_required": false,
+        "quote": "メッキの巻物",
+        "selected": false,
+        "page": null,
+        "line_index": 13,
+        "box": [
+          289.0,
+          447.0,
+          465.0,
+          482.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000008",
+        "display_name": "千里眼の巻物",
+        "identification_required": false,
+        "quote": "千里眼の巻物",
+        "selected": false,
+        "page": null,
+        "line_index": 14,
+        "box": [
+          288.0,
+          492.0,
+          466.0,
+          530.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000009",
+        "display_name": "パン",
+        "identification_required": false,
+        "quote": "パン",
+        "selected": false,
+        "page": null,
+        "line_index": 15,
+        "box": [
+          288.0,
+          538.0,
+          350.0,
+          574.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000010",
+        "display_name": "目薬草",
+        "identification_required": false,
+        "quote": "目薬草",
+        "selected": false,
+        "page": null,
+        "line_index": 17,
+        "box": [
+          289.0,
+          586.0,
+          380.0,
+          623.0
+        ]
+      }
+    ]
+  },
+  "11": {
+    "ocr": {
+      "engine": "ocr-paddle-v5",
+      "status": "ok",
+      "frame_sha256": "96f214efd9ad05a0f03aef964d207f672fdc64ce7b370211fd2154fdef6416c9",
+      "captured_at": 1793110389.8664315,
+      "lines": [
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "3階",
+          "confidence": 0.99948,
+          "words": [
+            {
+              "text": "3階",
+              "box": [
+                19.0,
+                40.0,
+                60.0,
+                38.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "Lv3",
+          "confidence": 0.97264,
+          "words": [
+            {
+              "text": "Lv3",
+              "box": [
+                189.0,
+                40.0,
+                78.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "HP28/28",
+          "confidence": 0.99209,
+          "words": [
+            {
+              "text": "HP28/28",
+              "box": [
+                312.0,
+                41.0,
+                181.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "満腹度",
+          "confidence": 0.99517,
+          "words": [
+            {
+              "text": "満腹度",
+              "box": [
+                618.0,
+                39.0,
+                96.0,
+                39.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "43%",
+          "confidence": 0.99689,
+          "words": [
+            {
+              "text": "43%",
+              "box": [
+                737.0,
+                41.0,
+                76.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "122G",
+          "confidence": 0.99527,
+          "words": [
+            {
+              "text": "122G",
+              "box": [
+                1121.0,
+                40.0,
+                100.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "2",
+          "confidence": 0.99238,
+          "words": [
+            {
+              "text": "2",
+              "box": [
+                759.0,
+                112.0,
+                88.0,
+                32.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "インパスの巻物",
+          "confidence": 0.99994,
+          "words": [
+            {
+              "text": "インパスの巻物",
+              "box": [
+                288.0,
+                166.0,
+                207.0,
+                38.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "毒けし草",
+          "confidence": 0.99998,
+          "words": [
+            {
+              "text": "毒けし草",
+              "box": [
+                288.0,
+                213.0,
+                121.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "地獄耳の巻物",
+          "confidence": 0.99992,
+          "words": [
+            {
+              "text": "地獄耳の巻物",
+              "box": [
+                289.0,
+                261.0,
+                177.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "道具",
+          "confidence": 0.99996,
+          "words": [
+            {
+              "text": "道具",
+              "box": [
+                1075.0,
+                567.0,
+                65.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "13/20",
+          "confidence": 0.99987,
+          "words": [
+            {
+              "text": "13/20",
+              "box": [
+                1098.0,
+                610.0,
+                103.0,
+                39.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "A",
+          "confidence": 0.63583,
+          "words": [
+            {
+              "text": "A",
+              "box": [
+                391.0,
+                678.0,
+                36.0,
+                36.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "前",
+          "confidence": 0.99999,
+          "words": [
+            {
+              "text": "前",
+              "box": [
+                430.0,
+                679.0,
+                38.0,
+                35.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "次",
+          "confidence": 1.0,
+          "words": [
+            {
+              "text": "次",
+              "box": [
+                594.0,
+                678.0,
+                47.0,
+                37.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "詳細表示切替",
+          "confidence": 0.99549,
+          "words": [
+            {
+              "text": "詳細表示切替",
+              "box": [
+                774.0,
+                676.0,
+                177.0,
+                38.0
+              ]
+            }
+          ]
+        },
+        {
+          "recognition_at": 1793110390.652829,
+          "text": "整理",
+          "confidence": 0.99985,
+          "words": [
+            {
+              "text": "整理",
+              "box": [
+                1086.0,
+                677.0,
+                66.0,
+                38.0
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "language": "ja",
+      "recognition_cache": {
+        "enabled": true,
+        "hits": 0,
+        "misses": 20
+      }
+    },
+    "rows": [
+      {
+        "id": "item_cb6369c2_0_000013",
+        "display_name": "インパスの巻物",
+        "identification_required": false,
+        "quote": "インパスの巻物",
+        "selected": false,
+        "page": null,
+        "line_index": 7,
+        "box": [
+          288.0,
+          166.0,
+          495.0,
+          204.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000014",
+        "display_name": "毒けし草",
+        "identification_required": false,
+        "quote": "毒けし草",
+        "selected": false,
+        "page": null,
+        "line_index": 8,
+        "box": [
+          288.0,
+          213.0,
+          409.0,
+          248.0
+        ]
+      },
+      {
+        "id": "item_cb6369c2_0_000015",
+        "display_name": "地獄耳の巻物",
+        "identification_required": false,
+        "quote": "地獄耳の巻物",
+        "selected": true,
+        "page": null,
+        "line_index": 9,
+        "box": [
+          289.0,
+          261.0,
+          466.0,
+          296.0
+        ]
+      }
+    ]
+  }
+}
