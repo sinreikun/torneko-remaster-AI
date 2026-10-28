@@ -1,0 +1,124 @@
+name: Windows executable
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['**.md', 'reference/**']
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: windows-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install build compiler
+        run: python -m pip install ziglang==0.13.0 "Pillow>=12,<13"
+      - name: Build small native exe
+        shell: pwsh
+        run: |
+          $zig = python -c "import pathlib,ziglang; print(pathlib.Path(ziglang.__file__).parent/'zig.exe')"
+          python tools/build_exe.py --zig $zig
+          python -m tools.publish_update
+      - name: Update cache and offline fallback tests
+        shell: powershell
+        run: ./tools/test_updater.ps1
+      - name: Python and distribution tests
+        run: python tools/test.py
+      - name: Native exe launch and payload self-test
+        shell: powershell
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path dist/LocalGamePilot.exe) -ArgumentList '--self-test' -PassThru
+          $null = $process.Handle
+          if (-not $process.WaitForExit(90000)) {
+            taskkill /PID $process.Id /T /F | Out-Null
+            throw 'Native executable startup timed out'
+          }
+          if ($process.ExitCode) { throw "Native executable startup failed: $($process.ExitCode)" }
+      - name: Windows PowerShell 5.1 payload and syntax verification
+        shell: powershell
+        run: |
+          $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
+          & $script -Payload (Resolve-Path build/application.zip) -SelfTest
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Windows setup UI smoke test
+        shell: powershell
+        run: |
+          $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
+          & $script -Payload (Resolve-Path build/application.zip) -UiSmokeTest
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Downloader resume, cancellation and integrity fault tests
+        shell: powershell
+        run: |
+          $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
+          & $script -Payload (Resolve-Path build/application.zip) -DownloadSelfTest -TestBaseDir "$env:RUNNER_TEMP/GamePilotDownloads"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Real unattended install, model and application UI (no demo game)
+        id: integration
+        shell: powershell
+        timeout-minutes: 45
+        run: |
+          $script = [scriptblock]::Create([IO.File]::ReadAllText((Resolve-Path build/bootstrap.ps1)))
+          & $script -Payload (Resolve-Path build/application.zip) -IntegrationTest -TestBaseDir "$env:RUNNER_TEMP/GamePilotIntegration"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Publish machine-readable CI evidence branch
+        if: always()
+        shell: pwsh
+        env:
+          INTEGRATION_OUTCOME: ${{ steps.integration.outcome }}
+        run: |
+          $branch = "ci-evidence/run-$env:GITHUB_RUN_ID"
+          git checkout --orphan $branch
+          git rm -r --cached . | Out-Null
+          New-Item -ItemType Directory -Path ci-evidence -Force | Out-Null
+          @{commit=$env:GITHUB_SHA; run=$env:GITHUB_RUN_ID; integration=$env:INTEGRATION_OUTCOME} | ConvertTo-Json | Set-Content ci-evidence/status.json
+          Copy-Item build/unit-tests.* ci-evidence/ -ErrorAction SilentlyContinue
+          Copy-Item "$env:RUNNER_TEMP/GamePilotDownloads/download-tests.json" ci-evidence/ -ErrorAction SilentlyContinue
+          $folder = "$env:RUNNER_TEMP/GamePilotIntegration"
+          if (Test-Path "$folder/integration-report.json") { Copy-Item "$folder/integration-report.json" ci-evidence/ }
+          Copy-Item "$folder/application-ui.png" ci-evidence/ -ErrorAction SilentlyContinue
+          Get-ChildItem "$folder/*.log" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName -Tail 120 | Set-Content (Join-Path ci-evidence $_.Name) }
+          git add ci-evidence
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Record unattended Windows integration evidence"
+          git push origin "HEAD:refs/heads/$branch"
+      - name: Preserve automated integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-integration-evidence
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/GamePilotIntegration/integration-report.json
+            ${{ runner.temp }}/GamePilotIntegration/*.log
+            ${{ runner.temp }}/GamePilotIntegration/application-ui.png
+            ${{ runner.temp }}/GamePilotIntegration/runtime-diagnostics.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalGamePilot-Windows-x64
+          path: |
+            dist/LocalGamePilot.exe
+            dist/LocalGamePilot.exe.sha256
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: LocalGamePilot-Windows-x64
+          path: dist
+      - name: Publish exe release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/LocalGamePilot.exe dist/LocalGamePilot.exe.sha256 --repo "$GITHUB_REPOSITORY" --title "Local Game Pilot $GITHUB_REF_NAME" --notes "Windows x64 bootstrap executable. Select runtimes and a vision model in the UI; required downloads and setup run automatically. Gameplay completion remains unverified."
