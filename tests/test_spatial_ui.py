@@ -152,3 +152,20 @@ class SpatialUIContracts(unittest.TestCase):
                 m.progress.update(state('real',text='Inspect'),1)
                 self.assertEqual(m.progress.nodes['future']['unverified_literals'],[])
             finally:store.close()
+
+class PairedOriginContracts(unittest.TestCase):
+    def test_background_disappearance_cannot_replace_text_linked_origin(self):
+        from autoplayer.nextgen.ui_vision import movement_origins
+        old=Image.new('RGB',(320,240),(20,20,20));new=old.copy()
+        origin=[.12,.2,.15,.25];target=[.12,.4,.15,.45];background=[.65,.6,.85,.8]
+        def fill(image,box):ImageDraw.Draw(image).rectangle(tuple(round(v*(320 if i%2==0 else 240)) for i,v in enumerate(box)),fill='white')
+        fill(old,origin);fill(old,background);fill(new,target)
+        texts=[{'id':'a','text':'A','bbox':[.17,.2,.3,.25],'center':[.235,.225]},{'id':'b','text':'B','bbox':[.17,.4,.3,.45],'center':[.235,.425]}]
+        relation=relationships(target,texts)[0]
+        matches=movement_origins(old,new,[origin,target,background],texts,texts,target,relation)
+        self.assertEqual(matches[0][2]['element_id'],'a');self.assertEqual(len(matches),1)
+    def test_same_text_blink_is_not_movement_to_another_item(self):
+        from autoplayer.nextgen.ui_vision import movement_origins
+        old=Image.new('RGB',(100,100),'black');new=old.copy();box=[.1,.2,.15,.3];ImageDraw.Draw(old).rectangle((10,20,15,30),fill='white')
+        texts=[{'id':'a','text':'A','bbox':[.17,.2,.4,.3],'center':[.285,.25]}]
+        self.assertFalse(movement_origins(old,new,[box],texts,texts,box,relationships(box,texts)[0]))

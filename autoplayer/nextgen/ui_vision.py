@@ -100,6 +100,26 @@ def rarity(image,b,elements):
         image._ui_background_cache=(signature,base)
     return sum(abs(x-y) for x,y in zip(mean(b),base))/3
 
+def movement_origins(old,new,boxes,old_elements,new_elements,target_box,target_relation):
+    """Match disappearing UI evidence to the candidate that appeared.
+
+    Background motion is not an origin merely because its pixel gain is large.
+    This ranks conditional spatial pairs, not recognized cursor templates.
+    """
+    out=[];tw=max(.001,target_box[2]-target_box[0]);th=max(.001,target_box[3]-target_box[1])
+    for box in boxes:
+        gain=rarity(old,box,old_elements)-rarity(new,box,new_elements)
+        if gain<=3:continue
+        rs=relationships(box,old_elements)
+        if not rs or len(rs)>1 and rs[1]['cost']-rs[0]['cost']<=.2:continue
+        relation=rs[0]
+        if relation['kind']!=target_relation['kind'] or relation['element_id']==target_relation['element_id']:continue
+        width=max(.001,box[2]-box[0]);height=max(.001,box[3]-box[1])
+        ratio=max(width/tw,tw/width,height/th,th/height)
+        if ratio>3:continue
+        out.append((gain/ratio,box,relation))
+    return sorted(out,key=lambda x:-x[0])
+
 def grid_hypothesis(elements):
     if len(elements)<4:return {'status':'unknown'}
     heights=[e['bbox'][3]-e['bbox'][1] for e in elements];tol=max(.008,median(heights)*.7)
@@ -168,7 +188,7 @@ class UIVision:
         candidates=list(unique.values())
         out={'frame_sha256':sha,'observed_at':native.get('captured_at',time.time()),'size':size,'layout':layout,'elements':texts,'unlocated_text':missing,
              'cells':copy.deepcopy(model.get('cells',[])),
-             'candidates':sorted(candidates,key=lambda c:-c['salience'])[:32],'grid':grid_hypothesis(texts),'change_fraction':change_fraction,
+             'candidates':sorted(candidates,key=lambda c:(not bool(c.get('relations')),-c['salience']))[:32],'grid':grid_hypothesis(texts),'change_fraction':change_fraction,
              'selection':{'status':'unknown','element_id':None,'quote':None,'confidence':0.},'needs_observation':[],
              'difference_threshold':policy.get('ui_diff_threshold',18),'graph':copy.deepcopy(model['edges'][-48:]),'hypotheses':copy.deepcopy(list(model['relations'].values())[-16:])}
         if out['grid']['status']=='unknown' and len(model.get('cells',[]))>=4:out['grid']=grid_hypothesis(model['cells'])
@@ -255,11 +275,12 @@ class UIVision:
             h['support']+=1;h['confidence']=min(.93,(h['support']+1)/(h['support']+h['counterexamples']+2));h['status']='supported_association' if h['support']>=max(3,h.get('review_support',0)) and h['confidence']>=.75 else 'under_review' if h.get('review_support') else 'hypothesis'
             raw.update(status='candidate_selection_movement',to_element=relation['element_id'],to_bbox=box,relation=kind,confidence=h['confidence'])
             # A previous marker location can be inferred from the disappearing component.
-            disappearing=sorted([(rarity(old,x,a['elements'])-rarity(new,x,b['elements']),x) for x in boxes if rarity(old,x,a['elements'])-rarity(new,x,b['elements'])>3],reverse=True)
+            disappearing=movement_origins(old,new,boxes,a_elements,b_elements,box,relation)
+            if len(disappearing)>1 and disappearing[0][0]<=disappearing[1][0]*1.4:disappearing=[]
             if neutral_regions and any(overlap(region,box)>.15 or disappearing and overlap(region,disappearing[0][1])>.15 for region in neutral_regions):
                 h['support']=max(0,h['support']-1);h['confidence']=min(.93,(h['support']+1)/(h['support']+h['counterexamples']+2));h['status']='hypothesis'
                 return {**raw,'status':'natural_change_confounded'}
-            origins=relationships(disappearing[0][1],a_elements) if disappearing else []
+            origins=[disappearing[0][2]] if disappearing else []
             origin=origins[0]['element_id'] if origins and (len(origins)==1 or origins[1]['cost']-origins[0]['cost']>.2) else None
             raw['from_element']=origin
             if not origin or origin==relation['element_id']:

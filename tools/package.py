@@ -8,7 +8,7 @@ files=[]
 for directory in ['autoplayer','knowledge','tests','tools','launcher','.github','reference']:
     files.extend(p for p in (root/directory).rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix!='.pyc')
 files.extend(root/p for p in ['README.md','DESIGN-KNOWLEDGE.md','DESIGN-SPATIAL-UI.md','DESIGN-AUTONOMY.md','DESIGN-NEXTGEN.md','DESIGN-FAST-SUPERVISED.md','DESIGN-LONG-SESSION.md','DESIGN-EQUIPMENT-EXECUTION.md','DESIGN-DISPLAY-COST.md','DESIGN-LIVE-INVENTORY-RINGS.md','DESIGN-MAP-AND-EQUIPMENT.md','DESIGN-FRONTIER-SELECTION.md','DESIGN-AUTO-UPDATE.md','DESIGN-DECISION-ORDER.md','DESIGN-INVENTORY-REVIEW.md','DESIGN-SUPERVISION-CONTEXT.md','DESIGN-EQUIPMENT-PREPARATION.md','DESIGN-RECOVERY-DECISIONS.md','DESIGN-FLOOR-EVIDENCE.md','DESIGN-0.11.md','DESIGN-MAPLESS-NAVIGATION.md','DESIGN-SUPERVISION.md','DESIGN-OBSERVATION-EXPLORATION.md','requirements.txt','start.bat','setup.bat','VALIDATION.md','REQUIREMENTS.md','ARCHITECTURE.md','INTEGRATION.md','AUDIT.md','LEARNING.md'])
-path=out/'LocalGamePilot-0.27.2-source.zip'
+path=out/'LocalGamePilot-0.27.3-source.zip'
 with zipfile.ZipFile(path,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
     for p in sorted(files):
         info=zipfile.ZipInfo('LocalGamePilot/'+p.relative_to(root).as_posix(),date_time=(2026,1,1,0,0,0))
