@@ -79,7 +79,9 @@ class NextGenController:
                     source=getattr(self.llm,'operator_guidance',None);guidance=source.snapshot() if source else {'revision':0,'text':''}
                     t=time.monotonic();image=self.backend.capture();stages['capture_ms']=(time.monotonic()-t)*1000
                     self.observation_policy=meta.observer.effective_policy(self.previous);self.builder.observation_policy=self.observation_policy
-                    full=bool(step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
+                    full=bool(getattr(meta,'fresh_observation_requested',False) or step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
+                    if getattr(meta,'fresh_observation_requested',False):
+                        self.builder.force_fresh_once=True;meta.fresh_observation_requested=False
                     t=time.monotonic();before=self.builder.build(image,full);stages.update(before['timing']);stages['observation_ms']=(time.monotonic()-t)*1000
                     neutral=None;neutral_regions=None;natural_confidence=.4
                     if hasattr(self.backend,'observe_turn') and (step%8==0 or before['quality']<.5):
@@ -101,6 +103,10 @@ class NextGenController:
                     t=time.monotonic();requests_before=supervisor.requests
                     plan,adoption=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
                     if adoption:
+                        if adoption['plan'].get('observation_request')=='fresh_full_ocr':
+                            if step-getattr(meta,'last_llm_observation',-100)>=16:
+                                meta.fresh_observation_requested=True;meta.last_llm_observation=step
+                                self.send_event({'event':'knowledge_observation','status':'queued_fresh_full_ocr','source':'llm_request_not_fact','step':step})
                         meta.accept(adoption['plan'],before,step)
                         model.add_hypotheses(adoption['plan']['hypotheses'],adoption['state'],candidates)
                         for interpretation in adoption['plan']['interpretations']:
@@ -179,6 +185,9 @@ class NextGenController:
                     if interaction_model:store.put('ui_interactions',interaction_model,step,key=interaction_model['key'])
                     self.builder.ui_vision.last=copy.deepcopy(after.get('ui_visual',{}))
                     self.last=result
+                    if text_evidence:
+                        from .knowledge_access import KnowledgeAccess
+                        KnowledgeAccess(store).record_messages(text_evidence,step,after)
                     autonomy=meta.observe(before,action,after,result,receipt,step,(time.monotonic()-started)*1000,neutral)
                     self.send_event(autonomy)
                     if result.get('match') is not None:accuracy.append(float(result['match']))
@@ -228,7 +237,14 @@ class NextGenController:
                 try:
                     self.backend.release_all()
                     if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(False)
-                finally:store.close()
+                finally:
+                    store.close()
+                    try:
+                        from .knowledge_access import write_book
+                        path=write_book(store,self.data/'knowledge'/profile/'Game_Knowledge.md')
+                        self.send_event({'event':'knowledge_book','path':path,'status':'exported'})
+                    except Exception as error:
+                        self.send_event({'event':'knowledge_book','status':'export_failed','reason':str(error)[:300]})
             finally:
                 try:self.log({'event':'nextgen_end','steps':step,'elapsed_seconds':time.monotonic()-run_started,'llm_requests':supervisor.requests,'cycles':cycle_count,'learning':False},durable=True)
                 finally:

@@ -116,3 +116,7 @@ WindowCaptureは低水準の対象描画取得のまま保ち、実運用のWind
 cancellation.pyは停止/一時停止でHTTP/OCR待機を中断し、遅延結果を破棄する。通信中断はローカルLLMサーバー内の生成処理が即停止する保証ではない。Windows OCRは自前で起動したPowerShellだけをキャンセルする。ONNX処理は待機を中断できるが、実行中のネイティブ処理を強制停止する仕組みではない。
 
 UIはpollのfinallyで更新を再予約し、コールバック例外をui-errors.logへ保存する。presentation.pyは表示量のみ制限し、学習/診断記録を改変しない。UI更新が止まればネイティブのfaulthandler監視がhang-traces.logへスタックを記録する。閉じる操作は5秒まで保存完了を待ち、その後は元ログを保持してUIを閉じる。ZIPの完成を待ち続ける構造にはしない。
+
+## v0.27 Knowledge Access
+
+専門Managerの正本を維持し、KnowledgeAccessがprofile別の構造化DBを横断する。証拠付きknowledge_claims、用途別Context View、有限追加要求、派生Bookを接続。LLMワーカーはowner-threadで作られたsnapshotだけを使う。詳細と未実装はDESIGN-KNOWLEDGE.md。

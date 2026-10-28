@@ -64,6 +64,8 @@ class Settings:
     adaptive_timing: bool = False
     compute_mode: str = 'shared'
     fast_learning: bool = False
+    llm_context_tokens: int = 8192
+    llm_input_budget: int = 5000
     llm_review_interval: int = 128
     supervised_learning: bool = True
 
@@ -74,6 +76,7 @@ class Settings:
         if u.scheme not in ('http','https') or u.hostname not in ('localhost','127.0.0.1','::1') or u.username or u.password or u.query or u.fragment:
             raise ValueError('LLM の接続先は認証情報を含まない localhost の HTTP(S) URL を指定してください。')
         if self.ocr_engine not in ('auto','windows.media.ocr','ocr-paddle-v5','ocr-paddle-ja'): raise ValueError('OCRエンジンが不正です。')
+        if type(self.llm_context_tokens) is not int or not 4096<=self.llm_context_tokens<=131072 or type(self.llm_input_budget) is not int or not 512<=self.llm_input_budget<=self.llm_context_tokens:raise ValueError('LLM context budget is invalid')
         if self.provider not in ('ollama','openai'): raise ValueError('未対応の API 形式')
         if not isinstance(self.model,str) or len(self.model)>256 or not isinstance(self.goal,str) or len(self.goal)>2000 or not self.model.strip() or not self.goal.strip(): raise ValueError('モデル名と目標が必要です。')
         if not self.window_title.strip(): raise ValueError('対象ウィンドウ名が必要です。')
@@ -371,7 +374,7 @@ class LocalLLM:
                 path='/api/chat'
                 body={'model':cfg.model,'stream':False,'format':'json' if fallback else (schema or 'json'),'keep_alive':'10m','messages':[
                     {'role':'system','content':request_system},{'role':'user','content':json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':')),**({'images':[encoded]} if encoded else {})}],
-                    'options':{'temperature':0,'num_predict':1600 if role=='world_model_supervision' else 900,'num_ctx':8192,'num_thread':2,**({'num_gpu':0} if cfg.compute_mode=='cpu_only' else {})}}
+                    'options':{'temperature':0,'num_predict':1600 if role=='world_model_supervision' else 900,'num_ctx':cfg.llm_context_tokens,'num_thread':2,**({'num_gpu':0} if cfg.compute_mode=='cpu_only' else {})}}
             else:
                 path='/chat/completions' if cfg.endpoint.rstrip('/').endswith('/v1') else '/v1/chat/completions'
                 body={'model':cfg.model,'temperature':0,'max_tokens':900,'messages':[
@@ -388,11 +391,11 @@ class LocalLLM:
                     with opener.open(request,timeout=cfg.timeout) as response:data=response.read(2_000_001)
             except urllib.error.HTTPError as error:
                 detail=error.read(8192).decode('utf-8','replace').lower()
-                self.request_metrics=(getattr(self,'request_metrics',[])+[{'task':role,'http_error':error.code,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),'num_ctx':8192 if cfg.provider=='ollama' else None}])[-8:]
+                self.request_metrics=(getattr(self,'request_metrics',[])+[{'task':role,'http_error':error.code,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),'num_ctx':cfg.llm_context_tokens if cfg.provider=='ollama' else None}])[-8:]
                 if cfg.provider=='ollama' and error.code==400 and attempt==0 and 'context' in detail and any(word in detail for word in ('exceed','too long','larger')):
                     from .performance import context_retry_prompt
                     retry_prompt=context_retry_prompt(prompt)
-                    if role=='operational_supervision' and len(json.dumps(retry_prompt,ensure_ascii=False,separators=(',',':')))>=len(json.dumps(prompt,ensure_ascii=False,separators=(',',':'))):
+                    if role in ('operational_supervision','world_model_supervision') and len(json.dumps(retry_prompt,ensure_ascii=False,separators=(',',':')))>=len(json.dumps(prompt,ensure_ascii=False,separators=(',',':'))):
                         raise ValueError(f'LLM HTTP {error.code}: {detail[:600]} / 必須情報を維持してこれ以上縮小できないため同一要求を再送しません。') from error
                     self.context_compaction=True;prompt=retry_prompt
                     self.request_metrics=(getattr(self,'request_metrics',[])+[{'task':prompt.get('task','decision'),'context_retry':True,'reason':'context_limit_optional_history_removed'}])[-8:]
@@ -406,7 +409,7 @@ class LocalLLM:
                 'operator_guidance_revision':(latest or {}).get('revision',0),'operator_guidance_applied':bool(latest and latest.get('text')),
                 'elapsed_ms':round((time.monotonic()-started)*1000),
                 'image_sha256':hashlib.sha256(png).hexdigest() if png is not None else None,
-                'num_ctx':8192 if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),'schema_fallback_role':role if fallback else None,
+                'num_ctx':cfg.llm_context_tokens if cfg.provider=='ollama' else None,'sent_image_sha256':hashlib.sha256(sent_image).hexdigest() if sent_image is not None else None,'response_format':'json' if fallback or not schema else 'schema','source_image_bytes':len(png) if png else 0,'sent_image_bytes':len(sent_image) if sent_image else 0,'prompt_chars':len(json.dumps(actual_prompt,ensure_ascii=False,separators=(',',':'))),'schema_fallback_role':role if fallback else None,
                 **{key:result[key] for key in ('model','load_duration','prompt_eval_count','prompt_eval_duration','eval_count','eval_duration','total_duration','done_reason') if key in result}}
             self.request_metrics=(getattr(self,'request_metrics',[])+[metrics])[-8:]
             raw=(result.get('message') or {}).get('content','') if cfg.provider=='ollama' else result['choices'][0]['message']['content']

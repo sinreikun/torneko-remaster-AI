@@ -4,6 +4,12 @@ from pathlib import Path
 
 SCHEMA='''
 PRAGMA journal_mode=WAL;
+CREATE TABLE IF NOT EXISTS knowledge_claims(profile TEXT,id TEXT,data TEXT,updated REAL,PRIMARY KEY(profile,id));
+CREATE INDEX IF NOT EXISTS knowledge_lookup ON knowledge_claims(profile,updated DESC);
+CREATE INDEX IF NOT EXISTS knowledge_entity ON knowledge_claims(profile,json_extract(data,'$.entity_kind'),updated DESC);
+CREATE INDEX IF NOT EXISTS knowledge_subject ON knowledge_claims(profile,json_extract(data,'$.subject'),updated DESC);
+CREATE INDEX IF NOT EXISTS knowledge_predicate ON knowledge_claims(profile,json_extract(data,'$.predicate'),updated DESC);
+CREATE INDEX IF NOT EXISTS knowledge_source ON knowledge_claims(profile,json_extract(data,'$.source'),updated DESC);
 CREATE TABLE IF NOT EXISTS ui_interactions(profile TEXT,key TEXT,data TEXT,updated REAL,PRIMARY KEY(profile,key));
 CREATE TABLE IF NOT EXISTS ui_models(profile TEXT,key TEXT,data TEXT,updated REAL,PRIMARY KEY(profile,key));
 CREATE TABLE IF NOT EXISTS autonomy(profile TEXT,key TEXT,data TEXT,updated REAL,PRIMARY KEY(profile,key));
@@ -33,7 +39,7 @@ class ExperienceStore:
         self.queue=queue.Queue(maxsize=256);self.stopping=threading.Event();self.error=None;self.commit_ms=0.;self.written=0
         self.thread=threading.Thread(target=self._work,name='world-v2-writer',daemon=True);self.thread.start()
     def load(self,table,key=None,limit=512):
-        if table not in ('rules','hypotheses','states','appearances','interpretations','autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions'):raise ValueError('Unsupported model table')
+        if table not in ('knowledge_claims','rules','hypotheses','states','appearances','interpretations','autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions'):raise ValueError('Unsupported model table')
         sql=f'SELECT data FROM {table} WHERE profile=?';args=[self.profile]
         if key is not None:sql+=' AND '+('key' if table in ('rules','states','autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions') else 'id')+'=?';args.append(key)
         sql+=' ORDER BY updated DESC LIMIT ?';args.append(min(512,limit))
@@ -63,7 +69,21 @@ class ExperienceStore:
                         if kind=='transition':db.execute('INSERT INTO transitions(profile,session,step,created,data) VALUES(?,?,?,?,?)',(self.profile,self.session,step,created,raw))
                         elif kind=='states':
                             db.execute('INSERT INTO states VALUES(?,?,?,1,?) ON CONFLICT(profile,key) DO UPDATE SET data=excluded.data,visits=visits+1,updated=excluded.updated',(self.profile,key,raw,created))
-                        elif kind in ('rules','hypotheses','appearances','interpretations','autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions'):
+                        elif kind=='knowledge_claims':
+                            current=json.loads(raw)
+                            previous=db.execute('SELECT data FROM knowledge_claims WHERE profile=? AND id=?',(self.profile,key)).fetchone()
+                            if previous:
+                                old=json.loads(previous[0])
+                                for field in ('evidence','counterevidence'):
+                                    refs=old.get(field,[])+current.get(field,[]);seen=set();merged=[]
+                                    for ref in refs:
+                                        mark=json.dumps(ref,sort_keys=True,ensure_ascii=False)
+                                        if mark not in seen:seen.add(mark);merged.append(ref)
+                                    current[field]=merged[-32:]
+                                if old.get('status')=='DISPUTED':current['status']='DISPUTED'
+                            raw=json.dumps(current,ensure_ascii=False,separators=(',',':'))
+                            db.execute('INSERT INTO knowledge_claims VALUES(?,?,?,?) ON CONFLICT(profile,id) DO UPDATE SET data=excluded.data,updated=excluded.updated',(self.profile,key,raw,created))
+                        elif kind in ('knowledge_claims','rules','hypotheses','appearances','interpretations','autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions'):
                             column='key' if kind in ('rules','autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions') else 'id'
                             db.execute(f'INSERT INTO {kind} VALUES(?,?,?,?) ON CONFLICT(profile,{column}) DO UPDATE SET data=excluded.data,updated=excluded.updated',(self.profile,key,raw,created))
                         elif kind=='graph':
@@ -86,4 +106,5 @@ def diagnostic_summary(db):
       'interpretations':[json.loads(r[0]) for r in db.execute('SELECT data FROM interpretations ORDER BY updated DESC LIMIT 12')],
       'hypotheses':[json.loads(r[0]) for r in db.execute('SELECT data FROM hypotheses ORDER BY updated DESC LIMIT 20')],
       'autonomy':{t:[json.loads(r[0]) for r in db.execute('SELECT data FROM '+t+' ORDER BY updated DESC LIMIT 16')] for t in ('autonomy','progress','capabilities','observer_policies','ui_models','ui_interactions') if t in tables},
+      'knowledge':{'count':db.execute('SELECT COUNT(*) FROM knowledge_claims').fetchone()[0],'recent':[json.loads(r[0]) for r in db.execute('SELECT data FROM knowledge_claims ORDER BY updated DESC LIMIT 8')]} if 'knowledge_claims' in tables else {'status':'not_available'},
       'note':'観測と予測照合。保存件数は学習能力・攻略成功の証明ではない。'}

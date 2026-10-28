@@ -78,13 +78,14 @@ class StateBuilder:
         sha=hashlib.sha256(png).hexdigest();cached=self.cache.get(sha)
         full=full or bool(self.ui_expected and self.ui_vision.last and self.ui_vision.last.get('needs_observation'))
         uses=self.cache_uses.get(sha,0)
-        policy_cached=cached and uses<self.observation_policy.get('cache_uses',12)
+        force_fresh=getattr(self,'force_fresh_once',False);self.force_fresh_once=False
+        policy_cached=not force_fresh and cached and uses<self.observation_policy.get('cache_uses',12)
         if policy_cached and (cached['full'] or not full):
             self.cache_uses[sha]=uses+1
             self.hits+=1;value=copy.deepcopy(cached);value['timing']={'ocr_ms':0.,'object_recognition_ms':0.,'map_geometry_ms':0.,'analysis_cache_hit':True};return value
         frame_started=time.monotonic();frames=cached['white_frame'] if cached else interface_frames(png);frame_ms=(time.monotonic()-frame_started)*1000
         full=full or frames.get('visible') is True or bool(self.ui_expected and self.ui_vision.last and self.ui_vision.last.get('needs_observation'))
-        started=time.monotonic();self.ocr.force_fresh=bool(cached and not policy_cached)
+        started=time.monotonic();self.ocr.force_fresh=bool(force_fresh or cached and not policy_cached)
         try:
             native=self.ocr.read(png) if full or not is_torneko(self.cfg.window_title) or not hasattr(self.ocr,'read_regions') else self.ocr.read_regions(png)
             if self.observation_policy.get('ui_region_ocr') and self.ui_vision.last and self.ui_vision.last.get('regions'):

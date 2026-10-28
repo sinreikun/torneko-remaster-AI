@@ -109,7 +109,7 @@ def guidance_quality(plan,candidates):
 
 class SemanticSupervisor:
     def __init__(self,cfg,llm,emit,stop):
-        self.cfg=cfg;self.llm=llm;self.emit=emit;self.stop=stop;self.pending=None;self.results=queue.Queue(maxsize=1);self.plan=None;self.last=-1000;self.next_review=0;self.requests=0;self.adoptions=0;self.reason='initial';self.last_ms=None;self.closed=False;self.errors=0;self.discarded=0;self.last_error=None;self.completed_plans=OrderedDict();self.guidance_quality=None
+        self.cfg=cfg;self.llm=llm;self.emit=emit;self.stop=stop;self.pending=None;self.results=queue.Queue(maxsize=1);self.plan=None;self.last=-1000;self.next_review=0;self.requests=0;self.adoptions=0;self.reason='initial';self.last_ms=None;self.closed=False;self.errors=0;self.discarded=0;self.last_error=None;self.completed_plans=OrderedDict();self.guidance_quality=None;self.knowledge_requests=[];self.knowledge_context={}
     @staticmethod
     def scope(state,revision,guidance):
         return digest([state['floor_confirmation'].get('confirmed'),state['interface_hypothesis'],state.get('interface_layout',state['text_key']) if state['interface_hypothesis'] else None,revision,guidance.get('revision',0)])
@@ -125,6 +125,7 @@ class SemanticSupervisor:
         try:packet=self.results.get_nowait()
         except queue.Empty:packet=None
         if packet:
+            self.knowledge_requests=packet.get('information_requests',[]) if not packet.get('cancelled') and packet.get('scope')==scope else []
             self.pending=None;self.last_ms=packet.get('ms')
             if meta and packet.get('planning_requested') and not packet['cancelled']:meta.planning_feedback(packet.get('plan') or {},step,packet.get('error') or '; '.join(packet.get('protocol_issues',[])))
             if packet.get('protocol_issues'):self.emit({'event':'supervisor_protocol_warning','issues':packet['protocol_issues'],'response_excerpt':packet.get('response_excerpt'),'learning':False})
@@ -176,7 +177,7 @@ class SemanticSupervisor:
             if planning_requested:hierarchy['planning_material'].update(new_node_ids=new_goal_ids,existing_node_ids=protocol_state['progress_node_ids'],graph_rules='idは新規候補から選ぶ。parentとrequiresに自分のidを入れない。既存ノードは再定義しない。条件は画面や資料から検証可能なものとし、inspectなど内部能力名の転記を成功条件にしない。')
             for candidate in wire_candidates:candidate['user_declared_meaning']=[self.cfg.key_bindings.get(key,'未指定') for key in candidate['keys']]
             prompt={'task':'world_model_supervision','goal':(hierarchy.get('current_goal') or {}).get('label','現在の観測から操作効果を検証する'),'goal_hierarchy':hierarchy,'operator_guidance':copy.deepcopy(guidance),'reason':reason,
-              'current':{k:copy.deepcopy(state[k]) for k in ('id','context','quotes','metrics','retained','minimap','quality','objects','state_identification','selection_observation','interface_hypothesis')},
+              'current':{k:copy.deepcopy(state[k]) for k in ('id','context','frame_sha256','observed_at','quotes','metrics','retained','minimap','quality','objects','state_identification','selection_observation','interface_hypothesis')},
               'known_state_ids':protocol_state['known_nodes'],'observation_limits':{'unavailable_input_hints':state.get('unavailable_input_hints',[]),'current_floor_observed':bool(state['metrics'].get('floor')),'current_map_observed':state['minimap'].get('status')=='observed','rule':'目標の階段/箱と、今それが見えていることは別。nodeは観測状態IDで、物体名ではない。キーの割当と目的が一致する理由を述べる。'},'features':features,'user_key_bindings':copy.deepcopy(self.cfg.key_bindings),'candidates':[{k:v for k,v in c.items() if k!='hold_ms'} for c in wire_candidates],'recent_prediction_checks':copy.deepcopy(list(model.checks)[-8:]),'loop':copy.deepcopy(model.escape),'reference_knowledge':self.cfg.knowledge[:2000],'public_references':str(getattr(self.llm,'public_references',''))[:1200],'protocol':'preferred/discouragedはA00形式のIDを各3件まで選ぶ。数値の採点や押下時間は出力しない。local_objectiveは今の画面で数手以内に達成する短期目的、success_testで結果を確認する。すでに表示されている文字だけを出現目標にしない。','instruction':'長期目標は背景。今の画面と候補の観測結果から短期目的、優先と抑制、確認条件を答える。設定変更など長期目標と関係の弱い操作を無目的に続けない。'}
             ui=state.get('ui_visual',{})
             prompt['current']['spatial_ui']={'layout':ui.get('layout'),'elements':[{k:e.get(k) for k in ('id','text','bbox','confidence','previous_id')} for e in ui.get('elements',[])[:80]],'selection':ui.get('selection'),'interaction':ui.get('interaction_model'),'selection_candidates':ui.get('candidates',[])[:4],'graph':ui.get('graph',[])[-8:],'needs_observation':ui.get('needs_observation',[])}
@@ -197,20 +198,63 @@ class SemanticSupervisor:
             prompt['planning_feedback']={'previous_guidance_quality':self.guidance_quality,'recent_inputs':list(model.recent)[-8:],'last_protocol_error':self.last_error}
             prompt['candidate_predictions']=[{'id':c['id'],**{k:p[k] for k in ('trials','uncertainty')},'expected':{k:v for k,v in p['expected'].items() if k in ('state_changed','interface_changed','text_changed','editable_content_changed','metric.hp.0')}} for c in wire_candidates for p in [model.predict(state,aliases[c['id']])]]
             prompt['effect_definitions']={'editable_content_changed':'反復記号などの表示内容の変化。画面終了の証明ではない','text_changed':'OCRから識別した文字/選択の変化。カメラ移動量ではない','state_changed':'観測状態の仮グループが変わった。攻略の進展の証明ではない','dx/dy':'実ミニマップで計測できたマス座標差。地図なしでは欠測','metric.*':'現在の数値の入力前後差。保持値ではない'}
-            prompt=compact_prompt(prompt)
+            from .knowledge_access import KnowledgeAccess,role_for,context_view,estimate_tokens,request_results
+            access=KnowledgeAccess(model.store)
+            records=access.capture(state,step,self.cfg.knowledge)
+            records+=access.references(prompt.get('reference_knowledge_catalog',{}),step)
+            knowledge_snapshot=access.lookup(access.snapshot(state,step,records),self.knowledge_requests)
+            retrieval_role=role_for(state,reason,meta.local if meta else None)
+            # Reserve model context for system/schema/image and the response.
+            # Ollama format is an out-of-band grammar, not a second copy
+            # of the entire JSON schema in the message. Reserve fixed framing.
+            reserved=1600+1536+estimate_tokens(BRIEF_SYSTEM)+512
+            context_budget=max(512,min(self.cfg.llm_input_budget,self.cfg.llm_context_tokens-reserved-256))
+            try:
+                prompt=context_view(prompt,knowledge_snapshot,retrieval_role,context_budget,self.knowledge_requests)
+                self.knowledge_context={'role':retrieval_role,'budget':context_budget,'estimated_tokens':estimate_tokens(prompt),'available':prompt['knowledge']['available'],'loaded':[{k:r[k] for k in ('id','topic','source','status')} for r in prompt['knowledge']['records']]}
+                self.emit({'event':'knowledge_context',**self.knowledge_context,'learning':False})
+            except ValueError as failure:
+                self.pending=None;self.errors+=1;self.last_error=str(failure)
+                self.emit({'event':'supervisor_error','reason':self.last_error,'learning':False})
+                return copy.deepcopy(self.plan or {'objective':'現在の観測から操作効果を検証する','reason':'コンテキスト予算不足のため既存の実行器で継続','targets':[],'candidate_values':[],'hypotheses':[]}),None
+            previous_search=[{k:v for k,v in r.items() if k!='records'} for r in request_results(knowledge_snapshot,self.knowledge_requests)]
+            if previous_search and estimate_tokens({**prompt,'previous_information_results':previous_search})<=context_budget:prompt['previous_information_results']=previous_search
+            base_prompt=copy.deepcopy(prompt)
             state_copy=copy.deepcopy(protocol_state);candidate_copy=copy.deepcopy(candidates)
             def work():
                 from ..core import LocalLLM
-                started=time.monotonic();answer=None;error=None;raw='';issues=[]
+                started=time.monotonic();answer=None;error=None;raw='';issues=[];requested=[]
                 try:
                     client=LocalLLM(replace(self.cfg,timeout=min(self.cfg.timeout,90)));client.cancel=cancel;client.activity=self.emit
                     if hasattr(self.llm,'operator_guidance'):client.operator_guidance=self.llm.operator_guidance
-                    raw=client._request(image,BRIEF_SYSTEM,prompt,request_schema)
+                    raw=client._request(image,BRIEF_SYSTEM,base_prompt,request_schema)
+                    # A single finite retrieval round. Worker sees only the
+                    # owner-thread snapshot, never a live DB or mutable model.
+                    from .knowledge_access import validate_requests
+                    value=json.loads(raw);requested=validate_requests(value.get('information_requests',[]))
+                    responses=request_results(knowledge_snapshot,requested)
+                    already={(r['topic'],r['id']) for r in base_prompt['knowledge']['records']}
+                    new_records={(r['topic'],e['id']) for r in responses for e in r['records']}-already
+                    if requested and new_records and not cancel.is_set() and time.monotonic()-started<45:
+                        try:follow=context_view(base_prompt,knowledge_snapshot,retrieval_role,max(512,context_budget-512),requested)
+                        except ValueError:follow=None
+                        if follow is not None:
+                            follow['knowledge']['budget']['estimated_input_tokens']=context_budget
+                            # Only fitted record IDs constitute a delivered answer.
+                            fitted={(r['topic'],r['id']) for r in follow['knowledge']['records']}
+                            follow['information_results']=[{k:v for k,v in r.items() if k!='records'}|{'loaded_ids':[e['id'] for e in r['records'] if (r['topic'],e['id']) in fitted]} for r in responses]
+                            follow['retrieval_round']='final: 追加要求は次回監督へ。今回の証拠で判断する。'
+                            if estimate_tokens(follow)<=context_budget and fitted-already:
+                                self.emit({'event':'knowledge_retrieval','requests':requested,'results':follow['information_results'],'learning':False})
+                                client.cfg=replace(client.cfg,timeout=max(1,min(client.cfg.timeout,90-(time.monotonic()-started))))
+                                raw=client._request(image,BRIEF_SYSTEM,follow,request_schema)
+                    if requested and not new_records:
+                        self.emit({'event':'knowledge_retrieval','requests':requested,'status':'already_loaded_or_deferred_to_owner_lookup','learning':False})
                     answer,issues=decode_brief(json.loads(raw),aliases,candidate_copy,state_copy,validate)
                     if answer['objective'] in ('interface_closed','interface_opened') and any(t['feature']=='interface_open' and t['value']!=int(answer['objective']=='interface_opened') for t in answer['targets']):raise ValueError('目的のプロトコル名と成功条件が矛盾')
                     if planning_requested and not answer.get('progress_nodes'):issues.append('progress_generation_missing')
                 except Exception as failure:error=str(failure)[:500]
-                result={'scope':scope,'state':state_copy,'plan':answer,'error':error,'cancelled':cancel.is_set(),'ms':(time.monotonic()-started)*1000,'protocol_issues':issues,'planning_requested':planning_requested,'response_excerpt':raw[:8000] if error or issues else None}
+                result={'scope':scope,'state':state_copy,'information_requests':requested,'plan':answer,'error':error,'cancelled':cancel.is_set(),'ms':(time.monotonic()-started)*1000,'protocol_issues':issues,'planning_requested':planning_requested,'response_excerpt':raw[:8000] if error or issues else None}
                 if not self.closed:
                     try:self.results.put_nowait(result)
                     except queue.Full:pass
@@ -219,7 +263,7 @@ class SemanticSupervisor:
         if plan.get('anchor_context')!=state['context']:plan['candidate_values']=[]
         self.guidance_quality=guidance_quality(plan,candidates);plan['guidance_quality']=self.guidance_quality
         return plan,adopted
-    def context(self,step):return {'generation':2,'review_running':bool(self.pending),'review_in':max(0,self.next_review-step),'requests':self.requests,'adoptions':self.adoptions,'reason':self.reason,'last_ms':self.last_ms,'errors':self.errors,'discarded':self.discarded,'last_error':self.last_error,'guidance_quality':self.guidance_quality}
+    def context(self,step):return {'generation':2,'review_running':bool(self.pending),'review_in':max(0,self.next_review-step),'requests':self.requests,'adoptions':self.adoptions,'reason':self.reason,'last_ms':self.last_ms,'errors':self.errors,'discarded':self.discarded,'last_error':self.last_error,'guidance_quality':self.guidance_quality,'knowledge_context':self.knowledge_context}
     def close(self):
         self.closed=True
         if self.pending:self.pending['cancel'].set()

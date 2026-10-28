@@ -23,7 +23,7 @@ class Application:
         self.queue=UIEventQueue();self.stop=threading.Event();self.worker=None;self.closing_at=None;self.watchdog_file=None;self.watchdog_at=0
         root.report_callback_exception=self.callback_error
         self.backend=None;self.connection_title=None;self.control=None;self.preview_done=threading.Event()
-        self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
+        self.knowledge_book_path=None;self.frame_slot=None;self.shown_frame=None;self.latest_zip=None;self.probe=None;self.probe_keys=0
         self.run_started=None;self.run_finished=None;self.run_counts={'decisions':0,'sent':0,'changed':0,'retries':0};self.last_row={}
         self.cfg=Settings();self.ui_state={}
         from .profiles import ProfileStore
@@ -72,6 +72,7 @@ class Application:
         ttk.Button(tools_bar,text='詳細ZIP',command=lambda:self.export(True)).pack(side='left',padx=4)
         ttk.Button(tools_bar,text='最新ZIPを開く',command=self.open_report).pack(side='left')
         ttk.Button(tools_bar,text='提出用ZIPをコピー',command=self.copy_report).pack(side='left',padx=4)
+        ttk.Button(tools_bar,text='知識ブックを開く',command=self.open_knowledge_book).pack(side='left',padx=4)
         visual_bar=toolbar
         ttk.Button(visual_bar,text='認識モニターを別窓で開く',command=self.open_recognition).pack(side='left')
         ttk.Button(visual_bar,text='UI観測画像',command=self.open_ui_eye).pack(side='left',padx=4)
@@ -495,6 +496,11 @@ class Application:
         self.draw_learning_graph();self.draw_live_status()
         self.preview_draw_seconds=time.monotonic()-started
         self.live_info.set(f'{width}×{height} / 最終取得 {time.strftime("%H:%M:%S",time.localtime(frame[1]))} / 背面キャプチャ')
+
+    def open_knowledge_book(self):
+        path=self.knowledge_book_path
+        if path and path.exists():os.startfile(str(path))
+        else:self.status.set('知識ブックは攻略停止時にDBから自動生成します。')
 
     def open_ui_eye(self):
         window=getattr(self,'ui_eye_window',None)
@@ -1171,6 +1177,9 @@ class Application:
         if event in ('diagnostic','diagnostic_summary','diagnostic_skipped'):self.set_panel('結果',value);return
         if event in ('loop_detected','loop_escape'):
             self.set_panel('自己改善',value);self.status.set('反復を検出し、実行器が局所目標を切り替えます。' if event=='loop_detected' else '反復脱出の結果: '+value.get('reason','未確認'));return
+        if event=='knowledge_book' and value.get('status')=='exported':self.knowledge_book_path=Path(value['path'])
+        if event in ('knowledge_context','knowledge_retrieval','knowledge_book','knowledge_observation'):
+            self.set_panel('認識・知識',value);return
         if event=='autonomy_update':
             a=value['state']
             self.set_panel('進行・能力',{k:a.get(k) for k in ('phase','current_goal','parent_goal','required_capabilities','missing_capabilities','skills','progress','planning_missing')})

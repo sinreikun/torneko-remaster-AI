@@ -1,7 +1,7 @@
 {
   "protocol": 1,
-  "version": "0.26.2",
-  "sha256": "9f6fec41550f2e55567b282d89a4524babd78141ac6a33458da31f7a03891fc9",
-  "bytes": 486728,
-  "path": "apps/9f6fec41550f2e55567b282d89a4524babd78141ac6a33458da31f7a03891fc9.zip"
+  "version": "0.27.0",
+  "sha256": "118684ef6971b64ad3f4c391b2a12a0980c3d9a124a79472aaf407f9e5cc8abc",
+  "bytes": 497893,
+  "path": "apps/118684ef6971b64ad3f4c391b2a12a0980c3d9a124a79472aaf407f9e5cc8abc.zip"
 }

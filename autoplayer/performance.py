@@ -60,6 +60,9 @@ def compact_profile_prompt(prompt):
 def context_retry_prompt(prompt):
     """Drop optional historical context, preserving current evidence and controls."""
     if prompt.get('task')=='world_model_supervision':
+        if prompt.get('knowledge'):
+            from .nextgen.knowledge_access import retry_view
+            return retry_view(prompt)
         from .nextgen.supervisor import compact_prompt
         return compact_prompt(prompt,budget=3500)
     if prompt.get('task')=='operational_supervision':
@@ -129,6 +132,10 @@ def fallback_schema(schema):
 def bounded_request_prompt(prompt,budget=8500):
     """Bound optional planning context, never clip current metrics or controls."""
     if prompt.get('task')=='world_model_supervision':
+        if prompt.get('knowledge'):
+            from .nextgen.knowledge_access import estimate_tokens
+            if estimate_tokens(prompt)>prompt['knowledge']['budget']['estimated_input_tokens']:raise ValueError('Knowledge context exceeds reserved input budget')
+            return prompt
         from .nextgen.supervisor import compact_prompt
         return compact_prompt(prompt,budget=min(budget,6000))
     if prompt.get('task')=='operational_supervision':

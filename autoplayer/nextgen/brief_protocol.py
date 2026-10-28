@@ -13,6 +13,9 @@ def schema_for(aliases,planning=False,new_goal_ids=None,existing_goal_ids=()):
       'success_test':{'type':'string','enum':TESTS},'success_text':text,
       'review_after':{'type':'integer','minimum':8,'maximum':128}},
       'required':['local_objective','reason','preferred','discouraged','success_test','success_text','review_after']}
+    from .knowledge_access import TOPICS
+    schema['properties']['information_requests']={'type':'array','maxItems':2,'items':{'type':'object','additionalProperties':False,'properties':{'topic':{'type':'string','enum':sorted(TOPICS)},'target_id':{'type':'string','maxLength':100}},'required':['topic','target_id']}}
+    schema['properties']['observation_request']={'type':'string','enum':['none','fresh_full_ocr']}
     from .progress import CAPABILITIES
     schema['properties']['required_capability']={'type':'string','enum':list(CAPABILITIES)}
     if planning:
@@ -41,7 +44,7 @@ def decode(value,aliases,candidates,state,validate):
     # Archived protocol replies remain readable, but live requests use only the
     # smaller schema. No numeric score/hold-time coercion or guessed key mapping.
     if isinstance(value,dict) and 'local_objective' not in value:return decode_parts(value,aliases,candidates,state,validate)
-    if not isinstance(value,dict) or not set(schema_for(aliases)['required'])<=set(value) or set(value)-set(schema_for(aliases)['required'])-{'required_capability','progress_nodes','session_boundary'}:raise ValueError('短期監督応答の項目が不正')
+    if not isinstance(value,dict) or not set(schema_for(aliases)['required'])<=set(value) or set(value)-set(schema_for(aliases)['required'])-{'required_capability','progress_nodes','session_boundary','information_requests','observation_request'}:raise ValueError('短期監督応答の項目が不正')
     for field in ('local_objective','reason'):
         if not isinstance(value[field],str) or not 1<=len(value[field])<=240:raise ValueError('短期目的と理由が必要')
     if type(value['review_after']) is not int or not 8<=value['review_after']<=128:raise ValueError('見直し間隔が不正')
@@ -50,9 +53,14 @@ def decode(value,aliases,candidates,state,validate):
         ids=value[key]
         if not isinstance(ids,list) or len(ids)>3 or any(not isinstance(v,str) or v not in aliases for v in ids) or len(set(ids))!=len(ids):raise ValueError('未許可または重複の優先候補')
     if set(value['preferred'])&set(value['discouraged']):raise ValueError('優先と抑制の候補が矛盾')
+    from .knowledge_access import validate_requests
+    requests=validate_requests(value.get('information_requests',[]))
+    observation=value.get('observation_request','none')
+    if observation not in ('none','fresh_full_ocr'):raise ValueError('Invalid observation request')
     issues=[]
     plan={'objective':value['local_objective'],'reason':value['reason'],'review_after':value['review_after'],'targets':[],
       'candidate_values':[{'id':aliases[a],'value':1 if key=='preferred' else -1,'reason':value['reason']} for key in ('preferred','discouraged') for a in value[key]],'hypotheses':[],'interpretations':[]}
+    plan['information_requests']=requests;plan['observation_request']=observation
     test=value['success_test'];text=value['success_text']
     if value['local_objective'] in TESTS and value['local_objective']!=test:raise ValueError('目的のプロトコル名と成功条件が矛盾')
     if test in ('text_appears','text_disappears','selection_matches'):
