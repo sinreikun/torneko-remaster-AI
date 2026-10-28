@@ -1,0 +1,1609 @@
+{
+  "main": {
+    "engine": "ocr-paddle-v5",
+    "status": "ok",
+    "frame_sha256": "ccd0d2cf98df5c4410070f32ddb88719c8740d74211895a9d45ebaaae956f649",
+    "captured_at": 1793137596.5180566,
+    "lines": [
+      {
+        "recognition_at": 1793137597.7992978,
+        "text": "3階",
+        "confidence": 0.99993,
+        "words": [
+          {
+            "text": "3階",
+            "box": [
+              20.0,
+              39.0,
+              58.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.799299,
+        "text": "Lv3",
+        "confidence": 0.97401,
+        "words": [
+          {
+            "text": "Lv3",
+            "box": [
+              190.0,
+              40.0,
+              77.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7992992,
+        "text": "HP25/25",
+        "confidence": 0.99427,
+        "words": [
+          {
+            "text": "HP25/25",
+            "box": [
+              311.0,
+              39.0,
+              183.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7992995,
+        "text": "満腹度",
+        "confidence": 0.99787,
+        "words": [
+          {
+            "text": "満腹度",
+            "box": [
+              619.0,
+              40.0,
+              93.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993,
+        "text": "43%",
+        "confidence": 0.99138,
+        "words": [
+          {
+            "text": "43%",
+            "box": [
+              737.0,
+              39.0,
+              75.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993004,
+        "text": "36G",
+        "confidence": 0.97567,
+        "words": [
+          {
+            "text": "36G",
+            "box": [
+              1138.0,
+              39.0,
+              84.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993007,
+        "text": "道具",
+        "confidence": 0.99984,
+        "words": [
+          {
+            "text": "道具",
+            "box": [
+              96.0,
+              140.0,
+              89.0,
+              40.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.799301,
+        "text": "マップ",
+        "confidence": 1.0,
+        "words": [
+          {
+            "text": "マップ",
+            "box": [
+              254.0,
+              142.0,
+              91.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993011,
+        "text": "不思議のダンジョン",
+        "confidence": 0.99975,
+        "words": [
+          {
+            "text": "不思議のダンジョン",
+            "box": [
+              390.0,
+              140.0,
+              266.0,
+              43.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993016,
+        "text": "足元",
+        "confidence": 0.99958,
+        "words": [
+          {
+            "text": "足元",
+            "box": [
+              121.0,
+              192.0,
+              65.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993026,
+        "text": "その他",
+        "confidence": 1.0,
+        "words": [
+          {
+            "text": "その他",
+            "box": [
+              253.0,
+              191.0,
+              93.0,
+              41.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.799303,
+        "text": "最深階",
+        "confidence": 0.99962,
+        "words": [
+          {
+            "text": "最深階",
+            "box": [
+              232.0,
+              541.0,
+              93.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993035,
+        "text": "25",
+        "confidence": 0.99997,
+        "words": [
+          {
+            "text": "25",
+            "box": [
+              512.0,
+              544.0,
+              46.0,
+              33.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7992995,
+        "text": "満腹度",
+        "confidence": 0.99987,
+        "words": [
+          {
+            "text": "満腹度",
+            "box": [
+              664.0,
+              541.0,
+              93.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993,
+        "text": "43%",
+        "confidence": 0.99252,
+        "words": [
+          {
+            "text": "43%",
+            "box": [
+              969.0,
+              539.0,
+              80.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993045,
+        "text": "剣の強さ",
+        "confidence": 0.99997,
+        "words": [
+          {
+            "text": "剣の強さ",
+            "box": [
+              230.0,
+              579.0,
+              123.0,
+              41.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993047,
+        "text": "0",
+        "confidence": 0.99119,
+        "words": [
+          {
+            "text": "0",
+            "box": [
+              532.0,
+              582.0,
+              25.0,
+              33.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993052,
+        "text": "ちから",
+        "confidence": 0.99999,
+        "words": [
+          {
+            "text": "ちから",
+            "box": [
+              665.0,
+              582.0,
+              91.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993054,
+        "text": "8/8",
+        "confidence": 0.95311,
+        "words": [
+          {
+            "text": "8/8",
+            "box": [
+              966.0,
+              583.0,
+              82.0,
+              33.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993057,
+        "text": "盾の強さ",
+        "confidence": 1.0,
+        "words": [
+          {
+            "text": "盾の強さ",
+            "box": [
+              233.0,
+              623.0,
+              119.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993047,
+        "text": "0",
+        "confidence": 0.9835,
+        "words": [
+          {
+            "text": "0",
+            "box": [
+              535.0,
+              628.0,
+              21.0,
+              23.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993064,
+        "text": "経験値",
+        "confidence": 0.76811,
+        "words": [
+          {
+            "text": "経験値",
+            "box": [
+              664.0,
+              622.0,
+              93.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137597.7993069,
+        "text": "30",
+        "confidence": 0.9997,
+        "words": [
+          {
+            "text": "30",
+            "box": [
+              999.0,
+              623.0,
+              48.0,
+              32.0
+            ]
+          }
+        ]
+      }
+    ],
+    "confidence": null,
+    "language": "ja",
+    "recognition_cache": {
+      "enabled": false,
+      "hits": 0,
+      "misses": 24
+    }
+  },
+  "inventory": {
+    "engine": "ocr-paddle-v5",
+    "status": "ok",
+    "frame_sha256": "db0c11f1bd873fe2a56ee2a879967944b1e9617251ea49350b356872fcc43fd9",
+    "captured_at": 1793137602.4510586,
+    "lines": [
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "3階",
+        "confidence": 0.99968,
+        "words": [
+          {
+            "text": "3階",
+            "box": [
+              19.0,
+              39.0,
+              59.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "Lv3",
+        "confidence": 0.97512,
+        "words": [
+          {
+            "text": "Lv3",
+            "box": [
+              190.0,
+              40.0,
+              77.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "HP25/25",
+        "confidence": 0.98845,
+        "words": [
+          {
+            "text": "HP25/25",
+            "box": [
+              310.0,
+              38.0,
+              185.0,
+              41.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "満腹度",
+        "confidence": 0.99766,
+        "words": [
+          {
+            "text": "満腹度",
+            "box": [
+              618.0,
+              38.0,
+              94.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "43%",
+        "confidence": 0.99283,
+        "words": [
+          {
+            "text": "43%",
+            "box": [
+              736.0,
+              39.0,
+              76.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "36 G",
+        "confidence": 0.87351,
+        "words": [
+          {
+            "text": "36 G",
+            "box": [
+              1139.0,
+              40.0,
+              82.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "大きいパン",
+        "confidence": 0.975,
+        "words": [
+          {
+            "text": "大きいパン",
+            "box": [
+              285.0,
+              163.0,
+              151.0,
+              41.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "インパスの巻物",
+        "confidence": 0.99998,
+        "words": [
+          {
+            "text": "インパスの巻物",
+            "box": [
+              288.0,
+              214.0,
+              207.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "13本の木の矢",
+        "confidence": 0.99985,
+        "words": [
+          {
+            "text": "13本の木の矢",
+            "box": [
+              292.0,
+              261.0,
+              188.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "火炎草",
+        "confidence": 0.9999,
+        "words": [
+          {
+            "text": "火炎草",
+            "box": [
+              287.0,
+              305.0,
+              98.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "薬草",
+        "confidence": 0.99928,
+        "words": [
+          {
+            "text": "薬草",
+            "box": [
+              285.0,
+              349.0,
+              66.0,
+              42.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "目薬草",
+        "confidence": 0.99992,
+        "words": [
+          {
+            "text": "目薬草",
+            "box": [
+              288.0,
+              399.0,
+              92.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "メダパニ草",
+        "confidence": 0.92604,
+        "words": [
+          {
+            "text": "メダパニ草",
+            "box": [
+              289.0,
+              446.0,
+              147.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "インパスの巻物",
+        "confidence": 0.99994,
+        "words": [
+          {
+            "text": "インパスの巻物",
+            "box": [
+              288.0,
+              493.0,
+              207.0,
+              38.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "弟切草",
+        "confidence": 0.99997,
+        "words": [
+          {
+            "text": "弟切草",
+            "box": [
+              288.0,
+              539.0,
+              93.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "道具",
+        "confidence": 0.99996,
+        "words": [
+          {
+            "text": "道具",
+            "box": [
+              1074.0,
+              567.0,
+              66.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "インパスの巻物",
+        "confidence": 0.99998,
+        "words": [
+          {
+            "text": "インパスの巻物",
+            "box": [
+              288.0,
+              586.0,
+              205.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "10/20",
+        "confidence": 0.99977,
+        "words": [
+          {
+            "text": "10/20",
+            "box": [
+              1098.0,
+              610.0,
+              103.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "詳細表示切替",
+        "confidence": 0.99558,
+        "words": [
+          {
+            "text": "詳細表示切替",
+            "box": [
+              774.0,
+              679.0,
+              178.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793137603.5023842,
+        "text": "整理",
+        "confidence": 0.99992,
+        "words": [
+          {
+            "text": "整理",
+            "box": [
+              1086.0,
+              677.0,
+              67.0,
+              37.0
+            ]
+          }
+        ]
+      }
+    ],
+    "confidence": null,
+    "language": "ja",
+    "recognition_cache": {
+      "enabled": true,
+      "hits": 0,
+      "misses": 22
+    },
+    "_current_inventory_rows": [
+      {
+        "id": "item_760a5e7b_0_000001",
+        "display_name": "大きいパン",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1137,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "大きいパン",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 6,
+        "box": [
+          285.0,
+          163.0,
+          436.0,
+          204.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000002",
+        "display_name": "インパスの巻物",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1926,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "インパスの巻物",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 7,
+        "box": [
+          288.0,
+          214.0,
+          495.0,
+          249.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000003",
+        "display_name": "13本の木の矢",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1916,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "13本の木の矢",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 8,
+        "box": [
+          292.0,
+          261.0,
+          480.0,
+          296.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000004",
+        "display_name": "火炎草",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1034,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "火炎草",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 9,
+        "box": [
+          287.0,
+          305.0,
+          385.0,
+          344.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000005",
+        "display_name": "薬草",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 958,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "薬草",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 10,
+        "box": [
+          285.0,
+          349.0,
+          351.0,
+          391.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000006",
+        "display_name": "目薬草",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1294,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "目薬草",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 11,
+        "box": [
+          288.0,
+          399.0,
+          380.0,
+          436.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000007",
+        "display_name": "メダパニ草",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1253,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "メダパニ草",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 12,
+        "box": [
+          289.0,
+          446.0,
+          436.0,
+          481.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000008",
+        "display_name": "インパスの巻物",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1958,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "インパスの巻物",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 13,
+        "box": [
+          288.0,
+          493.0,
+          495.0,
+          531.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000009",
+        "display_name": "弟切草",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1218,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "弟切草",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 14,
+        "box": [
+          288.0,
+          539.0,
+          381.0,
+          575.0
+        ]
+      },
+      {
+        "id": "item_760a5e7b_0_000010",
+        "display_name": "インパスの巻物",
+        "game_alias": null,
+        "name_status": "unknown",
+        "identification_evidence": {
+          "status": "orange_not_confirmed",
+          "orange_pixels": 0,
+          "bright_pixels": 1930,
+          "source": "current_inventory_row_pixels"
+        },
+        "identification_required": false,
+        "curse_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "インパスの巻物",
+        "selected": false,
+        "equipment_affordance": null,
+        "identity_status": "matched_page_row_not_verified_instance",
+        "page": null,
+        "line_index": 16,
+        "box": [
+          288.0,
+          586.0,
+          493.0,
+          621.0
+        ]
+      }
+    ]
+  },
+  "state": {
+    "metrics": {
+      "hp": {
+        "values": [
+          25,
+          25
+        ],
+        "quote": "HP25/25",
+        "unverified_ocr": true,
+        "meaning": "HP（現在値/最大値）"
+      },
+      "level": {
+        "values": [
+          3
+        ],
+        "quote": "Lv3",
+        "unverified_ocr": true,
+        "meaning": "現在のレベル"
+      },
+      "floor": {
+        "values": [
+          3
+        ],
+        "quote": "3階",
+        "unverified_ocr": true,
+        "meaning": "現在の階（最深階ではない）"
+      },
+      "gold": {
+        "values": [
+          36
+        ],
+        "quote": "36 G",
+        "unverified_ocr": true,
+        "meaning": "所持金（G）"
+      },
+      "fullness": {
+        "values": [
+          43
+        ],
+        "quote": "満腹度 / 43%",
+        "evidence_quotes": [
+          "満腹度",
+          "43%"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "db0c11f1bd873fe2a56ee2a879967944b1e9617251ea49350b356872fcc43fd9",
+        "label_box": [
+          618.0,
+          38.0,
+          94.0,
+          39.0
+        ],
+        "value_box": [
+          736.0,
+          39.0,
+          76.0,
+          36.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "満腹度（%）"
+      }
+    },
+    "eligible": false,
+    "retained_state": {
+      "revision": 0,
+      "refresh_reasons": [],
+      "last_observed_metrics": {
+        "hp": {
+          "values": [
+            25,
+            25
+          ],
+          "quote": "HP25/25",
+          "unverified_ocr": true,
+          "meaning": "HP（現在値/最大値）",
+          "last_observed_tick": 5,
+          "status": "last_observed"
+        },
+        "level": {
+          "values": [
+            3
+          ],
+          "quote": "Lv3",
+          "unverified_ocr": true,
+          "meaning": "現在のレベル",
+          "last_observed_tick": 5,
+          "status": "last_observed"
+        },
+        "floor": {
+          "values": [
+            3
+          ],
+          "quote": "3階",
+          "unverified_ocr": true,
+          "meaning": "現在の階（最深階ではない）",
+          "last_observed_tick": 5,
+          "status": "last_observed"
+        },
+        "gold": {
+          "values": [
+            36
+          ],
+          "quote": "36 G",
+          "unverified_ocr": true,
+          "meaning": "所持金（G）",
+          "last_observed_tick": 5,
+          "status": "last_observed"
+        },
+        "fullness": {
+          "values": [
+            43
+          ],
+          "quote": "満腹度 / 43%",
+          "evidence_quotes": [
+            "満腹度",
+            "43%"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "db0c11f1bd873fe2a56ee2a879967944b1e9617251ea49350b356872fcc43fd9",
+          "label_box": [
+            618.0,
+            38.0,
+            94.0,
+            39.0
+          ],
+          "value_box": [
+            736.0,
+            39.0,
+            76.0,
+            36.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "満腹度（%）",
+          "last_observed_tick": 5,
+          "status": "last_observed"
+        },
+        "max_floor": {
+          "values": [
+            25
+          ],
+          "quote": "最深階 / 25",
+          "evidence_quotes": [
+            "最深階",
+            "25"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "ccd0d2cf98df5c4410070f32ddb88719c8740d74211895a9d45ebaaae956f649",
+          "label_box": [
+            232.0,
+            541.0,
+            93.0,
+            37.0
+          ],
+          "value_box": [
+            512.0,
+            544.0,
+            46.0,
+            33.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "記録上の最深階（現在の階ではない）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "sword": {
+          "values": [
+            0
+          ],
+          "quote": "剣の強さ / 0",
+          "evidence_quotes": [
+            "剣の強さ",
+            "0"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "ccd0d2cf98df5c4410070f32ddb88719c8740d74211895a9d45ebaaae956f649",
+          "label_box": [
+            230.0,
+            579.0,
+            123.0,
+            41.0
+          ],
+          "value_box": [
+            532.0,
+            582.0,
+            25.0,
+            33.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "剣の強さ",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "strength": {
+          "values": [
+            8,
+            8
+          ],
+          "quote": "ちから / 8/8",
+          "evidence_quotes": [
+            "ちから",
+            "8/8"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "ccd0d2cf98df5c4410070f32ddb88719c8740d74211895a9d45ebaaae956f649",
+          "label_box": [
+            665.0,
+            582.0,
+            91.0,
+            37.0
+          ],
+          "value_box": [
+            966.0,
+            583.0,
+            82.0,
+            33.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "ちから（現在値/最大値）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "shield": {
+          "values": [
+            0
+          ],
+          "quote": "盾の強さ / 0",
+          "evidence_quotes": [
+            "盾の強さ",
+            "0"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "ccd0d2cf98df5c4410070f32ddb88719c8740d74211895a9d45ebaaae956f649",
+          "label_box": [
+            233.0,
+            623.0,
+            119.0,
+            35.0
+          ],
+          "value_box": [
+            535.0,
+            628.0,
+            21.0,
+            23.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "盾の強さ",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "experience": {
+          "values": [
+            30
+          ],
+          "quote": "経験値 / 30",
+          "evidence_quotes": [
+            "経験値",
+            "30"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "ccd0d2cf98df5c4410070f32ddb88719c8740d74211895a9d45ebaaae956f649",
+          "label_box": [
+            664.0,
+            622.0,
+            93.0,
+            36.0
+          ],
+          "value_box": [
+            999.0,
+            623.0,
+            48.0,
+            32.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "経験値（レベルとは別）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        }
+      },
+      "last_observed_inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_760a5e7b_0_000001",
+            "display_name": "大きいパン",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1137,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "大きいパン",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 6,
+            "box": [
+              285.0,
+              163.0,
+              436.0,
+              204.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000002",
+            "display_name": "インパスの巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1926,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "インパスの巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 7,
+            "box": [
+              288.0,
+              214.0,
+              495.0,
+              249.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000003",
+            "display_name": "13本の木の矢",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1916,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "13本の木の矢",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 8,
+            "box": [
+              292.0,
+              261.0,
+              480.0,
+              296.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000004",
+            "display_name": "火炎草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1034,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "火炎草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 9,
+            "box": [
+              287.0,
+              305.0,
+              385.0,
+              344.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000005",
+            "display_name": "薬草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 958,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "薬草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 10,
+            "box": [
+              285.0,
+              349.0,
+              351.0,
+              391.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000006",
+            "display_name": "目薬草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1294,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "目薬草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 11,
+            "box": [
+              288.0,
+              399.0,
+              380.0,
+              436.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000007",
+            "display_name": "メダパニ草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1253,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "メダパニ草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 12,
+            "box": [
+              289.0,
+              446.0,
+              436.0,
+              481.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000008",
+            "display_name": "インパスの巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1958,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "インパスの巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 13,
+            "box": [
+              288.0,
+              493.0,
+              495.0,
+              531.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000009",
+            "display_name": "弟切草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1218,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "弟切草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 14,
+            "box": [
+              288.0,
+              539.0,
+              381.0,
+              575.0
+            ]
+          },
+          {
+            "id": "item_760a5e7b_0_000010",
+            "display_name": "インパスの巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "identification_evidence": {
+              "status": "orange_not_confirmed",
+              "orange_pixels": 0,
+              "bright_pixels": 1930,
+              "source": "current_inventory_row_pixels"
+            },
+            "identification_required": false,
+            "curse_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "インパスの巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_page_row_not_verified_instance",
+            "page": null,
+            "line_index": 16,
+            "box": [
+              288.0,
+              586.0,
+              493.0,
+              621.0
+            ]
+          }
+        ],
+        "page": null,
+        "description_panel": {
+          "status": "unmeasured",
+          "rectangles": [],
+          "line_indices": [],
+          "quotes": [],
+          "frame_sha256": "db0c11f1bd873fe2a56ee2a879967944b1e9617251ea49350b356872fcc43fd9"
+        },
+        "occupancy": {
+          "count": 10,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": null,
+        "last_observed": 1793137602.4510586,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。",
+        "last_observed_tick": 5
+      },
+      "inventory_token": "e0a327f9867849846228d71bb4663d73be0e3d95afb2fb9008186849faa05b68",
+      "before_combat_check_needed": false,
+      "rule": "現在画面で読めた値を優先して上書き。非表示の保持値は最終観測であり現在のHP/所持の証明ではない。確認は必要な変化時だけ、同じ理由で連打しない。"
+    }
+  }
+}
