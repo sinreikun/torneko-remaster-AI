@@ -17,13 +17,15 @@ class NextGenController:
         self.cfg=cfg.validate();self.backend=backend;self.llm=llm;self.emit=emit;self.journal=Path(journal);self.control=control;self.stop=stop if stop is not None else threading.Event()
         self.cancel=control or self.stop;self.llm.activity=emit;self.llm.ocr.cancel=self.cancel
         self.builder=StateBuilder(cfg,llm.ocr);self.diagnostic_sink=diagnostic_sink;self.last={};self.durations={};self.events=[];self.previous=None;self.stream=None
-        self.data=self.journal.parent.parent;self.completed=False;self.summary={}
+        self.data=self.journal.parent.parent;self.completed=False;self.summary={};self.journal_lock=threading.RLock()
     def checkpoint(self):
         if self.control and self.control.intervention.is_set():raise OperationCancelled('手動介入へ切替')
         return self.control.checkpoint() if self.control else not self.stop.is_set()
     def log(self,value,durable=False):
-        self.stream.write(json.dumps(value,ensure_ascii=False,separators=(',',':'))+'\n');self.stream.flush()
-        if durable:os.fsync(self.stream.fileno())
+        with self.journal_lock:
+            if self.stream is None or self.stream.closed:return
+            self.stream.write(json.dumps(value,ensure_ascii=False,separators=(',',':'))+'\n');self.stream.flush()
+            if durable:os.fsync(self.stream.fileno())
     def send_event(self,row):self.log(row);self.emit(row)
     @staticmethod
     def difference(a,b):
@@ -52,7 +54,7 @@ class NextGenController:
     def run(self,dry_run=False):
         profile=digest([self.cfg.profile_id or self.cfg.window_title,sorted(self.cfg.allowed_keys),self.cfg.key_bindings])
         store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy()
-        supervisor=SemanticSupervisor(self.cfg,self.llm,self.emit,self.cancel);candidates=model.candidates(self.cfg)
+        supervisor=SemanticSupervisor(self.cfg,self.llm,self.send_event,self.cancel);candidates=model.candidates(self.cfg)
         for appearance in store.load('appearances',limit=128):self.builder.tracker.variants[appearance['id']]=appearance['variants']
         self.builder.restore_candidates=store.load('states')
         for saved in self.builder.restore_candidates:
@@ -199,5 +201,6 @@ class NextGenController:
                 finally:store.close()
             finally:
                 try:self.log({'event':'nextgen_end','steps':step,'elapsed_seconds':time.monotonic()-run_started,'llm_requests':supervisor.requests,'cycles':cycle_count,'learning':False},durable=True)
-                finally:self.stream.close()
+                finally:
+                    with self.journal_lock:self.stream.close()
         return {'steps':step,'generation':2}

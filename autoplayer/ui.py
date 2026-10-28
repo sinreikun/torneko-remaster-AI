@@ -1091,7 +1091,7 @@ class Application:
             text=f"反復検出 / 脱出 | {event} #{value.get('id')} | 手 {value.get('steps',[])}\n種類: {value.get('kind','')} / 周期 {value.get('period','')} / {value.get('reason','別の局所目標へ切り替えます')}\n"
         elif str(event).startswith('human_'):
             text=f"人間操作 {event} | 入力 {value.get('keys',[])} | {value.get('reason','')}\n"
-        elif event in ('error','diagnostic_export','observation_recovery','self_improvement'):
+        elif event in ('error','diagnostic_export','observation_recovery','self_improvement','supervisor_error','supervisor_discarded'):
             text=f"{event}: {value.get('reason') or value.get('status') or value.get('path','')}\n"
         else:return
         append_text(self.log,text+'─'*35+'\n')

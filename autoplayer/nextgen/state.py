@@ -9,7 +9,8 @@ from ..exterior_screen import white_frames
 from ..appearance import descriptor
 
 
-def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()[:24]
+from .state_hash import digest
+from .identity import InterfaceIdentity
 def numbers(metrics):return {k:v['values'] for k,v in metrics.items() if v.get('values') is not None and not v.get('retained')}
 
 class AnonymousTracker:
@@ -61,7 +62,7 @@ class AnonymousTracker:
 
 class StateBuilder:
     def __init__(self,cfg,ocr):
-        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False
+        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity()
     def analyze(self,png,full=True):
         sha=hashlib.sha256(png).hexdigest();cached=self.cache.get(sha)
         if cached and (cached['full'] or not full):
@@ -124,6 +125,8 @@ class StateBuilder:
                 explicit=[i for i,line in enumerate(quotes) if re.match(r'^\s*[▶►▷>→]',line)]
                 if len(explicit)==1:selection=explicit[0]
         text_key=digest([body,selection])
+        layout,selected_identity=self.interfaces.observe(native,selection)
+        semantic_key=digest([layout,selected_identity])
         nearest=None
         for identifier,vector in self.prototypes.items():
             distance=sum(abs(a-b) for a,b in zip(vector,value['vector']))/len(vector)
@@ -145,19 +148,19 @@ class StateBuilder:
                 ranked=sorted(matches.items(),key=lambda x:-x[1])
                 if len(ranked)==1 or len(ranked)>1 and ranked[0][1]-ranked[1][1]>.15:self.map_domain=ranked[0][0]
             self.restoration_checked=True
-        node=digest(['grid',self.map_domain,floor,pose]) if pose else digest(['view',visual,text_key,menu])
+        node=digest(['grid',self.map_domain,floor,pose]) if pose else digest(['interface',layout,selected_identity]) if menu else digest(['view',visual,layout,menu])
         local={k:grid.get(k,[]) for k in ('enemies','items','stairs')}
         local={k:[p for p in v if max(map(abs,p))<=3] for k,v in local.items()}
         conditions={k:v['values'] for k,v in metrics.items() if k not in ('hp','fullness','gold','experience')}
         hp=metrics.get('hp',{}).get('values');food=metrics.get('fullness',{}).get('values')
         conditions['hp_band']=int(4*hp[0]/max(1,hp[1])) if hp else None
         conditions['food_band']=int(food[0]/20) if food else None
-        context=digest([menu,text_key if menu else None,visual if not pose else None,local,conditions])
+        context=digest(['v2.1',menu,semantic_key if menu else None,visual if not pose and not menu else None,local,{'floor':floor,'hp_band':conditions['hp_band']} if menu else conditions])
         retained={k:{**v,'retained':True} for k,v in self.retained.items() if k not in metrics}
         for k,v in metrics.items():self.retained[k]={**copy.deepcopy(v),'source_frame':sha}
         quality=.95 if pose and metrics else .8 if native.get('status')=='ok' and quotes else .45
         state={'id':node,'context':context,'frame_sha256':sha,'observed_at':time.time(),'quotes':quotes,'metrics':metrics,'retained':retained,'minimap':grid,
-          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
+          'selection_observation':{'line_index':selection,'quote':quotes[selection] if selection is not None and selection<len(quotes) else None,'frame_sha256':sha,'status':'observed_candidate' if selection is not None else 'unavailable'},'interface_layout':layout,'semantic_text_key':semantic_key,'visual_key':visual,'text_key':text_key,'interface_hypothesis':menu,'interface_kind':'text_frame' if menu else None,'menu_evidence':menu,'eligible':bool(pose and not menu),
           'floor_confirmation':value['floor_confirmation'],'objects':value['objects'],'tracking_success':value['tracking'],'quality':quality,
           'map_domain':self.map_domain if pose else None,'visual_vector':value['vector'],'position_confidence':.95 if pose else None,'condition_evidence':{'local_map':local,'metrics':conditions},'state_identification':'minimap_measurement' if pose else 'appearance_text_hypothesis',
           'measurement_status':native.get('status'),'timing':value['timing']}
@@ -173,7 +176,7 @@ def effects(before,after):
     same_floor=before['floor_confirmation'].get('confirmed')==after['floor_confirmation'].get('confirmed') and after['floor_confirmation'].get('status')!='pending'
     if p and q and same_floor:delta.update(dx=q[0]-p[0],dy=q[1]-p[1])
     delta['interface_changed']=int(before['interface_hypothesis']!=after['interface_hypothesis'])
-    delta['text_changed']=int(before['text_key']!=after['text_key']) if before['measurement_status']==after['measurement_status']=='ok' else None
+    delta['text_changed']=int(before.get('semantic_text_key',before['text_key'])!=after.get('semantic_text_key',after['text_key'])) if before['measurement_status']==after['measurement_status']=='ok' else None
     delta['state_changed']=int(before['id']!=after['id'])
     delta['floor_changed']=int(before['floor_confirmation'].get('confirmed')!=after['floor_confirmation'].get('confirmed')) if same_floor is False and after['floor_confirmation'].get('status')=='changed' else 0
     return delta

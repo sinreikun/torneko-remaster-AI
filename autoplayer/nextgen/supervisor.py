@@ -1,5 +1,6 @@
 """Asynchronous, declarative semantic supervision. No game-specific skill enum."""
 import copy,json,math,queue,threading,time
+from collections import OrderedDict
 from dataclasses import replace
 from .state import digest
 
@@ -60,34 +61,43 @@ def compact_prompt(prompt,budget=7500):
 
 class SemanticSupervisor:
     def __init__(self,cfg,llm,emit,stop):
-        self.cfg=cfg;self.llm=llm;self.emit=emit;self.stop=stop;self.pending=None;self.results=queue.Queue(maxsize=1);self.plan=None;self.last=-1000;self.next_review=0;self.requests=0;self.adoptions=0;self.reason='initial';self.last_ms=None;self.closed=False;self.errors=0
+        self.cfg=cfg;self.llm=llm;self.emit=emit;self.stop=stop;self.pending=None;self.results=queue.Queue(maxsize=1);self.plan=None;self.last=-1000;self.next_review=0;self.requests=0;self.adoptions=0;self.reason='initial';self.last_ms=None;self.closed=False;self.errors=0;self.discarded=0;self.last_error=None;self.completed_plans=OrderedDict()
     @staticmethod
     def scope(state,revision,guidance):
-        return digest([state['floor_confirmation'].get('confirmed'),state['interface_hypothesis'],state['text_key'] if state['interface_hypothesis'] else state.get('map_domain'),revision,guidance.get('revision',0)])
+        return digest([state['floor_confirmation'].get('confirmed'),state['interface_hypothesis'],state.get('interface_layout',state['text_key']) if state['interface_hypothesis'] else None,revision,guidance.get('revision',0)])
     def tick(self,state,candidates,step,revision,guidance,image,model,metrics):
         scope=self.scope(state,revision,guidance);adopted=None
-        if self.pending and self.pending['scope']!=scope:self.pending['cancel'].set()
+        control_domain=[state['floor_confirmation'].get('confirmed'),revision,guidance.get('revision',0)]
+        # Cursor and harmless OCR changes must not abort an expensive semantic
+        # request every turn. Changed user instructions/control/floor still cancel.
+        if self.pending and self.pending.get('control_domain')!=control_domain:self.pending['cancel'].set()
         try:packet=self.results.get_nowait()
         except queue.Empty:packet=None
         if packet:
-            self.pending=None
-            if packet['scope']==scope and not packet['cancelled'] and packet.get('plan'):
-                self.plan=packet['plan']
-                for value in self.plan['candidate_values']:
-                    value['keys']=next(c['keys'] for c in candidates if c['id']==value['id'])
-                self.plan.update(anchor_context=packet['state']['context'],scope=scope,adopted_step=step,status='llm_proposal_not_fact')
-                self.next_review=step+min(self.plan['review_after'],self.cfg.llm_review_interval);self.plan['expires_step']=step+2*min(self.plan['review_after'],self.cfg.llm_review_interval);self.adoptions+=1;adopted=packet
-                self.emit({'event':'supervisor_plan','plan':self.plan})
+            self.pending=None;self.last_ms=packet.get('ms')
+            if packet['cancelled']:
+                self.discarded+=1;self.emit({'event':'supervisor_discarded','reason':'control_or_guidance_changed','detail':packet.get('error'),'learning':False})
+            elif packet.get('plan'):
+                self.completed_plans[packet['scope']]={**packet,'completed_step':step}
+                self.completed_plans.move_to_end(packet['scope'])
+                while len(self.completed_plans)>16:self.completed_plans.popitem(last=False)
             elif packet.get('error'):
-                self.errors+=1;self.emit({'event':'supervisor_error','reason':packet['error'],'learning':False})
-            self.last_ms=packet.get('ms')
+                self.errors+=1;self.last_error=packet['error'];self.emit({'event':'supervisor_error','reason':packet['error'],'learning':False})
+        cached=self.completed_plans.pop(scope,None)
+        if cached and step-cached['completed_step']<=64:
+            self.plan=copy.deepcopy(cached['plan'])
+            for value in self.plan['candidate_values']:
+                value['keys']=next(c['keys'] for c in candidates if c['id']==value['id'])
+            self.plan.update(anchor_context=cached['state']['context'],scope=scope,adopted_step=step,status='llm_proposal_not_fact')
+            self.next_review=step+min(self.plan['review_after'],self.cfg.llm_review_interval);self.plan['expires_step']=step+2*min(self.plan['review_after'],self.cfg.llm_review_interval)
+            self.adoptions+=1;adopted=cached;self.emit({'event':'supervisor_plan','plan':self.plan})
         if self.plan and (self.plan.get('scope')!=scope or step>self.plan.get('expires_step',step)):self.plan=None
         surprise=metrics.get('surprise') or 0
         reason='repetition' if model.escape else 'prediction_error' if surprise>2 else 'unknown_text' if state['interface_hypothesis'] and not self.plan else 'unknown_state' if state['quality']<.5 or model.visits[state['id']]<2 and not self.plan else 'experience_batch' if step>=self.next_review else None
         interval=4 if reason in ('repetition','prediction_error') else 12 if reason in ('unknown_text','unknown_state') else 24
         if reason and not self.pending and step-self.last>=interval and not self.stop.is_set() and not self.closed:
             self.last=step;self.reason=reason;self.requests+=1;cancel=threading.Event()
-            packet={'scope':scope,'step':step,'cancel':cancel};self.pending=packet
+            packet={'scope':scope,'step':step,'cancel':cancel,'control_domain':control_domain};self.pending=packet
             # Bounded snapshot; worker never reads live state, model, DB or game.
             features=['text','node']+[f'metric.{k}.{i}' for k,v in state['metrics'].items() for i in range(len(v['values']))]
             prompt={'task':'world_model_supervision','goal':self.cfg.goal,'operator_guidance':copy.deepcopy(guidance),'reason':reason,
@@ -119,7 +129,7 @@ class SemanticSupervisor:
         plan=copy.deepcopy(self.plan or {'objective':self.cfg.goal,'reason':'現在の経験モデルで候補を比較し、未知の作用を調べる','targets':[],'candidate_values':[],'hypotheses':[]})
         if plan.get('anchor_context')!=state['context']:plan['candidate_values']=[]
         return plan,adopted
-    def context(self,step):return {'generation':2,'review_running':bool(self.pending),'review_in':max(0,self.next_review-step),'requests':self.requests,'adoptions':self.adoptions,'reason':self.reason,'last_ms':self.last_ms,'errors':self.errors}
+    def context(self,step):return {'generation':2,'review_running':bool(self.pending),'review_in':max(0,self.next_review-step),'requests':self.requests,'adoptions':self.adoptions,'reason':self.reason,'last_ms':self.last_ms,'errors':self.errors,'discarded':self.discarded,'last_error':self.last_error}
     def close(self):
         self.closed=True
         if self.pending:self.pending['cancel'].set()

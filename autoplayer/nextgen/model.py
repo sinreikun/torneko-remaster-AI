@@ -81,6 +81,11 @@ class ForwardModel:
         goals=plan.get('targets',[]);current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         for action in candidates:
+            minimum=min(c['hold_ms'] for c in candidates if c['keys']==action['keys'])
+            if action['hold_ms']>minimum and not self.escape:
+                base=self.rule(state,action_id(action['keys'],minimum))['samples']
+                responsive=any(any(v for k,v in x['effects'].items() if k in ('dx','dy','state_changed','interface_changed') or k.startswith('metric.')) for x in base)
+                if len(base)<2 or responsive and len(base)<8:continue
             lookup=time.monotonic();self.rule(state,action['id']);self.search_ms+=(time.monotonic()-lookup)*1000
             t=time.monotonic();p=self.predict(state,action['id']);self.prediction_ms+=(time.monotonic()-t)*1000;samples=p['outcomes'];novelty=0.;gain=0.;loss=0.;goal=0.
             if samples:
