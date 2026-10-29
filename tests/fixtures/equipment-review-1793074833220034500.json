@@ -1,0 +1,2775 @@
+{
+  "source": "diagnostics-1793074833220034500.zip; recorded OCR/inventory and audited metrics only. No game simulation.",
+  "audit": {
+    "active": true,
+    "id": 1,
+    "stage": "analyse",
+    "started_step": 0,
+    "analysis_step": 10,
+    "coverage": "incomplete_or_page_did_not_change",
+    "metrics": {
+      "hp": {
+        "values": [
+          12,
+          19
+        ],
+        "quote": "HP12/19",
+        "unverified_ocr": true,
+        "meaning": "HP（現在値/最大値）"
+      },
+      "level": {
+        "values": [
+          2
+        ],
+        "quote": "Lv2",
+        "unverified_ocr": true,
+        "meaning": "現在のレベル"
+      },
+      "floor": {
+        "values": [
+          2
+        ],
+        "quote": "2階",
+        "unverified_ocr": true,
+        "meaning": "現在の階（最深階ではない）"
+      },
+      "gold": {
+        "values": [
+          76
+        ],
+        "quote": "76 G",
+        "unverified_ocr": true,
+        "meaning": "所持金（G）"
+      },
+      "fullness": {
+        "values": [
+          58
+        ],
+        "quote": "満腹度 / 58%",
+        "evidence_quotes": [
+          "満腹度",
+          "58%"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "f1eef31c79b0912d385012ed1bccfe66a6762fa474885acbd98a9df34564b6b8",
+        "label_box": [
+          617.0,
+          38.0,
+          97.0,
+          40.0
+        ],
+        "value_box": [
+          733.0,
+          37.0,
+          82.0,
+          41.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "満腹度（%）"
+      },
+      "max_floor": {
+        "values": [
+          25
+        ],
+        "quote": "最深階 / 25",
+        "evidence_quotes": [
+          "最深階",
+          "25"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "6a8cc5e3121bcdc4902cf6fec00116b35867e0fa7d93938dd88e12da927d2ea3",
+        "label_box": [
+          231.0,
+          540.0,
+          96.0,
+          39.0
+        ],
+        "value_box": [
+          510.0,
+          542.0,
+          49.0,
+          36.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "記録上の最深階（現在の階ではない）"
+      },
+      "sword": {
+        "values": [
+          0
+        ],
+        "quote": "剣の強さ / 0",
+        "evidence_quotes": [
+          "剣の強さ",
+          "0"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "6a8cc5e3121bcdc4902cf6fec00116b35867e0fa7d93938dd88e12da927d2ea3",
+        "label_box": [
+          231.0,
+          579.0,
+          123.0,
+          41.0
+        ],
+        "value_box": [
+          533.0,
+          579.0,
+          24.0,
+          37.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "剣の強さ"
+      },
+      "strength": {
+        "values": [
+          8,
+          8
+        ],
+        "quote": "ちから / 8/8",
+        "evidence_quotes": [
+          "ちから",
+          "8/8"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "6a8cc5e3121bcdc4902cf6fec00116b35867e0fa7d93938dd88e12da927d2ea3",
+        "label_box": [
+          666.0,
+          582.0,
+          89.0,
+          36.0
+        ],
+        "value_box": [
+          965.0,
+          583.0,
+          83.0,
+          33.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "ちから（現在値/最大値）"
+      },
+      "shield": {
+        "values": [
+          0
+        ],
+        "quote": "盾の強さ / 0",
+        "evidence_quotes": [
+          "盾の強さ",
+          "0"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "6a8cc5e3121bcdc4902cf6fec00116b35867e0fa7d93938dd88e12da927d2ea3",
+        "label_box": [
+          233.0,
+          622.0,
+          120.0,
+          36.0
+        ],
+        "value_box": [
+          536.0,
+          628.0,
+          20.0,
+          23.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "盾の強さ"
+      },
+      "experience": {
+        "values": [
+          22
+        ],
+        "quote": "経験値 / 22",
+        "evidence_quotes": [
+          "経験値",
+          "22"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "6a8cc5e3121bcdc4902cf6fec00116b35867e0fa7d93938dd88e12da927d2ea3",
+        "label_box": [
+          665.0,
+          622.0,
+          92.0,
+          37.0
+        ],
+        "value_box": [
+          998.0,
+          622.0,
+          50.0,
+          35.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "経験値（レベルとは別）"
+      }
+    },
+    "selected_item_quote": null,
+    "missing_status": [],
+    "pages": [
+      [
+        {
+          "id": "item_cd7e1e0d_0_000003",
+          "display_name": "青銅の盾",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "青銅の盾",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "matched_display_name",
+          "page": null,
+          "line_index": 9,
+          "box": [
+            287.0,
+            259.0,
+            408.0,
+            295.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "青銅の盾",
+            "selected_line_box": [
+              286.0,
+              260.0,
+              408.0,
+              296.0
+            ],
+            "quotes": [
+              "この盾の防御力は基本３だぞ。",
+              "十一によって上下するぞ。"
+            ],
+            "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+            "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+            "step": 129,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "3dafe324_1_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_cd7e1e0d_0_000004",
+          "display_name": "千里眼の巻物",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "千里眼の巻物",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "matched_display_name",
+          "page": null,
+          "line_index": 10,
+          "box": [
+            289.0,
+            307.0,
+            466.0,
+            342.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "千里眼の巻物",
+            "selected_line_box": [
+              286.0,
+              304.0,
+              467.0,
+              344.0
+            ],
+            "quotes": [
+              "今いる階のアイテムがどこにあるかわかるぞ。"
+            ],
+            "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+            "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+            "step": 132,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "3dafe324_1_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_cd7e1e0d_0_000005",
+          "display_name": "毒けし草",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "毒けし草",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "matched_display_name",
+          "page": null,
+          "line_index": 11,
+          "box": [
+            287.0,
+            352.0,
+            407.0,
+            387.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "毒けし草",
+            "selected_line_box": [
+              288.0,
+              353.0,
+              408.0,
+              388.0
+            ],
+            "quotes": [
+              "毒で下がったちからが限界まで回復するぞ。"
+            ],
+            "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+            "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+            "step": 35,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "e10dc9d0_0_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_cd7e1e0d_0_000006",
+          "display_name": "目くらまし草",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "目くらまし草",
+          "selected": true,
+          "equipment_affordance": null,
+          "identity_status": "matched_display_name",
+          "page": null,
+          "line_index": 12,
+          "box": [
+            288.0,
+            400.0,
+            465.0,
+            435.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "目くらまし草",
+            "selected_line_box": [
+              288.0,
+              400.0,
+              465.0,
+              435.0
+            ],
+            "quotes": [
+              "モンスターに投げて飲ませると",
+              "目がくらんで見えな",
+              "くなるぞ。"
+            ],
+            "before_frame": "2b128a092bf314ba04a4adf1d2d11cb04d17acc89932fa1c42a7b47e045d6f7b",
+            "after_frame": "647a16a2bd0051521b0b0d3b277998d6a8b55614bb9522b93f437c9424a357f6",
+            "step": 8,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "cd7e1e0d_0_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_cd7e1e0d_0_000007",
+          "display_name": "地獄耳の巻物",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "地獄耳の巻物",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "matched_display_name",
+          "page": null,
+          "line_index": 13,
+          "box": [
+            289.0,
+            447.0,
+            465.0,
+            482.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "地獄耳の巻物",
+            "selected_line_box": [
+              288.0,
+              447.0,
+              465.0,
+              482.0
+            ],
+            "quotes": [
+              "今いる階のモンスターがどこにいるかわかるぞ。"
+            ],
+            "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+            "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+            "step": 39,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "e10dc9d0_0_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        }
+      ]
+    ],
+    "instruction": "収集した状態・品の用途・装備と特殊効果を比較して次の具体的操作を選ぶ。名前不明でも説明や装備という使用方法は種別の根拠になる。未確認ページや装備状態を推測で埋めない。確認済みの説明を再表示しない。",
+    "status": "analysed",
+    "finished_step": 10,
+    "analysis_elapsed_ms": 20594
+  },
+  "frames": {
+    "8": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "2b128a092bf314ba04a4adf1d2d11cb04d17acc89932fa1c42a7b47e045d6f7b",
+        "captured_at": 1793074881.0078905,
+        "lines": [
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "2階",
+            "confidence": 0.99974,
+            "words": [
+              {
+                "text": "2階",
+                "box": [
+                  19.0,
+                  39.0,
+                  59.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "Lv2",
+            "confidence": 0.94935,
+            "words": [
+              {
+                "text": "Lv2",
+                "box": [
+                  189.0,
+                  40.0,
+                  78.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "HP12/19",
+            "confidence": 0.99603,
+            "words": [
+              {
+                "text": "HP12/19",
+                "box": [
+                  311.0,
+                  38.0,
+                  183.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "満腹度",
+            "confidence": 0.96456,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  618.0,
+                  38.0,
+                  96.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "58%",
+            "confidence": 0.98277,
+            "words": [
+              {
+                "text": "58%",
+                "box": [
+                  734.0,
+                  40.0,
+                  79.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "76 G",
+            "confidence": 0.81989,
+            "words": [
+              {
+                "text": "76 G",
+                "box": [
+                  1139.0,
+                  40.0,
+                  82.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "大きいパン",
+            "confidence": 0.99995,
+            "words": [
+              {
+                "text": "大きいパン",
+                "box": [
+                  287.0,
+                  166.0,
+                  147.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "ルーラ草",
+            "confidence": 0.99974,
+            "words": [
+              {
+                "text": "ルーラ草",
+                "box": [
+                  286.0,
+                  211.0,
+                  123.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "?",
+            "confidence": 0.62968,
+            "words": [
+              {
+                "text": "?",
+                "box": [
+                  271.0,
+                  262.0,
+                  14.0,
+                  15.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "青銅の盾",
+            "confidence": 0.99988,
+            "words": [
+              {
+                "text": "青銅の盾",
+                "box": [
+                  288.0,
+                  260.0,
+                  120.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "千里眼の巻物",
+            "confidence": 0.99986,
+            "words": [
+              {
+                "text": "千里眼の巻物",
+                "box": [
+                  289.0,
+                  307.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "毒けし草",
+            "confidence": 0.99998,
+            "words": [
+              {
+                "text": "毒けし草",
+                "box": [
+                  287.0,
+                  352.0,
+                  120.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "目くらまし草",
+            "confidence": 0.99995,
+            "words": [
+              {
+                "text": "目くらまし草",
+                "box": [
+                  288.0,
+                  400.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "地獄耳の巻物",
+            "confidence": 0.99992,
+            "words": [
+              {
+                "text": "地獄耳の巻物",
+                "box": [
+                  289.0,
+                  447.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "道具",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  1074.0,
+                  567.0,
+                  67.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "7/20",
+            "confidence": 0.99818,
+            "words": [
+              {
+                "text": "7/20",
+                "box": [
+                  1106.0,
+                  612.0,
+                  86.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "詳細表示切替",
+            "confidence": 0.99732,
+            "words": [
+              {
+                "text": "詳細表示切替",
+                "box": [
+                  772.0,
+                  676.0,
+                  180.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074881.8845181,
+            "text": "整理",
+            "confidence": 0.99984,
+            "words": [
+              {
+                "text": "整理",
+                "box": [
+                  1085.0,
+                  675.0,
+                  67.0,
+                  40.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 0,
+          "misses": 20
+        }
+      },
+      "inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_cd7e1e0d_0_000001",
+            "display_name": "大きいパン",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "大きいパン",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 6,
+            "box": [
+              287.0,
+              166.0,
+              434.0,
+              203.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "大きいパン",
+              "selected_line_box": [
+                285.0,
+                165.0,
+                436.0,
+                202.0
+              ],
+              "quotes": [
+                "おなかがいつぱいになるぞ。"
+              ],
+              "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+              "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+              "step": 6,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000002",
+            "display_name": "ルーラ草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "ルーラ草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 7,
+            "box": [
+              286.0,
+              211.0,
+              409.0,
+              249.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "ルーラ草",
+              "selected_line_box": [
+                286.0,
+                210.0,
+                409.0,
+                249.0
+              ],
+              "quotes": [
+                "別の場所にワープするぞ。"
+              ],
+              "before_frame": "e4999087d896b5f3cf65a1412a9926168104a020218f7f98d4637cfc1b9c3897",
+              "after_frame": "8cc408060293fb4a1637a4f1c1b3d07a070dd39c2b75c7433f43a01e0547927b",
+              "step": 99,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000003",
+            "display_name": "青銅の盾",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "青銅の盾",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 9,
+            "box": [
+              288.0,
+              260.0,
+              408.0,
+              296.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "青銅の盾",
+              "selected_line_box": [
+                286.0,
+                260.0,
+                408.0,
+                296.0
+              ],
+              "quotes": [
+                "この盾の防御力は基本３だぞ。",
+                "十一によって上下するぞ。"
+              ],
+              "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+              "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+              "step": 129,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000004",
+            "display_name": "千里眼の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "千里眼の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 10,
+            "box": [
+              289.0,
+              307.0,
+              466.0,
+              342.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "千里眼の巻物",
+              "selected_line_box": [
+                286.0,
+                304.0,
+                467.0,
+                344.0
+              ],
+              "quotes": [
+                "今いる階のアイテムがどこにあるかわかるぞ。"
+              ],
+              "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+              "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+              "step": 132,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000005",
+            "display_name": "毒けし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "毒けし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 11,
+            "box": [
+              287.0,
+              352.0,
+              407.0,
+              387.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "毒けし草",
+              "selected_line_box": [
+                288.0,
+                353.0,
+                408.0,
+                388.0
+              ],
+              "quotes": [
+                "毒で下がったちからが限界まで回復するぞ。"
+              ],
+              "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+              "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+              "step": 35,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000006",
+            "display_name": "目くらまし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "目くらまし草",
+            "selected": true,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 12,
+            "box": [
+              288.0,
+              400.0,
+              465.0,
+              435.0
+            ]
+          },
+          {
+            "id": "item_cd7e1e0d_0_000007",
+            "display_name": "地獄耳の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "地獄耳の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 13,
+            "box": [
+              289.0,
+              447.0,
+              466.0,
+              482.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "地獄耳の巻物",
+              "selected_line_box": [
+                288.0,
+                447.0,
+                465.0,
+                482.0
+              ],
+              "quotes": [
+                "今いる階のモンスターがどこにいるかわかるぞ。"
+              ],
+              "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+              "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+              "step": 39,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          }
+        ],
+        "page": null,
+        "occupancy": {
+          "count": 7,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": "item_cd7e1e0d_0_000006",
+        "last_observed": 1793074881.0078905,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。"
+      }
+    },
+    "9": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "7f15223c90d5a0dcdc40eb4b16abc2abc6f377a2eb0006151b162bd7dd0f567f",
+        "captured_at": 1793074886.5386724,
+        "lines": [
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "2階",
+            "confidence": 0.99974,
+            "words": [
+              {
+                "text": "2階",
+                "box": [
+                  19.0,
+                  39.0,
+                  59.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "Lv2",
+            "confidence": 0.90101,
+            "words": [
+              {
+                "text": "Lv2",
+                "box": [
+                  188.0,
+                  40.0,
+                  79.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "HP12/19",
+            "confidence": 0.99662,
+            "words": [
+              {
+                "text": "HP12/19",
+                "box": [
+                  312.0,
+                  38.0,
+                  181.0,
+                  41.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "満腹度",
+            "confidence": 0.9824,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  617.0,
+                  38.0,
+                  97.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "58%",
+            "confidence": 0.99124,
+            "words": [
+              {
+                "text": "58%",
+                "box": [
+                  734.0,
+                  37.0,
+                  79.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "76 G",
+            "confidence": 0.7914,
+            "words": [
+              {
+                "text": "76 G",
+                "box": [
+                  1139.0,
+                  40.0,
+                  82.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074884.4465601,
+            "text": "モンスターに投げて飲ませると",
+            "confidence": 0.99965,
+            "words": [
+              {
+                "text": "モンスターに投げて飲ませると",
+                "box": [
+                  293.0,
+                  173.0,
+                  401.0,
+                  34.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074884.4465601,
+            "text": "目がくらんで見えな",
+            "confidence": 0.99995,
+            "words": [
+              {
+                "text": "目がくらんで見えな",
+                "box": [
+                  723.0,
+                  171.0,
+                  262.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074884.4465601,
+            "text": "くなるぞ。",
+            "confidence": 0.99992,
+            "words": [
+              {
+                "text": "くなるぞ。",
+                "box": [
+                  294.0,
+                  205.0,
+                  132.0,
+                  46.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "青銅の盾",
+            "confidence": 0.99983,
+            "words": [
+              {
+                "text": "青銅の盾",
+                "box": [
+                  287.0,
+                  259.0,
+                  121.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "千里眼の巻物",
+            "confidence": 0.99988,
+            "words": [
+              {
+                "text": "千里眼の巻物",
+                "box": [
+                  289.0,
+                  307.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "毒けし草",
+            "confidence": 0.99998,
+            "words": [
+              {
+                "text": "毒けし草",
+                "box": [
+                  287.0,
+                  352.0,
+                  120.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "目くらまし草",
+            "confidence": 0.99995,
+            "words": [
+              {
+                "text": "目くらまし草",
+                "box": [
+                  288.0,
+                  400.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "地獄耳の巻物",
+            "confidence": 0.99993,
+            "words": [
+              {
+                "text": "地獄耳の巻物",
+                "box": [
+                  289.0,
+                  447.0,
+                  176.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "道具",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  1074.0,
+                  567.0,
+                  67.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "7/20",
+            "confidence": 0.99819,
+            "words": [
+              {
+                "text": "7/20",
+                "box": [
+                  1106.0,
+                  612.0,
+                  86.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "N",
+            "confidence": 0.50987,
+            "words": [
+              {
+                "text": "N",
+                "box": [
+                  731.0,
+                  677.0,
+                  37.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "詳細表示切替",
+            "confidence": 0.99732,
+            "words": [
+              {
+                "text": "詳細表示切替",
+                "box": [
+                  772.0,
+                  676.0,
+                  180.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074887.3628194,
+            "text": "整理",
+            "confidence": 0.99986,
+            "words": [
+              {
+                "text": "整理",
+                "box": [
+                  1085.0,
+                  675.0,
+                  67.0,
+                  41.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 3,
+          "misses": 18
+        }
+      },
+      "inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_cd7e1e0d_0_000003",
+            "display_name": "青銅の盾",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "青銅の盾",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 9,
+            "box": [
+              287.0,
+              259.0,
+              408.0,
+              295.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "青銅の盾",
+              "selected_line_box": [
+                286.0,
+                260.0,
+                408.0,
+                296.0
+              ],
+              "quotes": [
+                "この盾の防御力は基本３だぞ。",
+                "十一によって上下するぞ。"
+              ],
+              "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+              "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+              "step": 129,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000004",
+            "display_name": "千里眼の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "千里眼の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 10,
+            "box": [
+              289.0,
+              307.0,
+              466.0,
+              342.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "千里眼の巻物",
+              "selected_line_box": [
+                286.0,
+                304.0,
+                467.0,
+                344.0
+              ],
+              "quotes": [
+                "今いる階のアイテムがどこにあるかわかるぞ。"
+              ],
+              "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+              "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+              "step": 132,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000005",
+            "display_name": "毒けし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "毒けし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 11,
+            "box": [
+              287.0,
+              352.0,
+              407.0,
+              387.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "毒けし草",
+              "selected_line_box": [
+                288.0,
+                353.0,
+                408.0,
+                388.0
+              ],
+              "quotes": [
+                "毒で下がったちからが限界まで回復するぞ。"
+              ],
+              "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+              "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+              "step": 35,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000006",
+            "display_name": "目くらまし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "目くらまし草",
+            "selected": true,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 12,
+            "box": [
+              288.0,
+              400.0,
+              465.0,
+              435.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "目くらまし草",
+              "selected_line_box": [
+                288.0,
+                400.0,
+                465.0,
+                435.0
+              ],
+              "quotes": [
+                "モンスターに投げて飲ませると",
+                "目がくらんで見えな",
+                "くなるぞ。"
+              ],
+              "before_frame": "2b128a092bf314ba04a4adf1d2d11cb04d17acc89932fa1c42a7b47e045d6f7b",
+              "after_frame": "647a16a2bd0051521b0b0d3b277998d6a8b55614bb9522b93f437c9424a357f6",
+              "step": 8,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "cd7e1e0d_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000007",
+            "display_name": "地獄耳の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "地獄耳の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 13,
+            "box": [
+              289.0,
+              447.0,
+              465.0,
+              482.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "地獄耳の巻物",
+              "selected_line_box": [
+                288.0,
+                447.0,
+                465.0,
+                482.0
+              ],
+              "quotes": [
+                "今いる階のモンスターがどこにいるかわかるぞ。"
+              ],
+              "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+              "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+              "step": 39,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          }
+        ],
+        "page": null,
+        "occupancy": {
+          "count": 7,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": "item_cd7e1e0d_0_000006",
+        "last_observed": 1793074886.5386724,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。"
+      }
+    },
+    "10": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "21185e94540ae00f31551b76ff6415dc4de6efd3afc0c3b6589cce51832de9f9",
+        "captured_at": 1793074892.4851253,
+        "lines": [
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "2階",
+            "confidence": 0.99973,
+            "words": [
+              {
+                "text": "2階",
+                "box": [
+                  19.0,
+                  39.0,
+                  59.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "Lv2",
+            "confidence": 0.95239,
+            "words": [
+              {
+                "text": "Lv2",
+                "box": [
+                  189.0,
+                  40.0,
+                  79.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "HP12/19",
+            "confidence": 0.99542,
+            "words": [
+              {
+                "text": "HP12/19",
+                "box": [
+                  311.0,
+                  38.0,
+                  183.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "満腹度",
+            "confidence": 0.97959,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  617.0,
+                  38.0,
+                  97.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "58%",
+            "confidence": 0.99419,
+            "words": [
+              {
+                "text": "58%",
+                "box": [
+                  733.0,
+                  37.0,
+                  81.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "76Ｇ",
+            "confidence": 0.97845,
+            "words": [
+              {
+                "text": "76Ｇ",
+                "box": [
+                  1138.0,
+                  38.0,
+                  84.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074890.4136841,
+            "text": "今いる階のモンスターがどこにいるかわかるぞ。",
+            "confidence": 0.99914,
+            "words": [
+              {
+                "text": "今いる階のモンスターがどこにいるかわかるぞ。",
+                "box": [
+                  292.0,
+                  171.0,
+                  616.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "ルーラ草",
+            "confidence": 0.92176,
+            "words": [
+              {
+                "text": "ルーラ草",
+                "box": [
+                  286.0,
+                  218.0,
+                  123.0,
+                  31.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "?",
+            "confidence": 0.72138,
+            "words": [
+              {
+                "text": "?",
+                "box": [
+                  271.0,
+                  263.0,
+                  14.0,
+                  15.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "青銅の盾",
+            "confidence": 0.99989,
+            "words": [
+              {
+                "text": "青銅の盾",
+                "box": [
+                  288.0,
+                  260.0,
+                  121.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "千里眼の巻物",
+            "confidence": 0.99997,
+            "words": [
+              {
+                "text": "千里眼の巻物",
+                "box": [
+                  288.0,
+                  305.0,
+                  179.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "毒けし草",
+            "confidence": 0.99998,
+            "words": [
+              {
+                "text": "毒けし草",
+                "box": [
+                  287.0,
+                  352.0,
+                  120.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "目くらまし草",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "目くらまし草",
+                "box": [
+                  289.0,
+                  400.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "地獄耳の巻物",
+            "confidence": 0.99993,
+            "words": [
+              {
+                "text": "地獄耳の巻物",
+                "box": [
+                  289.0,
+                  447.0,
+                  176.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "道具",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  1074.0,
+                  567.0,
+                  67.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "7/20",
+            "confidence": 0.99817,
+            "words": [
+              {
+                "text": "7/20",
+                "box": [
+                  1106.0,
+                  612.0,
+                  86.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "N",
+            "confidence": 0.5063,
+            "words": [
+              {
+                "text": "N",
+                "box": [
+                  731.0,
+                  677.0,
+                  37.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "詳細表示切替",
+            "confidence": 0.99407,
+            "words": [
+              {
+                "text": "詳細表示切替",
+                "box": [
+                  773.0,
+                  677.0,
+                  178.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074893.541182,
+            "text": "整理",
+            "confidence": 0.99989,
+            "words": [
+              {
+                "text": "整理",
+                "box": [
+                  1085.0,
+                  675.0,
+                  68.0,
+                  40.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 1,
+          "misses": 19
+        }
+      },
+      "inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_cd7e1e0d_0_000008",
+            "display_name": "今いる階のモンスターがどこにいるかわかるぞ。",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "今いる階のモンスターがどこにいるかわかるぞ。",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "new_or_ambiguous",
+            "page": null,
+            "line_index": 6,
+            "box": [
+              292.0,
+              171.0,
+              908.0,
+              207.0
+            ]
+          },
+          {
+            "id": "item_cd7e1e0d_0_000009",
+            "display_name": "ルーラ草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "ルーラ草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "new_or_ambiguous",
+            "page": null,
+            "line_index": 7,
+            "box": [
+              286.0,
+              218.0,
+              409.0,
+              249.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "ルーラ草",
+              "selected_line_box": [
+                286.0,
+                210.0,
+                409.0,
+                249.0
+              ],
+              "quotes": [
+                "別の場所にワープするぞ。"
+              ],
+              "before_frame": "e4999087d896b5f3cf65a1412a9926168104a020218f7f98d4637cfc1b9c3897",
+              "after_frame": "8cc408060293fb4a1637a4f1c1b3d07a070dd39c2b75c7433f43a01e0547927b",
+              "step": 99,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000003",
+            "display_name": "青銅の盾",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "青銅の盾",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 9,
+            "box": [
+              288.0,
+              260.0,
+              409.0,
+              296.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "青銅の盾",
+              "selected_line_box": [
+                286.0,
+                260.0,
+                408.0,
+                296.0
+              ],
+              "quotes": [
+                "この盾の防御力は基本３だぞ。",
+                "十一によって上下するぞ。"
+              ],
+              "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+              "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+              "step": 129,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000004",
+            "display_name": "千里眼の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "千里眼の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 10,
+            "box": [
+              288.0,
+              305.0,
+              467.0,
+              343.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "千里眼の巻物",
+              "selected_line_box": [
+                286.0,
+                304.0,
+                467.0,
+                344.0
+              ],
+              "quotes": [
+                "今いる階のアイテムがどこにあるかわかるぞ。"
+              ],
+              "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+              "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+              "step": 132,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000005",
+            "display_name": "毒けし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "毒けし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 11,
+            "box": [
+              287.0,
+              352.0,
+              407.0,
+              387.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "毒けし草",
+              "selected_line_box": [
+                288.0,
+                353.0,
+                408.0,
+                388.0
+              ],
+              "quotes": [
+                "毒で下がったちからが限界まで回復するぞ。"
+              ],
+              "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+              "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+              "step": 35,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000006",
+            "display_name": "目くらまし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "目くらまし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 12,
+            "box": [
+              289.0,
+              400.0,
+              466.0,
+              435.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "目くらまし草",
+              "selected_line_box": [
+                288.0,
+                400.0,
+                465.0,
+                435.0
+              ],
+              "quotes": [
+                "モンスターに投げて飲ませると",
+                "目がくらんで見えな",
+                "くなるぞ。"
+              ],
+              "before_frame": "2b128a092bf314ba04a4adf1d2d11cb04d17acc89932fa1c42a7b47e045d6f7b",
+              "after_frame": "647a16a2bd0051521b0b0d3b277998d6a8b55614bb9522b93f437c9424a357f6",
+              "step": 8,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "cd7e1e0d_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000007",
+            "display_name": "地獄耳の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "地獄耳の巻物",
+            "selected": true,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 13,
+            "box": [
+              289.0,
+              447.0,
+              465.0,
+              482.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "地獄耳の巻物",
+              "selected_line_box": [
+                288.0,
+                447.0,
+                465.0,
+                482.0
+              ],
+              "quotes": [
+                "今いる階のモンスターがどこにいるかわかるぞ。"
+              ],
+              "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+              "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+              "step": 39,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          }
+        ],
+        "page": null,
+        "occupancy": {
+          "count": 7,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": "item_cd7e1e0d_0_000007",
+        "last_observed": 1793074892.4851253,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。"
+      }
+    },
+    "12": {
+      "ocr": {
+        "engine": "ocr-paddle-v5",
+        "status": "ok",
+        "frame_sha256": "7bbad7368cfaf06568760f11dfac9c6409cdc5fd15d5f07f2e4d4781fa28fdab",
+        "captured_at": 1793074921.553334,
+        "lines": [
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "2階",
+            "confidence": 0.99974,
+            "words": [
+              {
+                "text": "2階",
+                "box": [
+                  19.0,
+                  39.0,
+                  59.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "Lv2",
+            "confidence": 0.95078,
+            "words": [
+              {
+                "text": "Lv2",
+                "box": [
+                  189.0,
+                  40.0,
+                  78.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "HP12/19",
+            "confidence": 0.99677,
+            "words": [
+              {
+                "text": "HP12/19",
+                "box": [
+                  312.0,
+                  38.0,
+                  181.0,
+                  41.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "満腹度",
+            "confidence": 0.98059,
+            "words": [
+              {
+                "text": "満腹度",
+                "box": [
+                  617.0,
+                  38.0,
+                  97.0,
+                  40.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "58%",
+            "confidence": 0.98996,
+            "words": [
+              {
+                "text": "58%",
+                "box": [
+                  735.0,
+                  40.0,
+                  78.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "76 Ｇ",
+            "confidence": 0.80686,
+            "words": [
+              {
+                "text": "76 Ｇ",
+                "box": [
+                  1139.0,
+                  40.0,
+                  82.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074898.6963499,
+            "text": "モンスターに投げて飲ませると",
+            "confidence": 0.99965,
+            "words": [
+              {
+                "text": "モンスターに投げて飲ませると",
+                "box": [
+                  293.0,
+                  173.0,
+                  402.0,
+                  34.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074885.8466856,
+            "text": "目がくらんで見えな",
+            "confidence": 0.99991,
+            "words": [
+              {
+                "text": "目がくらんで見えな",
+                "box": [
+                  723.0,
+                  171.0,
+                  263.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074884.4465601,
+            "text": "くなるぞ。",
+            "confidence": 0.99992,
+            "words": [
+              {
+                "text": "くなるぞ。",
+                "box": [
+                  294.0,
+                  205.0,
+                  132.0,
+                  46.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "青銅の盾",
+            "confidence": 0.99984,
+            "words": [
+              {
+                "text": "青銅の盾",
+                "box": [
+                  287.0,
+                  259.0,
+                  121.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "千里眼の巻物",
+            "confidence": 0.99987,
+            "words": [
+              {
+                "text": "千里眼の巻物",
+                "box": [
+                  289.0,
+                  307.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "毒けし草",
+            "confidence": 0.99998,
+            "words": [
+              {
+                "text": "毒けし草",
+                "box": [
+                  287.0,
+                  352.0,
+                  120.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "目くらまし草",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "目くらまし草",
+                "box": [
+                  288.0,
+                  400.0,
+                  177.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "地獄耳の巻物",
+            "confidence": 0.99993,
+            "words": [
+              {
+                "text": "地獄耳の巻物",
+                "box": [
+                  289.0,
+                  447.0,
+                  176.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "道具",
+            "confidence": 0.99996,
+            "words": [
+              {
+                "text": "道具",
+                "box": [
+                  1074.0,
+                  567.0,
+                  67.0,
+                  38.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "7/20",
+            "confidence": 0.9982,
+            "words": [
+              {
+                "text": "7/20",
+                "box": [
+                  1106.0,
+                  612.0,
+                  86.0,
+                  35.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "N",
+            "confidence": 0.5177,
+            "words": [
+              {
+                "text": "N",
+                "box": [
+                  731.0,
+                  677.0,
+                  37.0,
+                  36.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "詳細表示切替",
+            "confidence": 0.99408,
+            "words": [
+              {
+                "text": "詳細表示切替",
+                "box": [
+                  773.0,
+                  677.0,
+                  178.0,
+                  37.0
+                ]
+              }
+            ]
+          },
+          {
+            "recognition_at": 1793074922.4857576,
+            "text": "整理",
+            "confidence": 0.99986,
+            "words": [
+              {
+                "text": "整理",
+                "box": [
+                  1085.0,
+                  675.0,
+                  67.0,
+                  41.0
+                ]
+              }
+            ]
+          }
+        ],
+        "confidence": null,
+        "language": "ja",
+        "recognition_cache": {
+          "enabled": true,
+          "hits": 3,
+          "misses": 18
+        }
+      },
+      "inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_cd7e1e0d_0_000003",
+            "display_name": "青銅の盾",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "青銅の盾",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 9,
+            "box": [
+              287.0,
+              259.0,
+              408.0,
+              295.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "青銅の盾",
+              "selected_line_box": [
+                286.0,
+                260.0,
+                408.0,
+                296.0
+              ],
+              "quotes": [
+                "この盾の防御力は基本３だぞ。",
+                "十一によって上下するぞ。"
+              ],
+              "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+              "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+              "step": 129,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000004",
+            "display_name": "千里眼の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "千里眼の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 10,
+            "box": [
+              289.0,
+              307.0,
+              466.0,
+              342.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "千里眼の巻物",
+              "selected_line_box": [
+                286.0,
+                304.0,
+                467.0,
+                344.0
+              ],
+              "quotes": [
+                "今いる階のアイテムがどこにあるかわかるぞ。"
+              ],
+              "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+              "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+              "step": 132,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000005",
+            "display_name": "毒けし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "毒けし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 11,
+            "box": [
+              287.0,
+              352.0,
+              407.0,
+              387.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "毒けし草",
+              "selected_line_box": [
+                288.0,
+                353.0,
+                408.0,
+                388.0
+              ],
+              "quotes": [
+                "毒で下がったちからが限界まで回復するぞ。"
+              ],
+              "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+              "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+              "step": 35,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000006",
+            "display_name": "目くらまし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "目くらまし草",
+            "selected": true,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 12,
+            "box": [
+              288.0,
+              400.0,
+              465.0,
+              435.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "目くらまし草",
+              "selected_line_box": [
+                288.0,
+                400.0,
+                465.0,
+                435.0
+              ],
+              "quotes": [
+                "モンスターに投げて飲ませると",
+                "目がくらんで見えな",
+                "くなるぞ。"
+              ],
+              "before_frame": "2b128a092bf314ba04a4adf1d2d11cb04d17acc89932fa1c42a7b47e045d6f7b",
+              "after_frame": "647a16a2bd0051521b0b0d3b277998d6a8b55614bb9522b93f437c9424a357f6",
+              "step": 8,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "cd7e1e0d_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_cd7e1e0d_0_000007",
+            "display_name": "地獄耳の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "地獄耳の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 13,
+            "box": [
+              289.0,
+              447.0,
+              465.0,
+              482.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "地獄耳の巻物",
+              "selected_line_box": [
+                288.0,
+                447.0,
+                465.0,
+                482.0
+              ],
+              "quotes": [
+                "今いる階のモンスターがどこにいるかわかるぞ。"
+              ],
+              "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+              "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+              "step": 39,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          }
+        ],
+        "page": null,
+        "occupancy": {
+          "count": 7,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": "item_cd7e1e0d_0_000006",
+        "last_observed": 1793074921.553334,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。"
+      }
+    }
+  },
+  "plan": {
+    "objective": "現在の観測と経験から全体目標へ進める",
+    "skill": "interface",
+    "reason": "監督回答までの観測に基づく暫定運用",
+    "budget_turns": 3,
+    "exploration_fraction": 0.125,
+    "strategy": "advance",
+    "floor_objective": "reach_stairs",
+    "item_decisions": [
+      {
+        "cell": [
+          30,
+          25
+        ],
+        "decision": "collect",
+        "reason": "未確認の探索先へ進む",
+        "revisit": "after_combat"
+      }
+    ],
+    "navigation": "stairs",
+    "hypothesis": "取得した箱は必要品",
+    "test": "item_effect",
+    "test_attempts": 1,
+    "expected_signal": "item_change",
+    "interface_role": "none",
+    "interface_quote": "目くらまし草",
+    "origin": "llm_supervisor",
+    "scope": "[\"dungeon\", [2], \"inventory\", null, 0, false, \"47545cc7824999fc\", 0, 0]",
+    "adopted_step": 10,
+    "expires_step": 13,
+    "inventory_audit_id": 1,
+    "request_selection": "dfad0ee69c41967e",
+    "request_text_key": "a80eb69d54ca2cf70472",
+    "request_frame": "f1eef31c79b0912d385012ed1bccfe66a6762fa474885acbd98a9df34564b6b8",
+    "id": "plan-1",
+    "anchor_floor": [
+      2
+    ]
+  }
+}
