@@ -48,6 +48,22 @@ class SpatialUIContracts(unittest.TestCase):
         texts[1]['bbox']=[.223,.251,.316,.307];texts[1]['center']=[.2695,.279]
         self.assertEqual(relationships([.225,.256,.244,.300],texts)[0]['element_id'],'same_row')
 
+    def test_overlapping_ocr_passes_do_not_create_selection_grid(self):
+        def element(key,box):return {'id':key,'text':key,'bbox':box,'center':[(box[0]+box[2])/2,(box[1]+box[3])/2]}
+        text=[element('a',[.18,.69,.32,.75]),element('b',[.18,.76,.28,.81]),
+              element('c',[.28,.76,.54,.81]),element('d',[.185,.70,.315,.75]),
+              element('b',[.18,.76,.54,.81])]
+        self.assertEqual(grid_hypothesis(text)['status'],'unknown')
+        from autoplayer.nextgen.ui_interactions import UIInteractionModel
+        state={'interface_hypothesis':True,'ui_visual':{'layout':'dialog','elements':text,'grid':grid_hypothesis(text),'candidates':[],'needs_observation':[]}}
+        interactions=UIInteractionModel();interactions.attach(state)
+        self.assertEqual(state['ui_visual']['interaction_model']['selection_requirement'],'unknown')
+        confirm={'id':'confirm','keys':['user_confirm'],'declared_meanings':['confirm']}
+        self.assertTrue(interactions.priors(state,[confirm],explore=True))
+
+        # Even without duplicates, one split paragraph line is no grid.
+        self.assertEqual(grid_hypothesis(text[:3]+[element('e',[.18,.83,.54,.88])])['status'],'unknown')
+
     def test_positions_provenance_and_same_text_at_different_locations(self):
         png,native=sample();native['lines'][1]['words'][0]['text']='K0';native['lines'][1]['text']='K0'
         texts,missing=text_elements(native,(320,240),native['frame_sha256'])

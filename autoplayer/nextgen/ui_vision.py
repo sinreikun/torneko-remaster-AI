@@ -125,6 +125,9 @@ def movement_origins(old,new,boxes,old_elements,new_elements,target_box,target_r
 
 def grid_hypothesis(elements):
     if len(elements)<4:return {'status':'unknown'}
+    # Whole-frame and ROI OCR can describe the same ink with different text
+    # segmentation. Overlapping observations are not independent grid cells.
+    if len({e['id'] for e in elements})!=len(elements) or any(overlap(a['bbox'],b['bbox'])>.5 for i,a in enumerate(elements) for b in elements[i+1:]):return {'status':'unknown','reason':'overlapping_ocr_cells'}
     heights=[e['bbox'][3]-e['bbox'][1] for e in elements];tol=max(.008,median(heights)*.7)
     def group(axis):
         groups=[]
@@ -134,7 +137,9 @@ def grid_hypothesis(elements):
             else:groups[-1][1].append(e['id'])
         return groups
     rows=group(1);cols=group(0);occupancy=len(elements)/max(1,len(rows)*len(cols))
-    if min(len(rows),len(cols))<2 or occupancy<.55:return {'status':'unknown'}
+    row_of={key:i for i,r in enumerate(rows) for key in r[1]}
+    repeated_columns=sum(len({row_of[key] for key in c[1]})>=2 for c in cols)
+    if min(len(rows),len(cols))<2 or occupancy<.55 or repeated_columns<2:return {'status':'unknown'}
     return {'status':'hypothesis','rows':len(rows),'columns':len(cols),'occupancy':min(1,occupancy),'confidence':.45,
             'cells':[{'id':e['id'],'bbox':e['bbox'],'text':e['text'],'row':next(i for i,r in enumerate(rows) if e['id'] in r[1]),'column':next(i for i,c in enumerate(cols) if e['id'] in c[1])} for e in elements[:128]],'coordinate_source':'measured_ocr_boxes'}
 
