@@ -58,6 +58,11 @@ class MetaController:
             self.history.append({'event':'progress_generation_missing','step':step,'failures':self.planning_missing,'next':'進行計画を明示要求し再生成'})
         else:self.planning_missing=0;self.planning_issue=None
         self.save()
+    def ungrounded_literals(self,node,state):
+        visible='\n'.join(state.get('quotes',[])).casefold() if state.get('measurement_status')=='ok' else ''
+        internal={node.get('label',''),node.get('id',''),node.get('source','')}|set(CAPABILITIES)
+        observed=[c for e in node.get('evidence',[]) for c in e.get('conditions',[])]
+        return [c['value'] for c in node['conditions'] if c['feature'] in ('text','selection_text') and c['operator'] in ('contains','eq') and isinstance(c['value'],str) and c['value'] in internal and c['value'].casefold() not in visible and c['value'].casefold() not in self.reference_text and c not in observed]
     def accept(self,plan,state,step):
         if plan.get('session_boundary') and not self.boundary['conditions']:
             self.boundary={'conditions':copy.deepcopy(plan['session_boundary']),'frames':[],'armed':True}
@@ -68,8 +73,8 @@ class MetaController:
                 visible='\n'.join(state.get('quotes',[])).casefold()
                 for proposal in proposals:
                     n=self.progress.nodes[proposal['id']]
-                    n['literal_grounding_version']=1
-                    n['unverified_literals']=[c['value'] for c in n['conditions'] if c['feature']=='text' and c['operator']=='contains' and isinstance(c['value'],str) and c['value'] in CAPABILITIES and c['value'].casefold() not in visible and c['value'].casefold() not in self.reference_text]
+                    n['literal_grounding_version']=2
+                    n['unverified_literals']=self.ungrounded_literals(n,state)
                     self.progress.save(n)
                 self.history.append({'event':'progress_proposed','count':count,'step':step,'status':'hypotheses_not_facts'})
             except ValueError as error:
@@ -99,6 +104,10 @@ class MetaController:
         return 'change_selection' if (state.get('interface_hypothesis') or ui.get('active')) and located else 'move' if not state.get('interface_hypothesis') and state.get('minimap',{}).get('player_cell') else 'inspect'
     def ensure_local(self,state,step):
         node=self.progress.current()
+        if self.local and self.local.get('origin')=='progress_graph' and self.progress.nodes.get(self.local.get('parent'),{}).get('unverified_literals'):
+            self.history.append({'event':'ungrounded_progress_goal_deferred','step':step,'id':self.local['id']})
+            self.deferred.append(copy.deepcopy(self.local));self.deferred=self.deferred[-16:]
+            self.local=None;self.recovery=None;self.pending_local=None
         if self.local and self.local.get('origin')=='capability_acquisition':
             expected=self.bootstrap_capability(state)
             if self.local['capability']!=expected:
@@ -194,9 +203,9 @@ class MetaController:
         if self.recovery and self.recovery['method']=='observer_trial' and not self.observer.trial:self.observer.start(self.recovery['failure'],step)
         visible='\n'.join(state.get('quotes',[])).casefold()
         for n in self.progress.nodes.values():
-            if not n.get('literal_grounding_version'):
-                n['literal_grounding_version']=1
-                n['unverified_literals']=[c['value'] for c in n['conditions'] if c['feature']=='text' and c['operator']=='contains' and isinstance(c['value'],str) and c['value'] in CAPABILITIES and c['value'].casefold() not in visible and c['value'].casefold() not in self.reference_text and not n.get('evidence')]
+            if n.get('literal_grounding_version',0)<2:
+                n['literal_grounding_version']=2
+                n['unverified_literals']=self.ungrounded_literals(n,state)
                 self.progress.save(n)
         self.last_state=state;self.check_boundary(state,step);self.last_changes=self.progress.update(state,step)
         if self.restore_local:

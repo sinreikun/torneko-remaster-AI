@@ -78,6 +78,23 @@ class AutonomyContracts(unittest.TestCase):
         m.prepare(s,0)
         self.assertNotEqual(m.local['id'],'bad');self.assertEqual(m.deferred[-1]['id'],'bad')
 
+    def test_saved_internal_goal_label_is_not_a_game_text_target(self):
+        m=MetaController(self.store,'goal');n=node('internal',conditions=[condition(value='internal instruction')]);n['label']='internal instruction'
+        m.progress.propose([n]);m.progress.nodes['internal']['literal_grounding_version']=1
+        m.local={'id':'node:internal','parent':'internal','origin':'progress_graph','capability':'inspect','conditions':n['conditions'],'deadline':32}
+        m.prepare(state('now',menu=True,text='actual screen'),0)
+        self.assertTrue(m.progress.nodes['internal']['unverified_literals']);self.assertNotEqual(m.local['id'],'node:internal')
+        self.assertFalse(m.progress.available());self.assertTrue(m.needs_plan(20))
+        m.prepare(state('later',menu=True,text='internal instruction'),1)
+        self.assertFalse(m.progress.nodes['internal']['unverified_literals'])
+        self.assertEqual(m.local['parent'],'internal')
+    def test_external_or_previously_observed_label_is_not_quarantined(self):
+        m=MetaController(self.store,'goal',reference_knowledge='expected label')
+        n=node('ref',conditions=[condition(value='expected label')]);n['label']='expected label'
+        self.assertFalse(m.ungrounded_literals(n,state(text='other')))
+        n['label']='observed label';n['conditions']=[condition(value='observed label')];n['evidence']=[{'conditions':copy.deepcopy(n['conditions'])}]
+        self.assertFalse(m.ungrounded_literals(n,state(text='other')))
+
     def test_leaf_goal_before_parent_and_no_fixed_game_names(self):
         p=ProgressManager(self.store);parent=node('mission');child=node('obtain');child['parent']='mission';p.propose([parent,child])
         self.assertEqual(p.current()['id'],'obtain')
