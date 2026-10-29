@@ -151,16 +151,21 @@ class UIVision:
             if m.get('schema')==1:self.models[m['key']]=copy.deepcopy(m)
     def _layout(self,elements):
         anchors={(round(e['center'][0]*40),round(e['center'][1]*30)) for e in elements}
+        short_anchors={(round(e['center'][0]*40),round(e['center'][1]*30)) for e in elements if isinstance(e.get('text'),str) and len(re.sub(r'[\W\d_]+','',e['text']))<=2}
         tokens={re.sub(r'[\W\d_]+','',e.get('text','').casefold()) for e in elements if isinstance(e.get('text'),str)}
         tokens={t for t in tokens if len(t)>=2}
         ranked=[]
         for k,v in self.layouts.items():
             space=len(anchors&v['anchors'])/max(1,len(anchors|v['anchors']))
             text=len(tokens&v['tokens'])/max(1,len(tokens|v['tokens']))
-            if space>=.7 and (min(len(tokens),len(v['tokens']))<2 or text>=.35):ranked.append((space*.8+text*.2,k))
+            common=len(anchors&v['anchors']);small=min(len(anchors),len(v['anchors']));large=max(len(anchors),len(v['anchors']))
+            # A handful of transient OCR detections must not split a stable
+            # interface. Require a substantial, nearly-contained common core.
+            stable_subset=common>=4 and common/max(1,small)>=.85 and common/max(1,large)>=.6 and (anchors^v['anchors'])<=short_anchors|v.get('short_anchors',set())
+            if (space>=.7 or stable_subset) and (min(len(tokens),len(v['tokens']))<2 or text>=.35):ranked.append((space*.8+text*.2,k))
         ranked.sort(reverse=True)
         key=ranked[0][1] if ranked else digest(['spatial_ui_v2',sorted(anchors),sorted(tokens)])
-        if key not in self.layouts:self.layouts[key]={'anchors':anchors,'tokens':tokens}
+        if key not in self.layouts:self.layouts[key]={'anchors':anchors,'tokens':tokens,'short_anchors':short_anchors}
         self.layouts.move_to_end(key)
         while len(self.layouts)>64:self.layouts.popitem(last=False)
         return key

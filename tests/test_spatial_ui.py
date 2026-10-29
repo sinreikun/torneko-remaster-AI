@@ -64,6 +64,22 @@ class SpatialUIContracts(unittest.TestCase):
         # Even without duplicates, one split paragraph line is no grid.
         self.assertEqual(grid_hypothesis(text[:3]+[element('e',[.18,.83,.54,.88])])['status'],'unknown')
 
+    def test_transient_ocr_dropout_does_not_split_a_stable_layout(self):
+        def elements(count,offset=0):
+            return [{'text':'item'+chr(97+i),'center':[.1+(i%3)*.2+offset,.15+(i//3)*.2]} for i in range(count)]
+        v=UIVision();noisy=elements(9)
+        for e in noisy[6:]:e['text']='x'
+        key=v._layout(noisy)
+        self.assertEqual(v._layout(elements(6)),key)
+        self.assertEqual(v._layout(noisy),key)
+        other=UIVision();core=other._layout(elements(6))
+        self.assertNotEqual(other._layout(elements(9)),core)
+        self.assertNotEqual(v._layout(elements(6,offset=.08)),key)
+        # A tiny surviving fragment cannot claim the whole prior interface.
+        self.assertNotEqual(v._layout(elements(3)),key)
+        changed=[{**e,'text':'different'+chr(97+i)} for i,e in enumerate(elements(6))]
+        self.assertNotEqual(v._layout(changed),key)
+
     def test_positions_provenance_and_same_text_at_different_locations(self):
         png,native=sample();native['lines'][1]['words'][0]['text']='K0';native['lines'][1]['text']='K0'
         texts,missing=text_elements(native,(320,240),native['frame_sha256'])
