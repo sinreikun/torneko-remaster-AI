@@ -1,0 +1,455 @@
+{
+  "source": "diagnostics-1793069488886248000.zip, result step137; recorded OCR inventory, not gameplay validation",
+  "inventory": {
+    "status": "observed",
+    "rows": [
+      {
+        "id": "item_66a0b9ed_0_000001",
+        "display_name": "大きいパン",
+        "game_alias": null,
+        "name_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "大きいパン",
+        "selected": true,
+        "identity_status": "new_or_ambiguous",
+        "page": null,
+        "line_index": 7,
+        "box": [
+          287.0,
+          167.0,
+          435.0,
+          201.0
+        ],
+        "known_description": {
+          "status": "description_text_observed",
+          "item_name": "大きいパン",
+          "selected_line_box": [
+            285.0,
+            165.0,
+            436.0,
+            202.0
+          ],
+          "quotes": [
+            "おなかがいつぱいになるぞ。"
+          ],
+          "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+          "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+          "step": 6,
+          "source": "current_inventory_num7_toggle",
+          "effect_verified": false,
+          "inventory_scope": "3dafe324_1_",
+          "identity_scope": "profile_display_name",
+          "knowledge_kind": "game_description_ocr_not_verified_effect"
+        }
+      },
+      {
+        "id": "item_66a0b9ed_0_000002",
+        "display_name": "ルーラ草",
+        "game_alias": null,
+        "name_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "ルーラ草",
+        "selected": false,
+        "identity_status": "new_or_ambiguous",
+        "page": null,
+        "line_index": 8,
+        "box": [
+          287.0,
+          210.0,
+          409.0,
+          249.0
+        ],
+        "known_description": {
+          "status": "description_text_observed",
+          "item_name": "ルーラ草",
+          "selected_line_box": [
+            286.0,
+            210.0,
+            409.0,
+            249.0
+          ],
+          "quotes": [
+            "別の場所にワープするぞ。"
+          ],
+          "before_frame": "e4999087d896b5f3cf65a1412a9926168104a020218f7f98d4637cfc1b9c3897",
+          "after_frame": "8cc408060293fb4a1637a4f1c1b3d07a070dd39c2b75c7433f43a01e0547927b",
+          "step": 99,
+          "source": "current_inventory_num7_toggle",
+          "effect_verified": false,
+          "inventory_scope": "3dafe324_1_",
+          "identity_scope": "profile_display_name",
+          "knowledge_kind": "game_description_ocr_not_verified_effect"
+        }
+      },
+      {
+        "id": "item_66a0b9ed_0_000003",
+        "display_name": "青銅の盾",
+        "game_alias": null,
+        "name_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "青銅の盾",
+        "selected": false,
+        "identity_status": "new_or_ambiguous",
+        "page": null,
+        "line_index": 10,
+        "box": [
+          287.0,
+          260.0,
+          409.0,
+          296.0
+        ],
+        "known_description": {
+          "status": "description_text_observed",
+          "item_name": "青銅の盾",
+          "selected_line_box": [
+            286.0,
+            260.0,
+            408.0,
+            296.0
+          ],
+          "quotes": [
+            "この盾の防御力は基本３だぞ。",
+            "十一によって上下するぞ。"
+          ],
+          "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+          "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+          "step": 129,
+          "source": "current_inventory_num7_toggle",
+          "effect_verified": false,
+          "inventory_scope": "3dafe324_1_",
+          "identity_scope": "profile_display_name",
+          "knowledge_kind": "game_description_ocr_not_verified_effect"
+        }
+      },
+      {
+        "id": "item_66a0b9ed_0_000004",
+        "display_name": "千里眼の巻物",
+        "game_alias": null,
+        "name_status": "unknown",
+        "true_name": null,
+        "quantity": null,
+        "equipped": null,
+        "quote": "千里眼の巻物",
+        "selected": false,
+        "identity_status": "new_or_ambiguous",
+        "page": null,
+        "line_index": 11,
+        "box": [
+          288.0,
+          307.0,
+          466.0,
+          342.0
+        ],
+        "known_description": {
+          "status": "description_text_observed",
+          "item_name": "千里眼の巻物",
+          "selected_line_box": [
+            286.0,
+            304.0,
+            467.0,
+            344.0
+          ],
+          "quotes": [
+            "今いる階のアイテムがどこにあるかわかるぞ。"
+          ],
+          "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+          "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+          "step": 132,
+          "source": "current_inventory_num7_toggle",
+          "effect_verified": false,
+          "inventory_scope": "3dafe324_1_",
+          "identity_scope": "profile_display_name",
+          "knowledge_kind": "game_description_ocr_not_verified_effect"
+        }
+      }
+    ],
+    "page": null,
+    "occupancy": {
+      "count": 4,
+      "capacity": 20,
+      "source": "current_inventory_ocr",
+      "unverified_ocr": true
+    },
+    "complete": false,
+    "selected_id": "item_66a0b9ed_0_000001",
+    "last_observed": 1793070713.2454011,
+    "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。"
+  },
+  "ocr": {
+    "engine": "ocr-paddle-v5",
+    "status": "ok",
+    "frame_sha256": "9d193615075aef8bea50f2c02efb467cf7c66029af6b7632cb9e586c7fe499f4",
+    "captured_at": 1793070713.2454011,
+    "lines": [
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "1階",
+        "confidence": 0.9998,
+        "words": [
+          {
+            "text": "1階",
+            "box": [
+              19.0,
+              39.0,
+              59.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "Lv2",
+        "confidence": 0.95483,
+        "words": [
+          {
+            "text": "Lv2",
+            "box": [
+              188.0,
+              40.0,
+              79.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "HP 19/19",
+        "confidence": 0.95421,
+        "words": [
+          {
+            "text": "HP 19/19",
+            "box": [
+              313.0,
+              41.0,
+              180.0,
+              34.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "満腹度",
+        "confidence": 0.97191,
+        "words": [
+          {
+            "text": "満腹度",
+            "box": [
+              618.0,
+              38.0,
+              96.0,
+              40.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "76%",
+        "confidence": 0.98471,
+        "words": [
+          {
+            "text": "76%",
+            "box": [
+              734.0,
+              39.0,
+              80.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "31",
+        "confidence": 0.99819,
+        "words": [
+          {
+            "text": "31",
+            "box": [
+              1140.0,
+              40.0,
+              58.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "G",
+        "confidence": 0.94013,
+        "words": [
+          {
+            "text": "G",
+            "box": [
+              1191.0,
+              45.0,
+              27.0,
+              27.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "大きいパン",
+        "confidence": 0.99985,
+        "words": [
+          {
+            "text": "大きいパン",
+            "box": [
+              287.0,
+              167.0,
+              148.0,
+              34.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "ルーラ草",
+        "confidence": 0.99992,
+        "words": [
+          {
+            "text": "ルーラ草",
+            "box": [
+              287.0,
+              210.0,
+              122.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "?",
+        "confidence": 0.65884,
+        "words": [
+          {
+            "text": "?",
+            "box": [
+              270.0,
+              262.0,
+              17.0,
+              17.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "青銅の盾",
+        "confidence": 0.9997,
+        "words": [
+          {
+            "text": "青銅の盾",
+            "box": [
+              287.0,
+              260.0,
+              122.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "千里眼の巻物",
+        "confidence": 0.99986,
+        "words": [
+          {
+            "text": "千里眼の巻物",
+            "box": [
+              288.0,
+              307.0,
+              178.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "道具",
+        "confidence": 0.99998,
+        "words": [
+          {
+            "text": "道具",
+            "box": [
+              1075.0,
+              567.0,
+              65.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "4/20",
+        "confidence": 0.99919,
+        "words": [
+          {
+            "text": "4/20",
+            "box": [
+              1105.0,
+              610.0,
+              86.0,
+              39.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "詳細表示切替",
+        "confidence": 0.99587,
+        "words": [
+          {
+            "text": "詳細表示切替",
+            "box": [
+              774.0,
+              678.0,
+              177.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793070714.245984,
+        "text": "整理",
+        "confidence": 0.99995,
+        "words": [
+          {
+            "text": "整理",
+            "box": [
+              1086.0,
+              676.0,
+              66.0,
+              38.0
+            ]
+          }
+        ]
+      }
+    ],
+    "confidence": null,
+    "language": "ja",
+    "recognition_cache": {
+      "enabled": true,
+      "hits": 0,
+      "misses": 19
+    }
+  }
+}
