@@ -11,13 +11,19 @@ def success_options(state):
     if type(visible) is bool:options.append({'id':'S01','test':'interface_closed' if visible else 'interface_opened','text':''})
     options.append({'id':'S02','test':'state_changes','text':''})
     ui=state.get('ui_visual',{});seen=set()
-    selectable=ui.get('interaction_model',{}).get('selection_requirement')=='selection_capable' or ui.get('selection',{}).get('status')=='supported_association'
+    selected=ui.get('selection',{});selection_ids={selected['element_id']} if selected.get('status')=='supported_association' and selected.get('element_id') else set()
+    for edge in ui.get('graph',[]):
+        if edge.get('kind')=='selection_movement_hypothesis' and edge.get('support',0)>=2 and edge.get('confidence',0)>=.6 and not edge.get('counterexamples') and edge.get('status')!='under_review':
+            selection_ids.update([edge['origin'],edge['destination']])
+    panels=state.get('interface_observation',{}).get('rectangles',[])
     for e in ui.get('elements',[]):
         text=e.get('text');box=e.get('bbox',[])
         if not isinstance(text,str) or not text.strip() or len(text)>60 or text in seen or len(box)!=4 or box[3]-box[1]>.12:continue
         if text not in '\n'.join(state.get('quotes',[])):continue
+        x=(box[0]+box[2])/2;y=(box[1]+box[3])/2
+        if panels and not any(r[0]<=x<=r[2] and r[1]<=y<=r[3] for r in panels):continue
         seen.add(text)
-        for test in (('selection_matches','text_disappears') if selectable else ('text_disappears',)):
+        for test in (('selection_matches','text_disappears') if e.get('id') in selection_ids else ('text_disappears',)):
             options.append({'id':'S'+str(len(options)+1).zfill(2),'test':test,'text':text})
         if len(seen)>=4:break
     for name,metric in list(state.get('metrics',{}).items())[:2]:

@@ -70,6 +70,14 @@ class AutonomyContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Identical success'):p.propose([node('valid'),bad])
         self.assertFalse(p.nodes)
 
+    def test_visible_hud_selection_goal_is_deferred_without_deleting_history(self):
+        m=MetaController(self.store,'hud');s=state(menu=True,text='HUD')
+        s['interface_observation']['rectangles']=[[.1,.3,.8,.8]]
+        s['ui_visual']={'elements':[{'text':'HUD','center':[.5,.1]}]}
+        m.local={'id':'bad','origin':'llm_hypothesis','capability':'change_selection','conditions':[condition('selection_text','HUD')],'parent':None,'deadline':32}
+        m.prepare(s,0)
+        self.assertNotEqual(m.local['id'],'bad');self.assertEqual(m.deferred[-1]['id'],'bad')
+
     def test_leaf_goal_before_parent_and_no_fixed_game_names(self):
         p=ProgressManager(self.store);parent=node('mission');child=node('obtain');child['parent']='mission';p.propose([parent,child])
         self.assertEqual(p.current()['id'],'obtain')

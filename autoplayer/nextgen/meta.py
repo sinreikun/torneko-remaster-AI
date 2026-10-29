@@ -205,6 +205,17 @@ class MetaController:
                 self.local=copy.deepcopy(saved['local']);self.local['created']=step;self.local['deadline']=step+24
                 self.history.append({'event':'goal_revalidated_after_restart','id':self.local['id']})
             self.restore_local=None
+        # Retire a visible target outside every currently observed UI panel.
+        # Absence/unknown selection alone is not evidence against a target.
+        panels=state.get('interface_observation',{}).get('rectangles',[])
+        if self.local and self.local.get('origin')=='llm_hypothesis' and panels:
+            for condition in self.local.get('conditions',[]):
+                if condition['feature']!='selection_text' or condition['operator'] not in ('eq','contains'):continue
+                matches=[e for e in state.get('ui_visual',{}).get('elements',[]) if isinstance(e.get('text'),str) and condition['value'] in e['text']]
+                if matches and all(not any(r[0]<=e['center'][0]<=r[2] and r[1]<=e['center'][1]<=r[3] for r in panels) for e in matches):
+                    self.deferred.append(copy.deepcopy(self.local));self.deferred=self.deferred[-16:]
+                    self.history.append({'event':'local_selection_outside_ui_panels','step':step,'goal':self.local['id']})
+                    self.local=None;self.recovery=None;self.pending_local=None;self.goal_epoch+=1;break
         self.ensure_local(state,step)
         self.failures=self.classify(state)
         if not self.recovery:self.new_recovery(state,step)

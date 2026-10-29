@@ -15,8 +15,8 @@ class BriefTests(unittest.TestCase):
         self.reply={'local_objective':'不要な画面を閉じて現在地を確認する','reason':'現在の表示だけでは位置が分からない','preferred':['A00'],'discouraged':[],'success_test':'interface_closed','success_text':'','review_after':16}
     def test_grounded_success_choice_couples_test_and_nonempty_text(self):
         self.state['quotes']=['道具','道具','観測原文']
-        self.state['ui_visual']={'elements':[{'text':'道具','bbox':[.1,.1,.3,.16]},{'text':'道具','bbox':[.1,.1,.3,.16]}],
-            'interaction_model':{'selection_requirement':'selection_capable'}}
+        self.state['ui_visual']={'elements':[{'id':'item','text':'道具','bbox':[.1,.1,.3,.16]},{'id':'item','text':'道具','bbox':[.1,.1,.3,.16]}],
+            'interaction_model':{'selection_requirement':'selection_capable'},'selection':{'status':'supported_association','element_id':'item'}}
         choices=success_options(self.state);self.state['success_choices']=choices
         choice=next(x for x in choices if x['test']=='selection_matches')
         self.assertEqual(choice['text'],'道具')
@@ -35,6 +35,19 @@ class BriefTests(unittest.TestCase):
         choices=success_options(self.state)
         self.assertNotIn('selection_matches',[c['test'] for c in choices])
         self.assertTrue(any(c['test']=='text_disappears' for c in choices))
+
+    def test_menu_does_not_turn_hud_into_selection_targets(self):
+        self.state['quotes']=['満腹度','道具','マップ']
+        self.state['interface_observation']={'visible':True,'rectangles':[[.05,.2,.6,.6]]}
+        self.state['ui_visual']={'elements':[{'id':'hud','text':'満腹度','bbox':[.4,.05,.6,.1]},
+            {'id':'item','text':'道具','bbox':[.1,.3,.2,.35]},{'id':'map','text':'マップ','bbox':[.3,.3,.4,.35]}],
+            'interaction_model':{'selection_requirement':'selection_capable'},
+            'graph':[{'kind':'selection_movement_hypothesis','origin':'item','destination':'map','support':2,'confidence':.75}]}
+        choices=success_options(self.state)
+        self.assertNotIn('満腹度',[x['text'] for x in choices])
+        self.assertEqual({x['text'] for x in choices if x['test']=='selection_matches'},{'道具','マップ'})
+        self.state['ui_visual']['graph'][0]['counterexamples']=1
+        self.assertFalse(any(x['test']=='selection_matches' for x in success_options(self.state)))
 
     def test_small_reply_selects_allowed_input_and_observable_completion(self):
         decoded,issues=decode(self.reply,self.aliases,self.actions,self.state,validate)
