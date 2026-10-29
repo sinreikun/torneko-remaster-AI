@@ -84,6 +84,7 @@ class MetaController:
         targets=[{k:t[k] for k in ('feature','operator','value')} for t in plan.get('targets',[]) if t.get('feature')!='node']
         if targets and not all(condition_value(state,c) is True for c in targets):
             proposed={'id':'local:'+digest(targets),'label':plan['objective'],'conditions':targets,'capability':self.infer_capability(targets,state) if any(c['feature'] in ('interface_open','selection_text') for c in targets) else plan.get('required_capability') or self.infer_capability(targets,state),'origin':'llm_hypothesis','created':step,'deadline':step+32,'parent':(self.progress.current() or {}).get('id'),'start_frame':state['frame_sha256']}
+            if any(c['feature']=='selection_text' for c in targets):proposed['ui_scope']=state.get('ui_visual',{}).get('layout')
             existing=self.pending_local or self.local
             if existing and self.recovery_goal_key(existing)==self.recovery_goal_key(proposed):
                 self.history.append({'event':'equivalent_local_goal_retained','step':step,'id':existing['id'],'deadline':existing['deadline']})
@@ -195,6 +196,29 @@ class MetaController:
         self.new_recovery(state,step)
         self.save()
         return {'event':'autonomy_update','step':step,'state':self.context(state),'reason':'input_revalidation_failed_no_input_sent'}
+    def check_local_ui(self,state,step):
+        goal=self.local
+        if not goal or goal.get('origin')!='llm_hypothesis':return
+        targets=[c for c in goal.get('conditions',[]) if c['feature']=='selection_text' and c['operator'] in ('eq','contains')]
+        if not targets:return
+        ui=state.get('ui_visual',{});layout=ui.get('layout')
+        if state.get('measurement_status')!='ok' or state.get('quality',0)<.7 or not layout or not ui.get('elements'):return
+        texts=[e.get('text','') for e in ui['elements'] if isinstance(e.get('text'),str)]
+        present=all(any(c['value']==t if c['operator']=='eq' else c['value'] in t for t in texts) for c in targets)
+        if present:
+            goal.setdefault('ui_scope',layout);goal.pop('ui_scope_check',None);return
+        if goal.get('ui_scope')==layout:
+            goal.pop('ui_scope_check',None);return # A scrolled/off-screen item may still belong here.
+        watch=goal.get('ui_scope_check',{})
+        if watch.get('layout')!=layout:watch={'layout':layout,'frames':[]}
+        if state['frame_sha256'] not in watch['frames']:watch['frames'].append(state['frame_sha256'])
+        goal['ui_scope_check']=watch
+        if len(watch['frames'])<2:return
+        saved=copy.deepcopy(goal);saved['deferred_reason']='selection_ui_scope_mismatch'
+        self.deferred.append(saved);self.deferred=self.deferred[-16:]
+        self.history.append({'event':'local_ui_scope_mismatch','step':step,'id':goal['id'],'frames':watch['frames'][-2:],'status':'deferred_not_disproved'})
+        self.local=self.pending_local;self.pending_local=None;self.recovery=None;self.goal_epoch+=1
+
     def prepare(self,state,step):
         self.observer.expire()
         if self.recovery and time.monotonic()>=self.recovery['wall_deadline']:
@@ -214,6 +238,7 @@ class MetaController:
                 self.local=copy.deepcopy(saved['local']);self.local['created']=step;self.local['deadline']=step+24
                 self.history.append({'event':'goal_revalidated_after_restart','id':self.local['id']})
             self.restore_local=None
+        self.check_local_ui(state,step)
         # Retire a visible target outside every currently observed UI panel.
         # Absence/unknown selection alone is not evidence against a target.
         panels=state.get('interface_observation',{}).get('rectangles',[])
@@ -306,6 +331,7 @@ class MetaController:
         return {'phase':node['label'] if node else '進行証拠と操作能力を獲得する','current_goal':copy.deepcopy(self.local),
           'session_goal':{'id':node['id'],'label':node['label']} if node and node['scope']=='session' else None,
           'parent_goal':{'id':node['id'],'label':node['label'],'status':node['status'],'source':node['source'],'evidence':node['evidence'][-2:],'unknown':node['unknown']} if node else None,
+          'deferred_goal':{k:self.deferred[-1].get(k) for k in ('id','label','parent','deferred_reason')} if self.deferred else None,
           'learning_task_status':'hypotheses_exhausted_seek_new_evidence' if self.local and self.recovery_exhaustion_key() in self.exhausted else 'finite_trial' if self.recovery else 'execution' if self.local else 'unconfirmed',
           'required_capabilities':[cap] if cap else [],'missing_capabilities':self.capabilities.missing([cap],state,self.local['conditions']) if cap and state else [],
           'failure_classes':list(self.failures),'recovery':{k:v for k,v in self.recovery.items() if k not in ('resume','attempted_actions')} if self.recovery else None,

@@ -90,3 +90,7 @@ brief protocolの検証に失敗した場合、45秒未満かつ知識取得の�
 ## v0.29.1 必須の成功条件索引
 
 success_choicesは現在snapshotから作る有限の操作検証条件表で、Knowledge Storeの新しい事実ではない。Context Viewの必須制御情報として保存し、retry_viewでも削除しない。情報取得後も同じowner snapshotのID対応を使い、保存OCRから勝手に新しい成功条件を生成しない。予算を超えれば既存の必須情報超過として扱い、条件表の末尾を切ってSchemaと不一致にしない。
+
+## v0.29.6 保留した局所課題の索引
+
+goal_hierarchy.deferred_goalに最新の局所課題のid/label/parent/deferred_reasonを必須情報として渡す。全保留履歴をプロンプトへ載せず、現在の目標と過去に適用できなかった目標を分離する。保留した条件の成立や攻略の失敗を事実化しない。

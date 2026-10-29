@@ -195,7 +195,7 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
         if interaction:base['current']['spatial_ui']['interaction']={k:interaction[k] for k in ('selection_requirement','text_flow_suspended','basis') if k in interaction}
     else:base['current']['minimap']=copy.deepcopy(current.get('minimap',{}))
     hierarchy=prompt.get('goal_hierarchy',{})
-    base['goal_hierarchy']={k:copy.deepcopy(hierarchy[k]) for k in ('phase','current_goal','parent_goal','missing_capabilities','failure_classes','planning_issue') if k in hierarchy}
+    base['goal_hierarchy']={k:copy.deepcopy(hierarchy[k]) for k in ('phase','current_goal','parent_goal','deferred_goal','missing_capabilities','failure_classes','planning_issue') if k in hierarchy}
     # Planning IDs and grounding constraints are protocol, not optional memory.
     if 'planning_material' in hierarchy:
         material=hierarchy['planning_material'];base['goal_hierarchy']['planning_material']={k:copy.deepcopy(material[k]) for k in ('new_node_ids','existing_node_ids','graph_rules','instruction') if k in material}

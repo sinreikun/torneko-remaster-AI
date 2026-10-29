@@ -95,6 +95,28 @@ class AutonomyContracts(unittest.TestCase):
         n['label']='observed label';n['conditions']=[condition(value='observed label')];n['evidence']=[{'conditions':copy.deepcopy(n['conditions'])}]
         self.assertFalse(m.ungrounded_literals(n,state(text='other')))
 
+    def test_ui_goal_is_deferred_only_after_independent_new_scope_observations(self):
+        m=MetaController(self.store,'scope');s=state(menu=True,text='different screen')
+        s['ui_visual']={'layout':'new','elements':[{'text':'other'}]}
+        goal={'id':'select','label':'original intent','parent':'parent','origin':'llm_hypothesis','ui_scope':'old',
+            'conditions':[condition('selection_text','target')],'capability':'change_selection','deadline':32}
+        m.local=copy.deepcopy(goal)
+        m.check_local_ui(s,1);m.check_local_ui(s,2);self.assertIsNotNone(m.local) # Cached frame is not two proofs.
+        s['frame_sha256']='independent';m.check_local_ui(s,3)
+        self.assertIsNone(m.local);self.assertEqual(m.deferred[-1]['parent'],'parent')
+        self.assertEqual(m.context()['deferred_goal']['label'],'original intent')
+        m.local=copy.deepcopy(goal);s['ui_visual']['layout']='old'
+        for i in range(3):s['frame_sha256']=str(i);m.check_local_ui(s,i)
+        self.assertIsNotNone(m.local) # Missing text in the same UI can be off-page.
+        s['ui_visual']['layout']='new';s['quality']=.2
+        for i in range(3):s['frame_sha256']='bad'+str(i);m.check_local_ui(s,i)
+        self.assertIsNotNone(m.local)
+    def test_legacy_ui_goal_gets_scope_when_target_is_observed(self):
+        m=MetaController(self.store,'legacy');s=state(menu=True,text='target')
+        s['ui_visual']={'layout':'current','elements':[{'text':'target'}]}
+        m.local={'id':'select','origin':'llm_hypothesis','conditions':[condition('selection_text','target')]}
+        m.check_local_ui(s,0);self.assertEqual(m.local['ui_scope'],'current')
+
     def test_leaf_goal_before_parent_and_no_fixed_game_names(self):
         p=ProgressManager(self.store);parent=node('mission');child=node('obtain');child['parent']='mission';p.propose([parent,child])
         self.assertEqual(p.current()['id'],'obtain')
