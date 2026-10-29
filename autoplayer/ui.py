@@ -166,7 +166,7 @@ class Application:
         self.log=tk.Text(logbox,width=1,height=12,wrap='word',state='disabled');self.log.pack(side='left',fill='both',expand=True)
         logscroll=ttk.Scrollbar(logbox,command=self.log.yview);logscroll.pack(side='right',fill='y');self.log.configure(yscrollcommand=logscroll.set)
         from .telemetry import RecognitionPanel
-        self.runtime_summary=tk.StringVar(value='経過 00:00:00 / 完了ターン 0')
+        self.runtime_summary=tk.StringVar(value='経過 00:00:00 / 完了ターン 0 / 平均 -- 秒/手')
         runtime_label=ttk.Label(right,textvariable=self.runtime_summary,padding=7,font=('',11,'bold'),wraplength=280);runtime_label.pack(fill='x')
         right.bind('<Configure>',lambda event:runtime_label.configure(wraplength=max(1,event.width-14)))
         right_split=ttk.Panedwindow(right,orient='vertical');right_split.pack(fill='both',expand=True)
@@ -1359,8 +1359,10 @@ class Application:
             try:self.overlay.refresh()
             except Exception as error:
                 self.overlay.close();self.overlay=None;self.overlay_enabled.set(False);self.status.set('オーバーレイを停止しました: '+str(error))
-        elapsed=int((self.run_finished or time.time())-self.run_started) if self.run_started else 0
-        self.set_panel('今回統計',f"経過 {elapsed//3600:02d}:{elapsed//60%60:02d}:{elapsed%60:02d}   完了ターン {self.traces.turn}\n送信 {self.run_counts['sent']} / 画面変化 {self.run_counts['changed']} / 再試行 {self.run_counts['retries']}\n{'一時停止' if self.control and self.control.paused.is_set() else '実行中' if self.busy() else '停止'}")
+        elapsed_seconds=max(0,(self.run_finished or time.time())-self.run_started) if self.run_started else 0
+        elapsed=int(elapsed_seconds)
+        average=f'{elapsed_seconds/self.traces.turn:.2f}' if self.traces.turn>0 else '--'
+        self.set_panel('今回統計',f"経過 {elapsed//3600:02d}:{elapsed//60%60:02d}:{elapsed%60:02d}   完了ターン {self.traces.turn}   平均 {average} 秒/手\n送信 {self.run_counts['sent']} / 画面変化 {self.run_counts['changed']} / 再試行 {self.run_counts['retries']}\n{'一時停止' if self.control and self.control.paused.is_set() else '実行中' if self.busy() else '停止'}")
 
     @staticmethod
     def close_capture(backend):
