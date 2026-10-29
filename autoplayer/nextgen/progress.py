@@ -49,6 +49,7 @@ def validate_nodes(nodes,known=()):
         for k in ('conditions','counterconditions'):
             if not isinstance(n[k],list) or len(n[k])>4 or k=='conditions' and not n[k]:raise ValueError('Evidence conditions required')
             for c in n[k]:validate_condition(c)
+        if any(c in n['counterconditions'] for c in n['conditions']):raise ValueError('Identical success and counterevidence conditions')
         result.append(copy.deepcopy(n))
     all_nodes={n['id']:n for n in result}
     for n in result:

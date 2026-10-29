@@ -4,7 +4,31 @@ from .protocol import decode_parts
 
 TESTS=['none','interface_closed','interface_opened','text_appears','text_disappears','selection_matches','state_changes','metric_increases','metric_decreases']
 
-def schema_for(aliases,planning=False,new_goal_ids=None,existing_goal_ids=()):
+def success_options(state):
+    """Finite, grounded local tests; labels are protocol, never screen text."""
+    options=[{'id':'S00','test':'none','text':''}]
+    visible=state.get('interface_observation',{}).get('visible')
+    if type(visible) is bool:options.append({'id':'S01','test':'interface_closed' if visible else 'interface_opened','text':''})
+    options.append({'id':'S02','test':'state_changes','text':''})
+    ui=state.get('ui_visual',{});seen=set()
+    selectable=ui.get('interaction_model',{}).get('selection_requirement')=='selection_capable' or ui.get('selection',{}).get('status')=='supported_association'
+    for e in ui.get('elements',[]):
+        text=e.get('text');box=e.get('bbox',[])
+        if not isinstance(text,str) or not text.strip() or len(text)>60 or text in seen or len(box)!=4 or box[3]-box[1]>.12:continue
+        if text not in '\n'.join(state.get('quotes',[])):continue
+        seen.add(text)
+        for test in (('selection_matches','text_disappears') if selectable else ('text_disappears',)):
+            options.append({'id':'S'+str(len(options)+1).zfill(2),'test':test,'text':text})
+        if len(seen)>=4:break
+    for name,metric in list(state.get('metrics',{}).items())[:2]:
+        for index,value in enumerate(metric.get('values',[])[:1]):
+            if type(value) not in (int,float):continue
+            for test in ('metric_increases','metric_decreases'):
+                options.append({'id':'S'+str(len(options)+1).zfill(2),'test':test,'text':f'metric.{name}.{index}'})
+    return options
+
+
+def schema_for(aliases,planning=False,new_goal_ids=None,existing_goal_ids=(),success_choices=None):
     text={'type':'string','maxLength':240}
     schema={'type':'object','additionalProperties':False,'properties':{
       'local_objective':{**text,'minLength':1,'description':'今の画面から数手で達成する具体的な目的。長期目標の転記ではない'},
@@ -13,6 +37,11 @@ def schema_for(aliases,planning=False,new_goal_ids=None,existing_goal_ids=()):
       'success_test':{'type':'string','enum':TESTS},'success_text':text,
       'review_after':{'type':'integer','minimum':8,'maximum':128}},
       'required':['local_objective','reason','preferred','discouraged','success_test','success_text','review_after']}
+    if success_choices is not None:
+        for key in ('success_test','success_text'):
+            schema['properties'].pop(key);schema['required'].remove(key)
+        schema['properties']['success_choice']={'type':'string','enum':[x['id'] for x in success_choices],'description':'提示された成功条件候補IDを一つ選ぶ。不明ならS00。'}
+        schema['required'].append('success_choice')
     from .knowledge_access import TOPICS
     schema['properties']['information_requests']={'type':'array','maxItems':2,'items':{'type':'object','additionalProperties':False,'properties':{'topic':{'type':'string','enum':sorted(TOPICS)},'target_id':{'type':'string','maxLength':100}},'required':['topic','target_id']}}
     schema['properties']['observation_request']={'type':'string','enum':['none','fresh_full_ocr']}
@@ -23,12 +52,12 @@ def schema_for(aliases,planning=False,new_goal_ids=None,existing_goal_ids=()):
           'feature':{'type':'string','maxLength':100},'operator':{'type':'string','enum':['eq','ne','contains','not_contains','ge','le']},
           'value':{'type':['string','number','boolean']}},'required':['feature','operator','value']}
         node={'type':'object','additionalProperties':False,'properties':{
-          'id':{'type':'string','maxLength':80},'label':text,'parent':text,
+          'id':{'type':'string','minLength':1,'maxLength':80},'label':{**text,'minLength':1},'parent':text,
           'requires':{'type':'array','maxItems':8,'items':{'type':'string'}},
           'scope':{'type':'string','enum':['campaign','session']},
           'conditions':{'type':'array','minItems':1,'maxItems':4,'items':condition},
           'counterconditions':{'type':'array','maxItems':4,'items':condition},
-          'capabilities':{'type':'array','maxItems':4,'items':{'type':'string','enum':list(CAPABILITIES)}},'source':text},
+          'capabilities':{'type':'array','maxItems':4,'items':{'type':'string','enum':list(CAPABILITIES)}},'source':{**text,'minLength':1}},
           'required':['id','label','parent','requires','scope','conditions','counterconditions','capabilities','source']}
         if new_goal_ids:
             node['properties']['id']['enum']=list(new_goal_ids)
@@ -41,6 +70,13 @@ def schema_for(aliases,planning=False,new_goal_ids=None,existing_goal_ids=()):
 
 
 def decode(value,aliases,candidates,state,validate):
+    if isinstance(value,dict) and 'success_choice' in value:
+        if 'success_test' in value or 'success_text' in value:raise ValueError('Mixed success protocols')
+        choices=state.get('success_choices',[])
+        choice=next((x for x in choices if x['id']==value['success_choice']),None)
+        if not choice:raise ValueError('Unknown grounded success choice')
+        value={k:v for k,v in value.items() if k!='success_choice'}
+        value.update(success_test=choice['test'],success_text=choice['text'])
     # Archived protocol replies remain readable, but live requests use only the
     # smaller schema. No numeric score/hold-time coercion or guessed key mapping.
     if isinstance(value,dict) and 'local_objective' not in value:return decode_parts(value,aliases,candidates,state,validate)

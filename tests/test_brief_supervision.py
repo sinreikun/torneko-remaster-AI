@@ -2,7 +2,7 @@
 import copy,tempfile,threading,unittest
 from pathlib import Path
 from autoplayer.core import Settings,LocalLLM
-from autoplayer.nextgen.brief_protocol import decode,schema_for,unavailable_key_hints
+from autoplayer.nextgen.brief_protocol import decode,schema_for,success_options,unavailable_key_hints
 from autoplayer.nextgen.supervisor import SemanticSupervisor,validate
 from autoplayer.nextgen.model import ForwardModel,target_score,action_id
 from autoplayer.nextgen.store import ExperienceStore
@@ -13,6 +13,29 @@ class BriefTests(unittest.TestCase):
         self.state=measured();self.state['interface_hypothesis']=True
         self.actions=[{'id':action_id(['a'],80),'keys':['a'],'hold_ms':80}];self.aliases={'A00':self.actions[0]['id']}
         self.reply={'local_objective':'不要な画面を閉じて現在地を確認する','reason':'現在の表示だけでは位置が分からない','preferred':['A00'],'discouraged':[],'success_test':'interface_closed','success_text':'','review_after':16}
+    def test_grounded_success_choice_couples_test_and_nonempty_text(self):
+        self.state['quotes']=['道具','道具','観測原文']
+        self.state['ui_visual']={'elements':[{'text':'道具','bbox':[.1,.1,.3,.16]},{'text':'道具','bbox':[.1,.1,.3,.16]}],
+            'interaction_model':{'selection_requirement':'selection_capable'}}
+        choices=success_options(self.state);self.state['success_choices']=choices
+        choice=next(x for x in choices if x['test']=='selection_matches')
+        self.assertEqual(choice['text'],'道具')
+        self.assertEqual(sum(x['test']=='selection_matches' for x in choices),1)
+        reply={k:v for k,v in self.reply.items() if k not in ('success_test','success_text')}
+        reply['success_choice']=choice['id']
+        plan,issues=decode(reply,self.aliases,self.actions,self.state,validate)
+        self.assertFalse(issues);self.assertEqual(plan['targets'][0]['value'],'道具')
+        schema=schema_for(self.aliases,success_choices=choices)
+        self.assertNotIn('success_text',schema['properties']);self.assertIn(choice['id'],schema['properties']['success_choice']['enum'])
+        with self.assertRaises(ValueError):decode({**reply,'success_choice':'missing'},self.aliases,self.actions,self.state,validate)
+        with self.assertRaises(ValueError):decode({**reply,'success_text':''},self.aliases,self.actions,self.state,validate)
+    def test_unknown_dialogue_does_not_offer_selection_of_sentences(self):
+        self.state['quotes']=['文章だけ']
+        self.state['ui_visual']={'elements':[{'text':'文章だけ','bbox':[.1,.1,.3,.16]}]}
+        choices=success_options(self.state)
+        self.assertNotIn('selection_matches',[c['test'] for c in choices])
+        self.assertTrue(any(c['test']=='text_disappears' for c in choices))
+
     def test_small_reply_selects_allowed_input_and_observable_completion(self):
         decoded,issues=decode(self.reply,self.aliases,self.actions,self.state,validate)
         self.assertFalse(issues);self.assertEqual(decoded['candidate_values'][0]['id'],self.actions[0]['id'])

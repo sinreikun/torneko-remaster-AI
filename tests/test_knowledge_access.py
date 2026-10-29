@@ -110,7 +110,9 @@ class RetrievalWiring(unittest.TestCase):
         cfg=Settings(window_title='generic',allowed_keys=['a']);calls=[];events=[]
         def reply(image,system,prompt,schema):
             calls.append(copy.deepcopy(prompt))
-            return json.dumps({'local_objective':'現在画面で変化を確認','reason':'現在の根拠に従う','preferred':['A00'],'discouraged':[],'success_test':'state_changes','success_text':'','review_after':16,'information_requests':[{'topic':'full_ocr','target_id':''}]})
+            self.assertIn('success_choice',schema['required']);self.assertNotIn('success_text',schema['properties'])
+            choice=next(c for c in prompt['success_choices'] if c['test']=='state_changes')
+            return json.dumps({'local_objective':'現在画面で変化を確認','reason':'現在の根拠に従う','preferred':['A00'],'discouraged':[],'success_choice':choice['id'],'review_after':16,'information_requests':[{'topic':'full_ocr','target_id':''}]})
         with tempfile.TemporaryDirectory() as folder,patch.object(LocalLLM,'_request',side_effect=reply):
             store=ExperienceStore(Path(folder)/'world.sqlite','p','s');model=ForwardModel(store);s=SemanticSupervisor(cfg,LocalLLM(cfg),events.append,threading.Event())
             try:

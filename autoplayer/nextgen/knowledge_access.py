@@ -184,7 +184,7 @@ def project(entry):
 def context_view(prompt,snapshot,role,budget=5000,requests=()):
     """Select atomic records; never truncate a fact/constraint mid-sentence."""
     current=prompt.get('current',{})
-    base={k:copy.deepcopy(prompt[k]) for k in ('task','goal','operator_guidance','reason','candidates','user_key_bindings','protocol','features','known_state_ids','instruction','observation_limits') if k in prompt}
+    base={k:copy.deepcopy(prompt[k]) for k in ('task','goal','operator_guidance','reason','candidates','user_key_bindings','protocol','features','known_state_ids','instruction','observation_limits','success_choices') if k in prompt}
     if 'candidates' in base:base['candidates']=[{k:v for k,v in c.items() if k in ('id','keys')} for c in base['candidates']]
     fields=('id','context','frame_sha256','observed_at','metrics','retained','quality','interface_hypothesis','selection_observation','editable_content_candidates')
     base['current']={k:copy.deepcopy(current[k]) for k in fields if k in current}

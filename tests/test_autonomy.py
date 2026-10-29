@@ -65,6 +65,11 @@ class AutonomyContracts(unittest.TestCase):
         self.assertIsNone(condition_value(state(),condition('metric.absent.0',1,'ge')))
         with self.assertRaises(ValueError):validate_nodes([node('a',['b']),node('b',['a'])])
         with self.assertRaises(ValueError):validate_nodes([node(conditions=[condition('__import__(os)',1,'eq')])])
+    def test_identical_success_and_counterevidence_is_rejected_atomically(self):
+        p=ProgressManager(self.store);bad=node();bad['counterconditions']=copy.deepcopy(bad['conditions'])
+        with self.assertRaisesRegex(ValueError,'Identical success'):p.propose([node('valid'),bad])
+        self.assertFalse(p.nodes)
+
     def test_leaf_goal_before_parent_and_no_fixed_game_names(self):
         p=ProgressManager(self.store);parent=node('mission');child=node('obtain');child['parent']='mission';p.propose([parent,child])
         self.assertEqual(p.current()['id'],'obtain')
