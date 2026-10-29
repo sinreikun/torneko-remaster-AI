@@ -6,7 +6,8 @@ from PIL import Image,ImageChops,ImageStat
 from .state import StateBuilder,digest,effects
 from .store import ExperienceStore
 from .model import ForwardModel,AdaptivePolicy,snapshot,target_score
-from .supervisor import SemanticSupervisor
+from .research import ResearchLayer
+from .field_pipeline import RulePrefetch,ProgressLane
 from .meta import MetaController
 from ..controls import is_torneko
 from ..cancellation import OperationCancelled
@@ -59,7 +60,8 @@ class NextGenController:
         profile=digest([self.cfg.profile_id or self.cfg.window_title,sorted(self.cfg.allowed_keys),self.cfg.key_bindings])
         store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal,self.cfg.knowledge)
         self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
-        supervisor=SemanticSupervisor(self.cfg,self.llm,self.send_event,self.cancel);candidates=model.candidates(self.cfg)
+        prefetch=RulePrefetch(store.path,profile);progress_lane=ProgressLane()
+        supervisor=ResearchLayer(self.cfg,self.llm,self.send_event,self.cancel,store);candidates=model.candidates(self.cfg)
         self.builder.ui_vision.restore(store.load('ui_models',limit=64))
         self.builder.ui_interactions.restore(store.load('ui_interactions',limit=64))
         for appearance in store.load('appearances',limit=128):self.builder.tracker.variants[appearance['id']]=appearance['variants']
@@ -77,6 +79,7 @@ class NextGenController:
                     if last_revision is not None and revision!=last_revision:model.pending.clear();self.previous=None
                     last_revision=revision
                     source=getattr(self.llm,'operator_guidance',None);guidance=source.snapshot() if source else {'revision':0,'text':''}
+                    if self.previous:prefetch.begin(self.previous,candidates)
                     t=time.monotonic();image=self.backend.capture();stages['capture_ms']=(time.monotonic()-t)*1000
                     self.observation_policy=meta.observer.effective_policy(self.previous);self.builder.observation_policy=self.observation_policy
                     full=bool(getattr(meta,'fresh_observation_requested',False) or step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
@@ -99,21 +102,18 @@ class NextGenController:
                         if self.cancel.wait(.08):break
                         image=self.backend.capture()
                     before=self.sense(image,full,base_state=before)
+                    prefetch.begin(before,candidates)
+                    if step==0:
+                        from .knowledge_access import KnowledgeAccess
+                        KnowledgeAccess(store).capture(before,0,self.cfg.knowledge)
                     meta.prepare(before,step)
                     t=time.monotonic();requests_before=supervisor.requests
-                    plan,adoption=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
-                    if adoption:
-                        if adoption['plan'].get('observation_request')=='fresh_full_ocr':
-                            if step-getattr(meta,'last_llm_observation',-100)>=16:
-                                meta.fresh_observation_requested=True;meta.last_llm_observation=step
-                                self.send_event({'event':'knowledge_observation','status':'queued_fresh_full_ocr','source':'llm_request_not_fact','step':step})
-                        meta.accept(adoption['plan'],before,step)
-                        model.add_hypotheses(adoption['plan']['hypotheses'],adoption['state'],candidates)
-                        for interpretation in adoption['plan']['interpretations']:
-                            identifier=digest([adoption['state']['frame_sha256'],interpretation])
-                            store.put('interpretations',{**interpretation,'source_frame':adoption['state']['frame_sha256'],'context':adoption['state']['context'],'status':'llm_interpretation_unverified'},step,key=identifier)
-                    stages['supervisor_dispatch_ms']=(time.monotonic()-t)*1000
+                    plan,_=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
+                    stages['research_mailbox_and_snapshot_ms']=(time.monotonic()-t)*1000
+                    stages['llm_wait_ms']=0.
                     plan=meta.guide(plan,before,candidates)
+                    retrieval=prefetch.merge(before,candidates,model);stages['experience_prefetch_join_ms']=retrieval['join_ms']
+                    if retrieval['status']!='merged':self.send_event({'event':'experience_prefetch',**retrieval,'learning':False})
                     t=time.monotonic();chosen,ranking,choice_ms=model.choose(before,candidates,plan,adaptive.weight)
                     stages['action_selection_ms']=max(0,choice_ms-model.search_ms-model.prediction_ms);stages['experience_search_ms']=model.search_ms;stages['world_prediction_ms']=model.prediction_ms;stages['experience_search_and_prediction_ms']=(time.monotonic()-t)*1000
                     action=chosen['candidate'];prediction=chosen['prediction']
@@ -179,8 +179,14 @@ class NextGenController:
                     self.builder.apply_ui_selection(after)
                     ui_model=self.builder.ui_vision.models.get(after.get('ui_visual',{}).get('layout'))
                     if ui_model:store.put('ui_models',ui_model,step,key=ui_model['key'])
-                    result=model.observe(before,action,after,prediction,receipt,step,neutral,kind,natural_confidence)
-                    interaction=self.builder.ui_interactions.observe(before,action,after,result,ui_receipt,step,ui_transition,neutral)
+                    meta.check_boundary(after,step)
+                    progress_lane.begin(meta.progress,after,step)
+                    try:
+                        result=model.observe(before,action,after,prediction,receipt,step,neutral,kind,natural_confidence)
+                        interaction=self.builder.ui_interactions.observe(before,action,after,result,ui_receipt,step,ui_transition,neutral)
+                    finally:
+                        progress_join=time.monotonic();progress_changes=progress_lane.merge(after['frame_sha256'],step)
+                        stages['parallel_progress_join_ms']=(time.monotonic()-progress_join)*1000
                     interaction_model=self.builder.ui_interactions.model(before)
                     if interaction_model:store.put('ui_interactions',interaction_model,step,key=interaction_model['key'])
                     self.builder.ui_vision.last=copy.deepcopy(after.get('ui_visual',{}))
@@ -188,7 +194,9 @@ class NextGenController:
                     if text_evidence:
                         from .knowledge_access import KnowledgeAccess
                         KnowledgeAccess(store).record_messages(text_evidence,step,after)
-                    autonomy=meta.observe(before,action,after,result,receipt,step,(time.monotonic()-started)*1000,neutral)
+                    from .knowledge_access import KnowledgeAccess
+                    KnowledgeAccess(store).capture(after,step)
+                    autonomy=meta.observe(before,action,after,result,receipt,step,(time.monotonic()-started)*1000,neutral,progress_changes=progress_changes)
                     self.send_event(autonomy)
                     if result.get('match') is not None:accuracy.append(float(result['match']))
                     trial=adaptive.update(result)
@@ -212,7 +220,7 @@ class NextGenController:
                       'changed':before['frame_sha256']!=after['frame_sha256'],'policy_after':{k:v for k,v in after.items() if k!='visual_vector'},'policy_state':shown_before,'ocr':copy.deepcopy(self.builder.cache.get(before['frame_sha256'],{}).get('native',{'status':'unavailable','lines':[]})),
                       'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'ui_interaction':interaction,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},
-                      'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None},
+                      'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None,'synchronization':{'input_source_frame':before['frame_sha256'],'result_source_frame':after['frame_sha256'],'commit_order':'input_result_then_parallel_world_progress_then_skill_meta','research_blocks_input':False}},
                       'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}
                     t=time.monotonic();store.put('transition',{'before':snapshot(before),'input':action,'receipt':receipt,'after':snapshot(after),'prediction':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'neutral':neutral,'message_evidence':text_evidence},step)
                     for identifier in list(self.builder.tracker.dirty):
@@ -232,7 +240,7 @@ class NextGenController:
                     raise
             if self.control and self.control.intervention.is_set():raise OperationCancelled('手動介入へ切替')
         finally:
-            supervisor.close()
+            supervisor.close();self.builder.close();prefetch.close();progress_lane.close()
             try:
                 try:
                     self.backend.release_all()

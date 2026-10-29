@@ -59,7 +59,7 @@ class RecognitionState:
         # a perception event is emitted before deciding the current input.
         if self.floor_state.get('status') in ('pending','unreadable'):self.remaining=0
         if row.get('fast_learning'):self.remaining=row['fast_learning'].get('next_review_in',0)
-        if row.get('supervision'):self.remaining=0 if row['supervision'].get('review_running') else row['supervision'].get('review_in',0)
+        if row.get('supervision'):self.research=row['supervision'].get('role')=='asynchronous_knowledge_research';self.remaining=0 if row['supervision'].get('review_running') else row['supervision'].get('review_in',0)
         self.revision+=1
     def grid(self):
         if self.tentative.get('active') or self.tentative.get('display_retained'):
@@ -140,7 +140,7 @@ class RecognitionState:
         atlas=self.tentative.get('atlas',{})
         if atlas.get('map_id'):note+='\n外部地図 '+atlas['map_id']+(' / 保存済み開始地点から再開' if atlas.get('reused') else ' / 新規地図')
         if atlas.get('awaiting_entry'):note+='\n場面切替：開始地点の再観測待ち'
-        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}   満腹度 {val('fullness')}   ちから {val('strength')}   剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}   最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM：{count} / {self.phase} / 最終観測 {age} / 地図：{'仮経路（実地図と別座標）' if self.tentative.get('active') or self.tentative.get('display_retained') else '確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') and not self.tentative.get('active') else ''}{note}"
+        return f"階 {val('floor')}   Lv {val('level')}   HP {val('hp')}   満腹度 {val('fullness')}   ちから {val('strength')}   剣 {val('sword')}   盾 {val('shield')}   経験値 {val('experience')}   最深階 {val('max_floor')}   所持金 {val('gold')}\n次のLLM{'研究' if getattr(self,'research',False) else ''}：{count} / {self.phase} / 最終観測 {age} / 地図：{'仮経路（実地図と別座標）' if self.tentative.get('active') or self.tentative.get('display_retained') else '確認済み' if self.map.get('status')=='observed' else '取得・階確認待ち'}{'（最終観測を保持）' if self.map.get('retained') and not self.tentative.get('active') else ''}{note}"
 
 def valid(cell):return isinstance(cell,(tuple,list)) and len(cell)==2 and all(type(v) is int for v in cell) and 0<=cell[0]<54 and 0<=cell[1]<32
 
@@ -211,5 +211,5 @@ class RecognitionPanel:
             self.canvas.delete('recognition');paint_grid(self.canvas,self.state.grid(),*layout);self.last_layout=layout
             self.last_revision=self.state.revision
         self.lamp.itemconfigure('lamp',fill='#6dff80' if self.state.thinking else '#394654')
-        self.label.configure(text='LLM使用中' if self.state.thinking else 'LLM待機')
+        self.label.configure(text=('LLM研究中・現場継続' if self.state.thinking else 'LLM研究待機・現場独立') if getattr(self.state,'research',False) else 'LLM使用中' if self.state.thinking else 'LLM待機')
         self.text.configure(text=self.state.summary())

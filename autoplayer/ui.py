@@ -99,11 +99,11 @@ class Application:
         self.dry=tk.BooleanVar(value=False);ttk.Checkbutton(options,text='観察のみ（キー送信なし）',variable=self.dry).pack(side='left')
         fast_bar=toolbar
         self.supervised_learning=tk.BooleanVar(value=self.cfg.supervised_learning)
-        ttk.Label(fast_bar,text='経験予測コア v2 / 非同期LLM監督').pack(side='left')
+        ttk.Label(fast_bar,text='並列認識・経験制御 / 非同期LLM研究').pack(side='left')
         self.fast_learning=tk.BooleanVar(value=True);self.review_interval=tk.IntVar(value=self.cfg.llm_review_interval)
         ttk.Label(fast_bar,text='観測・操作は常時高速 / 状況に応じて精査').pack(side='left')
         review_group=ttk.Frame(fast_bar);review_group.pack(side='left')
-        ttk.Label(review_group,text='監督LLMの定期確認（手）').pack(side='left',padx=(0,4))
+        ttk.Label(review_group,text='LLM研究の基準間隔（手）').pack(side='left',padx=(0,4))
         ttk.Spinbox(review_group,from_=16,to=4096,increment=16,textvariable=self.review_interval,width=6).pack(side='left')
         ttk.Label(review_group,text='（次回開始から適用）').pack(side='left',padx=5)
         for widget in toolbar.winfo_children():
@@ -1140,11 +1140,13 @@ class Application:
             if combat.get('status')=='updated':text+=f"戦闘学習: 評価 {combat['reward']:.3f} / 予測誤差 {combat.get('prediction_error')}\n"
             visual=value.get('visual_response',{})
             if visual.get('status')=='observed':text+=f"画像反応: 大きな変化={visual.get('context_change')} / 変化未確認 {visual.get('stagnant_turns',0)}手 / 一時保留 {value.get('visual_action_evidence',{}).get('blocked_actions',[])}（攻略成果は未確認）\n"
+        elif event=='research_result':
+            text=f"LLM研究 | 意味仮説 {value.get('abstractions',0)} / 矛盾候補 {value.get('contradictions',0)} / 現場適用 {value.get('current_applicability')} / {value.get('adopted',[])}\n"
         elif event in ('loop_detected','loop_escape'):
             text=f"反復検出 / 脱出 | {event} #{value.get('id')} | 手 {value.get('steps',[])}\n種類: {value.get('kind','')} / 周期 {value.get('period','')} / {value.get('reason','別の局所目標へ切り替えます')}\n"
         elif str(event).startswith('human_'):
             text=f"人間操作 {event} | 入力 {value.get('keys',[])} | {value.get('reason','')}\n"
-        elif event in ('error','diagnostic_export','observation_recovery','self_improvement','supervisor_error','supervisor_discarded','supervisor_protocol_warning','supervisor_local_goal'):
+        elif event in ('error','diagnostic_export','observation_recovery','self_improvement','supervisor_error','supervisor_discarded','supervisor_protocol_warning','supervisor_local_goal','research_error','research_discarded'):
             text=f"{event}: {value.get('reason') or value.get('status') or value.get('path','')}\n"
         else:return
         append_text(self.log,text+'─'*35+'\n')
@@ -1180,6 +1182,11 @@ class Application:
         if event=='knowledge_book' and value.get('status')=='exported':self.knowledge_book_path=Path(value['path'])
         if event in ('knowledge_context','knowledge_retrieval','knowledge_book','knowledge_observation'):
             self.set_panel('認識・知識',value);return
+        if event=='research_result':
+            self.set_panel('認識・知識',value)
+            self.set_panel('運用計画',{k:value.get(k) for k in ('status','source_step','source_frame','current_applicability','adopted','proposed_tasks','progress_proposals')});return
+        if event in ('research_error','research_discarded'):
+            self.set_panel('自己改善',value);return
         if event=='autonomy_update':
             a=value['state']
             self.set_panel('進行・能力',{k:a.get(k) for k in ('phase','current_goal','parent_goal','required_capabilities','missing_capabilities','skills','progress','planning_missing')})

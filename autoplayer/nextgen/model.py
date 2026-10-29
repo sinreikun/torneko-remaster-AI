@@ -44,11 +44,12 @@ class ForwardModel:
         for node,count in store.reader.execute('SELECT key,visits FROM states WHERE profile=? ORDER BY updated DESC LIMIT 2048',(store.profile,)):self.visits[node]=count
         for (raw,) in store.reader.execute('SELECT data FROM graph WHERE profile=? ORDER BY updated DESC LIMIT 2048',(store.profile,)):
             e=json.loads(raw);self.edges[(e['origin'],e['action'],e['destination'])]=e
+    def _load_rule(self,key):return [] if key in getattr(self,'prefetched_missing',set()) else self.store.load('rules',key)
     def _key(self,state,action):return digest([state['context'],action])
     def rule(self,state,action):
         def get(key,condition=None):
             if key not in self.rules:
-                rows=self.store.load('rules',key)
+                rows=self._load_rule(key)
                 self.rules[key]=rows[0] if rows else {'key':key,'context':state['context'],'action':action,'condition_node':condition,'samples':[],'checks':[],'revisions':0}
             self.rules.move_to_end(key)
             while len(self.rules)>512:self.rules.popitem(last=False)
@@ -82,7 +83,7 @@ class ForwardModel:
         if not state.get('interface_hypothesis') or not layout:return None
         key=digest(['interface_pool_v1',layout,action])
         if key not in self.rules:
-            rows=self.store.load('rules',key)
+            rows=self._load_rule(key)
             self.rules[key]=rows[0] if rows else {'key':key,'type':'layout_input_observations','samples':[],'checks':[],'revisions':0}
         self.rules.move_to_end(key)
         while len(self.rules)>512:self.rules.popitem(last=False)

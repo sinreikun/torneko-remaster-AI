@@ -9,6 +9,7 @@ from autoplayer.core import Settings,LocalLLM
 from autoplayer.nextgen.store import ExperienceStore,diagnostic_summary
 from autoplayer.nextgen.model import ForwardModel,AdaptivePolicy,action_id,effects
 from autoplayer.nextgen.state import StateBuilder
+from autoplayer.nextgen.research import ResearchLayer
 from autoplayer.nextgen.supervisor import validate,SemanticSupervisor
 from autoplayer.nextgen.controller import NextGenController
 from autoplayer.session import SessionControl
@@ -111,7 +112,7 @@ class PerceptionAndShellContracts(unittest.TestCase):
         backend=Mock();backend.capture.return_value=png;backend.act.return_value={'os_submission':'accepted'}
         backend.observe_turn.return_value=TurnObservation(png,'no_change',False,0,0,0)
         control=SessionControl();rows=[]
-        with tempfile.TemporaryDirectory() as folder,patch.object(SemanticSupervisor,'tick',return_value=(plan(),None)):
+        with tempfile.TemporaryDirectory() as folder,patch.object(ResearchLayer,'tick',return_value=(plan(),None)):
             root=Path(folder);runner=NextGenController(cfg,backend,llm,rows.append,root/'runs'/'one.jsonl',control.stop,control=control)
             runner.run();self.assertEqual(backend.act.call_count,2);self.assertFalse(runner.completed)
             raw=[json.loads(x) for x in (root/'runs'/'one.jsonl').read_text().splitlines()]
@@ -185,7 +186,7 @@ class AdditionalObservationContracts(unittest.TestCase):
                 calls.append(1);control.toggle_pause();threading.Timer(.02,control.toggle_pause).start();raise OperationCancelled('pause boundary')
             return png
         backend.capture.side_effect=capture;backend.act.return_value={'os_submission':'accepted'};backend.observe_turn.return_value=TurnObservation(png,'no_change',False,0,0,0)
-        with tempfile.TemporaryDirectory() as folder,patch.object(SemanticSupervisor,'tick',return_value=(plan(),None)):
+        with tempfile.TemporaryDirectory() as folder,patch.object(ResearchLayer,'tick',return_value=(plan(),None)):
             runner=NextGenController(cfg,backend,llm,lambda _:None,Path(folder)/'runs'/'s.jsonl',control.stop,control=control)
             runner.run();self.assertEqual(backend.act.call_count,1)
         control.close()

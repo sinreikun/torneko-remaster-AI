@@ -41,7 +41,7 @@ def topic_matches(topic,record):
     return True
 
 class KnowledgeAccess:
-    """Owner-thread DB queries produce immutable, bounded worker snapshots."""
+    """Queries use a connection owned by the calling thread. Writes remain owner-only."""
     def __init__(self,store):self.store=store;self.last_view={};self.last_book_step=-1000
     def put(self,record,step=0):
         if record.get('source') not in SOURCES or record.get('status') not in STATUSES:raise ValueError('Invalid claim')
@@ -135,7 +135,7 @@ class KnowledgeAccess:
         source=r.get('source') if r.get('source') in SOURCES else 'EXPERIENCED' if topic in ('capability_history','rules','ui_history') else 'UNKNOWN' if topic=='long_term_intent' else 'INFERRED'
         return {'id':r.get('id',r.get('key',digest(r))),'source':source,'status':r.get('status','UNCONFIRMED'),'data':copy.deepcopy(r),'applicability':'must_revalidate','freshness':'historical_or_snapshot_evidence_not_current_truth','topic':topic}
     def lookup(self,snapshot,requests):
-        """Exact IDs may search cold DB; called only on the owner thread."""
+        """Exact IDs search cold DB using the calling thread’s own connection."""
         result=copy.deepcopy(snapshot)
         for req in requests:
             if req.get('topic') not in TOPICS or not req.get('target_id'):continue
@@ -310,7 +310,7 @@ def write_book(store,path):
     """Streaming export on a separate reader; no whole-history RAM allocation."""
     import sqlite3
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True);temp=path.with_suffix('.md.tmp')
-    sections=[('進行','progress'),('習得能力','capabilities'),('操作・UI','ui_models'),('発見した規則','rules'),('仮説・反証・未解決事項','hypotheses'),('観測器の調整','observer_policies'),('アイテム図鑑','knowledge_claims'),('モンスター図鑑','knowledge_claims'),('所持品の理解','knowledge_claims'),('外部資料との照合','knowledge_claims'),('その他の直接観測','knowledge_claims')]
+    sections=[('進行','progress'),('習得能力','capabilities'),('操作・UI','ui_models'),('発見した規則','rules'),('仮説・反証・未解決事項','hypotheses'),('観測器の調整','observer_policies'),('アイテム図鑑','knowledge_claims'),('モンスター図鑑','knowledge_claims'),('所持品の理解','knowledge_claims'),('外部資料との照合','knowledge_claims'),('意味の仮説・矛盾整理','knowledge_claims'),('その他の直接観測','knowledge_claims')]
     with sqlite3.connect(store.path) as db,temp.open('w',encoding='utf-8') as out:
         out.write('# Game Knowledge\n\n構造化DBから生成した派生資料。観測・経験も誤認を含み得ます。攻略成功の証明ではありません。\n\n')
         out.write('Profile: `'+store.profile+'`\n\n')
@@ -321,7 +321,8 @@ def write_book(store,path):
                 if title in ('アイテム図鑑','モンスター図鑑','所持品の理解'):
                     sql+=" AND json_extract(data,'$.entity_kind')=?";args.append({'アイテム図鑑':'item','モンスター図鑑':'monster','所持品の理解':'inventory'}[title])
                 elif title=='外部資料との照合':sql+=" AND json_extract(data,'$.source')='EXTERNAL' AND json_extract(data,'$.entity_kind') IS NULL"
-                else:sql+=" AND json_extract(data,'$.source')!='EXTERNAL' AND json_extract(data,'$.entity_kind') IS NULL"
+                elif title=='意味の仮説・矛盾整理':sql+=" AND json_extract(data,'$.predicate') IN ('research_abstractions','research_contradictions')"
+                else:sql+=" AND json_extract(data,'$.source')!='EXTERNAL' AND json_extract(data,'$.entity_kind') IS NULL AND COALESCE(json_extract(data,'$.predicate'),'') NOT IN ('research_abstractions','research_contradictions')"
             for raw, in db.execute(sql+' ORDER BY updated DESC',args):
                 count+=1;r=json.loads(raw);entry=KnowledgeAccess.entry(next((t for t,v in TABLES.items() if v==table),'hypotheses'),r);p=project(entry)
                 label=str(r.get('label',r.get('subject',r.get('id',r.get('key','未命名'))))).replace('\n',' ')

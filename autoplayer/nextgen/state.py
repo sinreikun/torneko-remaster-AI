@@ -1,6 +1,7 @@
 """One frame analysis cache; measured, retained and hypothesized data stay apart."""
 import copy,hashlib,io,json,math,re,time,uuid
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image,ImageChops
 from ..controls import is_torneko
 from ..knowledge import KnowledgeEngine
@@ -64,9 +65,18 @@ class AnonymousTracker:
         self.previous=small;self.tracks=tracks
         return [{k:v for k,v in t.items() if k!='descriptor'} for t in tracks],matched/len(proposals) if proposals else None
 
+def frame_geometry(png,with_map):
+    started=time.monotonic()
+    grid=read_grid(png) if with_map else {'status':'unavailable'}
+    elapsed=(time.monotonic()-started)*1000
+    with Image.open(io.BytesIO(png)) as source:
+        image=source.convert('RGB');vector=[round(v/255,2) for v in image.resize((16,12)).tobytes()];size=list(image.size)
+    return {'sha':hashlib.sha256(png).hexdigest(),'grid':grid,'vector':vector,'size':size,'map_ms':elapsed}
+
 class StateBuilder:
     def __init__(self,cfg,ocr):
-        self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={};self.ui_vision=UIVision();self.ui_expected=False;self.ui_interactions=UIInteractionModel()
+        self.geometry_pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='frame-geometry');self.cfg=cfg;self.ocr=ocr;self.ocr.fast_mode=True;self.knowledge=KnowledgeEngine();self.cache=OrderedDict();self.evidence_cache=OrderedDict();self.retained={};self.map_sensor=MapSensor();self.floor=FloorConfirmation();self.tracker=AnonymousTracker();self.prototypes=OrderedDict();self.hits=0;self.serial=0;self.map_domain=uuid.uuid4().hex[:16];self.restore_candidates=[];self.restoration_checked=False;self.interfaces=InterfaceIdentity();self.observation_policy={'cache_uses':12};self.cache_uses={};self.ui_vision=UIVision();self.ui_expected=False;self.ui_interactions=UIInteractionModel()
+    def close(self):self.geometry_pool.shutdown(wait=False,cancel_futures=True)
     def read_metrics(self,native):
         metrics=self.knowledge.reconcile(native)['metrics'] if is_torneko(self.cfg.window_title) else {}
         if not is_torneko(self.cfg.window_title):
@@ -83,6 +93,7 @@ class StateBuilder:
         if policy_cached and (cached['full'] or not full):
             self.cache_uses[sha]=uses+1
             self.hits+=1;value=copy.deepcopy(cached);value['timing']={'ocr_ms':0.,'object_recognition_ms':0.,'map_geometry_ms':0.,'analysis_cache_hit':True};return value
+        geometry=self.geometry_pool.submit(frame_geometry,png,is_torneko(self.cfg.window_title)) if not cached else None
         frame_started=time.monotonic();frames=cached['white_frame'] if cached else interface_frames(png);frame_ms=(time.monotonic()-frame_started)*1000
         full=full or frames.get('visible') is True or bool(self.ui_expected and self.ui_vision.last and self.ui_vision.last.get('needs_observation'))
         started=time.monotonic();self.ocr.force_fresh=bool(force_fresh or cached and not policy_cached)
@@ -104,10 +115,10 @@ class StateBuilder:
             value['metrics']=self.read_metrics(native)
             value['timing']['ocr_ms']=ocr_ms;value['timing']['geometry_cache_hit']=True
             self.cache[sha]=copy.deepcopy(value);return value
-        with Image.open(io.BytesIO(png)) as source:
-            image=source.convert('RGB');vector=[round(v/255,2) for v in image.resize((16,12)).tobytes()];size=list(image.size)
-        t=time.monotonic();grid=read_grid(png) if is_torneko(self.cfg.window_title) else {'status':'unavailable'}
-        visual_ms=(time.monotonic()-t)*1000
+        barrier=time.monotonic();measured=geometry.result()
+        if measured['sha']!=sha:raise ValueError('Parallel frame source mismatch')
+        join_ms=(time.monotonic()-barrier)*1000
+        grid=measured['grid'];vector=measured['vector'];size=measured['size'];visual_ms=measured['map_ms']
         # No previous Q values, role predictions or model descriptions here.
         metrics=self.read_metrics(native)
         confirmation=self.floor.update(metrics.get('floor',{}).get('values'),sha)
@@ -116,7 +127,7 @@ class StateBuilder:
         elif confirmation.get('status')=='pending':grid={'status':'unavailable','reason':'floor_pending'}
         t=time.monotonic();objects,tracking=self.tracker.observe(png)
         value={'sha':sha,'full':full,'native':native,'metrics':metrics,'minimap':grid,'white_frame':frames,'vector':vector,'size':size,'objects':objects,'tracking':tracking,'floor_confirmation':confirmation,
-          'timing':{'ocr_ms':ocr_ms,'object_recognition_ms':(time.monotonic()-t)*1000,'map_geometry_ms':visual_ms,'interface_geometry_ms':frame_ms}}
+          'timing':{'ocr_ms':ocr_ms,'object_recognition_ms':(time.monotonic()-t)*1000,'map_geometry_ms':visual_ms,'interface_geometry_ms':frame_ms,'parallel_geometry_join_ms':join_ms,'parallel_frame_geometry':True}}
         self.cache[sha]=copy.deepcopy(value)
         while len(self.cache)>12:self.cache.popitem(last=False)
         return value

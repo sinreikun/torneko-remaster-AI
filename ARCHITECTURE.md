@@ -1,3 +1,5 @@
+> 現行v0.30.0の実行経路は[同期並列パイプラインと非同期研究層](DESIGN-ASYNC-RESEARCH.md)を参照。以下には旧版の設計経緯も含みます。
+
 # 現行：0.26 空間・時間UI観測と自律上位層
 
 `StateBuilder → UIVision → 入力結果の対応・反証 → World Model / Capability / Meta`

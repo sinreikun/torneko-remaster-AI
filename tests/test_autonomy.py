@@ -8,6 +8,7 @@ from autoplayer.nextgen.progress import ProgressManager,validate_nodes,condition
 from autoplayer.nextgen.capabilities import CapabilityManager
 from autoplayer.nextgen.observer_adaptation import ObserverAdaptation,DEFAULTS
 from autoplayer.nextgen.model import action_id,ForwardModel
+from autoplayer.nextgen.research import ResearchLayer
 from autoplayer.nextgen.supervisor import SemanticSupervisor,validate
 from autoplayer.nextgen.brief_protocol import schema_for,decode
 from autoplayer.core import Settings,LocalLLM
@@ -235,7 +236,7 @@ class AutonomyContracts(unittest.TestCase):
         llm=LocalLLM(cfg);llm.ocr=Mock();llm.ocr.read.return_value={'status':'ok','frame_sha256':sha,'lines':[{'text':'HP: 10/20'}]}
         backend=Mock();backend.capture.return_value=png;backend.act.return_value={'os_submission':'accepted'};backend.observe_turn.return_value=TurnObservation(png,'no_change',False,0,0,0)
         control=SessionControl();rows=[]
-        with patch.object(SemanticSupervisor,'tick',return_value=({'objective':'検証','reason':'経験照合','targets':[],'candidate_values':[],'hypotheses':[]},None)):
+        with patch.object(ResearchLayer,'tick',return_value=({'objective':'検証','reason':'経験照合','targets':[],'candidate_values':[],'hypotheses':[]},None)):
             runner=NextGenController(cfg,backend,llm,rows.append,Path(self.tmp.name)/'runs'/'replay.jsonl',control.stop,control=control)
             runner.run()
         events=[r for r in rows if r.get('event')=='autonomy_update'];self.assertEqual(len(events),3)

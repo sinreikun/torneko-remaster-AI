@@ -290,9 +290,12 @@ class MetaController:
                 if action and any(c['id']==action for c in candidates):values[action]={'id':action,'value':1.5,'reason':'入力同期の選択グラフから目的の文字へ向かう最初の一手。次手は再観測する。'}
         plan['candidate_values']=list(values.values());plan['meta_goal_id']=self.local['id']
         return plan
-    def observe(self,before,action,after,result,receipt,step,ms,neutral=None):
+    def observe(self,before,action,after,result,receipt,step,ms,neutral=None,progress_changes=None):
         self.ui_probes.observe(before,action,result,receipt,self.observer.policy)
-        self.nonexecutions=0;self.last_state=after;self.check_boundary(after,step);changes=self.progress.update(after,step);local=self.local or {};conditions=local.get('conditions',[])
+        self.nonexecutions=0;self.last_state=after
+        if progress_changes is None:self.check_boundary(after,step);changes=self.progress.update(after,step)
+        else:changes=progress_changes # Controller has joined the exclusive Progress lane.
+        local=self.local or {};conditions=local.get('conditions',[])
         skills=self.capabilities.observe(before,action,after,result,step,local.get('capability'),conditions,neutral)
         values=[condition_value(after,c) for c in conditions];previous=[condition_value(before,c) for c in conditions]
         attained=bool(values) and all(v is True for v in values) and not all(v is True for v in previous) and result.get('status')=='updated'
