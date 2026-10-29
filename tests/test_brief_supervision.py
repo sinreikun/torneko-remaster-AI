@@ -49,6 +49,13 @@ class BriefTests(unittest.TestCase):
         self.state['ui_visual']['graph'][0]['counterexamples']=1
         self.assertFalse(any(x['test']=='selection_matches' for x in success_options(self.state)))
 
+    def test_action_alias_is_not_a_local_objective_without_screen_evidence(self):
+        with self.assertRaisesRegex(ValueError,'候補ID'):
+            decode({**self.reply,'local_objective':'A00'},self.aliases,self.actions,self.state,validate)
+        self.state['quotes']=['A00']
+        decoded,_=decode({**self.reply,'local_objective':'A00'},self.aliases,self.actions,self.state,validate)
+        self.assertEqual(decoded['objective'],'A00')
+
     def test_small_reply_selects_allowed_input_and_observable_completion(self):
         decoded,issues=decode(self.reply,self.aliases,self.actions,self.state,validate)
         self.assertFalse(issues);self.assertEqual(decoded['candidate_values'][0]['id'],self.actions[0]['id'])

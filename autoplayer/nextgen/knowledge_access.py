@@ -196,6 +196,8 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
     else:base['current']['minimap']=copy.deepcopy(current.get('minimap',{}))
     hierarchy=prompt.get('goal_hierarchy',{})
     base['goal_hierarchy']={k:copy.deepcopy(hierarchy[k]) for k in ('phase','current_goal','parent_goal','deferred_goal','missing_capabilities','failure_classes','planning_issue') if k in hierarchy}
+    goal=base['goal_hierarchy'].get('current_goal')
+    if goal:base['goal_hierarchy']['current_goal']={k:goal[k] for k in ('id','label','parent','conditions','capability','origin','deadline') if k in goal}
     # Planning IDs and grounding constraints are protocol, not optional memory.
     if 'planning_material' in hierarchy:
         material=hierarchy['planning_material'];base['goal_hierarchy']['planning_material']={k:copy.deepcopy(material[k]) for k in ('new_node_ids','existing_node_ids','graph_rules','instruction') if k in material}
@@ -203,6 +205,9 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
     base['knowledge']['requests_rule']='追加はinformation_requestsでtopicとtarget_idを最大2件。保存済み情報のみ。新規観測はobservation_request。未ロードは未知や不存在ではない。'
     # Catalog itself has a budget; compact counts retain unknown distinction.
     base['knowledge']['available']={k:{'status':v['status'],'count':v['count']} for k,v in snapshot['available'].items()}
+    # Reserve final counter widths before admitting optional units. Growing
+    # 0 to two/three digits after filling the budget used to reject valid views.
+    base['knowledge']['hot_coverage']={'quotes_loaded':len(current.get('quotes',[])),'quotes_available':len(current.get('quotes',[])),'spatial_elements_loaded':len(current.get('spatial_ui',{}).get('elements',[])),'spatial_elements_available':len(current.get('spatial_ui',{}).get('elements',[]))}
     if estimate_tokens(base)>budget:raise ValueError('context_required_fields_exceed_budget: no controls or current metrics were truncated')
     def add(path,value,limit=None):
         target=base
@@ -215,8 +220,7 @@ def context_view(prompt,snapshot,role,budget=5000,requests=()):
         return True
     # Current evidence precedes historical records. Selected text and spatial
     # relationships are whole records, never clipped strings.
-    base['knowledge']['hot_coverage']={'quotes_loaded':0,'quotes_available':len(current.get('quotes',[])),'spatial_elements_loaded':0,'spatial_elements_available':len(current.get('spatial_ui',{}).get('elements',[]))}
-    if estimate_tokens(base)>budget:raise ValueError('context_required_fields_exceed_budget')
+
     # Reserve the evidence needed by the requested task before optional
     # visual detail/history. At least a few current quotes remain grounded.
     quotes=[]

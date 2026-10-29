@@ -89,6 +89,7 @@ def decode(value,aliases,candidates,state,validate):
     if not isinstance(value,dict) or not set(schema_for(aliases)['required'])<=set(value) or set(value)-set(schema_for(aliases)['required'])-{'required_capability','progress_nodes','session_boundary','information_requests','observation_request'}:raise ValueError('短期監督応答の項目が不正')
     for field in ('local_objective','reason'):
         if not isinstance(value[field],str) or not 1<=len(value[field])<=240:raise ValueError('短期目的と理由が必要')
+    if value['local_objective'] in aliases and value['local_objective'] not in state.get('quotes',[]):raise ValueError('目的は候補IDではなく検証する効果を説明してください')
     if type(value['review_after']) is not int or not 8<=value['review_after']<=128:raise ValueError('見直し間隔が不正')
     if value['success_test'] not in TESTS or not isinstance(value['success_text'],str) or len(value['success_text'])>240:raise ValueError('短期の確認条件が不正')
     for key in ('preferred','discouraged'):

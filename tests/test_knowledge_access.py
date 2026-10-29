@@ -93,6 +93,25 @@ class KnowledgeContracts(unittest.TestCase):
         self.access.record_messages([{'source_frame_sha256':'f','enemy':'対象名','quote':'message','damage':3}],1,self.state);self.flush()
         row=self.access.snapshot(self.state,1)['pool']['monster'][0]
         self.assertEqual(row['source'],'OBSERVED');self.assertEqual(row['data']['identity_status'],'text_name_not_linked_to_appearance');self.assertEqual(row['data']['status'],'UNCONFIRMED')
+    def test_internal_goal_checkpoints_are_not_required_llm_memory(self):
+        p=self.prompt();p['goal_hierarchy']['current_goal']={'id':'g','label':'目的','parent':'mission','capability':'change_selection',
+            'conditions':[{'feature':'selection_text','operator':'contains','value':'原文'}],
+            'ui_scope_check':{'frames':['x'*1000]*100},'start_frame':'y'*1000}
+        view=context_view(p,self.access.snapshot(self.state,1),'ui',3000)
+        goal=view['goal_hierarchy']['current_goal']
+        self.assertEqual(goal['conditions'],p['goal_hierarchy']['current_goal']['conditions']);self.assertEqual(goal['parent'],'mission')
+        self.assertNotIn('ui_scope_check',goal);self.assertNotIn('start_frame',goal)
+    def test_hot_counter_growth_cannot_overflow_an_admitted_view(self):
+        p=self.prompt();p['current']['quotes']=['quote'+str(i) for i in range(40)]
+        p['current']['spatial_ui']['elements']=[{'id':str(i),'text':'text'+str(i),'bbox':[.1,.2,.3,.4]} for i in range(40)]
+        snap=self.access.snapshot(self.state,1)
+        for budget in range(2200,2400):
+            try:view=context_view(p,snap,'ui',budget)
+            except ValueError as error:
+                self.assertIn('no controls or current metrics were truncated',str(error));continue
+            self.assertLessEqual(estimate_tokens(view),budget)
+            self.assertEqual(view['knowledge']['hot_coverage']['quotes_loaded'],len(view['current'].get('quotes',[])))
+
     def test_warm_records_are_not_starved_by_large_ui_grid(self):
         self.store.put('capabilities',{'id':'skill','name':'change_selection','scope':'hash','status':'unconfirmed'},key='skill');self.flush()
         p=self.prompt();p['current']['spatial_ui']['elements']=[{'id':str(i),'text':'文字'*20,'bbox':[.1,.2,.3,.4]} for i in range(100)]

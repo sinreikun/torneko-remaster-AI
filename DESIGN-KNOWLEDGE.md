@@ -94,3 +94,9 @@ success_choicesは現在snapshotから作る有限の操作検証条件表で、
 ## v0.29.6 保留した局所課題の索引
 
 goal_hierarchy.deferred_goalに最新の局所課題のid/label/parent/deferred_reasonを必須情報として渡す。全保留履歴をプロンプトへ載せず、現在の目標と過去に適用できなかった目標を分離する。保留した条件の成立や攻略の失敗を事実化しない。
+
+## v0.29.7 Context Viewの内部投影と集計の予約
+
+current_goalはid/label/parent/conditions/capability/origin/deadlineへ投影し、ui_scope_checkのフレーム一覧やstart_frame等の内部チェックポイントを通常監督へ送らない。正本のautonomyデータは削除しない。必須の入力許可・作戦指示・現在数値・成功条件候補・達成条件は維持する。
+
+hot_coverageは初期必須フィールド検査前から予算に含め、loadedの桁数をavailableの上限桁数で予約する。任意情報の採用後に実際のloadedへ更新しても予約を超えない。以前は初期0で任意情報を予算いっぱいに採り、末尾更新で桁が増え、削除可能な知識レコードが無ければ失敗した。原文切断や設定予算の増加では解決しない。真に必須情報だけで超過する場合は既存の明示エラーを残す。
