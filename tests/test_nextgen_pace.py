@@ -32,3 +32,18 @@ class PaceContracts(unittest.TestCase):
         for _ in range(8):self.feed(q)
         q.tick+=64
         self.assertEqual(q.wait('scope',350),350)
+
+    def test_existing_model_errors_do_not_block_or_falsely_fail_pace_trial(self):
+        p=PaceController()
+        for n in range(8):event=self.feed(p,match=bool(n%2))
+        self.assertEqual(event['status'],'trial_started')
+        for n in range(8):event=self.feed(p,500,match=bool(n%2))
+        self.assertEqual(event['status'],'accepted')
+        self.assertEqual(p.last['baseline_samples'],0)
+
+    def test_prediction_accuracy_drop_compared_to_baseline_rolls_back(self):
+        p=PaceController()
+        for _ in range(8):self.feed(p)
+        event=self.feed(p,500,match=False)
+        self.assertEqual(event['status'],'rollback')
+        self.assertEqual(p.wait('scope',350),350)

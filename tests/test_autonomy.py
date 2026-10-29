@@ -41,6 +41,23 @@ class AutonomyContracts(unittest.TestCase):
         self.assertEqual(m.local['id'],original['id'])
         self.assertTrue(any(e.get('method')=='close_unproductive_interface' and e.get('status')=='verified_recovery' for e in m.history))
 
+    def test_recovery_is_not_abandoned_when_selection_bootstrap_changes(self):
+        m=MetaController(self.store,'intent');a=state(menu=True);m.prepare(a,0)
+        m.recovery=None;m.failures=['repetition_stagnation'];m.new_recovery(a,1)
+        identifier=m.recovery['id'];original=m.local['id']
+        b=state('other',menu=True);b['selection_observation']={'line_index':0}
+        m.prepare(b,2)
+        self.assertEqual(m.recovery['id'],identifier);self.assertEqual(m.local['id'],original)
+        self.assertEqual(m.guide({'targets':[]},b,[self.action])['targets'][0]['feature'],'interface_open')
+
+    def test_bootstrap_switch_requires_two_distinct_observation_frames(self):
+        m=MetaController(self.store,'intent');m.ensure_local(state(),0);original=m.local['id']
+        b=state('b',menu=True);b['selection_observation']={'line_index':0}
+        m.ensure_local(b,1);m.ensure_local(b,2)
+        self.assertEqual(m.local['id'],original)
+        c=copy.deepcopy(b);c['frame_sha256']='c';m.ensure_local(c,3)
+        self.assertEqual(m.local['capability'],'change_selection')
+
     def test_progress_requires_independent_evidence_and_prerequisites(self):
         p=ProgressManager(self.store);p.propose([node(),node('return',['see'],conditions=[condition(value='帰還確認')])])
         self.assertEqual(p.current()['id'],'see')

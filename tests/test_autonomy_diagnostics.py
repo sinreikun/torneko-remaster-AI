@@ -19,6 +19,8 @@ class DiagnosticContracts(unittest.TestCase):
         m.local['capability']='move';m.local['id']='ability:move';m.prepare(state(),1)
         self.assertEqual(m.local['capability'],'inspect')
         s=state(menu=True);s['selection_observation']={'line_index':2,'quote':'観測した項目'};m.prepare(s,2)
+        self.assertEqual(m.local['capability'],'inspect')
+        s['frame_sha256']='selection-confirmed';m.prepare(s,3)
         self.assertEqual(m.local['capability'],'change_selection')
     def test_missing_graph_is_required_in_planning_and_scheduled_again(self):
         schema=schema_for({'A00':self.action['id']},True)

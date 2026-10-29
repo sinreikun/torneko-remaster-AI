@@ -30,24 +30,29 @@ class PaceController:
         event=None
         if p['trial']:
             t=p['trial'];t['samples'].append(sample)
-            if not reliable or match is False:
+            old_predictions=[x['prediction'] for x in t['baseline'] if x['prediction'] is not None]
+            trial_predictions=[x['prediction'] for x in t['samples'] if x['prediction'] is not None]
+            baseline_accuracy=sum(old_predictions)/len(old_predictions) if old_predictions else None
+            prediction_regressed=bool(trial_predictions and baseline_accuracy is not None and (len(trial_predictions)>=4 or baseline_accuracy==1) and sum(trial_predictions)/len(trial_predictions)<baseline_accuracy-.125)
+            if not reliable or prediction_regressed:
                 p['failed_floor']=max(p['failed_floor'],t['wait']);p['trial']=None;p['cooldown']=16
                 event={'status':'rollback','reason':'quality_prediction_or_revalidation','wait_ms':p['wait']}
             elif len(t['samples'])>=8:
                 old=t['baseline'];new=sum(x['ms'] for x in t['samples'])/len(t['samples'])
                 old_quality=sum(x['quality'] for x in old)/len(old)
-                if new<sum(x['ms'] for x in old)/len(old) and quality>=old_quality-.05:
+                new_quality=sum(x['quality'] for x in t['samples'])/len(t['samples'])
+                if new<sum(x['ms'] for x in old)/len(old) and new_quality>=old_quality-.05:
                     p['wait']=t['wait'];event={'status':'accepted','wait_ms':p['wait']}
                 else:event={'status':'rollback','reason':'no_measured_improvement','wait_ms':p['wait']}
                 p['trial']=None;p['cooldown']=8;p['samples'].clear()
         else:
             p['cooldown']=max(0,p['cooldown']-1)
-            if reliable and match is not False:p['samples'].append(sample)
+            if reliable:p['samples'].append(sample)
             else:p['samples'].clear()
             if len(p['samples'])==8 and not p['cooldown']:
                 candidate=max(0,int(p['wait']*.8)-10,p['failed_floor']+1)
                 if candidate<p['wait']:
                     p['trial']={'wait':candidate,'baseline':list(p['samples']),'samples':[],'deadline_tick':self.tick+64,'deadline_time':time.monotonic()+120}
                     event={'status':'trial_started','old_wait_ms':p['wait'],'wait_ms':candidate,'deadline_samples':8}
-        self.last={'target_ms':self.target_ms,'target_turns_per_minute':40,'rolling_turns_per_minute':60000/(sum(self.elapsed)/len(self.elapsed)) if self.elapsed and sum(self.elapsed)>0 else None,'wait_ms':p['wait'],'trial_wait_ms':p['trial']['wait'] if p['trial'] else None,'basis':'observational_quality_and_latency_proxies','throughput_limited':bool(ms>=self.target_ms)}
+        self.last={'target_ms':self.target_ms,'target_turns_per_minute':40,'rolling_turns_per_minute':60000/(sum(self.elapsed)/len(self.elapsed)) if self.elapsed and sum(self.elapsed)>0 else None,'baseline_samples':len(p['samples']),'trial_samples':len(p['trial']['samples']) if p['trial'] else 0,'blocked_by_observation':not reliable,'prediction_match':match,'wait_ms':p['wait'],'trial_wait_ms':p['trial']['wait'] if p['trial'] else None,'basis':'observational_quality_and_latency_proxies','throughput_limited':bool(ms>=self.target_ms)}
         return event

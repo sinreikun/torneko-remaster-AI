@@ -109,11 +109,25 @@ class MetaController:
             self.history.append({'event':'ungrounded_progress_goal_deferred','step':step,'id':self.local['id']})
             self.deferred.append(copy.deepcopy(self.local));self.deferred=self.deferred[-16:]
             self.local=None;self.recovery=None;self.pending_local=None
-        if self.local and self.local.get('origin')=='capability_acquisition':
+        # A finite recovery owns the means until verified completion/deadline.
+        if self.recovery and self.recovery['method']=='close_unproductive_interface':
+            if node and self.local and self.local.get('origin')=='capability_acquisition':
+                self.history.append({'event':'recovery_finished','step':step,'status':'superseded_by_available_progress','method':self.recovery['method'],'resume':self.local['id']})
+                self.recovery=None
+            else:return
+        if self.local and self.local.get('origin')=='capability_acquisition' and not node:
             expected=self.bootstrap_capability(state)
             if self.local['capability']!=expected:
+                pending=getattr(self,'bootstrap_pending',{})
+                if pending.get('capability')!=expected:pending={'capability':expected,'frames':[]}
+                frame=state.get('frame_sha256')
+                if frame and frame not in pending['frames']:pending['frames'].append(frame)
+                self.bootstrap_pending=pending
+                if len(pending['frames'])<2 and expected!='inspect':return
+                self.bootstrap_pending={}
                 self.history.append({'event':'capability_observation_condition_mismatch','step':step,'old':self.local['capability'],'new':expected})
                 self.local=None;self.recovery=None
+            else:self.bootstrap_pending={}
         if self.local and not (node and self.local.get('origin')=='capability_acquisition') and (self.local.get('parent') is None or self.progress.nodes.get(self.local['parent'],{}).get('status') not in ('confirmed','disputed')):return
         if node:
             cap=next(iter(node['capabilities']),'inspect')
