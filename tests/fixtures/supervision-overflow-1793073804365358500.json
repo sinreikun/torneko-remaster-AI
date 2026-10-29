@@ -1,0 +1,1676 @@
+{
+  "source": "Recorded audit and OCR: diagnostics-1793073804365358500.zip; audit step2 and inventory frame step4. No game simulation.",
+  "audit": {
+    "active": true,
+    "id": 1,
+    "stage": "analyse",
+    "started_step": 0,
+    "analysis_step": 2,
+    "coverage": "observed_count_matches",
+    "metrics": {
+      "hp": {
+        "values": [
+          12,
+          19
+        ],
+        "quote": "HP12/19",
+        "unverified_ocr": true,
+        "meaning": "HP（現在値/最大値）"
+      },
+      "level": {
+        "values": [
+          2
+        ],
+        "quote": "Lv2",
+        "unverified_ocr": true,
+        "meaning": "現在のレベル"
+      },
+      "floor": {
+        "values": [
+          2
+        ],
+        "quote": "2階",
+        "unverified_ocr": true,
+        "meaning": "現在の階（最深階ではない）"
+      },
+      "gold": {
+        "values": [
+          76
+        ],
+        "quote": "76G",
+        "unverified_ocr": true,
+        "meaning": "所持金（G）"
+      },
+      "fullness": {
+        "values": [
+          58
+        ],
+        "quote": "満腹度 / 58%",
+        "evidence_quotes": [
+          "満腹度",
+          "58%"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "977a1f5e5598afce405f8ed1f340cd29fdb7969c3217b8a255df0cfc4695dd6d",
+        "label_box": [
+          620.0,
+          40.0,
+          92.0,
+          37.0
+        ],
+        "value_box": [
+          734.0,
+          40.0,
+          80.0,
+          36.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "満腹度（%）"
+      },
+      "max_floor": {
+        "values": [
+          25
+        ],
+        "quote": "最深階 / 25",
+        "evidence_quotes": [
+          "最深階",
+          "25"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+        "label_box": [
+          231.0,
+          540.0,
+          96.0,
+          39.0
+        ],
+        "value_box": [
+          510.0,
+          542.0,
+          49.0,
+          36.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "記録上の最深階（現在の階ではない）"
+      },
+      "sword": {
+        "values": [
+          0
+        ],
+        "quote": "剣の強さ / 0",
+        "evidence_quotes": [
+          "剣の強さ",
+          "0"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+        "label_box": [
+          231.0,
+          579.0,
+          123.0,
+          41.0
+        ],
+        "value_box": [
+          533.0,
+          582.0,
+          24.0,
+          33.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "剣の強さ"
+      },
+      "strength": {
+        "values": [
+          8,
+          8
+        ],
+        "quote": "ちから / 8/8",
+        "evidence_quotes": [
+          "ちから",
+          "8/8"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+        "label_box": [
+          666.0,
+          582.0,
+          89.0,
+          36.0
+        ],
+        "value_box": [
+          964.0,
+          582.0,
+          86.0,
+          36.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "ちから（現在値/最大値）"
+      },
+      "shield": {
+        "values": [
+          0
+        ],
+        "quote": "盾の強さ / 0",
+        "evidence_quotes": [
+          "盾の強さ",
+          "0"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+        "label_box": [
+          233.0,
+          621.0,
+          120.0,
+          36.0
+        ],
+        "value_box": [
+          536.0,
+          626.0,
+          21.0,
+          25.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "盾の強さ"
+      },
+      "experience": {
+        "values": [
+          22
+        ],
+        "quote": "経験値 / 22",
+        "evidence_quotes": [
+          "経験値",
+          "22"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+        "label_box": [
+          665.0,
+          622.0,
+          92.0,
+          36.0
+        ],
+        "value_box": [
+          998.0,
+          622.0,
+          50.0,
+          35.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "経験値（レベルとは別）"
+      }
+    },
+    "selected_item_quote": null,
+    "missing_status": [],
+    "pages": [
+      [
+        {
+          "id": "item_749cee39_0_000001",
+          "display_name": "大きいパン",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "大きいパン",
+          "selected": true,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 6,
+          "box": [
+            287.0,
+            167.0,
+            434.0,
+            201.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "大きいパン",
+            "selected_line_box": [
+              285.0,
+              165.0,
+              436.0,
+              202.0
+            ],
+            "quotes": [
+              "おなかがいつぱいになるぞ。"
+            ],
+            "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+            "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+            "step": 6,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "3dafe324_1_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_749cee39_0_000002",
+          "display_name": "ルーラ草",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "ルーラ草",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 7,
+          "box": [
+            286.0,
+            211.0,
+            408.0,
+            249.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "ルーラ草",
+            "selected_line_box": [
+              286.0,
+              210.0,
+              409.0,
+              249.0
+            ],
+            "quotes": [
+              "別の場所にワープするぞ。"
+            ],
+            "before_frame": "e4999087d896b5f3cf65a1412a9926168104a020218f7f98d4637cfc1b9c3897",
+            "after_frame": "8cc408060293fb4a1637a4f1c1b3d07a070dd39c2b75c7433f43a01e0547927b",
+            "step": 99,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "3dafe324_1_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_749cee39_0_000003",
+          "display_name": "青銅の盾",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "青銅の盾",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 9,
+          "box": [
+            288.0,
+            260.0,
+            408.0,
+            296.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "青銅の盾",
+            "selected_line_box": [
+              286.0,
+              260.0,
+              408.0,
+              296.0
+            ],
+            "quotes": [
+              "この盾の防御力は基本３だぞ。",
+              "十一によって上下するぞ。"
+            ],
+            "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+            "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+            "step": 129,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "3dafe324_1_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_749cee39_0_000004",
+          "display_name": "千里眼の巻物",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "千里眼の巻物",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 10,
+          "box": [
+            288.0,
+            305.0,
+            467.0,
+            343.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "千里眼の巻物",
+            "selected_line_box": [
+              286.0,
+              304.0,
+              467.0,
+              344.0
+            ],
+            "quotes": [
+              "今いる階のアイテムがどこにあるかわかるぞ。"
+            ],
+            "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+            "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+            "step": 132,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "3dafe324_1_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_749cee39_0_000005",
+          "display_name": "毒けし草",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "毒けし草",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 11,
+          "box": [
+            287.0,
+            352.0,
+            407.0,
+            387.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "毒けし草",
+            "selected_line_box": [
+              288.0,
+              353.0,
+              408.0,
+              388.0
+            ],
+            "quotes": [
+              "毒で下がったちからが限界まで回復するぞ。"
+            ],
+            "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+            "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+            "step": 35,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "e10dc9d0_0_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_749cee39_0_000006",
+          "display_name": "目くらまし草",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "目くらまし草",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 12,
+          "box": [
+            287.0,
+            397.0,
+            466.0,
+            437.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "目くらまし草",
+            "selected_line_box": [
+              288.0,
+              400.0,
+              465.0,
+              435.0
+            ],
+            "quotes": [
+              "大きいパン"
+            ],
+            "before_frame": "c5cb40f3df91fd3548ecdc94086a15004d96f44fc632634c60f04c03fa633684",
+            "after_frame": "c60c1df2390243c789f298eba1947eb6b54ac81a3336861997326cc1b6ed1273",
+            "step": 37,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "e10dc9d0_0_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        },
+        {
+          "id": "item_749cee39_0_000007",
+          "display_name": "地獄耳の巻物",
+          "game_alias": null,
+          "name_status": "unknown",
+          "true_name": null,
+          "quantity": null,
+          "equipped": null,
+          "quote": "地獄耳の巻物",
+          "selected": false,
+          "equipment_affordance": null,
+          "identity_status": "new_or_ambiguous",
+          "page": null,
+          "line_index": 13,
+          "box": [
+            289.0,
+            447.0,
+            465.0,
+            482.0
+          ],
+          "known_description": {
+            "status": "description_text_observed",
+            "item_name": "地獄耳の巻物",
+            "selected_line_box": [
+              288.0,
+              447.0,
+              465.0,
+              482.0
+            ],
+            "quotes": [
+              "今いる階のモンスターがどこにいるかわかるぞ。"
+            ],
+            "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+            "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+            "step": 39,
+            "source": "current_inventory_num7_toggle",
+            "effect_verified": false,
+            "inventory_scope": "e10dc9d0_0_",
+            "identity_scope": "profile_display_name",
+            "knowledge_kind": "game_description_ocr_not_verified_effect"
+          }
+        }
+      ]
+    ],
+    "instruction": "収集した状態・品の用途・装備と特殊効果を比較して次の具体的操作を選ぶ。名前不明でも説明や装備という使用方法は種別の根拠になる。未確認ページや装備状態を推測で埋めない。確認済みの説明を再表示しない。",
+    "status": "analysis_unavailable",
+    "finished_step": 2,
+    "analysis_elapsed_ms": 1184
+  },
+  "ocr": {
+    "engine": "ocr-paddle-v5",
+    "status": "ok",
+    "frame_sha256": "7ef4ba2fc2249b9e53911ec027c888ab56a427ecee71bad5fb585897ad242837",
+    "captured_at": 1793073827.2693145,
+    "lines": [
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "2階",
+        "confidence": 0.99861,
+        "words": [
+          {
+            "text": "2階",
+            "box": [
+              18.0,
+              37.0,
+              61.0,
+              43.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "Lv2",
+        "confidence": 0.93087,
+        "words": [
+          {
+            "text": "Lv2",
+            "box": [
+              190.0,
+              41.0,
+              77.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "HP12/19",
+        "confidence": 0.99377,
+        "words": [
+          {
+            "text": "HP12/19",
+            "box": [
+              311.0,
+              39.0,
+              182.0,
+              40.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "満腹度",
+        "confidence": 0.99302,
+        "words": [
+          {
+            "text": "満腹度",
+            "box": [
+              620.0,
+              40.0,
+              92.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "58%",
+        "confidence": 0.96742,
+        "words": [
+          {
+            "text": "58%",
+            "box": [
+              735.0,
+              40.0,
+              80.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "76Ｇ",
+        "confidence": 0.97965,
+        "words": [
+          {
+            "text": "76Ｇ",
+            "box": [
+              1138.0,
+              38.0,
+              84.0,
+              40.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "大きいパン",
+        "confidence": 0.99989,
+        "words": [
+          {
+            "text": "大きいパン",
+            "box": [
+              287.0,
+              167.0,
+              146.0,
+              34.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "ルーラ草",
+        "confidence": 0.99978,
+        "words": [
+          {
+            "text": "ルーラ草",
+            "box": [
+              286.0,
+              211.0,
+              122.0,
+              38.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "?",
+        "confidence": 0.58079,
+        "words": [
+          {
+            "text": "?",
+            "box": [
+              270.0,
+              261.0,
+              16.0,
+              18.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "青銅の盾",
+        "confidence": 0.99987,
+        "words": [
+          {
+            "text": "青銅の盾",
+            "box": [
+              288.0,
+              260.0,
+              120.0,
+              36.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "千里眼の巻物",
+        "confidence": 0.99996,
+        "words": [
+          {
+            "text": "千里眼の巻物",
+            "box": [
+              288.0,
+              305.0,
+              179.0,
+              38.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "毒けし草",
+        "confidence": 0.99998,
+        "words": [
+          {
+            "text": "毒けし草",
+            "box": [
+              287.0,
+              352.0,
+              120.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "目くらまし草",
+        "confidence": 0.99994,
+        "words": [
+          {
+            "text": "目くらまし草",
+            "box": [
+              289.0,
+              400.0,
+              176.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "地獄耳の巻物",
+        "confidence": 0.99993,
+        "words": [
+          {
+            "text": "地獄耳の巻物",
+            "box": [
+              289.0,
+              447.0,
+              176.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "道具",
+        "confidence": 0.99996,
+        "words": [
+          {
+            "text": "道具",
+            "box": [
+              1074.0,
+              567.0,
+              66.0,
+              37.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "7/20",
+        "confidence": 0.9981,
+        "words": [
+          {
+            "text": "7/20",
+            "box": [
+              1106.0,
+              612.0,
+              86.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "詳細表示切替",
+        "confidence": 0.99619,
+        "words": [
+          {
+            "text": "詳細表示切替",
+            "box": [
+              774.0,
+              679.0,
+              177.0,
+              35.0
+            ]
+          }
+        ]
+      },
+      {
+        "recognition_at": 1793073828.234574,
+        "text": "整理",
+        "confidence": 0.99988,
+        "words": [
+          {
+            "text": "整理",
+            "box": [
+              1085.0,
+              675.0,
+              68.0,
+              41.0
+            ]
+          }
+        ]
+      }
+    ],
+    "confidence": null,
+    "language": "ja",
+    "recognition_cache": {
+      "enabled": true,
+      "hits": 0,
+      "misses": 20
+    }
+  },
+  "state": {
+    "metrics": {
+      "hp": {
+        "values": [
+          12,
+          19
+        ],
+        "quote": "HP12/19",
+        "unverified_ocr": true,
+        "meaning": "HP（現在値/最大値）"
+      },
+      "level": {
+        "values": [
+          2
+        ],
+        "quote": "Lv2",
+        "unverified_ocr": true,
+        "meaning": "現在のレベル"
+      },
+      "floor": {
+        "values": [
+          2
+        ],
+        "quote": "2階",
+        "unverified_ocr": true,
+        "meaning": "現在の階（最深階ではない）"
+      },
+      "gold": {
+        "values": [
+          76
+        ],
+        "quote": "76G",
+        "unverified_ocr": true,
+        "meaning": "所持金（G）"
+      },
+      "fullness": {
+        "values": [
+          58
+        ],
+        "quote": "満腹度 / 58%",
+        "evidence_quotes": [
+          "満腹度",
+          "58%"
+        ],
+        "source": "same_row_boxed_label_value",
+        "frame_sha256": "7ef4ba2fc2249b9e53911ec027c888ab56a427ecee71bad5fb585897ad242837",
+        "label_box": [
+          620.0,
+          40.0,
+          92.0,
+          37.0
+        ],
+        "value_box": [
+          735.0,
+          40.0,
+          80.0,
+          36.0
+        ],
+        "unverified_ocr": true,
+        "meaning": "満腹度（%）"
+      }
+    },
+    "minimap": {
+      "status": "unavailable",
+      "reason": "地図専用表示または階の確認待ち。"
+    },
+    "retained_state": {
+      "revision": 0,
+      "refresh_reasons": [],
+      "last_observed_metrics": {
+        "hp": {
+          "values": [
+            12,
+            19
+          ],
+          "quote": "HP12/19",
+          "unverified_ocr": true,
+          "meaning": "HP（現在値/最大値）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "level": {
+          "values": [
+            2
+          ],
+          "quote": "Lv2",
+          "unverified_ocr": true,
+          "meaning": "現在のレベル",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "floor": {
+          "values": [
+            2
+          ],
+          "quote": "2階",
+          "unverified_ocr": true,
+          "meaning": "現在の階（最深階ではない）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "gold": {
+          "values": [
+            76
+          ],
+          "quote": "76G",
+          "unverified_ocr": true,
+          "meaning": "所持金（G）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "fullness": {
+          "values": [
+            58
+          ],
+          "quote": "満腹度 / 58%",
+          "evidence_quotes": [
+            "満腹度",
+            "58%"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "7ef4ba2fc2249b9e53911ec027c888ab56a427ecee71bad5fb585897ad242837",
+          "label_box": [
+            620.0,
+            40.0,
+            92.0,
+            37.0
+          ],
+          "value_box": [
+            735.0,
+            40.0,
+            80.0,
+            36.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "満腹度（%）",
+          "last_observed_tick": 4,
+          "status": "last_observed"
+        },
+        "max_floor": {
+          "values": [
+            25
+          ],
+          "quote": "最深階 / 25",
+          "evidence_quotes": [
+            "最深階",
+            "25"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+          "label_box": [
+            231.0,
+            540.0,
+            96.0,
+            39.0
+          ],
+          "value_box": [
+            510.0,
+            542.0,
+            49.0,
+            36.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "記録上の最深階（現在の階ではない）",
+          "last_observed_tick": 2,
+          "status": "last_observed"
+        },
+        "sword": {
+          "values": [
+            0
+          ],
+          "quote": "剣の強さ / 0",
+          "evidence_quotes": [
+            "剣の強さ",
+            "0"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+          "label_box": [
+            231.0,
+            579.0,
+            123.0,
+            41.0
+          ],
+          "value_box": [
+            533.0,
+            582.0,
+            24.0,
+            33.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "剣の強さ",
+          "last_observed_tick": 2,
+          "status": "last_observed"
+        },
+        "strength": {
+          "values": [
+            8,
+            8
+          ],
+          "quote": "ちから / 8/8",
+          "evidence_quotes": [
+            "ちから",
+            "8/8"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+          "label_box": [
+            666.0,
+            582.0,
+            89.0,
+            36.0
+          ],
+          "value_box": [
+            964.0,
+            582.0,
+            86.0,
+            36.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "ちから（現在値/最大値）",
+          "last_observed_tick": 2,
+          "status": "last_observed"
+        },
+        "shield": {
+          "values": [
+            0
+          ],
+          "quote": "盾の強さ / 0",
+          "evidence_quotes": [
+            "盾の強さ",
+            "0"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+          "label_box": [
+            233.0,
+            621.0,
+            120.0,
+            36.0
+          ],
+          "value_box": [
+            536.0,
+            626.0,
+            21.0,
+            25.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "盾の強さ",
+          "last_observed_tick": 2,
+          "status": "last_observed"
+        },
+        "experience": {
+          "values": [
+            22
+          ],
+          "quote": "経験値 / 22",
+          "evidence_quotes": [
+            "経験値",
+            "22"
+          ],
+          "source": "same_row_boxed_label_value",
+          "frame_sha256": "c54f71e6b1a6a5e31f24777603716aa55eba764fae23a30ab82b53705f7556fe",
+          "label_box": [
+            665.0,
+            622.0,
+            92.0,
+            36.0
+          ],
+          "value_box": [
+            998.0,
+            622.0,
+            50.0,
+            35.0
+          ],
+          "unverified_ocr": true,
+          "meaning": "経験値（レベルとは別）",
+          "last_observed_tick": 2,
+          "status": "last_observed"
+        }
+      },
+      "last_observed_inventory": {
+        "status": "observed",
+        "rows": [
+          {
+            "id": "item_749cee39_0_000001",
+            "display_name": "大きいパン",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "大きいパン",
+            "selected": true,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 6,
+            "box": [
+              287.0,
+              167.0,
+              433.0,
+              201.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "大きいパン",
+              "selected_line_box": [
+                285.0,
+                165.0,
+                436.0,
+                202.0
+              ],
+              "quotes": [
+                "おなかがいつぱいになるぞ。"
+              ],
+              "before_frame": "f770f367543dcf98154e5d527b6d47d4fc2daab0cb202fa50ce28053ebfee87f",
+              "after_frame": "5282d3038f77db586553528aab08f29402e56765b874a0fbd03bdd3ddebae0a7",
+              "step": 6,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_749cee39_0_000002",
+            "display_name": "ルーラ草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "ルーラ草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 7,
+            "box": [
+              286.0,
+              211.0,
+              408.0,
+              249.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "ルーラ草",
+              "selected_line_box": [
+                286.0,
+                210.0,
+                409.0,
+                249.0
+              ],
+              "quotes": [
+                "別の場所にワープするぞ。"
+              ],
+              "before_frame": "e4999087d896b5f3cf65a1412a9926168104a020218f7f98d4637cfc1b9c3897",
+              "after_frame": "8cc408060293fb4a1637a4f1c1b3d07a070dd39c2b75c7433f43a01e0547927b",
+              "step": 99,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_749cee39_0_000003",
+            "display_name": "青銅の盾",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "青銅の盾",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 9,
+            "box": [
+              288.0,
+              260.0,
+              408.0,
+              296.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "青銅の盾",
+              "selected_line_box": [
+                286.0,
+                260.0,
+                408.0,
+                296.0
+              ],
+              "quotes": [
+                "この盾の防御力は基本３だぞ。",
+                "十一によって上下するぞ。"
+              ],
+              "before_frame": "597334d35860173c27b591df1c711a70bd0870f6f682df0dcc958c8769d728b1",
+              "after_frame": "ffd2eecd1461184d515bede54156d6dfc1852441bfe54bcac6fad443958654a2",
+              "step": 129,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_749cee39_0_000004",
+            "display_name": "千里眼の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "千里眼の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 10,
+            "box": [
+              288.0,
+              305.0,
+              467.0,
+              343.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "千里眼の巻物",
+              "selected_line_box": [
+                286.0,
+                304.0,
+                467.0,
+                344.0
+              ],
+              "quotes": [
+                "今いる階のアイテムがどこにあるかわかるぞ。"
+              ],
+              "before_frame": "cf50a00bc2cf4573aa76da86d9b134238866e0d0563bb90d51acabbf2e0d63dc",
+              "after_frame": "cb390f00d92c5555356eca2dffefa70e7181cdb7bbf0d9ebc914cc39d84bf9d7",
+              "step": 132,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "3dafe324_1_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_749cee39_0_000005",
+            "display_name": "毒けし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "毒けし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 11,
+            "box": [
+              287.0,
+              352.0,
+              407.0,
+              387.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "毒けし草",
+              "selected_line_box": [
+                288.0,
+                353.0,
+                408.0,
+                388.0
+              ],
+              "quotes": [
+                "毒で下がったちからが限界まで回復するぞ。"
+              ],
+              "before_frame": "9817d62b7f8cddae266861e2b15a4c56482fcf26972ddac3032f30240d481e22",
+              "after_frame": "8b0d95c8dba4dba1d217b272939ab139a6f9f233647f23e6dd5fa8242b66b179",
+              "step": 35,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_749cee39_0_000006",
+            "display_name": "目くらまし草",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "目くらまし草",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 12,
+            "box": [
+              289.0,
+              400.0,
+              465.0,
+              435.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "目くらまし草",
+              "selected_line_box": [
+                288.0,
+                400.0,
+                465.0,
+                435.0
+              ],
+              "quotes": [
+                "大きいパン"
+              ],
+              "before_frame": "c5cb40f3df91fd3548ecdc94086a15004d96f44fc632634c60f04c03fa633684",
+              "after_frame": "c60c1df2390243c789f298eba1947eb6b54ac81a3336861997326cc1b6ed1273",
+              "step": 37,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          },
+          {
+            "id": "item_749cee39_0_000007",
+            "display_name": "地獄耳の巻物",
+            "game_alias": null,
+            "name_status": "unknown",
+            "true_name": null,
+            "quantity": null,
+            "equipped": null,
+            "quote": "地獄耳の巻物",
+            "selected": false,
+            "equipment_affordance": null,
+            "identity_status": "matched_display_name",
+            "page": null,
+            "line_index": 13,
+            "box": [
+              289.0,
+              447.0,
+              465.0,
+              482.0
+            ],
+            "known_description": {
+              "status": "description_text_observed",
+              "item_name": "地獄耳の巻物",
+              "selected_line_box": [
+                288.0,
+                447.0,
+                465.0,
+                482.0
+              ],
+              "quotes": [
+                "今いる階のモンスターがどこにいるかわかるぞ。"
+              ],
+              "before_frame": "749f31b6f3d3d8c0302b6ff9f3f3993d6e5c3a6c1d1be6e441d52fe86038c67e",
+              "after_frame": "355ec8e641787f6f14eba0f0326ec75ac27f74de9cb515f90b4867c2405f489e",
+              "step": 39,
+              "source": "current_inventory_num7_toggle",
+              "effect_verified": false,
+              "inventory_scope": "e10dc9d0_0_",
+              "identity_scope": "profile_display_name",
+              "knowledge_kind": "game_description_ocr_not_verified_effect"
+            }
+          }
+        ],
+        "page": null,
+        "occupancy": {
+          "count": 7,
+          "capacity": 20,
+          "source": "current_inventory_ocr",
+          "unverified_ocr": true
+        },
+        "complete": false,
+        "selected_id": "item_749cee39_0_000001",
+        "last_observed": 1793073827.2693145,
+        "rule": "表示名の正体は未確認。未確認ページや以前の所持品を現在所持と断定しない。",
+        "last_observed_tick": 4
+      },
+      "inventory_token": "0332c9962fd54927a64b954843d2b0e3c399861cc542abe83fd77030ec409415",
+      "before_combat_check_needed": false,
+      "rule": "現在画面で読めた値を優先して上書き。非表示の保持値は最終観測であり現在のHP/所持の証明ではない。確認は必要な変化時だけ、同じ理由で連打しない。"
+    },
+    "floor_exploration": {
+      "cycle_status": {
+        "detected": false,
+        "period": null,
+        "positions": [],
+        "basis": "受理済みの実移動のみ。未踏位置や新しい床の観測で履歴を更新。帰路そのものは通行禁止にしない。"
+      },
+      "route_rechecks": [],
+      "exploration_task": {
+        "target_cell": [
+          31,
+          24
+        ],
+        "status": "navigating",
+        "reason": "継続目標への経路を現在の観測で再計算"
+      },
+      "suppressed_edges": [],
+      "item_tasks": {
+        "scope": "7f3bebccb0d3",
+        "revision": 0,
+        "counts": {},
+        "tasks": [],
+        "unlocated_evidence": [],
+        "needs_inventory_check": false,
+        "check_token": null,
+        "capacity_evidence": null,
+        "note": "到達/表示消失/踏破済みを取得成功にしない。visibleは最後に読めた地図での表示であり、メニュー中などの現在画面の証明ではない。未分類マークはアイテムや階段と断定しない。"
+      },
+      "status": "observed_floor",
+      "disputed_cached_cells": [],
+      "ineffective_actions_here": [],
+      "suppressed_edge_count": 0,
+      "floor": [
+        2
+      ],
+      "position": [
+        29,
+        27
+      ],
+      "goal": {
+        "cycle_review": false,
+        "priority_order": [
+          "collection_threat_response",
+          "items_and_use_learning",
+          "unprocessed_frontiers",
+          "routine_status_review"
+        ],
+        "floor_value_rule": "踏破履歴は観測記録。既知床と同等に通行し、再訪だけで減点しない。",
+        "threat_assessment": "現在の近接と取得経路への接触。遠隔能力・敵種の安全性は未確定",
+        "item_recheck_needed": false,
+        "mission": "find_stairs",
+        "phase": "explore_frontier",
+        "reason": "踏破済みの床を必要な帰路として使い、別の探索先または現在の目的へ向かう",
+        "target_cell": [
+          31,
+          24
+        ],
+        "needs_review": false,
+        "stairs_seen_type_unknown": false,
+        "instruction": "これは階内の局所目標。階段の上下・箱の所持・帰還成功を推定で確定しない。",
+        "exploration_task": {
+          "target_cell": [
+            31,
+            24
+          ],
+          "status": "navigating",
+          "reason": "継続目標への経路を現在の観測で再計算"
+        }
+      },
+      "known_count": 45,
+      "visited_count": 17,
+      "primary_frontier_count": 1,
+      "exhausted_branch_count": 0,
+      "visited_cells": [
+        [
+          29,
+          27
+        ],
+        [
+          25,
+          29
+        ],
+        [
+          27,
+          27
+        ],
+        [
+          28,
+          26
+        ],
+        [
+          25,
+          28
+        ],
+        [
+          29,
+          26
+        ],
+        [
+          25,
+          25
+        ],
+        [
+          24,
+          29
+        ],
+        [
+          29,
+          25
+        ],
+        [
+          24,
+          25
+        ],
+        [
+          30,
+          25
+        ],
+        [
+          25,
+          24
+        ],
+        [
+          31,
+          25
+        ],
+        [
+          25,
+          27
+        ],
+        [
+          26,
+          28
+        ],
+        [
+          25,
+          26
+        ],
+        [
+          24,
+          24
+        ]
+      ],
+      "exploration_unnecessary_cells": [
+        [
+          24,
+          27
+        ],
+        [
+          27,
+          27
+        ],
+        [
+          28,
+          26
+        ],
+        [
+          26,
+          27
+        ],
+        [
+          24,
+          25
+        ],
+        [
+          24,
+          28
+        ],
+        [
+          26,
+          25
+        ],
+        [
+          25,
+          27
+        ],
+        [
+          27,
+          25
+        ],
+        [
+          26,
+          28
+        ],
+        [
+          27,
+          28
+        ],
+        [
+          28,
+          27
+        ],
+        [
+          25,
+          28
+        ],
+        [
+          24,
+          26
+        ],
+        [
+          25,
+          25
+        ],
+        [
+          26,
+          26
+        ],
+        [
+          29,
+          25
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          27,
+          26
+        ],
+        [
+          28,
+          25
+        ],
+        [
+          25,
+          26
+        ]
+      ],
+      "exhausted_branch_cells": [],
+      "frontier_cells": [
+        [
+          31,
+          24
+        ]
+      ],
+      "stairs_cells": [],
+      "route_cells": [
+        [
+          29,
+          27
+        ],
+        [
+          29,
+          26
+        ],
+        [
+          29,
+          25
+        ],
+        [
+          30,
+          25
+        ],
+        [
+          31,
+          25
+        ],
+        [
+          31,
+          24
+        ]
+      ],
+      "frontier_rule": "未踏の細い床接続と未完了の先端を同時に候補にする。2×2の床領域に属する角を先端にしない。経路設定は踏破や処理完了ではない。",
+      "note": "無移動の方向は今回の探索試行を一旦完了するだけで永久の壁とは確定しない。探索不要は現在の探索先の優先度。通行禁止や永久の壁ではない。新しい床・目標・階で見直す。"
+    }
+  },
+  "server_error": "request (46587 tokens) exceeds the available context size (8192 tokens), try increasing it"
+}
