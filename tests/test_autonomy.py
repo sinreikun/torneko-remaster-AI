@@ -36,6 +36,22 @@ class AutonomyContracts(unittest.TestCase):
         p.update(state('1',text='目標物'),2);self.assertEqual(p.nodes['see']['status'],'supported')
         p.update(state('2',text='目標物'),3);self.assertEqual(p.nodes['see']['status'],'confirmed');self.assertEqual(p.current()['id'],'return')
         self.assertEqual(p.nodes['return']['status'],'unconfirmed') # Seeing is not returning.
+    def test_later_stage_evidence_cannot_bypass_unconfirmed_prerequisites(self):
+        p=ProgressManager(self.store)
+        p.propose([node('first',conditions=[condition(value='first evidence')]),node('later',['first'],conditions=[condition(value='later evidence')])])
+        for i in range(2):p.update(state('early'+str(i),text='later evidence'),i)
+        self.assertEqual(p.nodes['later']['status'],'supported')
+        self.assertNotIn('later',[n['id'] for n in p.available()])
+        for i in range(2):p.update(state('first'+str(i),text='first evidence'),i+2)
+        self.assertEqual(p.nodes['first']['status'],'confirmed')
+        p.update(state('next',text='later evidence'),4)
+        self.assertEqual(p.nodes['later']['status'],'confirmed')
+        # Counterevidence to an earlier stage blocks the dependent again.
+        p.nodes=dict(reversed(list(p.nodes.items()))) # Restore order must not affect gating.
+        p.nodes['first']['counterconditions']=[condition(value='retracted')]
+        p.update(state('bad',text='retracted'),5)
+        self.assertNotEqual(p.nodes['later']['status'],'confirmed')
+
     def test_campaign_needs_multiple_channels_and_counterevidence_blocks(self):
         p=ProgressManager(self.store);n=node(scope='campaign');p.propose([n])
         for i in range(3):p.update(state(str(i),text='目標物'),i)
@@ -179,6 +195,43 @@ class AutonomyContracts(unittest.TestCase):
         for i in range(1,49):m.observe(s,self.action,s,result(),{'os_submission':'accepted'},i,100)
         self.assertIsNone(m.recovery);self.assertTrue(m.exhausted)
         self.assertEqual(len([e for e in m.history if e['event']=='recovery_started']),3) # alternative/observer/replan, no duplicate variant
+    def test_recovery_budget_survives_screen_churn_goal_rename_and_restart(self):
+        m=MetaController(self.store,'budget');s=state(menu=True);m.prepare(s,0)
+        goal=copy.deepcopy(m.local);methods=[m.recovery['method']]
+        for i in range(1,7):
+            m.recovery=None;m.local=copy.deepcopy(goal);m.local['id']='renamed:'+str(i)
+            changed=state(str(i),menu=i%2==0);changed['context']='ocr-context:'+str(i);changed['interface_layout']='layout:'+str(i)
+            m.failures=['capability_missing'];m.new_recovery(changed,i)
+            if m.recovery:methods.append(m.recovery['method'])
+        self.assertEqual(len(methods),3);self.assertEqual(len(set(methods)),3)
+        m.save();self.store.close();self.store=ExperienceStore(self.path,'generic','restart')
+        restored=MetaController(self.store,'budget');restored.local=goal;restored.failures=['capability_missing']
+        restored.new_recovery(state('restart'),20)
+        self.assertIsNone(restored.recovery);self.assertTrue(restored.exhausted)
+        # A different measurable task can still run recovery.
+        restored.local={**goal,'conditions':[condition(value='different evidence')]}
+        restored.new_recovery(s,21);self.assertIsNotNone(restored.recovery)
+    def test_equivalent_supervisor_goal_does_not_renew_deadline(self):
+        m=MetaController(self.store,'goal');s=state(menu=True)
+        proposal={'objective':'first','targets':[condition(value='unseen')],'required_capability':'confirm'}
+        m.accept(proposal,s,1);old=copy.deepcopy(m.local)
+        m.accept({**proposal,'objective':'renamed'},s,20)
+        self.assertEqual(m.local,old)
+        m.failures=['capability_missing'];m.new_recovery(s,21)
+        m.accept(proposal,s,22);self.assertIsNone(m.pending_local)
+    def test_old_exhausted_goal_does_not_force_reviews_for_new_task(self):
+        m=MetaController(self.store,'review');m.progress.propose([node()]);m.last_proposal=0
+        old={'capability':'inspect','conditions':[]};m.exhausted.add(m.recovery_goal_key(old))
+        m.local={'capability':'verify_possession','conditions':[condition()]}
+        self.assertFalse(m.needs_plan(20))
+        m.local=old;self.assertTrue(m.needs_plan(20))
+
+    def test_full_recovery_budget_does_not_evict_exhausted_tasks(self):
+        m=MetaController(self.store,'capacity');m.recovery_budgets={str(i):{'method':'replan'} for i in range(128)}
+        m.prepare(state(menu=True),0)
+        self.assertIsNone(m.recovery);self.assertEqual(len(m.recovery_budgets),128)
+        self.assertTrue(m.context()['recovery_budget']['capacity_reached'])
+
     def test_nonexecution_is_classified_and_observation_trial_has_wall_deadline(self):
         m=MetaController(self.store,'達成');s=state();m.prepare(s,0)
         for i in range(4):m.nonexecution(s,0,100)

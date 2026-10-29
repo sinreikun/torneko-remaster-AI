@@ -78,8 +78,14 @@ class ProgressManager:
         return len(additions)
     def save(self,n):self.store.put('progress',n,key=n['id'])
     def update(self,state,step):
-        changes=[]
-        for n in self.nodes.values():
+        changes=[];ordered=[];visited=set()
+        def visit(key):
+            if key in visited or key not in self.nodes:return
+            visited.add(key)
+            for dependency in self.nodes[key]['requires']:visit(dependency)
+            ordered.append(self.nodes[key])
+        for key in self.nodes:visit(key)
+        for n in ordered:
             old=copy.deepcopy(n)
             if n['scope']=='session' and n.get('session')!=self.session:
                 n.update(status='unconfirmed',evidence=[],counterevidence=[],session=self.session)
@@ -102,7 +108,8 @@ class ProgressManager:
                 relevant=[e for e in n['evidence'] if e.get('revision',0)==n.get('revision',0) and (not any(c['feature'] in ('selection_text','selection_id') for c in n['conditions']) or e.get('ui_generation')==1)]
                 enough=len(relevant)>=2
                 diverse=len({channel(c) for c in n['conditions']})>=2
-                n['status']='confirmed' if enough and (n['scope']=='session' or diverse) else 'disputed' if n.get('counterevidence') and not enough else 'supported' if relevant else 'unconfirmed'
+                prerequisites=all(self.nodes.get(k,{}).get('status')=='confirmed' for k in n['requires'])
+                n['status']='confirmed' if enough and prerequisites and (n['scope']=='session' or diverse) else 'disputed' if n.get('counterevidence') and not enough else 'supported' if relevant else 'unconfirmed'
             if n!=old:
                 self.save(n)
                 if old['status']!=n['status']:changes.append({'id':n['id'],'old':old['status'],'status':n['status'],'step':step})

@@ -15,21 +15,23 @@ OBSERVATION_FAILURES={'observation_missing','observation_conflict','state_identi
 
 class MetaController:
     def __init__(self,store,intent,reference_knowledge=""):
-        self.ui_probes=UIProbes();self.store=store;self.progress=ProgressManager(store);self.capabilities=CapabilityManager(store);self.observer=ObserverAdaptation(store)
+        self.recovery_budgets={};self.ui_probes=UIProbes();self.store=store;self.progress=ProgressManager(store);self.capabilities=CapabilityManager(store);self.observer=ObserverAdaptation(store)
         self.reference_text=(intent+"\n"+reference_knowledge).casefold()
         self.progress.intent_tag=digest(intent)
         self.intent=intent;self.local=None;self.recovery=None;self.pending_local=None;self.history=deque(maxlen=32);self.failures=[];self.attempted={};self.recent=deque(maxlen=20);self.last_scope=None;self.phase='understanding';self.proposal_requests=0;self.planning_missing=0;self.planning_issue=None;self.completed_local={};self.plan_attempts=0;self.last_proposal=-1000;self.goal_epoch=0;self.last_state={};self.last_changes=[];self.exhausted=set();self.deferred=[];self.nonexecutions=0;self.restore_local=None;self.boundary={'conditions':[],'frames':[],'armed':True}
         rows=store.load('autonomy','manager')
         if rows and rows[0].get('intent')==intent:
-            saved=rows[0];self.ui_probes=UIProbes(saved.get('ui_probe_attempts'));self.history.extend(saved.get('history',[]));self.goal_epoch=saved.get('goal_epoch',0)
+            saved=rows[0];self.recovery_budgets=saved.get('recovery_budgets',{});self.ui_probes=UIProbes(saved.get('ui_probe_attempts'));self.history.extend(saved.get('history',[]));self.goal_epoch=saved.get('goal_epoch',0)
             self.restore_local={'local':saved.get('local'),'scope':saved.get('scope')}
             self.boundary=saved.get('boundary',self.boundary)
             self.completed_local=saved.get('completed_local',{});self.planning_missing=saved.get('planning_missing',0);self.planning_issue=saved.get('planning_issue')
             self.attempted=saved.get('attempted',{});self.deferred=saved.get('deferred',[])[-16:]
         self.save()
     def save(self):
-        self.store.put('autonomy',{'ui_probe_attempts':self.ui_probes.attempts,'intent':self.intent,'local':self.local,'recovery':self.recovery,'history':list(self.history),'goal_epoch':self.goal_epoch,'completed_local':self.completed_local,'planning_missing':self.planning_missing,'planning_issue':self.planning_issue,'session':self.store.session,'boundary':self.boundary,'attempted':self.attempted,'deferred':self.deferred[-16:],'scope':scope(self.last_state) if self.last_state else None},key='manager')
-    def needs_plan(self,step):return (not self.progress.nodes or not self.progress.available() or bool(self.exhausted) or self.planning_missing>0) and step-self.last_proposal>=(16 if self.planning_missing or not self.progress.nodes else 128)
+        self.store.put('autonomy',{'ui_probe_attempts':self.ui_probes.attempts,'intent':self.intent,'local':self.local,'recovery':self.recovery,'history':list(self.history),'goal_epoch':self.goal_epoch,'completed_local':self.completed_local,'planning_missing':self.planning_missing,'planning_issue':self.planning_issue,'session':self.store.session,'boundary':self.boundary,'attempted':self.attempted,'recovery_budgets':self.recovery_budgets,'deferred':self.deferred[-16:],'scope':scope(self.last_state) if self.last_state else None},key='manager')
+    def needs_plan(self,step):
+        exhausted=bool(self.local and self.recovery_exhaustion_key() in self.exhausted)
+        return (not self.progress.nodes or not self.progress.available() or exhausted or self.planning_missing>0) and step-self.last_proposal>=(16 if self.planning_missing or not self.progress.nodes or exhausted else 128)
     def planning_context(self,state,step):
         c=self.context(state)
         # Capability identifiers are protocol labels, not text to find in the
@@ -77,7 +79,10 @@ class MetaController:
         targets=[{k:t[k] for k in ('feature','operator','value')} for t in plan.get('targets',[]) if t.get('feature')!='node']
         if targets and not all(condition_value(state,c) is True for c in targets):
             proposed={'id':'local:'+digest(targets),'label':plan['objective'],'conditions':targets,'capability':self.infer_capability(targets,state) if any(c['feature'] in ('interface_open','selection_text') for c in targets) else plan.get('required_capability') or self.infer_capability(targets,state),'origin':'llm_hypothesis','created':step,'deadline':step+32,'parent':(self.progress.current() or {}).get('id'),'start_frame':state['frame_sha256']}
-            if self.recovery:self.pending_local=proposed
+            existing=self.pending_local or self.local
+            if existing and self.recovery_goal_key(existing)==self.recovery_goal_key(proposed):
+                self.history.append({'event':'equivalent_local_goal_retained','step':step,'id':existing['id'],'deadline':existing['deadline']})
+            elif self.recovery:self.pending_local=proposed
             else:self.local=proposed;self.goal_epoch+=1
         self.save()
     @staticmethod
@@ -130,21 +135,28 @@ class MetaController:
         if self.planning_missing or not self.progress.nodes or (self.progress.current() or {}).get('unknown'):reasons.append('progress_unknown')
         elif not self.progress.available() and any(n['status']!='confirmed' for n in self.progress.nodes.values()):reasons.append('goal_unreachable')
         return list(dict.fromkeys(reasons))
+    @staticmethod
+    def recovery_goal_key(goal):
+        # Screen/OCR jitter and renamed LLM proposals cannot renew a mission's
+        # recovery budget. Only a different measurable task gets a new budget.
+        return digest([goal.get('capability'),sorted(digest(c) for c in goal.get('conditions',[]))])
+    def recovery_exhaustion_key(self):return self.recovery_goal_key(self.local or {})
     def new_recovery(self,state,step):
         if self.recovery or not self.failures:return
         primary=self.failures[0];kind='observer_trial' if primary in OBSERVATION_FAILURES else 'alternative_skill' if primary in ('capability_missing','skill_condition_mismatch','repetition_stagnation') else 'gather_progress_evidence' if primary in ('progress_unknown','goal_unreachable') else 'verify_backend' if primary=='input_not_delivered' else 'reidentify'
         # Rotate finite hypotheses after failed attempts; never reset the same budget.
         variants=[kind,'observer_trial','alternative_skill','replan']
         for method in dict.fromkeys(variants):
-            key=digest([self.local['id'],scope(state),method])
-            if key in self.attempted:continue
+            key=digest(['recovery_budget_v2',self.recovery_goal_key(self.local),method])
+            if key in self.recovery_budgets or len(self.recovery_budgets)>=128:continue
+            self.recovery_budgets[key]={'step':step,'method':method,'goal':self.recovery_goal_key(self.local),'status':'started'}
             self.attempted[key]=step
             while len(self.attempted)>128:self.attempted.pop(next(iter(self.attempted)))
             self.recovery={'id':key,'failure':primary,'method':method,'resume':copy.deepcopy(self.local),'start':step,'deadline':step+8,'wall_deadline':time.monotonic()+45,'start_state':state['id'],'start_quality':state.get('quality',0),'start_ui_coverage':state.get('ui_visual',{}).get('coverage',0),'start_conditions':[condition_value(state,c) for c in self.local['conditions']],'attempted_actions':[],'success_test':'元目標の新しい成立、能力獲得、または欠測解消。画面差だけは達成にしない。'}
             if method=='observer_trial':self.observer.start(primary,step)
             if method=='replan':self.last_proposal=-1000
             self.history.append({'event':'recovery_started','step':step,'failure':primary,'method':method,'resume':self.local['id']});self.save();return
-        exhausted_key=digest([self.local['id'],scope(state)])
+        exhausted_key=self.recovery_exhaustion_key()
         if exhausted_key not in self.exhausted:
             self.exhausted.add(exhausted_key)
             self.history.append({'event':'recovery_hypotheses_exhausted','step':step,'goal':self.local['id'],'next':'別の達成可能な目標、または新しい証拠を必要とする再計画'})
@@ -274,8 +286,8 @@ class MetaController:
         return {'phase':node['label'] if node else '進行証拠と操作能力を獲得する','current_goal':copy.deepcopy(self.local),
           'session_goal':{'id':node['id'],'label':node['label']} if node and node['scope']=='session' else None,
           'parent_goal':{'id':node['id'],'label':node['label'],'status':node['status'],'source':node['source'],'evidence':node['evidence'][-2:],'unknown':node['unknown']} if node else None,
-          'learning_task_status':'hypotheses_exhausted_seek_new_evidence' if self.local and digest([self.local['id'],scope(state)]) in self.exhausted else 'finite_trial' if self.recovery else 'execution' if self.local else 'unconfirmed',
+          'learning_task_status':'hypotheses_exhausted_seek_new_evidence' if self.local and self.recovery_exhaustion_key() in self.exhausted else 'finite_trial' if self.recovery else 'execution' if self.local else 'unconfirmed',
           'required_capabilities':[cap] if cap else [],'missing_capabilities':self.capabilities.missing([cap],state,self.local['conditions']) if cap and state else [],
           'failure_classes':list(self.failures),'recovery':{k:v for k,v in self.recovery.items() if k not in ('resume','attempted_actions')} if self.recovery else None,
           'observation_policy':self.observer.summary(),'skills':self.capabilities.summary(state) if state else [],
-          'ui_selection_experiment':self.ui_probes.summary(),'ui_interaction':state.get('ui_visual',{}).get('interaction_model',{}),'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
+          'recovery_budget':{'used':len(self.recovery_budgets),'capacity':128,'capacity_reached':len(self.recovery_budgets)>=128,'identity':'measurable_goal_not_screen_or_proposal_id'},'ui_selection_experiment':self.ui_probes.summary(),'ui_interaction':state.get('ui_visual',{}).get('interaction_model',{}),'ui_observation':{'status':state.get('ui_visual',{}).get('selection',{}).get('status'),'needs':state.get('ui_visual',{}).get('needs_observation',[]),'coverage':state.get('ui_visual',{}).get('coverage')},'planning_issue':self.planning_issue,'planning_missing':self.planning_missing,'progress':self.progress.summary()['nodes'][-16:],'goal_epoch':self.goal_epoch,'evidence_policy':'資料/推定/保持値は現在の確定観測ではない。局所条件の成立とゲームクリアは別。'}
