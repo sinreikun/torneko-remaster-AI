@@ -164,7 +164,11 @@ class UIVision:
             stable_subset=common>=4 and common/max(1,small)>=.85 and common/max(1,large)>=.6 and (anchors^v['anchors'])<=short_anchors|v.get('short_anchors',set())
             if (space>=.7 or stable_subset) and (min(len(tokens),len(v['tokens']))<2 or text>=.35):ranked.append((space*.8+text*.2,k))
         ranked.sort(reverse=True)
-        key=ranked[0][1] if ranked else digest(['spatial_ui_v2',sorted(anchors),sorted(tokens)])
+        # Competing similar references can alternate winners as tiny OCR
+        # details appear. Keep the previous identity only while its original
+        # immutable reference still satisfies all matching conditions.
+        previous=(self.last or {}).get('layout')
+        key=previous if any(k==previous for _,k in ranked) else ranked[0][1] if ranked else digest(['spatial_ui_v2',sorted(anchors),sorted(tokens)])
         if key not in self.layouts:self.layouts[key]={'anchors':anchors,'tokens':tokens,'short_anchors':short_anchors}
         self.layouts.move_to_end(key)
         while len(self.layouts)>64:self.layouts.popitem(last=False)

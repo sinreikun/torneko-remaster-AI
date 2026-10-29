@@ -80,6 +80,22 @@ class SpatialUIContracts(unittest.TestCase):
         changed=[{**e,'text':'different'+chr(97+i)} for i,e in enumerate(elements(6))]
         self.assertNotEqual(v._layout(changed),key)
 
+    def test_competing_layout_references_do_not_split_continuous_experience(self):
+        elements=[{'text':'label'+chr(97+i),'center':[.1+(i%3)*.2,.15+(i//3)*.2]} for i in range(6)]
+        extra={'text':'Ny','center':[.8,.8]}
+        v=UIVision();key=v._layout(elements)
+        # Historical references can coexist despite being compatible now.
+        v.layouts['rival']={'anchors':v.layouts[key]['anchors']|{(32,24)},'tokens':v.layouts[key]['tokens']|{'ny'},'short_anchors':{(32,24)}}
+        v.last={'layout':key}
+        self.assertEqual(v._layout(elements+[extra]),key)
+        v.last={'layout':key}
+        changed=[{**e,'center':[e['center'][0]+.08,e['center'][1]]} for e in elements]
+        self.assertNotEqual(v._layout(changed),key)
+        # Returning from a real transition may reuse the better matching rival;
+        # persistence is not unconditional global aliasing.
+        v.last={'layout':'unrelated'}
+        self.assertEqual(v._layout(elements+[extra]),'rival')
+
     def test_positions_provenance_and_same_text_at_different_locations(self):
         png,native=sample();native['lines'][1]['words'][0]['text']='K0';native['lines'][1]['text']='K0'
         texts,missing=text_elements(native,(320,240),native['frame_sha256'])
