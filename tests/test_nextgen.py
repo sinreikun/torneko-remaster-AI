@@ -64,6 +64,41 @@ class ModelContracts(unittest.TestCase):
         self.assertNotEqual(choice['candidate']['id'],self.action['id'])
         for n in range(7,15):result=self.update(a,a,n)
         self.assertEqual(result['loop']['reason'],'attempt_budget_exhausted');self.assertIsNone(self.model.escape)
+    def test_eight_state_cycle_with_different_inputs_is_detected_and_key_variants_discounted(self):
+        # State-transition contract, not a simulated game or gameplay proof.
+        self.model.visits.update({str(i):1 for i in range(8)})
+        detected=None
+        for n in range(24):
+            a=measured(str(n%8));b=measured(str((n+1)%8))
+            keys=['a'] if (n//8+n)%2 else ['b']
+            action={'id':action_id(keys,80),'keys':keys,'hold_ms':80}
+            result=self.model.observe(a,action,b,self.model.predict(a,action['id']),{'os_submission':'accepted'},n+1)
+            if result['loop']:detected=result['loop']
+        self.assertEqual(detected['period'],8)
+        self.assertEqual(detected['reason'],'repeated_state_itinerary_despite_varying_inputs')
+        cfg=Settings(window_title='generic',allowed_keys=['a','b','c'],key_bindings={})
+        chosen,ranking,_=self.model.choose(measured('0'),self.model.candidates(cfg))
+        self.assertEqual(chosen['candidate']['keys'],['c'])
+        self.assertTrue(all(r['loop_action_discount']==5 for r in ranking if r['candidate']['keys'] in (['a'],['b'])))
+        self.assertTrue(any(r['candidate']['hold_ms']>80 and r['loop_action_discount']==5 for r in ranking))
+
+    def test_long_itinerary_detection_requires_reliable_observations(self):
+        self.model.visits.update({str(i):1 for i in range(8)})
+        for n in range(24):
+            a=measured(str(n%8));b=measured(str((n+1)%8));a['quality']=b['quality']=.3
+            action={'id':action_id(['a' if n//8%2 else 'b'],80),'keys':['a' if n//8%2 else 'b'],'hold_ms':80}
+            result=self.model.observe(a,action,b,self.model.predict(a,action['id']),{'os_submission':'accepted'},n+1)
+            self.assertIsNone(result['loop'])
+
+    def test_state_cycle_does_not_override_measured_progress_or_new_outcomes(self):
+        for n in range(40):
+            result=self.update(measured(str(n%8),hp=10+n),measured(str((n+1)%8),hp=11+n),n+1)
+            self.assertIsNone(result['loop'])
+        self.model.recent.clear()
+        for n in range(40):
+            result=self.update(measured('new'+str(n)),measured('new'+str(n+1)),n+41)
+            self.assertIsNone(result['loop'])
+
     def test_llm_explanation_remains_refutable_hypothesis(self):
         proposal={'candidate':self.action['id'],'feature':'metric.hp.0','expected':1,'tolerance':0,'explanation':'HP増加という仮説'}
         self.model.add_hypotheses([proposal],measured(),[self.action]);h=self.model.hypotheses[0]

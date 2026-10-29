@@ -112,6 +112,7 @@ class ForwardModel:
         started=time.monotonic();plan=plan or {};ranked=[];self.prediction_ms=0.;self.search_ms=0.
         goals=[t for t in plan.get('targets',[]) if target_score(state,t)!=1];current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
+        loop_keys={tuple(json.loads(identifier)[0]) for identifier in loop_actions}
         for action in candidates:
             if state['interface_hypothesis'] and len(action['keys'])>1:
                 preferred=any(v.get('id')==action['id'] or v.get('keys')==action['keys'] for v in plan.get('candidate_values',[]) if v.get('value',0)>0)
@@ -149,8 +150,9 @@ class ForwardModel:
             cancel_attempts=sum(len(self.rule(state,c['id'])['samples']) for c in candidates if c['keys']==action['keys']) if closing and cancel_role else 0
             affordance=.7 if closing and cancel_role and cancel_attempts<2 else 0.
             score=affordance-transfer+goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
-            if self.escape and action['id'] in loop_actions:score-=5
-            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
+            cycle_discount=5 if self.escape and (action['id'] in loop_actions or tuple(action['keys']) in loop_keys) else 0
+            score-=cycle_discount
+            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'loop_action_discount':cycle_discount,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
         ranked.sort(key=lambda x:(-x['score'],x['candidate']['id']))
         best=ranked[0]
         # Bounded lookahead on observed graph only. Transit through known nodes is
@@ -222,7 +224,7 @@ class ForwardModel:
                 delay['reverted_features']=[k for k,v in pending['immediate'].items() if v not in (None,0) and delay['effects'].get(k)==0]
                 delayed.append(delay);self.store.put('delayed',delay,step)
         self.pending.append({'step':step,'before':snapshot(before),'action':action['id'],'immediate':copy.deepcopy(effect)})
-        event={'before':before['id'],'after':after['id'],'action':action['id'],'step':step}
+        event={'before':before['id'],'after':after['id'],'action':action['id'],'step':step,'cycle_observation_valid':min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok'}
         meaningful=new or any(v for k,v in effect.items() if k.startswith('metric.') or k=='floor_changed')
         self.recent.append(event);loop=None
         if self.escape:
@@ -239,6 +241,18 @@ class ForwardModel:
                 if all(values[i]==values[-period+i%period] for i in range(n)):
                     self.serial+=1;loop={'event':'loop_detected','id':self.serial,'period':period,'steps':[e['step'] for e in seq[-n:]],'sequence':seq[-n:],'nodes':list({e['before'] for e in seq[-n:]}),'actions':list({e['action'] for e in seq[-n:]}),'attempts':0,'learning':False}
                     self.escape=copy.deepcopy(loop);break
+            # Input duration/key changes do not make a repeated world-state
+            # itinerary productive. Require three complete circuits, with no
+            # newly observed node or measured progress since recent was reset.
+            if loop is None and min(before['quality'],after['quality'])>=.7:
+                for period in range(2,13):
+                    n=period*3
+                    if len(seq)<n:continue
+                    window=seq[-n:];values=[(e['before'],e['after']) for e in window]
+                    if not all(e['cycle_observation_valid'] for e in window) or len({e['before'] for e in window})<2:continue
+                    if all(values[i]==values[-period+i%period] for i in range(n)):
+                        self.serial+=1;loop={'event':'loop_detected','id':self.serial,'period':period,'reason':'repeated_state_itinerary_despite_varying_inputs','steps':[e['step'] for e in window],'sequence':window,'nodes':sorted({e[k] for e in window for k in ('before','after')}),'actions':sorted({e['action'] for e in window}),'attempts':0,'learning':False}
+                        self.escape=copy.deepcopy(loop);break
             if loop is None and len(seq)>=16:
                 window=seq[-16:];nodes={e[k] for e in window for k in ('before','after')}
                 if len(nodes)<=4:
