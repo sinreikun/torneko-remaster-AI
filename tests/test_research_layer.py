@@ -79,6 +79,12 @@ class ResearchContracts(unittest.TestCase):
         self.assertEqual(self.rows[-1]['abstractions'],1);self.assertNotIn('progress_proposal',self.rows[-1]['adopted'])
         self.assertEqual(self.r.errors,1);self.assertTrue(self.r.recent[-1]['proposal_issues'])
 
+    def test_research_task_cannot_wait_for_its_unobserved_internal_label(self):
+        answer=empty();answer['research_tasks']=[{'label':'箱の取得','capability':'inspect','conditions':[{'feature':'text','operator':'contains','value':'箱の取得'}],'deadline_steps':8,'evidence':['E00']}]
+        old=copy.deepcopy(self.meta.local);self.r._apply(self.packet(answer),self.state,1,0,{},self.meta)
+        self.assertEqual(self.meta.local,old);self.assertTrue(self.rows[-1]['rejected_tasks'])
+        self.assertNotIn('finite_research_task',self.rows[-1]['adopted'])
+
     def test_changed_guidance_discards_even_historical_proposals(self):
         self.r._apply(self.packet(empty()),self.state,5,0,{'revision':1},self.meta)
         self.assertEqual(self.r.discarded,1)
@@ -202,6 +208,35 @@ class ResearchContracts(unittest.TestCase):
             summary=diagnostic_summary(self.store.reader)
             self.assertTrue(any(r.get('role')=='asynchronous_knowledge_research' for r in summary['autonomy']['autonomy']))
         finally:restored.close()
+
+    def test_goal_echo_is_not_new_knowledge_but_causal_hypotheses_survive(self):
+        intent='未知の行動と結果の経験を蓄積する。目標物を持ち帰るための手段を学ぶ。'
+        answer=empty();answer['abstractions']=[{'subject':'label','statement':'label','evidence':['E00']},
+            {'subject':'plan','statement':intent,'evidence':['E00']},
+            {'subject':'operation','statement':'observed text changed after this input','evidence':['E00']}]
+        validated=validate_research(answer,{'E00':{}},[],(intent,))
+        self.assertEqual(len(validated['abstractions']),1);self.assertEqual(len(validated['rejected_knowledge']),2)
+    def test_research_receives_action_outcomes_and_prior_learned_knowledge(self):
+        from autoplayer.nextgen.knowledge_access import claim
+        record=claim('rule','research_abstractions','A tentative relation with an observed outcome','INFERRED',evidence=[{'frame':'past'}])
+        self.store.put('knowledge_claims',record,key=record['id'])
+        unusable=claim('label','research_abstractions','label','INFERRED',evidence=[{'frame':'past'}])
+        self.store.put('knowledge_claims',unusable,key=unusable['id'])
+        self.store.put('transition',{'before':{'frame_sha256':'before','quotes':['first'],'metrics':{}},'input':{'keys':['a'],'hold_ms':80},
+            'receipt':{'os_submission':'accepted'},'after':{'frame_sha256':'after','quotes':['second'],'metrics':{}},'result':{'status':'updated'}},1)
+        self.store.queue.join();self.store.check()
+        def reply(image,system,prompt,schema):
+            items=list(prompt['evidence'].values())
+            action=next(e['data'] for e in items if e.get('topic')=='action_experience')
+            self.assertEqual(action['before']['quotes'],['first']);self.assertEqual(action['after']['quotes'],['second'])
+            self.assertEqual(action['input']['keys'],['a'])
+            self.assertTrue(any(e.get('topic')=='research_knowledge' and e['data']['value']==record['value'] for e in items))
+            self.assertFalse(any(e.get('topic')=='research_knowledge' and e['data']['value']=='label' for e in items))
+            self.assertTrue(any(e['id']==unusable['id'] for e in prompt['knowledge']['excluded_research']))
+            return json.dumps(empty())
+        with patch.object(LocalLLM,'_request',side_effect=reply):
+            self.r.tick(self.state,[],0,0,{},None,SimpleNamespace(checks=[]),{},self.meta)
+            self.assertIsNone(self.r.results.get(timeout=2)['error'])
 
     def test_parallel_geometry_overlaps_ocr_and_checks_frame_barrier(self):
         from PIL import Image

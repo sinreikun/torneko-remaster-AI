@@ -123,6 +123,36 @@ class KnowledgeContracts(unittest.TestCase):
         self.assertEqual(view['history'][1]['rejected_progress'][0]['requires'],['a'])
         self.assertEqual(view['research_counts']['errors'],2)
 
+    def test_research_knowledge_remains_retrievable_after_many_new_observations(self):
+        record=claim('food','research_abstractions','HP increased after the observed use','INFERRED',evidence=[{'frame':'past','state_snapshot':{'large':'data'*1000}}])
+        self.access.put(record)
+        for i in range(120):self.access.put(claim('screen','ocr',[str(i)],'OBSERVED',evidence=[{'frame':str(i)}]))
+        self.flush();snap=self.access.snapshot(self.state,121)
+        self.assertEqual(snap['pool']['research_knowledge'][0]['id'],record['id'])
+        from autoplayer.nextgen.knowledge_access import project
+        view=project(snap['pool']['research_knowledge'][0])
+        self.assertEqual(view['data']['value'],record['value']);self.assertNotIn('state_snapshot',view['data']['evidence'][0])
+        self.assertIn('state_snapshot',self.store.load('knowledge_claims',record['id'])[0]['evidence'][0])
+    def test_action_experience_has_concrete_outcomes_and_profile_scoped_cold_lookup(self):
+        transition={'before':{'frame_sha256':'before','quotes':['before'],'metrics':{'hp':{'values':[8,10]}},'measurement_status':'ok'},
+            'input':{'keys':['a'],'hold_ms':80},'receipt':{'os_submission':'accepted','game_processing':'unverified'},
+            'after':{'frame_sha256':'after','quotes':['after'],'metrics':{'hp':{'values':[10,10]}},'measurement_status':'ok'},
+            'result':{'status':'updated','effects':{'metric.hp.0':2},'attribution':'association'}}
+        self.store.put('transition',transition,1);self.flush()
+        identifier=self.store.reader.execute('SELECT id FROM transitions WHERE profile=?',('game-A',)).fetchone()[0]
+        for i in range(12):self.store.put('transition',transition,i+2)
+        self.flush();snap=self.access.snapshot(self.state,14)
+        self.assertNotIn('transition:'+str(identifier),[r['id'] for r in snap['pool']['action_experience']])
+        target='transition:'+str(identifier);found=self.access.lookup(snap,[{'topic':'action_experience','target_id':target}])
+        from autoplayer.nextgen.knowledge_access import project
+        view=project(found['pool']['action_experience'][0])['data']
+        self.assertEqual(view['input']['keys'],['a']);self.assertEqual(view['after']['metrics']['hp'],[10,10])
+        self.assertEqual(view['delivery']['game_processing'],'unverified')
+        other=ExperienceStore(self.path,'other-game','s');other.put('transition',transition,0);other.close()
+        foreign=self.store.reader.execute('SELECT id FROM transitions WHERE profile=?',('other-game',)).fetchone()[0]
+        missing=self.access.lookup(snap,[{'topic':'action_experience','target_id':'transition:'+str(foreign)}])
+        self.assertEqual(missing['lookups'][('action_experience','transition:'+str(foreign))],'not_found')
+
     def test_warm_records_are_not_starved_by_large_ui_grid(self):
         self.store.put('capabilities',{'id':'skill','name':'change_selection','scope':'hash','status':'unconfirmed'},key='skill');self.flush()
         p=self.prompt();p['current']['spatial_ui']['elements']=[{'id':str(i),'text':'文字'*20,'bbox':[.1,.2,.3,.4]} for i in range(100)]

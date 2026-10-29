@@ -8,9 +8,11 @@ from .state_hash import digest
 
 SOURCES={'OBSERVED','EXPERIENCED','INFERRED','EXTERNAL','UNKNOWN'}
 STATUSES={'UNCONFIRMED','SUPPORTED','DISPUTED','UNKNOWN'}
-TOPICS={'long_term_intent','inventory_detail','item','monster','recent_failures','progress_node','full_ocr','ui_history','capability_history','item_knowledge','monster_knowledge','progress_history','observer_history','rules','hypotheses','external'}
-TABLES={'long_term_intent':'autonomy','progress_node':'progress','progress_history':'progress','capability_history':'capabilities','ui_history':'ui_models','observer_history':'observer_policies','rules':'rules','hypotheses':'hypotheses','item_knowledge':'knowledge_claims','monster_knowledge':'knowledge_claims','item':'knowledge_claims','monster':'knowledge_claims','inventory_detail':'knowledge_claims','external':'knowledge_claims','full_ocr':'knowledge_claims','recent_failures':'autonomy'}
+TOPICS={'long_term_intent','inventory_detail','item','monster','recent_failures','progress_node','full_ocr','ui_history','capability_history','item_knowledge','monster_knowledge','progress_history','observer_history','rules','hypotheses','external','research_knowledge','action_experience'}
+TABLES={'action_experience':'transitions','research_knowledge':'knowledge_claims','long_term_intent':'autonomy','progress_node':'progress','progress_history':'progress','capability_history':'capabilities','ui_history':'ui_models','observer_history':'observer_policies','rules':'rules','hypotheses':'hypotheses','item_knowledge':'knowledge_claims','monster_knowledge':'knowledge_claims','item':'knowledge_claims','monster':'knowledge_claims','inventory_detail':'knowledge_claims','external':'knowledge_claims','full_ocr':'knowledge_claims','recent_failures':'autonomy'}
 ROLE_TOPICS={'ui':['ui_history','capability_history','external'], 'progress':['progress_node','long_term_intent','capability_history','external'], 'recovery':['recent_failures','observer_history','hypotheses'], 'combat':['monster','item','capability_history','rules','external'], 'item':['inventory_detail','item','capability_history','external'], 'exploration':['progress_node','capability_history','rules','external']}
+
+for topics in ROLE_TOPICS.values():topics.extend(['research_knowledge','action_experience'])
 
 def encoded(value):return json.dumps(value,ensure_ascii=False,separators=(',',':'))
 def estimate_tokens(value):
@@ -36,6 +38,7 @@ def role_for(state,reason,local=None):
 def topic_matches(topic,record):
     kinds={'item':'item','item_knowledge':'item','monster':'monster','monster_knowledge':'monster','inventory_detail':'inventory'}
     if topic in kinds:return record.get('entity_kind')==kinds[topic]
+    if topic=='research_knowledge':return record.get('predicate') in ('research_abstractions','research_contradictions')
     if topic=='full_ocr':return record.get('predicate')=='ocr'
     if topic=='external':return record.get('source')=='EXTERNAL'
     return True
@@ -94,8 +97,12 @@ class KnowledgeAccess:
         by_table={}
         for topic,table in TABLES.items():
             if table not in by_table:
-                rows=self.store.reader.execute(f'SELECT data FROM {table} WHERE profile=? ORDER BY '+('id' if table=='evaluations' else 'updated')+' DESC LIMIT 96',(self.store.profile,)).fetchall()
-                by_table[table]=[json.loads(row[0]) for row in rows]
+                if table=='transitions':
+                    rows=self.store.reader.execute('SELECT id,session,step,data FROM transitions WHERE profile=? ORDER BY id DESC LIMIT 8',(self.store.profile,)).fetchall()
+                    by_table[table]=[json.loads(raw)|{'id':'transition:'+str(identifier),'session':session,'step':step} for identifier,session,step,raw in rows]
+                else:
+                    rows=self.store.reader.execute(f'SELECT data FROM {table} WHERE profile=? ORDER BY '+('id' if table=='evaluations' else 'updated')+' DESC LIMIT 96',(self.store.profile,)).fetchall()
+                    by_table[table]=[json.loads(row[0]) for row in rows]
             records=by_table[table]
             if table=='knowledge_claims':
                 where,args=self.where(topic)
@@ -124,6 +131,7 @@ class KnowledgeAccess:
         if table=='knowledge_claims':
             if topic in ('item','item_knowledge','monster','monster_knowledge','inventory_detail'):
                 where+=" AND json_extract(data,'$.entity_kind')=?";args.append('inventory' if topic=='inventory_detail' else 'item' if topic.startswith('item') else 'monster')
+            elif topic=='research_knowledge':where+=" AND json_extract(data,'$.predicate') IN ('research_abstractions','research_contradictions')"
             elif topic=='full_ocr':where+=" AND json_extract(data,'$.predicate')='ocr'"
             else:where+=" AND json_extract(data,'$.source')='EXTERNAL'"
         return where,args
@@ -132,7 +140,7 @@ class KnowledgeAccess:
         return self.store.reader.execute(f'SELECT COUNT(*) FROM {TABLES[topic]} WHERE {where}',args).fetchone()[0]
     @staticmethod
     def entry(topic,r):
-        source=r.get('source') if r.get('source') in SOURCES else 'EXPERIENCED' if topic in ('capability_history','rules','ui_history') else 'UNKNOWN' if topic=='long_term_intent' else 'INFERRED'
+        source=r.get('source') if r.get('source') in SOURCES else 'EXPERIENCED' if topic in ('capability_history','rules','ui_history','action_experience') else 'UNKNOWN' if topic=='long_term_intent' else 'INFERRED'
         return {'id':r.get('id',r.get('key',digest(r))),'source':source,'status':r.get('status','UNCONFIRMED'),'data':copy.deepcopy(r),'applicability':'must_revalidate','freshness':'historical_or_snapshot_evidence_not_current_truth','topic':topic}
     def lookup(self,snapshot,requests):
         """Exact IDs search cold DB using the calling thread’s own connection."""
@@ -140,6 +148,13 @@ class KnowledgeAccess:
         for req in requests:
             if req.get('topic') not in TOPICS or not req.get('target_id'):continue
             topic=req['topic'];table=TABLES[topic];target=req['target_id']
+            if table=='transitions':
+                number=target.removeprefix('transition:')
+                rows=self.store.reader.execute('SELECT id,session,step,data FROM transitions WHERE profile=? AND id=?',(self.store.profile,int(number))).fetchall() if number.isdigit() and int(number)<2**63 else []
+                matches=[json.loads(raw)|{'id':'transition:'+str(identifier),'session':session,'step':step} for identifier,session,step,raw in rows]
+                result['lookups'][(topic,target)]='found' if matches else 'not_found'
+                if matches:result['pool'][topic]=[self.entry(topic,r) for r in matches]+result['pool'][topic][:7]
+                continue
             column='id' if table in ('knowledge_claims','hypotheses') else 'key'
             if table=='evaluations':continue
             sql=f'SELECT data FROM {table} WHERE profile=? AND {column}=?';args=[self.store.profile,target]
@@ -156,6 +171,20 @@ class KnowledgeAccess:
 def project(entry):
     r=entry['data'];keep=('id','key','subject','predicate','value','entity_kind','scope','conditions','counterconditions','label','name','status','capability','input','successes','failures','confidence','evidence','counterevidence','source','observed_at','reason','kind','effects','settings','trial','rules','trials','success_conditions','expected','input','action','unconfirmed','unknown','identity_status','reference_sources','intent')
     data={k:r[k] for k in keep if k in r}
+    if entry['topic']=='action_experience':
+        def observed(state):
+            return {'frame':state.get('frame_sha256'),'quotes':state.get('quotes',[])[:6],
+                    'metrics':{k:v.get('values') for k,v in state.get('metrics',{}).items() if not v.get('retained')},
+                    'measurement_status':state.get('measurement_status'),'quality':state.get('quality'),'selection':state.get('selection_observation',{}),
+                    'interface':state.get('interface_observation',{}).get('visible')}
+        data={'id':r.get('id'),'session':r.get('session'),'step':r.get('step'),'before':observed(r.get('before',{})),
+              'input':{k:r.get('input',{}).get(k) for k in ('keys','hold_ms','declared_meanings')},
+              'delivery':{k:r.get('receipt',{}).get(k) for k in ('os_submission','game_processing')},'after':observed(r.get('after',{})),
+              'result':{k:r.get('result',{}).get(k) for k in ('status','effects','match','attribution','confidence')},'neutral':r.get('neutral')}
+    if entry['topic']=='research_knowledge':
+        for field in ('evidence','counterevidence'):
+            data[field]=[{k:e[k] for k in ('frame','step','session','record_id','record_version','source','observed_at') if k in e} for e in r.get(field,[])[-2:]]
+        data['evidence_view']='references_only_full_snapshots_stored'
     if entry['topic']=='recent_failures':
         recovery=r.get('recovery') or {}
         data={'recovery':{k:recovery[k] for k in ('failure','method','deadline','success','resume') if k in recovery},'planning_issue':r.get('planning_issue'),'attempted_count':len(r.get('attempted',{})),'history':[e for e in r.get('history',[]) if any(word in e.get('event','') for word in ('recovery','missing','rejected','mismatch'))][-2:]}
@@ -163,7 +192,7 @@ def project(entry):
     if entry['topic']=='recent_failures' and r.get('role')=='asynchronous_knowledge_research':
         history=[e for e in r.get('history',[]) if e.get('event')=='research_error' or e.get('proposal_issues')]
         data={'research_counts':{k:r.get(k,0) for k in ('requests','responses','adoptions','errors','discarded')},
-              'history':[{k:e[k] for k in ('event','session','source_step','source_frame','reason','proposal_issues','rejected_progress') if k in e} for e in history[-2:]],
+              'history':[{k:e[k] for k in ('event','session','source_step','source_frame','reason','proposal_issues','rejected_progress','rejected_knowledge','rejected_tasks') if k in e} for e in history[-2:]],
               'basis':'historical_research_outcomes_not_current_game_observation'}
     if entry['topic']=='observer_history':
         trial=r.get('trial') or {}
@@ -329,7 +358,10 @@ def write_book(store,path):
                 elif title=='意味の仮説・矛盾整理':sql+=" AND json_extract(data,'$.predicate') IN ('research_abstractions','research_contradictions')"
                 else:sql+=" AND json_extract(data,'$.source')!='EXTERNAL' AND json_extract(data,'$.entity_kind') IS NULL AND COALESCE(json_extract(data,'$.predicate'),'') NOT IN ('research_abstractions','research_contradictions')"
             for raw, in db.execute(sql+' ORDER BY updated DESC',args):
-                count+=1;r=json.loads(raw);entry=KnowledgeAccess.entry(next((t for t,v in TABLES.items() if v==table),'hypotheses'),r);p=project(entry)
+                count+=1;r=json.loads(raw)
+                topic=next((t for t,v in TABLES.items() if v==table),'hypotheses')
+                if table=='knowledge_claims':topic='research_knowledge' if r.get('predicate') in ('research_abstractions','research_contradictions') else 'item_knowledge'
+                entry=KnowledgeAccess.entry(topic,r);p=project(entry)
                 label=str(r.get('label',r.get('subject',r.get('id',r.get('key','未命名'))))).replace('\n',' ')
                 out.write('### '+label.replace('#','\\#')+'\n\n')
                 out.write('出所: '+p['source']+' / 状態: '+str(p['status'])+' / 現在への適用は再確認\n\n')
