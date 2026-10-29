@@ -68,6 +68,17 @@ class ResearchContracts(unittest.TestCase):
         self.assertTrue(self.rows[-1]['current_applicability']);self.assertFalse(self.rows[-1]['new_counterevidence'])
         self.assertIn('finite_research_task',self.rows[-1]['adopted'])
 
+    def test_invalid_progress_does_not_discard_independently_valid_research(self):
+        from test_autonomy import node
+        answer=empty();answer['abstractions']=[{'subject':'observation','statement':'tentative meaning','evidence':['E00']}]
+        answer['progress_nodes']=[node('a',['b']),node('b',['a'])]
+        validated=validate_research(answer,{'E00':{}},[])
+        self.assertEqual(validated['progress_nodes'],[]);self.assertTrue(validated['proposal_issues'])
+        self.assertEqual(len(validated['abstractions']),1)
+        self.r._apply(self.packet(validated),self.state,3,0,{},self.meta)
+        self.assertEqual(self.rows[-1]['abstractions'],1);self.assertNotIn('progress_proposal',self.rows[-1]['adopted'])
+        self.assertEqual(self.r.errors,1);self.assertTrue(self.r.recent[-1]['proposal_issues'])
+
     def test_changed_guidance_discards_even_historical_proposals(self):
         self.r._apply(self.packet(empty()),self.state,5,0,{'revision':1},self.meta)
         self.assertEqual(self.r.discarded,1)
@@ -178,6 +189,19 @@ class ResearchContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder,patch.object(ResearchLayer,'tick',return_value=(local,None)),patch.object(ProgressManager,'update',progression),patch.object(ForwardModel,'observe',world):
             runner=NextGenController(cfg,backend,llm,lambda row:None,Path(folder)/'runs'/'overlap.jsonl');runner.run()
         self.assertTrue(world_entered.is_set());self.assertTrue(progress_entered.is_set())
+
+    def test_research_history_is_bounded_and_survives_run_tail_truncation(self):
+        for i in range(12):self.r.note({'event':'research_error','reason':'error'+str(i)})
+        self.assertEqual(len(self.r.recent),8)
+        self.store.close();self.store=ExperienceStore(self.store.path,'p','s')
+        restored=ResearchLayer(self.cfg,SimpleNamespace(),lambda row:None,threading.Event(),self.store)
+        try:
+            self.assertEqual(len(restored.recent),8);self.assertEqual(restored.recent[-1]['reason'],'error11')
+            self.assertEqual(self.store.load('autonomy','research')[0]['history'][-1]['session'],'s')
+            from autoplayer.nextgen.store import diagnostic_summary
+            summary=diagnostic_summary(self.store.reader)
+            self.assertTrue(any(r.get('role')=='asynchronous_knowledge_research' for r in summary['autonomy']['autonomy']))
+        finally:restored.close()
 
     def test_parallel_geometry_overlaps_ocr_and_checks_frame_barrier(self):
         from PIL import Image

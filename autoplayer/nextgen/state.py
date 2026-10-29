@@ -138,6 +138,7 @@ class StateBuilder:
         cached=self.cache.get(sha)
         if cached and cached['full']:return {'sha':sha,'native':copy.deepcopy(cached['native'])}
         if sha in self.evidence_cache:return copy.deepcopy(self.evidence_cache[sha])
+        self.message_evidence_reads=getattr(self,'message_evidence_reads',0)+1
         native=self.ocr.read(png)
         if native.get('frame_sha256')!=sha:native={'status':'unavailable','lines':[],'frame_sha256':sha}
         result={'sha':sha,'native':native};self.evidence_cache[sha]=copy.deepcopy(result)

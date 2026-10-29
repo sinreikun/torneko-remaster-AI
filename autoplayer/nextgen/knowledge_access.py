@@ -160,6 +160,11 @@ def project(entry):
         recovery=r.get('recovery') or {}
         data={'recovery':{k:recovery[k] for k in ('failure','method','deadline','success','resume') if k in recovery},'planning_issue':r.get('planning_issue'),'attempted_count':len(r.get('attempted',{})),'history':[e for e in r.get('history',[]) if any(word in e.get('event','') for word in ('recovery','missing','rejected','mismatch'))][-2:]}
         if isinstance(data['recovery'].get('resume'),dict):data['recovery']['resume']={k:data['recovery']['resume'][k] for k in ('id','label') if k in data['recovery']['resume']}
+    if entry['topic']=='recent_failures' and r.get('role')=='asynchronous_knowledge_research':
+        history=[e for e in r.get('history',[]) if e.get('event')=='research_error' or e.get('proposal_issues')]
+        data={'research_counts':{k:r.get(k,0) for k in ('requests','responses','adoptions','errors','discarded')},
+              'history':[{k:e[k] for k in ('event','session','source_step','source_frame','reason','proposal_issues','rejected_progress') if k in e} for e in history[-2:]],
+              'basis':'historical_research_outcomes_not_current_game_observation'}
     if entry['topic']=='observer_history':
         trial=r.get('trial') or {}
         data={'policy':r.get('policy',{}),'trial':{k:trial[k] for k in ('item','old','new','deadline','scope') if k in trial},'history':[{k:e[k] for k in ('event','item','status','reason','before','after','comparison','baseline','measured','old','tested') if k in e} for e in r.get('history',[])[-1:]]}

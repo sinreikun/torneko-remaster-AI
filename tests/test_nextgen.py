@@ -157,7 +157,7 @@ class AdditionalObservationContracts(unittest.TestCase):
         builder=StateBuilder(Settings(window_title='generic',allowed_keys=['a']),ocr)
         builder.floor.floor=9;builder.map_sensor.cells={(3,4)};builder.tracker.serial=41
         builder.message_evidence(png);builder.message_evidence(png)
-        self.assertEqual(ocr.read.call_count,1);self.assertEqual(builder.floor.floor,9)
+        self.assertEqual(ocr.read.call_count,1);self.assertEqual(builder.message_evidence_reads,1);self.assertEqual(builder.floor.floor,9)
         self.assertEqual(builder.map_sensor.cells,{(3,4)});self.assertEqual(builder.tracker.serial,41)
     def test_ocr_escalation_reuses_image_geometry_and_cache_does_not_recount_cost(self):
         png=(FIXTURES/'quick-quiet-frame.png').read_bytes();sha=hashlib.sha256(png).hexdigest()

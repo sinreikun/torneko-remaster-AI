@@ -168,11 +168,13 @@ class NextGenController:
                     from ..battle_messages import read_messages
                     combat_text=bool(read_messages(self.builder.cache[after['frame_sha256']]['native'],after['frame_sha256'])) if is_torneko(self.cfg.window_title) else False
                     if (hp_loss or combat_text) and not(full or protect):after=self.builder.build(after_image,True,measured_map=after['minimap'] if after['minimap'].get('status')=='observed' else None)
-                    text_evidence=[]
+                    text_evidence=[];evidence_started=time.monotonic();evidence_reads=getattr(self.builder,'message_evidence_reads',0)
                     if protect or hp_loss or combat_text:
                         for frame in message_candidates(after_image,frames,limit=2):
                             evidence=self.builder.message_evidence(frame)
                             text_evidence.append({'frame_sha256':evidence['sha'],'native':evidence['native'],'role':'message_evidence_only_not_current_state'})
+                    stages['message_evidence_ms']=(time.monotonic()-evidence_started)*1000
+                    evidence_info={'retained_frames':len(text_evidence),'ocr_reads':getattr(self.builder,'message_evidence_reads',0)-evidence_reads}
                     step+=1;t=time.monotonic()
                     ui_receipt=receipt if kind!='aborted' and revision==getattr(self.control,'revision',0) else {'os_submission':'censored'}
                     ui_transition=self.builder.ui_vision.learn(before,after,action,ui_receipt,step,neutral,neutral_regions)
@@ -220,7 +222,7 @@ class NextGenController:
                       'changed':before['frame_sha256']!=after['frame_sha256'],'policy_after':{k:v for k,v in after.items() if k!='visual_vector'},'policy_state':shown_before,'ocr':copy.deepcopy(self.builder.cache.get(before['frame_sha256'],{}).get('native',{'status':'unavailable','lines':[]})),
                       'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'ui_interaction':interaction,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},
-                      'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None,'synchronization':{'input_source_frame':before['frame_sha256'],'result_source_frame':after['frame_sha256'],'commit_order':'input_result_then_parallel_world_progress_then_skill_meta','research_blocks_input':False}},
+                      'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None,'message_evidence':evidence_info,'synchronization':{'input_source_frame':before['frame_sha256'],'result_source_frame':after['frame_sha256'],'commit_order':'input_result_then_parallel_world_progress_then_skill_meta','research_blocks_input':False}},
                       'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}
                     t=time.monotonic();store.put('transition',{'before':snapshot(before),'input':action,'receipt':receipt,'after':snapshot(after),'prediction':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'neutral':neutral,'message_evidence':text_evidence},step)
                     for identifier in list(self.builder.tracker.dirty):

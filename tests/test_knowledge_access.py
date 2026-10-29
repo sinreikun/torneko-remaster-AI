@@ -112,6 +112,17 @@ class KnowledgeContracts(unittest.TestCase):
             self.assertLessEqual(estimate_tokens(view),budget)
             self.assertEqual(view['knowledge']['hot_coverage']['quotes_loaded'],len(view['current'].get('quotes',[])))
 
+    def test_research_rejection_remains_visible_to_the_next_research_round(self):
+        from autoplayer.nextgen.knowledge_access import project
+        history=[{'event':'research_error','reason':'Unknown/cyclic prerequisite'},
+                 {'event':'research_result','proposal_issues':['progress_proposal_rejected'],
+                  'rejected_progress':[{'id':'a','requires':['a']}]}]
+        record={'id':'research','role':'asynchronous_knowledge_research','errors':2,'history':history}
+        view=project(KnowledgeAccess.entry('recent_failures',record))['data']
+        self.assertEqual(view['history'][0]['reason'],'Unknown/cyclic prerequisite')
+        self.assertEqual(view['history'][1]['rejected_progress'][0]['requires'],['a'])
+        self.assertEqual(view['research_counts']['errors'],2)
+
     def test_warm_records_are_not_starved_by_large_ui_grid(self):
         self.store.put('capabilities',{'id':'skill','name':'change_selection','scope':'hash','status':'unconfirmed'},key='skill');self.flush()
         p=self.prompt();p['current']['spatial_ui']['elements']=[{'id':str(i),'text':'文字'*20,'bbox':[.1,.2,.3,.4]} for i in range(100)]

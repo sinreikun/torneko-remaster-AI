@@ -1,5 +1,6 @@
 """Bounded asynchronous research. Never selects an input or owns game/model state."""
 import copy,json,queue,sqlite3,threading,time,uuid
+from collections import deque
 from dataclasses import replace
 from types import SimpleNamespace
 from .knowledge_access import KnowledgeAccess,claim,estimate_tokens,project,validate_requests
@@ -45,21 +46,38 @@ def validate_research(value,evidence,known):
                 if item['capability'] not in CAPABILITIES or type(item['deadline_steps']) is not int or not 4<=item['deadline_steps']<=64:raise ValueError('Invalid research task')
                 if not isinstance(item['conditions'],list) or not 1<=len(item['conditions'])<=4:raise ValueError('Invalid task conditions')
                 for c in item['conditions']:validate_condition(c)
-    validate_nodes(value['progress_nodes'],known)
-    return copy.deepcopy(value)
+    result=copy.deepcopy(value)
+    try:validate_nodes(value['progress_nodes'],known)
+    except ValueError as error:
+        result['proposal_issues']=['progress_proposal_rejected: '+str(error)]
+        result['rejected_progress']=copy.deepcopy(value['progress_nodes'][:3]) if isinstance(value['progress_nodes'],list) else []
+        result['progress_nodes']=[]
+    return result
 
 class ResearchLayer:
     def __init__(self,cfg,llm,emit,stop,store):
         self.namespace=uuid.uuid4().hex[:8];self.cfg=cfg;self.llm=llm;self.emit=emit;self.stop=stop;self.store=store
+        saved=store.load('autonomy','research')
+        self.recent=deque(saved[0].get('history',[]) if saved else [],maxlen=8)
         self.results=queue.Queue(maxsize=1);self.pending=None;self.closed=False;self.requests=0;self.responses=0;self.adoptions=0;self.errors=0;self.discarded=0;self.last_ms=None;self.last_error=None;self.next_review=0;self.last_step=-1000;self.last_time=-1000;self.knowledge_requests=[]
+    def note(self,event):
+        keys=('event','source_step','source_frame','current_frame','current_applicability','adopted','abstractions','contradictions','new_counterevidence','reason','status','proposal_issues','rejected_progress')
+        summary={k:copy.deepcopy(event[k]) for k in keys if k in event}
+        summary.update(session=self.store.session,recorded_at=time.time())
+        for name in ('knowledge_hypotheses','contradiction_hypotheses','proposed_tasks','progress_proposals'):
+            if event.get(name):summary[name]=copy.deepcopy(event[name][:1])
+        self.recent.append(summary)
+        self.store.put('autonomy',{'role':'asynchronous_knowledge_research','session':self.store.session,'requests':self.requests,'responses':self.responses,'adoptions':self.adoptions,'errors':self.errors,'discarded':self.discarded,'last_ms':self.last_ms,'history':list(self.recent)},key='research')
+        self.emit(event)
     @staticmethod
     def domain(state,revision,guidance):return [revision,guidance.get('revision',0),state.get('map_domain'),state.get('floor_confirmation',{}).get('confirmed')]
     def _apply(self,packet,state,step,revision,guidance,meta,model=None):
         if packet.get('error'):
-            self.errors+=1;self.last_error=packet['error'];self.emit({'event':'research_error','reason':self.last_error,'learning':False});return
+            self.errors+=1;self.last_error=packet['error'];self.note({'event':'research_error','reason':self.last_error,'learning':False});return
         if packet.get('profile',self.store.profile)!=self.store.profile or packet['cancelled'] or packet['domain'][:2]!=self.domain(state,revision,guidance)[:2]:
-            self.discarded+=1;self.emit({'event':'research_discarded','reason':'control_or_guidance_changed','learning':False});return
+            self.discarded+=1;self.note({'event':'research_discarded','reason':'control_or_guidance_changed','learning':False});return
         answer=packet['answer'];access=KnowledgeAccess(self.store)
+        if answer.get('proposal_issues'):self.errors+=1;self.last_error='; '.join(answer['proposal_issues'])[:500]
         # Historical reasoning can survive a scene transition. It remains an
         # INFERRED hypothesis linked to the immutable request evidence.
         for kind in ('abstractions','contradictions'):
@@ -88,7 +106,7 @@ class ResearchLayer:
                 if local and local.get('label')==task['label']:
                     local['deadline']=min(local['deadline'],step+task['deadline_steps']);local['research_source']={'frame':packet['frame'],'step':packet['step'],'evidence':[packet['evidence'][r] for r in task['evidence']]}
                     meta.save();adopted.append('finite_research_task')
-        self.responses+=1;self.adoptions+=int(bool(adopted or answer['abstractions'] or answer['contradictions']));self.emit({'event':'research_result','source_step':packet['step'],'source_frame':packet['frame'],'current_frame':state.get('frame_sha256'),'current_applicability':bool(applicable),'adopted':adopted,'abstractions':len(answer['abstractions']),'contradictions':len(answer['contradictions']),'knowledge_hypotheses':answer['abstractions'],'contradiction_hypotheses':answer['contradictions'],'proposed_tasks':answer['research_tasks'],'progress_proposals':answer['progress_nodes'],'status':'llm_proposals_not_facts','new_counterevidence':new_counterevidence,'learning':False})
+        self.responses+=1;self.adoptions+=int(bool(adopted or answer['abstractions'] or answer['contradictions']));self.note({'event':'research_result','source_step':packet['step'],'source_frame':packet['frame'],'current_frame':state.get('frame_sha256'),'current_applicability':bool(applicable),'adopted':adopted,'abstractions':len(answer['abstractions']),'contradictions':len(answer['contradictions']),'knowledge_hypotheses':answer['abstractions'],'contradiction_hypotheses':answer['contradictions'],'proposed_tasks':answer['research_tasks'],'progress_proposals':answer['progress_nodes'],'status':'llm_proposals_not_facts','new_counterevidence':new_counterevidence,'proposal_issues':answer.get('proposal_issues',[]),'rejected_progress':answer.get('rejected_progress',[]),'learning':False})
     def tick(self,state,candidates,step,revision,guidance,image,model,metrics,meta):
         # Only a nonblocking mailbox and finite snapshot construction occur here.
         try:packet=self.results.get_nowait()

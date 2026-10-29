@@ -27,7 +27,8 @@ def white_frames(png):
         kernel=min(9,max(3,2*int(source.width/width)//2+1))
         # A square maximum is separable across repeated radius-one maxima.
         # This preserves exactly the same pixels while avoiding a large kernel.
-        for _ in range((kernel-1)//2):white=white.filter(ImageFilter.MaxFilter(3))
+        from .image_math import maximum3
+        for _ in range((kernel-1)//2):white=maximum3(white)
     mask=white.resize((width,height),Image.Resampling.BOX).point(lambda v:255 if v>=64 else 0).tobytes()
     horizontal=[];minimum=max(36,int(width*.065))
     def add_line(y,left,right):
