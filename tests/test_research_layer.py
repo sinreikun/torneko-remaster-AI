@@ -21,6 +21,29 @@ class ResearchContracts(unittest.TestCase):
     def tearDown(self):self.r.close();self.store.close();self.tmp.cleanup()
     def packet(self,answer):
         return {'answer':answer,'cancelled':False,'step':0,'frame':'original','context':self.state['context'],'domain':self.r.domain(self.state,0,{}),'goal_epoch':self.meta.goal_epoch,'mission':None,'evidence':{'E00':{'frame':'original','step':0}},'ms':1}
+    def test_internal_progress_and_hypotheses_do_not_ground_world_knowledge(self):
+        answer=empty();answer['abstractions']=[{'subject':'effect','statement':'a possible rule','evidence':['E01','E02']}]
+        refs={'E01':{'topic':'progress_node','source':'INFERRED'},'E02':{'topic':'research_knowledge','source':'INFERRED'},'E00':{'source':'OBSERVED','frame':'current'}}
+        checked=validate_research(answer,refs,[])
+        self.assertEqual(checked['abstractions'],[])
+        self.assertEqual(checked['rejected_knowledge'][0]['reason'],'no_observation_or_experience_basis')
+        answer['abstractions'][0]['evidence'].append('E00')
+        self.assertEqual(len(validate_research(answer,refs,[])['abstractions']),1)
+
+    def test_same_assertion_cannot_also_be_its_own_contradiction(self):
+        answer=empty();item={'subject':'action result','statement':'a possible effect','evidence':['E00','E01']}
+        answer['abstractions']=[copy.deepcopy(item)];answer['contradictions']=[copy.deepcopy(item)]
+        checked=validate_research(answer,{'E00':{'source':'OBSERVED'},'E01':{'source':'EXPERIENCED'}},[])
+        self.assertEqual(len(checked['abstractions']),1);self.assertEqual(checked['contradictions'],[])
+        self.assertEqual(checked['rejected_knowledge'][0]['reason'],'identical_assertion_is_not_a_contradiction')
+
+    def test_internal_goal_wrapped_in_an_explanatory_sentence_is_not_knowledge(self):
+        goal='現在画面から入力の作用を確認できる情報を得る'
+        answer=empty();answer['abstractions']=[{'subject':'情報','statement':'情報とは、'+goal+'必要があります。','evidence':['E00']}]
+        checked=validate_research(answer,{'E00':{'source':'OBSERVED'}},[],(goal,))
+        self.assertEqual(checked['abstractions'],[])
+        self.assertEqual(checked['rejected_knowledge'][0]['reason'],'internal_objective_embedded_as_knowledge')
+
     def test_schema_result_cannot_smuggle_actions_or_uncited_assertions(self):
         with self.assertRaises(ValueError):validate_research({**empty(),'candidate_values':[]},{'E00':{}},[])
         bad=empty();bad['abstractions']=[{'subject':'object','statement':'meaning','evidence':['unknown']}]
