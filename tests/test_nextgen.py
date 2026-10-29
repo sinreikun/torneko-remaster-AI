@@ -136,6 +136,18 @@ class ModelContracts(unittest.TestCase):
         for item in self.model.cycle_memory.values():item['expires_at']=0
         self.model.age_cycles(9);self.assertFalse(self.model.cycle_memory)
 
+    def test_close_ui_route_uses_known_exit_and_ignores_unrelated_novelty(self):
+        a=measured('menu');a['interface_hypothesis']=True
+        b=measured('parent');b['interface_hypothesis']=True
+        c=measured('closed');c['interface_hypothesis']=False
+        self.update(a,b,1);self.update(b,c,2)
+        self.model.remember_cycle({'sequence':[{'context':a['context'],'before':a['id'],'action':self.action['id']}]})
+        cfg=Settings(window_title='generic',allowed_keys=['a','b'],key_bindings={})
+        p=plan();p['targets']=[{'feature':'interface_open','operator':'eq','value':0}]
+        self.model.escape={'actions':[self.action['id']],'nodes':['menu','parent'],'attempts':0}
+        choice,_,_=self.model.choose(a,self.model.candidates(cfg),p)
+        self.assertEqual(choice['candidate']['keys'],['a']);self.assertTrue(choice['route_to_information'])
+
     def test_llm_explanation_remains_refutable_hypothesis(self):
         proposal={'candidate':self.action['id'],'feature':'metric.hp.0','expected':1,'tolerance':0,'explanation':'HP増加という仮説'}
         self.model.add_hypotheses([proposal],measured(),[self.action]);h=self.model.hypotheses[0]

@@ -9,6 +9,7 @@ from .model import ForwardModel,AdaptivePolicy,snapshot,target_score
 from .research import ResearchLayer
 from .field_pipeline import RulePrefetch,ProgressLane
 from .meta import MetaController
+from .pace import PaceController
 from ..controls import is_torneko
 from ..cancellation import OperationCancelled
 from ..observation_store import message_candidates
@@ -18,8 +19,8 @@ class NextGenController:
     def __init__(self,cfg,backend,llm,emit,journal,stop=None,memory=None,control=None,diagnostic_sink=None):
         self.cfg=cfg.validate();self.backend=backend;self.llm=llm;self.emit=emit;self.journal=Path(journal);self.control=control;self.stop=stop if stop is not None else threading.Event()
         self.cancel=control or self.stop;self.llm.activity=emit;self.llm.ocr.cancel=self.cancel
-        self.builder=StateBuilder(cfg,llm.ocr);self.diagnostic_sink=diagnostic_sink;self.last={};self.durations={};self.events=[];self.previous=None;self.stream=None
-        self.data=self.journal.parent.parent;self.completed=False;self.summary={};self.journal_lock=threading.RLock()
+        self.builder=StateBuilder(cfg,llm.ocr);self.diagnostic_sink=diagnostic_sink;self.last={};self.pace=PaceController();self.durations={};self.events=[];self.previous=None;self.stream=None
+        self.data=self.journal.parent.parent;self.completed=False;self.summary={};self.last_pace_tick=time.monotonic();self.journal_lock=threading.RLock()
     def checkpoint(self):
         if self.control and getattr(self.control,'reconnect_requested',None) and self.control.reconnect_requested.is_set():
             from ..recovery import TargetUnavailable
@@ -55,7 +56,8 @@ class NextGenController:
         context=state['context'];samples=self.durations.get(context,[])
         base=350 if protect else 140
         if samples:base=max(base,min(1500,int(sorted(samples)[int((len(samples)-1)*.9)]*1.15+70)))
-        return min(self.cfg.max_wait_ms,base+getattr(self,'observation_policy',{}).get('settle_extra_ms',0))
+        key=(context,tuple(getattr(self,'pace_keys',())),bool(protect))
+        return min(self.cfg.max_wait_ms,self.pace.wait(key,base)+getattr(self,'observation_policy',{}).get('settle_extra_ms',0))
     def run(self,dry_run=False):
         profile=digest([self.cfg.profile_id or self.cfg.window_title,sorted(self.cfg.allowed_keys),self.cfg.key_bindings])
         store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal,self.cfg.knowledge)
@@ -85,6 +87,9 @@ class NextGenController:
                     full=bool(getattr(meta,'fresh_observation_requested',False) or step==0 or step%self.observation_policy['full_ocr_period']==0 or (self.last.get('surprise') or 0)>2 or self.last.get('loop') or self.previous and self.previous['interface_hypothesis'])
                     if getattr(meta,'fresh_observation_requested',False):
                         self.builder.force_fresh_once=True;meta.fresh_observation_requested=False
+                    for _ in range(self.observation_policy['extra_captures']):
+                        if self.cancel.wait(.08):break
+                        image=self.backend.capture()
                     t=time.monotonic();before=self.builder.build(image,full);stages.update(before['timing']);stages['observation_ms']=(time.monotonic()-t)*1000
                     neutral=None;neutral_regions=None;natural_confidence=.4
                     if hasattr(self.backend,'observe_turn') and (step%8==0 or before['quality']<.5):
@@ -98,9 +103,6 @@ class NextGenController:
                         if after_neutral.get('ui_visual',{}).get('change_fraction',0)>=.35:neutral_regions=[[0,0,1,1]]
                         natural_confidence=.85;before=after_neutral;image=sample.image
                         stages['neutral_observation_ms']=(time.monotonic()-t)*1000
-                    for _ in range(self.observation_policy['extra_captures']):
-                        if self.cancel.wait(.08):break
-                        image=self.backend.capture()
                     before=self.sense(image,full,base_state=before)
                     prefetch.begin(before,candidates)
                     if step==0:
@@ -133,10 +135,11 @@ class NextGenController:
                     # Revalidate after OCR/semantic scheduling. Do not execute a stale screen plan.
                     t=time.monotonic();fresh=self.backend.capture();difference=self.difference(image,fresh);stages['image_difference_ms']=(time.monotonic()-t)*1000
                     if difference>self.observation_policy['stale_difference']:
+                        self.pace.invalidate_context(before['context'])
                         self.send_event(meta.nonexecution(before,step,(time.monotonic()-started)*1000))
                         self.send_event({'event':'nextgen_stale_plan','reason':'入力直前に画面が大きく変化','learning':False,'difference':difference});model.pending.clear();self.previous=None;continue
                     protect=bool(before['interface_hypothesis'] or before['minimap'].get('enemies') or any('攻撃' in self.cfg.key_bindings.get(k,'') or 'attack' in self.cfg.key_bindings.get(k,'').casefold() for k in action['keys']))
-                    wait=self.wait_time(before,protect)
+                    self.pace_keys=tuple(sorted(action['keys']));wait=self.wait_time(before,protect)
                     request={'event':'input_intent','generation':2,'step':step+1,'action':action,'before_frame':before['frame_sha256'],'prediction':prediction,'control_revision':revision,'learning':False}
                     self.log(request,durable=True)
                     receipt={'os_submission':'not_sent'};observer=getattr(self.backend,'observer',None)
@@ -218,11 +221,15 @@ class NextGenController:
                       'llm_intervention_rate':supervisor.requests/step,'decision_ms':choice_ms,'observation_ms':stages['observation_ms']+stages['result_observation_ms'],
                       'goal_progress':sum(known_goals)/len(known_goals) if known_goals else None,'tracking_success':after['tracking_success'],'position_confidence':after['position_confidence'],
                       'local_action_fraction':local_steps/step,'goal_evaluation':'observed_local_conditions_not_game_completion'}
+                    pace_tick=time.monotonic();pace_ms=(pace_tick-self.last_pace_tick)*1000;self.last_pace_tick=pace_tick
+                    pace_key=(before['context'],self.pace_keys,bool(protect))
+                    pace_event=self.pace.observe(pace_key,350 if protect else 140,ms=pace_ms,quality=min(before['quality'],after['quality']),match=result.get('match'),kind=kind,accepted=receipt.get('os_submission')=='accepted')
+                    if pace_event:self.send_event({'event':'pace_trial','step':step,'scope':list(pace_key),'result':pace_event,'evaluation':self.pace.last})
                     row={**decision,'event':'result','step':step,'autonomy':meta.context(after),'executed':receipt.get('os_submission')=='accepted','input_receipt':receipt,'action_kind':'input','turn_kind':kind,
                       'changed':before['frame_sha256']!=after['frame_sha256'],'policy_after':{k:v for k,v in after.items() if k!='visual_vector'},'policy_state':shown_before,'ocr':copy.deepcopy(self.builder.cache.get(before['frame_sha256'],{}).get('native',{'status':'unavailable','lines':[]})),
                       'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'ui_interaction':interaction,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},
-                      'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'llm_requested':supervisor.pending is not None,'message_evidence':evidence_info,'synchronization':{'input_source_frame':before['frame_sha256'],'result_source_frame':after['frame_sha256'],'commit_order':'input_result_then_parallel_world_progress_then_skill_meta','research_blocks_input':False}},
+                      'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'pace':copy.deepcopy(self.pace.last),'llm_requested':supervisor.pending is not None,'message_evidence':evidence_info,'synchronization':{'input_source_frame':before['frame_sha256'],'result_source_frame':after['frame_sha256'],'commit_order':'input_result_then_parallel_world_progress_then_skill_meta','research_blocks_input':False}},
                       'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}
                     t=time.monotonic();store.put('transition',{'before':snapshot(before),'input':action,'receipt':receipt,'after':snapshot(after),'prediction':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'neutral':neutral,'message_evidence':text_evidence},step)
                     for identifier in list(self.builder.tracker.dirty):

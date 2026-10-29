@@ -156,6 +156,8 @@ class MetaController:
         primary=self.failures[0];kind='observer_trial' if primary in OBSERVATION_FAILURES else 'alternative_skill' if primary in ('capability_missing','skill_condition_mismatch','repetition_stagnation') else 'gather_progress_evidence' if primary in ('progress_unknown','goal_unreachable') else 'verify_backend' if primary=='input_not_delivered' else 'reidentify'
         # Rotate finite hypotheses after failed attempts; never reset the same budget.
         variants=[kind,'observer_trial','alternative_skill','replan']
+        if 'repetition_stagnation' in self.failures and state.get('interface_hypothesis') and not self.local.get('conditions'):
+            variants.insert(0,'close_unproductive_interface')
         for method in dict.fromkeys(variants):
             key=digest(['recovery_budget_v2',self.recovery_goal_key(self.local),method])
             if key in self.recovery_budgets or len(self.recovery_budgets)>=128:continue
@@ -257,10 +259,12 @@ class MetaController:
     def guide(self,plan,state,candidates):
         plan=copy.deepcopy(plan)
         if not self.local:return plan
-        conditions=self.local['conditions']
+        conditions=self.local['conditions'];capability=self.local['capability']
+        if self.recovery and self.recovery['method']=='close_unproductive_interface':
+            conditions=[{'feature':'interface_open','operator':'eq','value':0}];capability='close_interface'
         # Only measurable local conditions enter the low-level planner.
-        plan['objective']=self.local['label'];plan['targets']=[{**t,'weight':1} for t in conditions]
-        skill=self.capabilities.priors(self.local['capability'],state,candidates,conditions)
+        plan['objective']='停滞したUIを閉じて元の目標へ戻る' if capability=='close_interface' and self.recovery and self.recovery['method']=='close_unproductive_interface' else self.local['label'];plan['targets']=[{**t,'weight':1} for t in conditions]
+        skill=self.capabilities.priors(capability,state,candidates,conditions)
         values={v['id']:v for v in plan.get('candidate_values',[])}
         for v in skill:values[v['id']]=v
         # Penalize observed recurrent edges, not previously visited floor cells.
@@ -279,7 +283,7 @@ class MetaController:
                 if len(candidate['keys'])==1 and meanings&{'up','down','left','right','上移動','下移動','左移動','右移動'} and action_stats.get(candidate['id'],{}).get('trials',0)<2:
                     values[candidate['id']]={'id':candidate['id'],'value':.8,'reason':'方向入力の位置変化を有限回検証する。無反応の反復へ初期探索加点を与え続けない。'}
         from .ui_interactions import UIInteractionModel
-        if self.local['capability'] in ('inspect','advance_interface') or not conditions:
+        if capability in ('inspect','advance_interface') or not conditions:
             for value in UIInteractionModel.priors(state,candidates,explore='ui_observation_missing' in self.failures):values[value['id']]=value
         if 'ui_observation_missing' in self.failures:
             for value in self.ui_probes.priors(state,candidates,self.observer.policy):values[value['id']]=value
@@ -295,11 +299,13 @@ class MetaController:
         self.nonexecutions=0;self.last_state=after
         if progress_changes is None:self.check_boundary(after,step);changes=self.progress.update(after,step)
         else:changes=progress_changes # Controller has joined the exclusive Progress lane.
-        local=self.local or {};conditions=local.get('conditions',[])
-        skills=self.capabilities.observe(before,action,after,result,step,local.get('capability'),conditions,neutral)
+        local=self.local or {};conditions=local.get('conditions',[]);capability=local.get('capability')
+        recovery_target=bool(self.recovery and self.recovery['method']=='close_unproductive_interface')
+        if recovery_target:conditions=[{'feature':'interface_open','operator':'eq','value':0}];capability='close_interface'
+        skills=self.capabilities.observe(before,action,after,result,step,capability,conditions,neutral)
         values=[condition_value(after,c) for c in conditions];previous=[condition_value(before,c) for c in conditions]
         attained=bool(values) and all(v is True for v in values) and not all(v is True for v in previous) and result.get('status')=='updated'
-        learned=bool(self.capabilities.matching(local.get('capability'),after,conditions)) or bool(self.capabilities.matching(local.get('capability'),before,conditions))
+        learned=bool(self.capabilities.matching(capability,after,conditions)) or bool(self.capabilities.matching(capability,before,conditions))
         completion_key=digest([local.get('id'),scope(before),after.get('interface_layout')])
         fresh_completion=attained and completion_key not in self.completed_local
         if attained:self.completed_local[completion_key]=self.completed_local.get(completion_key,0)+1
@@ -321,7 +327,7 @@ class MetaController:
                 if self.pending_local:
                     self.local=self.pending_local;self.pending_local=None
                     self.history.append({'event':'supervisor_local_refinement','step':step,'id':self.local['id']})
-        if attained:
+        if attained and not recovery_target:
             self.history.append({'event':'local_condition_observed','id':local.get('id'),'step':step,'not_campaign_completion':True});self.local=None;self.goal_epoch+=1
         elif self.local and step>=self.local['deadline']:
             # Keep the mission; replace the means instead of losing the objective.

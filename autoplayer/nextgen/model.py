@@ -175,7 +175,7 @@ class ForwardModel:
             cancel_attempts=sum(len(self.rule(state,c['id'])['samples']) for c in candidates if c['keys']==action['keys']) if closing and cancel_role else 0
             affordance=.7 if closing and cancel_role and cancel_attempts<2 else 0.
             score=affordance-transfer+goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
-            cycle_discount=5 if self.escape and (action['id'] in loop_actions or tuple(action['keys']) in loop_keys) else 0
+            cycle_discount=5 if self.escape and not (closing and goal>0) and (action['id'] in loop_actions or tuple(action['keys']) in loop_keys) else 0
             remembered_discount=self.cycle_discount(state,action,goal)
             score-=cycle_discount+remembered_discount
             ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'loop_action_discount':cycle_discount,'remembered_cycle_discount':remembered_discount,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
@@ -183,18 +183,22 @@ class ForwardModel:
         best=ranked[0]
         # Bounded lookahead on observed graph only. Transit through known nodes is
         # allowed; it is not penalized merely because a floor was visited.
-        if not self.escape and not state['interface_hypothesis']:
+        closing_route=state.get('interface_hypothesis') and any(t.get('feature')=='interface_open' and t.get('operator')=='eq' and t.get('value')==0 for t in goals)
+        if closing_route or not self.escape and not state['interface_hypothesis']:
             route=self.route(state['id'],goals)
             if route:
                 alternate=next((x for x in ranked if x['candidate']['id']==route),None)
-                if alternate and alternate['observed_loss_risk']<.2 and not alternate['remembered_cycle_discount']:best=alternate;best['route_to_information']=True
+                if alternate and alternate['observed_loss_risk']<.2 and (not alternate['remembered_cycle_discount'] or closing_route):best=alternate;best['route_to_information']=True
         return best,ranked[:12],(time.monotonic()-started)*1000
     def route(self,origin,goals):
         desired={g['value'] for g in goals if g['feature']=='node' and g['operator']=='eq'}
+        closing=any(g['feature']=='interface_open' and g['operator']=='eq' and g['value']==0 for g in goals)
+        if closing:
+            desired.update(sample['node'] for rule in self.rules.values() for sample in rule.get('samples',[])[-8:] if sample.get('outcome',{}).get('measurement_status')=='ok' and value_at(sample['outcome'],'interface_open')==0)
         queue=deque([(origin,None,0)]);seen={origin}
         while queue:
             node,first,depth=queue.popleft()
-            if depth and (node in desired or self.visits[node]<2):return first
+            if depth and (node in desired or not closing and self.visits[node]<2):return first
             if depth>=4:continue
             for (a,action,b),data in self.edges.items():
                 if a!=node or b in seen or data.get('confidence',0)<.6:continue

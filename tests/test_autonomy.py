@@ -30,6 +30,17 @@ class AutonomyContracts(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.path=Path(self.tmp.name)/'world.sqlite';self.store=ExperienceStore(self.path,'generic','run')
         self.action={'id':action_id(['a'],80),'keys':['a'],'hold_ms':80}
     def tearDown(self):self.store.close();self.tmp.cleanup()
+    def test_stalled_unconditioned_ui_gets_finite_close_task_and_resumes_original_goal(self):
+        m=MetaController(self.store,'intent');before=state(menu=True);m.prepare(before,0)
+        original=copy.deepcopy(m.local);m.recovery=None;m.failures=['repetition_stagnation'];m.new_recovery(before,1)
+        self.assertEqual(m.recovery['method'],'close_unproductive_interface')
+        guided=m.guide({'objective':'original','targets':[]},before,[self.action])
+        self.assertEqual(guided['targets'][0]['feature'],'interface_open')
+        after=state('closed',menu=False)
+        m.observe(before,self.action,after,result(),{'os_submission':'accepted'},2,100)
+        self.assertEqual(m.local['id'],original['id'])
+        self.assertTrue(any(e.get('method')=='close_unproductive_interface' and e.get('status')=='verified_recovery' for e in m.history))
+
     def test_progress_requires_independent_evidence_and_prerequisites(self):
         p=ProgressManager(self.store);p.propose([node(),node('return',['see'],conditions=[condition(value='帰還確認')])])
         self.assertEqual(p.current()['id'],'see')
@@ -247,7 +258,7 @@ class AutonomyContracts(unittest.TestCase):
         m=MetaController(self.store,'達成');s=state(menu=True);m.prepare(s,0)
         for i in range(1,49):m.observe(s,self.action,s,result(),{'os_submission':'accepted'},i,100)
         self.assertIsNone(m.recovery);self.assertTrue(m.exhausted)
-        self.assertEqual(len([e for e in m.history if e['event']=='recovery_started']),3) # alternative/observer/replan, no duplicate variant
+        self.assertEqual(len([e for e in m.history if e['event']=='recovery_started']),4) # close/alternative/observer/replan, no duplicate variant
     def test_recovery_budget_survives_screen_churn_goal_rename_and_restart(self):
         m=MetaController(self.store,'budget');s=state(menu=True);m.prepare(s,0)
         goal=copy.deepcopy(m.local);methods=[m.recovery['method']]
