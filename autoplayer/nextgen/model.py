@@ -39,11 +39,36 @@ class ForwardModel:
     def __init__(self,store):
         self.store=store;self.rules=OrderedDict();self.visits=Counter();self.recent=deque(maxlen=36);self.pending=deque(maxlen=8);self.edges={};self.hypotheses=[];self.checks=deque(maxlen=128)
         self.escape=None;self.serial=0;self.last_goal=None
+        saved=store.load('autonomy','cycle_avoidance');self.cycle_memory=OrderedDict()
+        for item in (saved[0].get('entries',[]) if saved else [])[-256:]:
+            if item['remaining']>0 and item['expires_at']>time.time():
+                self.cycle_memory[(item['context'],item['node'],tuple(item['keys']))]=item
         for rule in reversed(store.load('rules')):self.rules[rule['key']]=rule
         self.hypotheses=store.load('hypotheses',limit=32)
         for node,count in store.reader.execute('SELECT key,visits FROM states WHERE profile=? ORDER BY updated DESC LIMIT 2048',(store.profile,)):self.visits[node]=count
         for (raw,) in store.reader.execute('SELECT data FROM graph WHERE profile=? ORDER BY updated DESC LIMIT 2048',(store.profile,)):
             e=json.loads(raw);self.edges[(e['origin'],e['action'],e['destination'])]=e
+    def save_cycle_memory(self):
+        self.store.put('autonomy',{'role':'bounded_cycle_avoidance','entries':[{**item,'remaining':max(0,item['remaining']-15)} for item in self.cycle_memory.values()],'checkpoint_reserve':15,'max_entries':256,'max_actions':96,'max_seconds':1800},key='cycle_avoidance')
+    def age_cycles(self,step):
+        if not self.cycle_memory:return
+        for key,item in list(self.cycle_memory.items()):
+            item['remaining']-=1
+            if item['remaining']<=0 or item['expires_at']<=time.time():del self.cycle_memory[key]
+        if not self.cycle_memory or step%16==0:self.save_cycle_memory()
+    def remember_cycle(self,loop):
+        boundaries=[entry for entry in loop['sequence'] if entry.get('before_interface') is False and entry.get('after_interface') is True]
+        # Preserve inputs needed to leave an open UI; discourage reopening it
+        # at the observed boundary instead. No game-specific text is used.
+        for entry in boundaries or loop['sequence']:
+            keys=sorted(json.loads(entry['action'])[0]);key=(entry['context'],entry['before'],tuple(keys))
+            self.cycle_memory[key]={'context':entry['context'],'node':entry['before'],'keys':keys,'basis':'interface_reentry_hypothesis' if boundaries else 'repeated_transition','remaining':96,'expires_at':time.time()+1800}
+            self.cycle_memory.move_to_end(key)
+        while len(self.cycle_memory)>256:self.cycle_memory.popitem(last=False)
+        self.save_cycle_memory()
+    def cycle_discount(self,state,action,goal):
+        item=self.cycle_memory.get((state['context'],state['id'],tuple(sorted(action['keys']))))
+        return 3. if goal<=0 and item and item['remaining']>0 and item['expires_at']>time.time() else 0.
     def _load_rule(self,key):return [] if key in getattr(self,'prefetched_missing',set()) else self.store.load('rules',key)
     def _key(self,state,action):return digest([state['context'],action])
     def rule(self,state,action):
@@ -151,8 +176,9 @@ class ForwardModel:
             affordance=.7 if closing and cancel_role and cancel_attempts<2 else 0.
             score=affordance-transfer+goal*2+weight*(info+.25*novelty+.2*gain)+prior*.5-loss*2-.12*min(8,attempts)-action['hold_ms']*.0001
             cycle_discount=5 if self.escape and (action['id'] in loop_actions or tuple(action['keys']) in loop_keys) else 0
-            score-=cycle_discount
-            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'loop_action_discount':cycle_discount,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
+            remembered_discount=self.cycle_discount(state,action,goal)
+            score-=cycle_discount+remembered_discount
+            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'loop_action_discount':cycle_discount,'remembered_cycle_discount':remembered_discount,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
         ranked.sort(key=lambda x:(-x['score'],x['candidate']['id']))
         best=ranked[0]
         # Bounded lookahead on observed graph only. Transit through known nodes is
@@ -161,7 +187,7 @@ class ForwardModel:
             route=self.route(state['id'],goals)
             if route:
                 alternate=next((x for x in ranked if x['candidate']['id']==route),None)
-                if alternate and alternate['observed_loss_risk']<.2:best=alternate;best['route_to_information']=True
+                if alternate and alternate['observed_loss_risk']<.2 and not alternate['remembered_cycle_discount']:best=alternate;best['route_to_information']=True
         return best,ranked[:12],(time.monotonic()-started)*1000
     def route(self,origin,goals):
         desired={g['value'] for g in goals if g['feature']=='node' and g['operator']=='eq'}
@@ -177,6 +203,7 @@ class ForwardModel:
     def observe(self,before,action,after,prediction,receipt,step,neutral=None,kind='normal',natural_confidence=.5):
         if receipt.get('os_submission')!='accepted' or kind=='aborted':
             self.pending.clear();return {'status':'censored','reason':'delivery_or_observation_incomplete'}
+        self.age_cycles(step)
         effect=effects(before,after);rule=copy.deepcopy(self.rule(before,action['id']))
         mask=[k for k in prediction.get('feature_mask',[]) if effect.get(k) is not None]
         counts=Counter()
@@ -224,13 +251,13 @@ class ForwardModel:
                 delay['reverted_features']=[k for k,v in pending['immediate'].items() if v not in (None,0) and delay['effects'].get(k)==0]
                 delayed.append(delay);self.store.put('delayed',delay,step)
         self.pending.append({'step':step,'before':snapshot(before),'action':action['id'],'immediate':copy.deepcopy(effect)})
-        event={'before':before['id'],'after':after['id'],'action':action['id'],'step':step,'cycle_observation_valid':min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok'}
+        event={'context':before['context'],'before_interface':bool(before['interface_hypothesis']),'after_interface':bool(after['interface_hypothesis']),'before':before['id'],'after':after['id'],'action':action['id'],'step':step,'cycle_observation_valid':min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok'}
         meaningful=new or any(v for k,v in effect.items() if k.startswith('metric.') or k=='floor_changed')
         self.recent.append(event);loop=None
         if self.escape:
             self.escape['attempts']+=1
             if after['id'] not in self.escape['nodes'] or meaningful or self.escape['attempts']>=8:
-                loop={'event':'loop_escape','id':self.escape['id'],'reason':'new_observed_outcome' if meaningful or after['id'] not in self.escape['nodes'] else 'attempt_budget_exhausted','attempts':self.escape['attempts'],'learning':False}
+                loop={'event':'loop_escape','id':self.escape['id'],'reason':'new_observed_outcome' if meaningful or after['id'] not in self.escape['nodes'] else 'attempt_budget_exhausted','attempts':self.escape['attempts'],'retained_cycle_entries':len(self.cycle_memory),'learning':False}
                 self.escape=None;self.recent.clear()
         elif not meaningful:
             seq=list(self.recent)
@@ -258,6 +285,9 @@ class ForwardModel:
                 if len(nodes)<=4:
                     self.serial+=1;loop={'event':'loop_detected','id':self.serial,'period':0,'reason':'unproductive_recurrence_with_varying_inputs','steps':[e['step'] for e in window],'sequence':window,'nodes':sorted(nodes),'actions':sorted({e['action'] for e in window}),'attempts':0,'learning':False}
                     self.escape=copy.deepcopy(loop)
+        if loop and loop['event']=='loop_detected':
+            self.remember_cycle(loop)
+            loop['avoidance']={'scope':'context_state_and_input_keys','max_actions':96,'max_seconds':1800,'entries':len(self.cycle_memory)}
         if meaningful and not self.escape:self.recent.clear()
         # Hypotheses are prospective, explicit, and scoped. No caption becomes a fact.
         hypothesis_checks=[]

@@ -99,6 +99,43 @@ class ModelContracts(unittest.TestCase):
             result=self.update(measured('new'+str(n)),measured('new'+str(n+1)),n+41)
             self.assertIsNone(result['loop'])
 
+    def test_cycle_experience_survives_escape_and_restart_without_global_key_ban(self):
+        a=measured()
+        for n in range(1,7):self.update(a,a,n)
+        self.assertTrue(self.model.cycle_memory)
+        self.update(a,measured('fresh'),7)
+        self.assertIsNone(self.model.escape)
+        cfg=Settings(window_title='generic',allowed_keys=['a','b'],key_bindings={})
+        selected,_,_=self.model.choose(a,self.model.candidates(cfg))
+        self.assertEqual(selected['candidate']['keys'],['b'])
+        self.assertEqual(self.model.cycle_discount(measured('elsewhere'),self.action,0),0)
+        self.assertEqual(self.model.cycle_discount(measured(context='elsewhere'),self.action,0),0)
+        self.assertEqual(self.model.cycle_discount(a,self.action,1),0)
+        self.store.close();self.store=ExperienceStore(self.path,'profile','restart');reloaded=ForwardModel(self.store)
+        self.assertEqual(reloaded.cycle_discount(a,self.action,0),3)
+        other=ExperienceStore(self.path,'other_profile','restart')
+        try:self.assertEqual(ForwardModel(other).cycle_discount(a,self.action,0),0)
+        finally:other.close()
+
+    def test_cycle_memory_prefers_reentry_without_obstructing_ui_exit(self):
+        rows=[{'context':'context','before':'outside','action':self.action['id'],'before_interface':False,'after_interface':True},
+              {'context':'context','before':'dialogue','action':self.action['id'],'before_interface':True,'after_interface':False}]
+        self.model.remember_cycle({'sequence':rows})
+        self.assertEqual(self.model.cycle_discount(measured('outside'),self.action,0),3)
+        self.assertEqual(self.model.cycle_discount(measured('dialogue'),self.action,0),0)
+        self.assertEqual(next(iter(self.model.cycle_memory.values()))['basis'],'interface_reentry_hypothesis')
+
+    def test_cycle_memory_expires_and_is_bounded(self):
+        a=measured()
+        for n in range(1,7):self.update(a,a,n)
+        for item in self.model.cycle_memory.values():item['remaining']=1
+        self.model.age_cycles(8);self.assertFalse(self.model.cycle_memory)
+        sequence=[{'context':'scope','before':str(i),'action':self.action['id']} for i in range(300)]
+        self.model.remember_cycle({'sequence':sequence})
+        self.assertEqual(len(self.model.cycle_memory),256)
+        for item in self.model.cycle_memory.values():item['expires_at']=0
+        self.model.age_cycles(9);self.assertFalse(self.model.cycle_memory)
+
     def test_llm_explanation_remains_refutable_hypothesis(self):
         proposal={'candidate':self.action['id'],'feature':'metric.hp.0','expected':1,'tolerance':0,'explanation':'HP増加という仮説'}
         self.model.add_hypotheses([proposal],measured(),[self.action]);h=self.model.hypotheses[0]
