@@ -79,9 +79,9 @@ def relationships(marker,texts):
         b=text['bbox'];tx,ty=text['center'];height=max(.008,b[3]-b[1]);width=max(.008,b[2]-b[0])
         if marker[0]<=tx<=marker[2] and marker[1]<=ty<=marker[3]:kind='contains';cost=abs(mx-tx)/width*.1+abs(my-ty)/height*.1
         elif overlap(marker,b)>.5 and width<max(.008,marker[2]-marker[0])*2:kind='overlap';cost=.25
-        elif abs(my-ty)<height*.8 and 0<=b[0]-marker[2]<height*2.5:kind='left_of_text';cost=.35+(b[0]-marker[2])/height*.45
-        elif abs(my-ty)<height*.8 and 0<=marker[0]-b[2]<height*2.5:kind='right_of_text';cost=.35+(marker[0]-b[2])/height*.45
-        elif abs(mx-tx)<width*.6 and 0<=marker[1]-b[3]<height:kind='below_text';cost=.45
+        elif abs(my-ty)<height*.8 and mx<tx and -min(height*.5,width*.35)<=b[0]-marker[2]<height*2.5:kind='left_of_text';cost=.35+max(0,b[0]-marker[2])/height*.45+abs(my-ty)/height*.45
+        elif abs(my-ty)<height*.8 and mx>tx and -min(height*.5,width*.35)<=marker[0]-b[2]<height*2.5:kind='right_of_text';cost=.35+max(0,marker[0]-b[2])/height*.45+abs(my-ty)/height*.45
+        elif abs(mx-tx)<width*.6 and 0<=marker[1]-b[3]<height:kind='below_text';cost=.45+abs(my-ty)/height*.45+abs(mx-tx)/width*.45
         else:continue
         out.append({'element_id':text['id'],'text':text['text'],'kind':kind,'cost':round(cost,3),'confidence':round(max(.05,.4-cost*.2),3),'status':'spatial_hypothesis'})
     return sorted(out,key=lambda x:x['cost'])[:6]

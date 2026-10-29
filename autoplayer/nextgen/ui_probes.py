@@ -14,7 +14,7 @@ class UIProbes:
         if ui.get('selection',{}).get('status')=='supported_association':return None
         if 'selection_text_correspondence_unknown' not in ui.get('needs_observation',[]):return None
         if not ui.get('layout'):return None
-        signature=['paired_origin_observer_v1',ui['layout'],ui.get('difference_threshold',18),policy.get('ui_region_ocr',0)]
+        signature=['paired_origin_geometry_v2',ui['layout'],ui.get('difference_threshold',18),policy.get('ui_region_ocr',0)]
         if ui.get('interaction_model',{}).get('text_flow_suspended'):signature.append('editable_ui_requires_selection')
         if ui.get('grid',{}).get('coordinate_source')=='measured_contrast_components_not_ocr':signature.append('pixel_lattice_targets_v1')
         return digest(signature)

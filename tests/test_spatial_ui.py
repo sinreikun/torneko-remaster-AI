@@ -38,6 +38,16 @@ class SpatialUIContracts(unittest.TestCase):
         for i in range(1,n+1):
             b,_=measured(v,i%3,style=style);events.append(v.learn(a,b,self.action,{'os_submission':'accepted'},i));b['selection_observation']=copy.deepcopy(b['ui_visual']['selection']);a=b
         return v,a,events
+    def test_multicolumn_marker_prefers_its_row_over_item_above(self):
+        # Measured geometry from the supplied menu; no cursor image template.
+        texts=[{'id':'above','text':'upper','bbox':[.224,.196,.360,.249],'center':[.292,.2225]},
+               {'id':'same_row','text':'lower','bbox':[.242,.251,.316,.307],'center':[.279,.279]}]
+        rs=relationships([.225,.256,.244,.300],texts)
+        self.assertEqual(rs[0]['element_id'],'same_row')
+        self.assertGreater(rs[1]['cost']-rs[0]['cost'],.2)
+        texts[1]['bbox']=[.223,.251,.316,.307];texts[1]['center']=[.2695,.279]
+        self.assertEqual(relationships([.225,.256,.244,.300],texts)[0]['element_id'],'same_row')
+
     def test_positions_provenance_and_same_text_at_different_locations(self):
         png,native=sample();native['lines'][1]['words'][0]['text']='K0';native['lines'][1]['text']='K0'
         texts,missing=text_elements(native,(320,240),native['frame_sha256'])
