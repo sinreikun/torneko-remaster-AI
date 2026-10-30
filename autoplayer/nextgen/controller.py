@@ -18,6 +18,13 @@ from ..cancellation import OperationCancelled
 from ..observation_store import message_candidates
 from ..map_sensor import read_grid
 
+
+def load_policies(title):
+    # Distributed JSON is UTF-8 regardless of the user's Windows ANSI code page.
+    if not is_torneko(title):return {},{}
+    root=Path(__file__).resolve().parents[2]/'knowledge'
+    return tuple(json.loads((root/name).read_text(encoding='utf-8')) for name in ('torneko-spatial-policy.json','torneko-execution-policy.json'))
+
 class NextGenController:
     def __init__(self,cfg,backend,llm,emit,journal,stop=None,memory=None,control=None,diagnostic_sink=None):
         self.cfg=cfg.validate();self.backend=backend;self.llm=llm;self.emit=emit;self.journal=Path(journal);self.control=control;self.stop=stop if stop is not None else threading.Event()
@@ -65,15 +72,12 @@ class NextGenController:
         key=(context,tuple(getattr(self,'pace_keys',())),bool(protect))
         return min(self.cfg.max_wait_ms,self.pace.wait(key,base)+getattr(self,'observation_policy',{}).get('settle_extra_ms',0))
     def run(self,dry_run=False):
+        spatial_policy,execution_policy=load_policies(self.cfg.window_title)
         profile=digest([self.cfg.profile_id or self.cfg.window_title,sorted(self.cfg.allowed_keys),self.cfg.key_bindings])
         store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal,self.cfg.knowledge)
         self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
         prefetch=RulePrefetch(store.path,profile);progress_lane=ProgressLane()
         spatial_saved=store.load('autonomy','spatial_model');spatial_lane=SpatialLane(spatial_saved[0].get('model') if spatial_saved else None)
-        spatial_policy={}
-        if is_torneko(self.cfg.window_title):
-            spatial_policy=json.loads((Path(__file__).resolve().parents[2]/'knowledge'/'torneko-spatial-policy.json').read_text())
-        execution_policy=json.loads((Path(__file__).resolve().parents[2]/'knowledge'/'torneko-execution-policy.json').read_text()) if spatial_policy else {}
         executor=ProcedureExecutor(store,{k:v for k,v in self.cfg.key_bindings.items() if k in self.cfg.allowed_keys},execution_policy)
         descriptions=store.load('autonomy','inventory_descriptions')
         dungeon_observer=DungeonObserver(store.session+':0',descriptions[0].get('records',[]) if descriptions else []) if execution_policy else None
