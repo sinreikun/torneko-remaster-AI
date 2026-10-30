@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "updated": "2026-10-27",
+  "sources": [
+    {
+      "id": "ring-research-20261027-3",
+      "url": "https://ja.wikipedia.org/wiki/%E3%83%88%E3%83%AB%E3%83%8D%E3%82%B3%E3%81%AE%E5%A4%A7%E5%86%92%E9%99%BA_%E4%B8%8D%E6%80%9D%E8%AD%B0%E3%81%AE%E3%83%80%E3%83%B3%E3%82%B8%E3%83%A7%E3%83%B3",
+      "title": "初代Wikipedia・指輪一覧",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "def52383065fff6d3737593c88c4b1f98ac451fd77c48ed2b95d6e9b3523c8da",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/3.json"
+    },
+    {
+      "id": "ring-research-20261027-5",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%82%B7%E3%83%A3%E3%83%8A%E3%82%AF%E3%81%AE%E5%B7%BB%E7%89%A9%E3%80%91",
+      "title": "DQ大辞典・シャナクの巻物",
+      "edition": "sfc_and_reported_remaster",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "2e9aece434c472ed5b5c5c1468ce9894d025ac781ff682a54f722fd8bec83147",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/5.json"
+    },
+    {
+      "id": "ring-research-20261027-6",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%82%A4%E3%83%B3%E3%83%91%E3%82%B9%E3%81%AE%E5%B7%BB%E7%89%A9%E3%80%91",
+      "title": "DQ大辞典・インパスの巻物",
+      "edition": "sfc_and_reported_remaster",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "48a8201ae4dfc498252b5fc74b0f44d461d363847f3ad9610ea2b9c2fa6c29b6",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/6.json"
+    },
+    {
+      "id": "ring-research-20261027-27",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%83%8F%E3%83%A9%E3%83%98%E3%83%A9%E3%82%BA%E3%81%AE%E6%8C%87%E8%BC%AA%E3%80%91",
+      "title": "DQ大辞典・ハラヘラズの指輪",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "6a81d3e13dd76ed462ec44ac910aeb0e18455bd304f7a8ce399a28fedc472557",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/27.json"
+    },
+    {
+      "id": "ring-research-20261027-28",
+      "url": "https://wikiwiki.jp/dqdic3rd/%E3%80%90%E3%81%A8%E3%81%86%E3%81%9E%E3%81%8F%E3%81%AE%E6%8C%87%E8%BC%AA%E3%80%91",
+      "title": "DQ大辞典・とうぞくの指輪",
+      "edition": "sfc",
+      "kind": "secondary",
+      "accessed": "2026-10-27",
+      "sha256": "bc7de23e4b920846f9864142f9b188116df158d6f461db4413212c164bd53e4a",
+      "evidence_branch": "evidence/research-40493514238",
+      "evidence_file": "research-evidence/28.json"
+    }
+  ],
+  "rings": [
+    {
+      "name": "ハラヘラズの指輪",
+      "effect": "満腹度がターン経過で減らなくなる。",
+      "use": "食料消費を抑え、空いた所持枠を活用する。満腹度0から満腹に戻す効果ではない。",
+      "identification_observations": "通常行動の長さと装備前後の満腹度を比較。皮の盾・食事・経過ターンを分け、短時間で減らないだけでは確定しない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "ハラペコの指輪",
+      "effect": "満腹度の減少が速くなる（初代資料では通常の2倍）。",
+      "use": "通常の探索では不利な候補。呪いで外せない場合は食料確保と解呪を比較。",
+      "identification_observations": "通常行動数と満腹度の減少率を比較。空腹を意図的に作らず、食事や別効果の影響を除く。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "ワナ抜けの指輪",
+      "effect": "装備中はワナを回避する。",
+      "use": "ワナの多い場面の候補。",
+      "identification_observations": "既知のワナに対する通常行動中のメッセージを観察。ワナが不発の可能性もあるので、1回の無反応だけで確定しない。危険なワナを試験のため踏まない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "ちからの指輪",
+      "effect": "ちからを修正値に応じて増減する（初代資料は±3）。",
+      "use": "現在のちからと装備前後の変化を比較し、弱体化なら交換・解呪を検討。",
+      "identification_observations": "同じ最大値・状態で現在のちからを前後比較。毒・レベル変化・別アイテムの影響と分離。数値をリマスターへ固定しない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "きれいな指輪",
+      "effect": "特殊効果がない。",
+      "use": "所持枠と換金用途を比較。",
+      "identification_observations": "効果が観察できなかっただけで、この指輪だと消去法で確定しない。インパスや名称の表示が必要。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "ルーラの指輪",
+      "effect": "一定確率で同じ階の別の場所へワープする。",
+      "use": "不利な接触から離脱できる可能性もあるが、意図しない移動・分断に注意。",
+      "identification_observations": "歩行以外の位置変化とメッセージを観察。ワナ・敵の作用と区別。発動まで危険な待機を繰り返さず、呪い不明で安易に試着しない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "ザメハの指輪",
+      "effect": "部屋に入る・接近する際、眠っている敵を起こす。",
+      "use": "通常の探索では敵を増やす不利益を比較。",
+      "identification_observations": "自然な接近での敵の起床を観測。偶然の起床・元から動いていた敵と区別し、試験のため敵を起こさない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "眠らずの指輪",
+      "effect": "睡眠を防ぐ。",
+      "use": "睡眠による連続被害を避ける候補。",
+      "identification_observations": "睡眠に関するメッセージと防止の表示を確認。眠らなかった1回だけで確定しない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "毒けしの指輪",
+      "effect": "毒によるちからの低下を防ぐ。",
+      "use": "毒が問題になる状況で検討。既に下がったちからが回復する効果とは区別。",
+      "identification_observations": "毒に関する表示と現在のちからを観察。毒をわざと受けず、盾や草の効果と区別。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "とうぞくの指輪",
+      "effect": "部屋への進入や接近で眠っている敵を起こしにくくする。",
+      "use": "不要な起床・モンスターハウスへの接触を抑える候補。",
+      "identification_observations": "元から起きている敵を無力化するとは考えない。初代資料ではうごくせきぞうに例外がある。安全に自然観測し、無反応だけで確定しない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "シャドーの指輪",
+      "effect": "透明なシャドーや、通常見えないパルプンテの巻物を見えるようにする。",
+      "use": "透明な対象の認識を補助する候補。",
+      "identification_observations": "見える対象の変化と名称・文章を照合。全敵や全アイテムの位置が分かる「透視」と混同しない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    },
+    {
+      "name": "人形よけの指輪",
+      "effect": "どろ人形・ミステリードールの特殊攻撃を防ぐ。",
+      "use": "能力低下を防ぐ状況で検討。",
+      "identification_observations": "該当する敵名と特殊攻撃の防止表示を確認。通常攻撃まで防ぐとは考えない。",
+      "edition": "sfc_reference",
+      "remaster_status": "verify_current_description_and_observations",
+      "sources": [
+        "ring-research-20261027-3"
+      ]
+    }
+  ],
+  "identification": {
+    "user_environment": "オレンジ文字は識別が必要な品の根拠。正体・補正値・呪いの状態は別々に保持し、オレンジだけで呪いとはしない。",
+    "preferred_method": "インパスの巻物を一覧から選び、読む→対象の現在行を選択→決定。現在のキー配置に従いNum0/WASD/Num1で1段階ずつ操作し、鑑定後の名前・補正・呪い表示を確認する。",
+    "alias_scope": "宝石名と正体の対応は冒険ごとの仮名。別の冒険や同名の別個体へ正体・呪いを転用しない。",
+    "sfc_difference": "初代資料では、ちからの指輪以外はインパスを使っても呪いの有無が分からない。",
+    "reported_remaster_difference": "DQ大辞典のリマスター節ではインパスで指輪の呪いも分かると記載。二次資料であり対象環境の画面で照合する。",
+    "avoid": "装備による識別は呪いで外せなくなる危険がある。弱体化・睡眠・毒・ワナを故意に受ける試験を行わない。"
+  },
+  "curse_countermeasures": {
+    "baseline": "初代資料では呪われた装備は効果が消えるのではなく、外せなくなる。後作の呪い仕様を流用しない。",
+    "primary": "シャナクの巻物は現在装備している品の呪いを解く候補。所持だけの品をすべて解呪するとは考えない。",
+    "alternatives": "剣はバイキルト、盾はスカラなどの解呪作用も初代資料にある。対象と現在の説明を確認。メッキは対象・版・既存状態を照合する。",
+    "destructive_last_resort": "パンの巻物による取り外しは元の装備を失うため、通常の交換とは区別し目的品・貴重品には機械的に使わない。",
+    "edition_caution": "指輪を持ち帰った後の呪い復活は初代の記載。リマスターでの継承は未確認。",
+    "reported_issue": "DQ大辞典にはリマスターでシャナク使用時にフリーズする場合があるとの報告。対象ビルドや再現は未確認で、確定仕様としては扱わない。"
+  }
+}

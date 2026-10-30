@@ -1,0 +1,38 @@
+{
+  "provenance": "diagnostics-1793137568903748700 step 5; actual crop [220,145,520,260]",
+  "source_image_sha256": "288e0770054cbfe73c650d7a143440e13f8c4cb0e7739759b0626fcdb06cdb87",
+  "lines": [
+    {
+      "recognition_at": 1793137603.5023842,
+      "text": "大きいパン",
+      "confidence": 0.975,
+      "words": [
+        {
+          "text": "大きいパン",
+          "box": [
+            65.0,
+            18.0,
+            151.0,
+            41.0
+          ]
+        }
+      ]
+    },
+    {
+      "recognition_at": 1793137603.5023842,
+      "text": "インパスの巻物",
+      "confidence": 0.99998,
+      "words": [
+        {
+          "text": "インパスの巻物",
+          "box": [
+            68.0,
+            69.0,
+            207.0,
+            35.0
+          ]
+        }
+      ]
+    }
+  ]
+}
