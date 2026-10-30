@@ -148,6 +148,34 @@ class ModelContracts(unittest.TestCase):
         choice,_,_=self.model.choose(a,self.model.candidates(cfg),p)
         self.assertEqual(choice['candidate']['keys'],['a']);self.assertTrue(choice['route_to_information'])
 
+    def test_routes_require_current_and_intermediate_condition_matches(self):
+        a=measured('a',context='first');b=measured('b',context='second');c=measured('c',context='last')
+        self.update(a,b,1);self.update(b,c,2)
+        goals=[{'feature':'node','operator':'eq','value':'c'}]
+        self.assertEqual(self.model.route('a',goals,'first'),self.action['id'])
+        self.assertEqual(len(self.model.last_route['path']),2)
+        self.assertIsNone(self.model.route('a',goals,'unrelated'))
+        self.model.edges[('b',self.action['id'],'c')]['origin_context']='other'
+        self.assertIsNone(self.model.route('a',goals,'first'))
+
+    def test_legacy_routes_are_quarantined_and_wrong_predictions_get_counterevidence(self):
+        a=measured('a');b=measured('b');c=measured('c')
+        goals=[{'feature':'node','operator':'eq','value':'b'}]
+        self.model.edges[('a',self.action['id'],'b')]={'origin':'a','action':self.action['id'],'destination':'b','confidence':.9,'observed_count':20}
+        self.assertIsNone(self.model.route('a',goals,a['context']))
+        self.update(a,b,1)
+        self.assertEqual(self.model.route('a',goals,a['context']),self.action['id'])
+        self.update(a,c,2)
+        self.assertEqual(self.model.edges[('a',self.action['id'],'b')]['counterexamples'],1)
+        self.assertIsNone(self.model.route('a',goals,a['context']))
+        self.assertIn(('a',self.action['id'],'b'),self.model.edges)
+
+    def test_unreliable_observation_does_not_refute_a_known_route(self):
+        a=measured('a');b=measured('b');c=measured('c');c['quality']=.3
+        self.update(a,b,1);self.update(a,c,2)
+        self.assertEqual(self.model.edges[('a',self.action['id'],'b')]['counterexamples'],0)
+        self.assertEqual(self.model.edges[('a',self.action['id'],'c')]['observed_count'],0)
+
     def test_llm_explanation_remains_refutable_hypothesis(self):
         proposal={'candidate':self.action['id'],'feature':'metric.hp.0','expected':1,'tolerance':0,'explanation':'HP増加という仮説'}
         self.model.add_hypotheses([proposal],measured(),[self.action]);h=self.model.hypotheses[0]

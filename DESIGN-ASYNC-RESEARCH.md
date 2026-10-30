@@ -178,3 +178,13 @@ Meta.ensure_localのbootstrapによる能力変更が、close_unproductive_inter
 ペースの基準を8回の連続予測正解へ限定していたため、既存のWorld Modelの不一致が速度学習を止めていた。品質の良い観測は不一致も記録し、試行の一致率を基準より0.125超悪化させない。試行の予測が4例集まった時点または基準が全正解なら早期退行を判定する。未知の予測は正解へ変換せず比較対象外。品質の閾値0.7、タイムアウト、再検証、期限のガードは維持し、観測不足を速度のために許容しない。品質比較は最後の1例でなく試行平均と基準平均を使用する。performance.paceはbaseline_samples/trial_samples/blocked_by_observation/prediction_matchを追加し、試行不能の理由を次回診断で観察できる。
 
 安全側への再検証: 移動/選択を裏付ける観測が失われてinspectに戻す場合は2フレームを待たず、観測不能の能力を継続しない。2フレーム確認は新しい操作能力を採用する側に適用する。復旧の所有権保護はclose_unproductive_interfaceに限定し、一般の観測試行が必要な能力再検証を妨げない。
+
+## 0.31.3 Forward Modelの経路条件と反証
+
+0.31.2診断では5手目の選択aのscore=0.215（d等の未試行候補0.862）でもroute_to_informationで上書きされ、6手目もd（score=0.108）へ上書き。経路は状態IDの接続だけを見て過去の稀なノードへ向かい、現在contextや辺の反証を見ていなかった。
+
+新しいgraph辺はorigin_context/destination_contextを保持し、BFSは(node,context)を連鎖照合する。最大4段・2048辺の既存上限を維持。旧データの条件なし辺は保留して再観測から検証し直す。観測品質0.7以上・計測okの遷移だけを支持回数へ加算し、同じ始点/context/入力から違う行き先へ遷移した場合は既存辺へcounterexamplesを加算する。経路利用の重みは観測品質×support/(support+counterexamples)、0.6未満は保留する。低品質の欠測を反証に変換しない。
+
+graphの主キーは引き続き(origin,action,destination)のため、同じ辺を別contextで観測し直す場合は現在のcontextに支持/反証を分離して集計し直す。全観測の正本はtransitionsに残る。条件一致は将来成功の保証でなく、過去の観測関連として扱う。
+
+明示的な目標がある場合は稀なノードへ行く新規性で目的地を置換しない。採用時はroute_evidenceに目的地と辺ごとの条件・支持・反証を記録する。既知床の踏破回数に忌避を追加せず、条件付きの順路と目標達成を優先する。

@@ -185,24 +185,33 @@ class ForwardModel:
         # allowed; it is not penalized merely because a floor was visited.
         closing_route=state.get('interface_hypothesis') and any(t.get('feature')=='interface_open' and t.get('operator')=='eq' and t.get('value')==0 for t in goals)
         if closing_route or not self.escape and not state['interface_hypothesis']:
-            route=self.route(state['id'],goals)
+            route=self.route(state['id'],goals,state['context'])
             if route:
                 alternate=next((x for x in ranked if x['candidate']['id']==route),None)
-                if alternate and alternate['observed_loss_risk']<.2 and (not alternate['remembered_cycle_discount'] or closing_route):best=alternate;best['route_to_information']=True
+                if alternate and alternate['observed_loss_risk']<.2 and (not alternate['remembered_cycle_discount'] or closing_route):best=alternate;best['route_to_information']=True;best['route_evidence']=copy.deepcopy(self.last_route)
         return best,ranked[:12],(time.monotonic()-started)*1000
-    def route(self,origin,goals):
+    def route(self,origin,goals,context=None):
+        self.last_route=None
         desired={g['value'] for g in goals if g['feature']=='node' and g['operator']=='eq'}
         closing=any(g['feature']=='interface_open' and g['operator']=='eq' and g['value']==0 for g in goals)
         if closing:
             desired.update(sample['node'] for rule in self.rules.values() for sample in rule.get('samples',[])[-8:] if sample.get('outcome',{}).get('measurement_status')=='ok' and value_at(sample['outcome'],'interface_open')==0)
-        queue=deque([(origin,None,0)]);seen={origin}
+        queue=deque([(origin,context,None,[])]);seen={(origin,context)}
         while queue:
-            node,first,depth=queue.popleft()
-            if depth and (node in desired or not closing and self.visits[node]<2):return first
-            if depth>=4:continue
+            node,current_context,first,path=queue.popleft()
+            if path and (node in desired or not goals and self.visits[node]<2):
+                self.last_route={'target':node,'path':path,'basis':'condition_matched_observed_edges_not_guaranteed_future'}
+                return first
+            if len(path)>=4:continue
             for (a,action,b),data in self.edges.items():
-                if a!=node or b in seen or data.get('confidence',0)<.6:continue
-                seen.add(b);queue.append((b,first or action,depth+1))
+                destination_context=data.get('destination_context');next_key=(b,destination_context)
+                support=data.get('observed_count',0);counter=data.get('counterexamples',0)
+                reliability=data.get('confidence',0)*support/max(1,support+counter)
+                if a!=node or next_key in seen or reliability<.6:continue
+                if current_context is None or data.get('origin_context')!=current_context or destination_context is None:continue
+                seen.add(next_key)
+                evidence={k:data.get(k) for k in ('origin','action','destination','origin_context','destination_context','observed_count','counterexamples')}
+                queue.append((b,destination_context,first or action,path+[evidence]))
         return None
     def observe(self,before,action,after,prediction,receipt,step,neutral=None,kind='normal',natural_confidence=.5):
         if receipt.get('os_submission')!='accepted' or kind=='aborted':
@@ -240,7 +249,20 @@ class ForwardModel:
             pool['samples'].append({'origin':before['id'],'effects':copy.deepcopy(effect)});pool['samples']=pool['samples'][-12:]
             self.store.put('rules',pool,key=pool['key'])
         self.visits[before['id']]+=1;new=after['id'] not in self.visits;self.visits[after['id']]+=1
-        edge={'origin':before['id'],'action':action['id'],'destination':after['id'],'confidence':min(before['quality'],after['quality']),'causal_confidence':confidence,'effects':effect,'observed_count':self.edges.get((before['id'],action['id'],after['id']),{}).get('observed_count',0)+1}
+        # Counterevidence is scoped to the condition in which the edge was
+        # observed. Historical graph connectivity alone is not a valid route.
+        reliable_edge=min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok'
+        for (origin,used,destination),old in self.edges.items():
+            if reliable_edge and origin==before['id'] and used==action['id'] and destination!=after['id'] and old.get('origin_context')==before['context']:
+                old['counterexamples']=old.get('counterexamples',0)+1
+                self.store.put('graph',old)
+        previous=self.edges.get((before['id'],action['id'],after['id']),{})
+        same_condition=previous.get('origin_context')==before['context'] and previous.get('destination_context')==after['context']
+        edge={'origin':before['id'],'action':action['id'],'destination':after['id'],
+              'origin_context':before['context'],'destination_context':after['context'],
+              'confidence':min(before['quality'],after['quality']),'causal_confidence':confidence,'effects':effect,
+              'observed_count':(previous.get('observed_count',0) if same_condition else 0)+int(reliable_edge),
+              'counterexamples':previous.get('counterexamples',0) if same_condition else 0}
         self.edges[(before['id'],action['id'],after['id'])]=edge
         if len(self.edges)>2048:self.edges.pop(next(iter(self.edges)))
         self.store.put('graph',edge)
