@@ -4,7 +4,7 @@ from .model import value_at
 from .state import digest
 
 CAPABILITIES=('close_interface','change_selection','confirm','move','cross_obstacle',
-              'approach','acquire','verify_possession','handle_target','find_exit','transition','inspect','enter_text','select_target','advance_interface')
+              'approach','acquire','verify_possession','handle_target','find_exit','transition','inspect','enter_text','select_target','advance_interface','use_item','equip','inspect_inventory','recover')
 
 def validate_condition(c):
     if not isinstance(c,dict) or set(c)!={'feature','operator','value'}:raise ValueError('Invalid evidence condition')

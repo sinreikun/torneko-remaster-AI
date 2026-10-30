@@ -13,6 +13,16 @@ def scope(state,name=None):
 
 def test_effect(before,after,name,conditions=()):
     if min(before.get('quality',0),after.get('quality',0))<.5:return None
+    if name=='handle_target':
+        events=after.get('battle_observation',{}).get('events',[])
+        if any(e.get('kind') in ('damage_dealt','defeated_enemy') for e in events):return True
+        return False if any(e.get('kind')=='miss' for e in events) else None
+    if name=='inspect_inventory':
+        inv=after.get('inventory_observation',{})
+        return True if inv.get('status')=='observed' and inv.get('frame_sha256')==after['frame_sha256'] and before.get('inventory_observation',{}).get('frame_sha256')!=after['frame_sha256'] else None
+    if name in ('use_item','equip','recover'):
+        # Semantic verification is owned by the finite procedure, not UI closure.
+        return after.get('procedure_effect',{}).get('verified') if after.get('procedure_effect',{}).get('capability')==name else None
     if name=='advance_interface':
         effect=after.get('ui_visual',{}).get('interaction_effect',{})
         if effect.get('natural_confound'):return None
@@ -98,7 +108,10 @@ class CapabilityManager:
         if len(path)>1:
             delta=[path[1][i]-path[0][i] for i in (0,1)]
             ids=[a['id'] for a in candidates if self.spatial_intent(a).get('delta')==delta]
-        elif target['kind'] in ('obstacle','portal','item','stairs'):
+        elif target['kind']=='item':
+            capability='verify_possession'
+            ids=[]
+        elif target['kind'] in ('obstacle','portal','stairs'):
             capability='cross_obstacle' if target['kind']=='obstacle' else 'acquire' if target['kind']=='item' else 'transition'
             ids=[a['id'] for a in candidates if self.spatial_intent(a)['role']=='interact']
         elif target['kind']=='enemy':

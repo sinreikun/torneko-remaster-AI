@@ -124,18 +124,27 @@ class ForwardModel:
         # Chords come only from the user's direction bindings, not game names.
         directions={}
         for k,label in cfg.key_bindings.items():
+            if k not in keys:continue
             for name,terms in {'up':('上移動','up'),'down':('下移動','down'),'left':('左移動','left'),'right':('右移動','right')}.items():
                 if label.casefold() in terms:directions[name]=k
         for a,b in (('up','left'),('up','right'),('down','left'),('down','right')):
             if a in directions and b in directions:chords.append([directions[a],directions[b]])
         modifiers=[k for k,label in cfg.key_bindings.items() if re.search(r'方向転換|補助|modifier',label,re.I) and k in keys][:4]
+        diagonal_chords=list(chords)
         chords.extend([[m,d] for m in modifiers for d in directions.values() if m!=d])
+        chords.extend([[m]+d for m in modifiers for d in diagonal_chords if m not in d])
         # At most three duration hypotheses per input. Time is part of the action.
         holds=sorted({min(cfg.max_hold_ms,x) for x in (80,140,220)})
         return [{'id':action_id(k,h),'keys':k,'hold_ms':h,'declared_meanings':[cfg.key_bindings.get(key,'') for key in k]} for k in [[x] for x in keys]+chords for h in holds]
     def choose(self,state,candidates,plan=None,weight=.6):
         started=time.monotonic();plan=plan or {};ranked=[];self.prediction_ms=0.;self.search_ms=0.
-        spatial=plan.get('spatial_realization')
+        execution=plan.get('execution_realization')
+        if execution and execution.get('status')=='ready':
+            request=execution['request']
+            if request['frame']!=state['frame_sha256'] or request.get('stamp')!=state.get('spatial',{}).get('stamp'):raise ValueError('Stale procedure result')
+            candidates=[c for c in candidates if c['id'] in execution['candidate_ids']]
+            if not candidates:raise ValueError('Missing procedure action candidate')
+        spatial=plan.get('spatial_realization') if not execution else None
         if spatial and spatial.get('status')=='ready':
             from .spatial import current_target
             if current_target(state,spatial['target']):candidates=[c for c in candidates if c['id'] in spatial['candidate_ids']] or candidates
@@ -192,7 +201,7 @@ class ForwardModel:
         # Bounded lookahead on observed graph only. Transit through known nodes is
         # allowed; it is not penalized merely because a floor was visited.
         closing_route=state.get('interface_hypothesis') and any(t.get('feature')=='interface_open' and t.get('operator')=='eq' and t.get('value')==0 for t in goals)
-        if not plan.get('spatial_realization') and (closing_route or not self.escape and not state['interface_hypothesis']):
+        if not execution and not plan.get('spatial_realization') and (closing_route or not self.escape and not state['interface_hypothesis']):
             route=self.route(state['id'],goals,state['context'])
             if route:
                 alternate=next((x for x in ranked if x['candidate']['id']==route),None)

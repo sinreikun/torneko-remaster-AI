@@ -165,6 +165,7 @@ class ResearchLayer:
             spatial=state.get('spatial',{})
             current['spatial']={k:copy.deepcopy(spatial.get(k)) for k in ('stamp','provider','status','pose','pose_source','movement')}
             current['spatial']['target_candidates']=[{k:copy.deepcopy(t.get(k)) for k in ('id','kind','cell','distance','confidence','source')} for t in spatial.get('targets',[])[:8]]
+            current['execution']=copy.deepcopy(state.get('execution',{}))
             current['quotes']=list(state.get('quotes',[]))[:20]
             current['ui']={k:copy.deepcopy(state.get('ui_visual',{}).get(k)) for k in ('layout','selection','needs_observation')}
             current['minimap']={k:copy.deepcopy(state.get('minimap',{}).get(k)) for k in ('status','player_cell','enemies','items','stairs')}

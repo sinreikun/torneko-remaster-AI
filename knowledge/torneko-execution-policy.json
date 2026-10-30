@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "source": "User supplied controls and dungeon principles; hypotheses require current observations",
+  "roles": {
+    "up": "^上移動$|^up$",
+    "down": "^下移動$|^down$",
+    "left": "^左移動$|^left$",
+    "right": "^右移動$|^right$",
+    "confirm": "決定|confirm",
+    "cancel": "キャンセル|cancel",
+    "menu": "^メニュー$|^menu$",
+    "face": "方向転換",
+    "rest": "足踏み",
+    "details": "マップ表示"
+  },
+  "labels": {
+    "inventory": [
+      "道具",
+      "どうぐ"
+    ],
+    "equip": [
+      "装備"
+    ],
+    "drink": [
+      "飲む"
+    ],
+    "eat": [
+      "食べる"
+    ],
+    "read": [
+      "読む"
+    ],
+    "wave": [
+      "振る",
+      "ふる"
+    ],
+    "shoot": [
+      "うつ",
+      "撃つ"
+    ],
+    "throw": [
+      "投げる",
+      "なげる"
+    ],
+    "discard": [
+      "置く"
+    ],
+    "yes": [
+      "はい"
+    ]
+  },
+  "items": [
+    {
+      "names": [
+        "薬草",
+        "弟切草"
+      ],
+      "purpose": "heal",
+      "command": "drink",
+      "metric": "hp",
+      "direction": "increase",
+      "description_patterns": [
+        "HP.{0,12}回復"
+      ]
+    },
+    {
+      "names": [
+        "パン",
+        "大きなパン"
+      ],
+      "purpose": "food",
+      "command": "eat",
+      "metric": "fullness",
+      "direction": "increase",
+      "description_patterns": [
+        "満腹度.{0,12}回復"
+      ]
+    },
+    {
+      "names": [
+        "くさったパン"
+      ],
+      "purpose": "emergency_food",
+      "command": "eat",
+      "metric": "fullness",
+      "direction": "increase",
+      "side_effect": "strength_loss"
+    },
+    {
+      "names": [
+        "ちからの種"
+      ],
+      "purpose": "growth",
+      "command": "drink",
+      "metric": "strength",
+      "direction": "increase"
+    },
+    {
+      "names": [
+        "毒けし草",
+        "毒消し草"
+      ],
+      "purpose": "restore_strength",
+      "command": "drink",
+      "metric": "strength",
+      "direction": "increase"
+    },
+    {
+      "names": [
+        "インパスの巻物"
+      ],
+      "purpose": "identify",
+      "command": "read",
+      "requires": "unidentified_target"
+    },
+    {
+      "name_pattern": "矢(?:[（(].*[)）]|[×x]\\d+)?$",
+      "purpose": "ranged",
+      "command": "shoot",
+      "requires": "aligned_visible_enemy_and_observed_ray"
+    }
+  ],
+  "review_period": 128,
+  "task_budget": 48,
+  "page_limit": 4,
+  "description_limit": 20,
+  "low_hp_ratio": 0.4,
+  "food_threshold": 15,
+  "critical_food_threshold": 0,
+  "rest_food_minimum": 15,
+  "enemy_response_probes": 2,
+  "combat": {
+    "adjacency": "chebyshev_1",
+    "approach_wait_distance": 2,
+    "normal_hit_prior": 0.875,
+    "staff_hit_prior": 1.0,
+    "prior_source": "user_report_not_measured",
+    "retreat_requires_tactical_benefit": true
+  },
+  "capacity": {
+    "discard_only_observed_inferior_equipment": true,
+    "protect_patterns": [
+      "箱",
+      "証明",
+      "指輪",
+      "巻物",
+      "草",
+      "パン"
+    ],
+    "require_not_equipped": true
+  },
+  "identification_prompt": "(?:どれ|どの道具|どのアイテム|何を).{0,16}(?:識別|鑑定)|(?:識別|鑑定)(?:する|したい|対象の).{0,12}(?:選|道具|アイテム|対象)"
+}

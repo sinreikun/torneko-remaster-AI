@@ -139,6 +139,7 @@ class MetaController:
         self.goal_epoch+=1
     def classify(self,state,result=None,receipt=None,plan=None):
         reasons=[];result=result or {}
+        if state.get('execution',{}).get('requirement'):reasons.append('observation_missing')
         if (plan or {}).get('spatial_realization',{}).get('status')=='capability_missing' or state.get('spatial',{}).get('learning_task',{}).get('status')=='capability_missing':reasons.append('capability_missing')
         if state.get('spatial',{}).get('status') in ('measurement_missing','relocalization_pending','relocalization_ambiguous','unknown_surface'):reasons.append('observation_missing')
         if self.nonexecutions>=3:reasons.append('state_identification_failure')
