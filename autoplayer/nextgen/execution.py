@@ -107,89 +107,30 @@ class ProcedureExecutor:
             out.append({'delta':delta,'cell':absolute,'distance':max(map(abs,d)),'stationary_candidate':self.stationary[key]['count']>=3})
         current={str(e['cell']) for e in out};self.stationary={k:v for k,v in self.stationary.items() if k in current}
         return out
-    def choose(self,state,candidates,step):
+    def service(self,state,candidates,step):
+        """UI emergencies only. Normal means are selected by ShortPlanning."""
         self.pending=None
         if not self.policy:return None
-        hp=self.values(state,'hp',False);food=self.values(state,'fullness',False);ui=state.get('execution_ui',{});kind=ui.get('kind')
-        if kind=='choice' and not ui.get('protected'):
-            return self.navigate(state,self.policy['labels']['yes'],step)
-        if kind=='result':
-            self.death()
-            return self.role_request(state,'confirm','結果画面を決定で進める',step)
-        if hp and hp[0]==0:
-            self.death();return None
+        ui=state.get('execution_ui',{});hp=self.values(state,'hp',False)
+        if ui.get('kind')=='choice' and not ui.get('protected'):return self.navigate(state,self.policy['labels']['yes'],step)
+        if ui.get('kind')=='result':self.death();return self.role_request(state,'confirm','結果画面を決定で進める',step)
+        if hp and hp[0]==0:self.death();return None
         if hp and hp[0]>0:self.dead=False
         self.requirement=None
         if self.active and step>=self.active['deadline']:self.finish('expired',step,'finite_budget')
-        enemies=self.enemies(state,step);adjacent=[e for e in enemies if e['distance']==1 and not(e['stationary_candidate'] and hp and hp[0]<hp[1]*.7 and not self.recent_incoming(step))];near=[e for e in enemies if e['distance']<=2]
-        field=allows_field_input(state) and state.get('spatial',{}).get('status')=='ready' and state.get('spatial',{}).get('provider')=='measured'
-        if not self.active and field:
-            damage=self.expected_incoming(state)
-            low=bool(hp and (hp[0]<hp[1]*self.policy.get('low_hp_ratio',.4) or damage and hp[0]<=damage*2));hungry=bool(food and food[0]<=self.policy.get('food_threshold',15))
-            heal=self.known_item('heal');meal=self.known_item('food') or (self.known_item('emergency_food') if food and food[0]==0 else None)
-            if low and adjacent and heal and self.eligible(self.task_token('heal',heal),step):self.begin('heal',state,step,'隣接脅威と現在HPから回復品を使用',heal)
-            elif hungry and not adjacent and meal and self.eligible(self.task_token('food',meal),step):self.begin('food',state,step,'空腹による損失を防ぐ',meal)
-            elif hungry and adjacent and meal and food and food[0]==0 and hp and hp[0]>max(3,hp[1]*.4):self.begin('food',state,step,'空腹による継続損失を食料で解消',meal)
-            elif adjacent:
-                # Low HP never falls through to frontier because a skill is absent.
-                tactical=self.reduce_contacts(state,enemies,adjacent,candidates,step)
-                if tactical:return tactical
-                enemy=min(adjacent,key=lambda e:(e['stationary_candidate'],e['cell']))
-                return self.fight(state,enemy,candidates,step)
-            elif [0,0] in state.get('minimap',{}).get('items',[]) and self.item_checks.get(str(state['spatial']['pose']),-1)<=step:
-                self.item_checks[str(state['spatial']['pose'])]=step+128
-                self.begin('review',state,step,'品の位置へ到達。取得・満杯を所持品と新しい文章で確認')
-            elif hp and hp[0]<hp[1] and not near and food and food[0]>self.policy.get('rest_food_minimum',15):
-                return self.role_request(state,'rest','接近する敵がなく、満腹度を確認して一手だけ自然回復',step)
-            elif low and not heal and self.last_review<step-32 and self.eligible(self.task_token('review',None),step):self.begin('review',state,step,'回復手段が未確認。有限の所持品確認')
-            else:
-                if hungry and not meal and self.eligible(self.task_token('review',None),step):
-                    self.begin('review',state,step,'現在の空腹に対する食料を一通り確認')
-                    return self.advance(state,step)
-                ranged=self.known_item('ranged')
-                aligned=[e for e in enemies if e['distance']>=2 and not e['stationary_candidate'] and self.clear_ray(state,e)]
-                if ranged and aligned and self.eligible(self.task_token('ranged',ranged),step):
-                    target=min(aligned,key=lambda e:e['distance']);direction=tuple((1 if n>0 else -1 if n<0 else 0) for n in target['delta'])
-                    if self.facing!=direction:return self.orient(state,target,candidates,step)
-                    self.begin('ranged',state,step,'射線を確認し、装備ターンを使わず所持品から撃つ',ranged)
-                    self.active['target']=target
-                    return self.advance(state,step)
-                responsive=[e for e in near if not e['stationary_candidate']]
-                if responsive and self.stationary[str(responsive[0]['cell'])]['count']<=self.policy.get('enemy_response_probes',2):return self.role_request(state,'rest','一マス空いた敵へ不用意に接近せず、接近反応を一手観測',step)
-                seed=self.known_item('growth');strength=self.values(state,'strength')
-                growth=seed if seed and strength and strength[0]==strength[1] else self.known_item('restore_strength') if seed and strength and strength[0]<strength[1] else None
-                if growth and self.eligible(self.task_token(growth[1]['purpose'],growth),step):self.begin(growth[1]['purpose'],state,step,'現在ちからを確認して強化手順を実行',growth)
-                elif (self.review_needed or step-self.last_review>=self.policy.get('review_period',128)) and self.eligible(self.task_token('review',None),step):self.begin('review',state,step,'開始時・取得後・周期の状態と所持品確認')
-                elif not near:
-                    discard=self.discard_candidate()
-                    if discard and self.eligible(self.task_token('discard',discard),step):
-                        self.begin('discard',state,step,'所持上限。観測済み性能で劣る非装備品だけを置く候補にする',discard)
-                        return self.advance(state,step)
-                    identify=self.known_item('identify');aliases=[r for r in self.rows() if r.get('identification_required')]
-                    if identify and aliases and self.eligible(self.task_token('identify',identify),step):
-                        self.begin('identify',state,step,'未識別品を現在の対象選択画面で鑑定する',identify);self.active['identify_target']=copy.deepcopy(aliases[0]);return self.advance(state,step)
-                    upgrade=self.upgrade(state)
-                    if upgrade and self.eligible(self.task_token('equip',upgrade),step):self.begin('equip',state,step,'観測した装備性能を現在値と比較',upgrade)
-        # A threatened passive audit must not keep the agent in menus indefinitely.
-        if self.active and adjacent and self.active['kind']=='review' and field:
-            self.finish('interrupted',step,'combat_interrupt');return self.fight(state,adjacent[0],candidates,step)
-        if self.active:return self.advance(state,step)
         return None
-    def reduce_contacts(self,state,enemies,adjacent,candidates,step):
-        if len(adjacent)<2:return None
-        pose=state['spatial']['pose'];known=state['spatial'].get('map',{}).get('cells',{});blocked=set(state['spatial'].get('map',{}).get('obstacles',[]));occupied={tuple(e['cell']) for e in enemies};options=[]
-        for dx,dy in ((0,-1),(1,0),(0,1),(-1,0),(-1,-1),(1,-1),(1,1),(-1,1)):
-            dest=(pose[0]+dx,pose[1]+dy);tag=lambda p:f'{p[0]},{p[1]}'
-            if tag(dest) not in known or tag(dest) in blocked or dest in occupied:continue
-            if dx and dy and any(tag(p) not in known or tag(p) in blocked for p in ((pose[0]+dx,pose[1]),(pose[0],pose[1]+dy))):continue
-            contacts=sum(max(abs(dest[i]-e['cell'][i]) for i in (0,1))<=1 for e in enemies)
-            if contacts>=len(adjacent):continue
-            keys=[]
-            if dx:keys.append(self.roles.get('right' if dx>0 else 'left'))
-            if dy:keys.append(self.roles.get('down' if dy>0 else 'up'))
-            if all(keys) and any(set(a['keys'])==set(keys) for a in candidates):options.append((contacts,len(keys),keys))
-        if not options:return None
-        choice=min(options,key=lambda x:x[:2]);return self.request(state,choice[2],'tactical_move','複数の隣接接触を減らせる既知床へ一手移動。距離だけの逃走ではない',step)
+    def choose(self,state,candidates,step):
+        # Compatibility entry point also uses the shared planning layer; it no
+        # longer contains a second fixed-priority tactical controller.
+        request=self.service(state,candidates,step)
+        if request:return request
+        if not hasattr(self,'_standalone_planning'):
+            from .short_planning import ShortPlanning
+            self._standalone_planning=ShortPlanning(None,self,{'grid_topology':8,'priorities':{'frontier':1,'item':2,'enemy':3}},synchronous=True)
+        planner=self._standalone_planning
+        planner.begin(state,candidates,step)
+        if not planner.merge(state,step):return None
+        return planner.dispatch(state,candidates,step)
     def orient(self,state,enemy,candidates,step):
         dx,dy=enemy['delta'];keys=[self.roles.get('face')]
         if dx:keys.append(self.roles.get('right' if dx>0 else 'left'))

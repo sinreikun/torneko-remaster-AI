@@ -14,6 +14,7 @@ from .spatial import SpatialLane,trace as spatial_trace
 from .execution import ProcedureExecutor
 from .dungeon_observer import DungeonObserver
 from .interaction_surface import allows_field_input
+from .short_planning import ShortPlanning
 from ..controls import is_torneko
 from ..cancellation import OperationCancelled
 from ..observation_store import message_candidates
@@ -84,6 +85,7 @@ class NextGenController:
         executor=ProcedureExecutor(store,{k:v for k,v in self.cfg.key_bindings.items() if k in self.cfg.allowed_keys},execution_policy)
         descriptions=store.load('autonomy','inventory_descriptions')
         dungeon_observer=DungeonObserver(store.session+':0',descriptions[0].get('records',[]) if descriptions else []) if execution_policy else None
+        short_planner=ShortPlanning(store,executor,spatial_policy,self.data/'planning'/f'{store.session}.jsonl') if dungeon_observer else None
         previous_boundary_tracking=getattr(getattr(self.backend,'observer',None),'track_scene_boundaries',False)
         if hasattr(self.backend,'configure_scene_boundaries'):self.backend.configure_scene_boundaries(True)
         supervisor=ResearchLayer(self.cfg,self.llm,self.send_event,self.cancel,store);candidates=model.candidates(self.cfg,execution_policy.get('roles'))
@@ -139,11 +141,14 @@ class NextGenController:
                     meta.prepare(before,step)
                     spatial_join=time.monotonic();spatial_packet=spatial_lane.merge(before['frame_sha256'],step,getattr(self.control,'revision',0))
                     before['spatial']=spatial_packet['view'];stages['spatial_before_join_ms']=(time.monotonic()-spatial_join)*1000
-                    procedure=None
+                    procedure=None;planning_started=False
                     if dungeon_observer:
                         view=dungeon_observer.observe(before,self.builder.cache[before['frame_sha256']]['native'],image)
                         executor.attach(before,view,step)
-                        procedure=executor.choose(before,candidates,step)
+                        procedure=executor.service(before,candidates,step)
+                        if not procedure:
+                            short_planner.begin(before,candidates,step,meta.local,revision,meta.goal_epoch,meta.capabilities.summary(before));planning_started=True
+                        else:short_planner.packet=None;short_planner.replan_reason='emergency_or_result_interrupt'
                         before['execution']=executor.summary(step)
                         if dungeon_observer.inventory.scope!=store.session+':'+str(executor.adventure_revision):dungeon_observer.reset(store.session+':'+str(executor.adventure_revision))
                         if before.get('execution_observation_request'):meta.fresh_observation_requested=True
@@ -151,9 +156,21 @@ class NextGenController:
                     plan,_=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
                     stages['research_mailbox_and_snapshot_ms']=(time.monotonic()-t)*1000;stages['llm_wait_ms']=0.
                     plan=meta.guide(plan,before,candidates)
+                    if planning_started:
+                        selected=short_planner.merge(before,step,getattr(self.control,'revision',0),meta.goal_epoch)
+                        if selected:
+                            procedure=short_planner.dispatch(before,candidates,step)
+                            before['planning']=short_planner.summary()
+                            chosen_spec=selected['candidate']['execution']
+                            if chosen_spec.get('target'):
+                                before['spatial']['selected']=chosen_spec['target'];plan['spatial_target']=chosen_spec['target']
+                            if not procedure:
+                                self.builder.force_fresh_once=True;meta.fresh_observation_requested=True
+                                short_planner.feedback(before,before,None,{'os_submission':'not_sent'},step)
+                                self.send_event({'event':'short_plan_not_executed','step':step,'planning':short_planner.summary()});continue
                     if dungeon_observer:
                         before['spatial']['targets']=[t for t in before['spatial'].get('targets',[]) if not(t['kind']=='enemy' and executor.stationary.get(str(tuple(t['cell'])),{}).get('count',0)>=3) and not(t['kind']=='item' and len(t['path'])==1)]
-                    if not procedure and not executor.active and not meta.recovery:
+                    if not planning_started and not procedure and not executor.active and not meta.recovery:
                         target=meta.progress.select_spatial(before['spatial'],meta.local,spatial_policy)
                         if target:
                             before['spatial']['selected']=target
@@ -284,6 +301,9 @@ class NextGenController:
                         requested_skill='handle_target' if procedure and procedure['task']=='combat' and procedure['role']=='confirm' else 'inspect_inventory' if procedure and procedure['task']=='review' else 'equip' if procedure and procedure['task']=='equip' else 'use_item' if procedure and executor.active and executor.active.get('item') else None
                         if requested_skill:meta.capabilities.observe(before,action,after,result,step,requested_skill,neutral=neutral)
                         after['execution']=executor.summary(step)
+                        if short_planner and short_planner.packet:
+                            audit=short_planner.feedback(before,after,procedure,ui_receipt,step,after.get('battle_observation',{}).get('events',[]))
+                            self.send_event({'event':'short_plan_result','step':step,'planning':short_planner.summary(audit)})
                         if dungeon_observer.inventory.scope!=store.session+':'+str(executor.adventure_revision):dungeon_observer.reset(store.session+':'+str(executor.adventure_revision))
                         if step%8==0:store.put('autonomy',{'records':dungeon_observer.inventory.description_reads},step,key='inventory_descriptions')
                         self.send_event({'event':'procedure_update','step':step,'state':after['execution'],'input':procedure,'battle_messages':battle_events,'control_receipt':ui_receipt})
@@ -337,7 +357,7 @@ class NextGenController:
                     if hasattr(self.backend,'record_important'):self.backend.record_important(row,image,after_image)
                     self.previous=after;self.previous_image=after_image;self.summary={'generation':2,'steps':step,'metrics':metrics,'legacy_learning_imported':False}
                 except ValueError as error:
-                    if str(error) not in ('Stale Spatial result','Spatial stamp mismatch','Stale procedure result'):raise
+                    if str(error) not in ('Stale Spatial result','Spatial stamp mismatch','Stale procedure result','Stale short plan'):raise
                     model.pending.clear();self.previous=None;executor.interrupt('stale_evidence')
                     self.send_event({'event':'spatial_discarded','reason':str(error),'step':step});continue
                 except OperationCancelled:
@@ -349,6 +369,7 @@ class NextGenController:
             if self.control and self.control.intervention.is_set():raise OperationCancelled('手動介入へ切替')
         finally:
             supervisor.close();self.builder.close();prefetch.close();progress_lane.close();spatial_lane.close()
+            if short_planner:short_planner.close(step)
             store.put('autonomy',{'model':spatial_lane.model.dump()},step,key='spatial_model')
             executor.save(step,force=True)
             if dungeon_observer:store.put('autonomy',{'records':dungeon_observer.inventory.description_reads},step,key='inventory_descriptions')

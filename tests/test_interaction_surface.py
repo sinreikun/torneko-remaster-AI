@@ -19,7 +19,8 @@ class SurfaceContracts(unittest.TestCase):
         cfg=SimpleNamespace(allowed_keys=FIXTURE['allowed_keys'],key_bindings=FIXTURE['key_bindings'],max_hold_ms=220)
         cs=ForwardModel.candidates(None,cfg,self.policy['roles']);e=ProcedureExecutor(None,cfg.key_bindings,self.policy)
         for delta,keys in [((-1,0),{'num5','a'}),((1,-1),{'num5','d','w'})]:
-            s=frame(enemies=[delta],hp=(1,15));r=e.choose(s,cs,0)
+            e=ProcedureExecutor(None,cfg.key_bindings,self.policy)
+            s=frame(str(delta),enemies=[delta],hp=(1,15));r=e.choose(s,cs,0)
             self.assertEqual(set(r['keys']),keys);self.assertIsNotNone(e.realize(s,r,cs));self.assertIsNone(e.requirement)
     def test_actual_colored_rectangle_without_text_is_not_interactive_ui(self):
         self.assertTrue(FIXTURE['frame_geometry']['visible'])

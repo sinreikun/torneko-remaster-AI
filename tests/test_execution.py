@@ -45,6 +45,7 @@ class ExecutionContracts(unittest.TestCase):
         row=item();self.e.pages={'p':[row]};r=self.choose(frame(enemies=[(0,1)],hp=(2,15)))
         self.assertEqual(r['task'],'heal');self.assertEqual(r['keys'],['num0'])
     def test_rest_is_one_real_input_and_stops_at_full_hp_or_approaching_enemy(self):
+        self.e.review_needed=False;self.e.last_review=0
         r=self.choose(frame(hp=(8,15)));self.assertEqual(r['role'],'rest');self.assertEqual(r['keys'],['num6'])
         r=self.choose(frame('b',enemies=[(0,1)],hp=(8,15)),1);self.assertEqual(r['role'],'face')
         self.e.last_review=2;self.e.review_needed=False;self.assertIsNone(self.choose(frame('c'),2))
@@ -59,12 +60,12 @@ class ExecutionContracts(unittest.TestCase):
         self.assertIsNone(self.e.active);self.assertIn('selection',self.e.history[-1]['reason'])
     def test_same_named_rows_are_navigated_by_entry_not_name(self):
         target=item('薬草','second',2);self.e.begin('heal',frame(),0,'test',(target,POLICY['items'][0]))
-        s=ui(frame('b'),'inventory',['道具','薬草','薬草'],selected=1,rows=[item('薬草','first',1),target])
+        s=ui(frame('b',hp=(2,15)),'inventory',['道具','薬草','薬草'],selected=1,rows=[item('薬草','first',1),target])
         r=self.choose(s,1);self.assertEqual(r['keys'],['s'])
         s['execution_ui']['selected_line']=2;r=self.choose(s,2);self.assertEqual(r['keys'],['num1'])
     def test_item_popup_requires_previously_selected_instance(self):
         target=item();self.e.begin('heal',frame(),0,'test',(target,POLICY['items'][0]))
-        s=ui(frame('b'),'item_actions',['飲む','投げる','置く']);self.assertIsNone(self.choose(s,1));self.assertFalse(self.e.active.get('sent'))
+        s=ui(frame('b',hp=(2,15)),'item_actions',['飲む','投げる','置く']);self.assertIsNone(self.choose(s,1));self.assertFalse(self.e.active.get('sent'))
     def test_item_use_observes_effect_not_menu_closure(self):
         target=item();s=frame(hp=(2,15));self.e.status={'hp':{'values':[2,15]}};self.e.begin('heal',s,0,'test',(target,POLICY['items'][0]));self.e.active['item_selected']=True
         b=ui(frame('b',hp=(2,15)),'item_actions',['飲む','投げる','置く']);r=self.choose(b,1);a=frame('c',hp=(2,15));self.send(b,a,r,2)
@@ -81,6 +82,7 @@ class ExecutionContracts(unittest.TestCase):
         r=self.choose(frame(),1);self.assertEqual(r['task'],'equip')
         self.e.interrupt('test');row['equipment_estimate']['special']=True;self.assertIsNone(self.choose(frame(),2))
     def test_direction_two_cells_away_waits_for_contact_without_approach(self):
+        self.e.review_needed=False;self.e.last_review=0
         s=frame(enemies=[(0,2)]);self.assertEqual(self.choose(s)['role'],'rest')
         self.assertEqual(self.choose(frame('b',[(0,1)]),1)['role'],'face')
     def test_static_enemy_with_low_hp_is_not_unconditionally_attacked(self):
@@ -101,10 +103,16 @@ class ExecutionContracts(unittest.TestCase):
         self.assertIsNone(self.e.discard_candidate());one['equipped']=False;self.assertEqual(self.e.discard_candidate()[0]['entry_id'],'a')
         one['display_name']='箱';self.assertIsNone(self.e.discard_candidate())
     def test_ranged_uses_inventory_shoot_only_with_observed_line_of_fire(self):
+        from autoplayer.nextgen.short_planning import ShortPlanning
         self.e.review_needed=False;self.e.last_review=0;self.e.pages={'p':[item('木の矢')]};s=frame(enemies=[(3,0)])
-        self.assertTrue(self.e.clear_ray(s,self.e.enemies(s,0)[0]));r=self.choose(s,0);self.assertEqual(r['role'],'face');self.send(s,frame('b',[(3,0)]),r)
-        r=self.choose(frame('c',[(3,0)]),2);self.assertEqual(r['task'],'ranged');self.assertEqual(r['keys'],['num0'])
-        s['spatial']['map']['cells']={};self.assertFalse(self.e.clear_ray(s,{'delta':(3,0),'distance':3}))
+        self.assertTrue(self.e.clear_ray(s,self.e.enemies(s,0)[0]));planner=ShortPlanning(None,self.e,{'grid_topology':8},synchronous=True)
+        for step,source in enumerate((s,frame('next',[(3,0)]))):
+            planner.begin(source,self.cs,step);planner.merge(source,step)
+            row=next(x for x in planner.packet['candidates'] if x['candidate']['execution'].get('purpose')=='ranged');planner.packet['selected']=row;planner.intent=copy.deepcopy(row['candidate']['actions'][0])
+            r=planner.dispatch(source,self.cs,step)
+            if step==0:self.assertEqual(r['role'],'face');self.send(source,frame('b',[(3,0)]),r)
+            else:self.assertEqual(r['task'],'ranged');self.assertEqual(r['keys'],['num0'])
+        s['spatial']['map']['cells']={};self.assertFalse(self.e.clear_ray(s,{'delta':(3,0),'distance':3}));planner.close()
     def test_battle_messages_link_to_stats_and_stale_text_does_not_count_twice(self):
         b=frame(enemies=[(1,0)]);a=frame('b');m={'kind':'damage_dealt','enemy':'スライム','damage':4,'quote':'スライムに4ポイントのダメージを与えた','source_frame_sha256':'b'}
         self.e.feedback(b,a,{'keys':['num1']},{'os_submission':'accepted'},1,[m,m]);self.assertEqual(next(iter(self.e.battles.values()))['hits'],1)
@@ -145,12 +153,14 @@ class ExecutionContracts(unittest.TestCase):
         self.send(s,frame('c'),r,3);self.assertEqual(self.e.active['stage'],'verify')
     def test_multiple_adjacent_enemies_can_trigger_a_move_with_contact_reduction(self):
         s=frame(enemies=[(1,0),(0,1)]);s['spatial']['map']['cells'].update({'4,5':'OBSERVED','5,4':'OBSERVED'})
-        r=self.choose(s);self.assertEqual(r['role'],'tactical_move')
+        r=self.choose(s);self.assertEqual(r['role'],'planned_move');self.assertIn('terminal_pressure',self.e._standalone_planning.packet['selected']['evaluation']['components'])
         s=frame(enemies=[(1,0)]);self.assertNotEqual(self.choose(s)['role'],'tactical_move')
     def test_battle_estimate_conditions_recovery_on_observed_damage(self):
         self.e.battles={'x':{'status_values':{'level':None,'shield':None},'received':[5,6],'evidence':[]}}
         self.e.pages={'p':[item()]};r=self.choose(frame(enemies=[(0,1)],hp=(10,15)))
-        self.assertEqual(r['task'],'heal')
+        planner=self.e._standalone_planning;self.assertEqual(planner.world['actors'][0]['incoming_damage']['upper'],6)
+        healing=next(x for x in planner.packet['candidates'] if x['candidate']['execution'].get('purpose')=='heal')
+        self.assertGreater(healing['prediction']['terminal']['covered_damage']['upper'],0)
     def test_disallowed_direction_binding_never_enters_any_candidate_chord(self):
         obj=ForwardModel.__new__(ForwardModel);cs=obj.candidates(SimpleNamespace(allowed_keys=['w','a','num5'],key_bindings=ACTIONS,max_hold_ms=220))
         self.assertTrue(all(set(a['keys'])<={'w','a','num5'} for a in cs))

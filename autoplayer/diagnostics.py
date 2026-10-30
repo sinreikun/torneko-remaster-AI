@@ -199,6 +199,9 @@ def export_diagnostics(data,destination,detailed=False):
                         report['databases'][name]['snapshot_included']=False
                         report['databases'][name]['reason']='軽量ZIPの上限によりDB本体は省略。ローカルの元DBを保持。'
                         report['omitted'].append(name)
+            from .nextgen.planning_trace import export_traces
+            remaining,planning_report=export_traces(data,archive,remaining,detailed)
+            report['planning_traces']=planning_report
             candidates=[data/'settings.json',data/'ui-settings.json',data/'components.json',data/'ui-performance.json']
             candidates+=sorted((data/'profiles').glob('*.json'))
             candidates+=sorted((data/'research').glob('*.json'))

@@ -152,5 +152,79 @@
     ],
     "require_not_equipped": true
   },
-  "identification_prompt": "(?:どれ|どの道具|どのアイテム|何を).{0,16}(?:識別|鑑定)|(?:識別|鑑定)(?:する|したい|対象の).{0,12}(?:選|道具|アイテム|対象)"
+  "identification_prompt": "(?:どれ|どの道具|どのアイテム|何を).{0,16}(?:識別|鑑定)|(?:識別|鑑定)(?:する|したい|対象の).{0,12}(?:選|道具|アイテム|対象)",
+  "planning": {
+    "source": "User-reported turn structure and replaceable heuristic values; not universal engine rules",
+    "horizon": 5,
+    "turns": {
+      "move": [
+        1,
+        1
+      ],
+      "strike": [
+        1,
+        1
+      ],
+      "rest": [
+        1,
+        1
+      ],
+      "face": [
+        0,
+        null
+      ],
+      "interface": [
+        0,
+        null
+      ],
+      "consume": [
+        1,
+        1
+      ],
+      "equip": [
+        1,
+        1
+      ],
+      "discard": [
+        1,
+        1
+      ]
+    },
+    "actor_defaults": {
+      "movement": [
+        0,
+        1
+      ],
+      "attack_distance": [
+        1,
+        1
+      ],
+      "applicability": "normal adjacent/melee enemy hypothesis; unknown species may violate",
+      "movement_and_attack_same_turn": false
+    },
+    "weights": {
+      "progress": 1.4,
+      "exposure": 1.4,
+      "multi_contact": 3,
+      "damage": 8,
+      "lethal": 40,
+      "options": 0.4,
+      "consumption": 0.4,
+      "information": 0.7,
+      "uncertainty": 0.15
+    },
+    "combat_value": 12,
+    "review_value": 3,
+    "equipment_value": 3,
+    "spatial_value": 2,
+    "item_values": {
+      "heal": 14,
+      "food": 8,
+      "emergency_food": 3,
+      "growth": 5,
+      "restore_strength": 4,
+      "ranged": 4,
+      "identify": 2
+    }
+  }
 }
