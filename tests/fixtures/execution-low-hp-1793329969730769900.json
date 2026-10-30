@@ -1,0 +1,95 @@
+{
+  "source": "diagnostics-1793329969730769900 / decision 33; real diagnostic feature excerpt",
+  "metrics": {
+    "hp": {
+      "values": [
+        1,
+        15
+      ],
+      "quote": "HP1/15",
+      "unverified_ocr": true,
+      "meaning": "HP（現在値/最大値）"
+    },
+    "level": {
+      "values": [
+        1
+      ],
+      "quote": "Lv1",
+      "unverified_ocr": true,
+      "meaning": "現在のレベル"
+    },
+    "floor": {
+      "values": [
+        1
+      ],
+      "quote": "1階",
+      "unverified_ocr": true,
+      "meaning": "現在の階（最深階ではない）"
+    },
+    "gold": {
+      "values": [
+        22
+      ],
+      "quote": "22G",
+      "unverified_ocr": true,
+      "meaning": "所持金（G）"
+    },
+    "fullness": {
+      "values": [
+        74
+      ],
+      "quote": "満腹度 / 74%",
+      "evidence_quotes": [
+        "満腹度",
+        "74%"
+      ],
+      "source": "same_row_boxed_label_value",
+      "frame_sha256": "33261af793a4537f2542419c4d8178d2023e26c21011632bd1678ea2c3b5db03",
+      "label_box": [
+        618.0,
+        39.0,
+        98.0,
+        39.0
+      ],
+      "value_box": [
+        732.0,
+        40.0,
+        81.0,
+        36.0
+      ],
+      "unverified_ocr": true,
+      "meaning": "満腹度（%）"
+    }
+  },
+  "minimap": {
+    "status": "retained",
+    "player_cell": [
+      10,
+      26
+    ],
+    "enemies": [
+      [
+        0,
+        1
+      ]
+    ],
+    "items": []
+  },
+  "spatial": {
+    "stamp": {
+      "frame": "33261af793a4537f2542419c4d8178d2023e26c21011632bd1678ea2c3b5db03",
+      "turn": 32,
+      "region": "measured:d21cf93bdb474a03:1",
+      "revision": 65
+    },
+    "pose": [
+      10,
+      26
+    ],
+    "provider": "measured",
+    "status": "ready"
+  },
+  "old_input": [
+    "a"
+  ]
+}
