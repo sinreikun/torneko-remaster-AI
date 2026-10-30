@@ -92,7 +92,10 @@ class ModelContracts(unittest.TestCase):
 
     def test_state_cycle_does_not_override_measured_progress_or_new_outcomes(self):
         for n in range(40):
-            result=self.update(measured(str(n%8),hp=10+n),measured(str((n+1)%8),hp=11+n),n+1)
+            before=measured(str(n%8),hp=10+n)
+            p=plan();p['targets']=[{'feature':'metric.hp.0','operator':'ge','value':100}]
+            self.model.choose(before,[self.action],p)
+            result=self.update(before,measured(str((n+1)%8),hp=11+n),n+1)
             self.assertIsNone(result['loop'])
         self.model.recent.clear()
         for n in range(40):
@@ -175,6 +178,34 @@ class ModelContracts(unittest.TestCase):
         self.update(a,b,1);self.update(a,c,2)
         self.assertEqual(self.model.edges[('a',self.action['id'],'b')]['counterexamples'],0)
         self.assertEqual(self.model.edges[('a',self.action['id'],'c')]['observed_count'],0)
+
+    def test_known_skill_is_not_an_objective_but_remains_useful_for_explicit_goals(self):
+        a=measured('a');b=measured('b')
+        for n in range(8):self.update(a,b,n+1)
+        self.model.visits.update({'a':100,'b':100})
+        other={'id':action_id(['b'],80),'keys':['b'],'hold_ms':80}
+        p=plan();p['candidate_values']=[{'id':self.action['id'],'kind':'capability_evidence','value':1.5}]
+        chosen,ranking,_=self.model.choose(a,[self.action,other],p)
+        self.assertEqual(chosen['candidate']['keys'],['b'])
+        known=next(r for r in ranking if r['candidate']['keys']==['a'])
+        self.assertTrue(known['competence_only_prior_ignored']);self.assertEqual(known['applied_action_prior'],0)
+        p['targets']=[{'feature':'node','operator':'eq','value':'b'}]
+        chosen,_,_=self.model.choose(a,[self.action,other],p)
+        self.assertEqual(chosen['candidate']['keys'],['a'])
+        self.assertEqual(chosen['applied_action_prior'],1.5)
+        self.assertFalse(chosen['competence_only_prior_ignored'])
+
+    def test_resource_drift_is_observed_but_does_not_erase_unproductive_recurrence(self):
+        self.model.visits.update({'a':10,'b':10});detected=None
+        for n in range(8):
+            a=measured('a' if n%2==0 else 'b');b=measured('b' if n%2==0 else 'a')
+            a['metrics']['fullness']={'values':[100-n]};b['metrics']['fullness']={'values':[99-n]}
+            outcome=self.update(a,b,n+1)
+            self.assertEqual(outcome['effects']['metric.fullness.0'],-1)
+            self.assertIsNone(outcome['progress_evidence'])
+            if outcome.get('loop',{}):
+                if outcome['loop']['event']=='loop_detected':detected=outcome['loop']
+        self.assertIsNotNone(detected)
 
     def test_llm_explanation_remains_refutable_hypothesis(self):
         proposal={'candidate':self.action['id'],'feature':'metric.hp.0','expected':1,'tolerance':0,'explanation':'HP増加という仮説'}

@@ -103,7 +103,9 @@ class NextGenController:
                         if after_neutral.get('ui_visual',{}).get('change_fraction',0)>=.35:neutral_regions=[[0,0,1,1]]
                         natural_confidence=.85;before=after_neutral;image=sample.image
                         stages['neutral_observation_ms']=(time.monotonic()-t)*1000
-                    before=self.sense(image,full,base_state=before)
+                    sense_started=time.monotonic();before=self.sense(image,full,base_state=before)
+                    stages['pre_input_sense_ms']=(time.monotonic()-sense_started)*1000
+                    stages['pre_input_map_capture_ms']=before['timing'].get('map_capture_ms',0)
                     prefetch.begin(before,candidates)
                     if step==0:
                         from .knowledge_access import KnowledgeAccess

@@ -79,6 +79,6 @@ class CapabilityManager:
     def missing(self,names,state,conditions=()):return [n for n in names if not self.matching(n,state,conditions)]
     def priors(self,name,state,candidates,conditions=()):
         allowed={c['id'] for c in candidates}
-        return [{'id':s['input']['id'],'value':min(1.5,s['confidence']),'reason':'同じ観測条件で成功した技能 '+name} for s in self.matching(name,state,conditions)[:3] if s['input']['id'] in allowed]
+        return [{'id':s['input']['id'],'value':min(1.5,s['confidence']),'kind':'capability_evidence','reason':'同じ観測条件で成功した技能 '+name} for s in self.matching(name,state,conditions)[:3] if s['input']['id'] in allowed]
     def summary(self,state):
         return [{'name':s['name'],'confidence':round(s['confidence'],3),'status':s['status'],'applicable':s['scope']==scope(state,s['name']),'successes':len(s['successes']),'failures':len(s['failures'])} for s in list(self.skills.values())[-24:]]

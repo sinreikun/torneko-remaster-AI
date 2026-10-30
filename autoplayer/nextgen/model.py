@@ -38,7 +38,7 @@ def target_score(state,target):
 class ForwardModel:
     def __init__(self,store):
         self.store=store;self.rules=OrderedDict();self.visits=Counter();self.recent=deque(maxlen=36);self.pending=deque(maxlen=8);self.edges={};self.hypotheses=[];self.checks=deque(maxlen=128)
-        self.escape=None;self.serial=0;self.last_goal=None
+        self.escape=None;self.serial=0;self.last_goal=None;self.current_targets=[]
         saved=store.load('autonomy','cycle_avoidance');self.cycle_memory=OrderedDict()
         for item in (saved[0].get('entries',[]) if saved else [])[-256:]:
             if item['remaining']>0 and item['expires_at']>time.time():
@@ -135,7 +135,7 @@ class ForwardModel:
         return [{'id':action_id(k,h),'keys':k,'hold_ms':h,'declared_meanings':[cfg.key_bindings.get(key,'') for key in k]} for k in [[x] for x in keys]+chords for h in holds]
     def choose(self,state,candidates,plan=None,weight=.6):
         started=time.monotonic();plan=plan or {};ranked=[];self.prediction_ms=0.;self.search_ms=0.
-        goals=[t for t in plan.get('targets',[]) if target_score(state,t)!=1];current_goal=[target_score(state,t) for t in goals]
+        goals=[t for t in plan.get('targets',[]) if target_score(state,t)!=1];self.current_targets=copy.deepcopy(goals);current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         loop_keys={tuple(json.loads(identifier)[0]) for identifier in loop_actions}
         for action in candidates:
@@ -165,7 +165,10 @@ class ForwardModel:
                         observed=[target_score(x['outcome'],target) for x in samples if x.get('outcome')]
                         if observed:goal+=target.get('weight',1)*(sum(v for v in observed if v is not None)/len(observed)-(current_goal[i] or 0))
             else:novelty=1.;gain=1.
-            prior=next((x['value'] for x in plan.get('candidate_values',[]) if x['id']==action['id'] or x.get('keys')==action['keys']),0.)
+            prior_record=next((x for x in plan.get('candidate_values',[]) if x['id']==action['id'] or x.get('keys')==action['keys']),{})
+            raw_prior=prior_record.get('value',0.)
+            competence_only=raw_prior>0 and prior_record.get('kind')=='capability_evidence' and not goals
+            prior=0. if competence_only else raw_prior
             attempts=sum(x['before']==state['id'] and x['action']==action['id'] for x in self.recent)
             info=p['uncertainty']/math.sqrt(1+p['trials'])
             # Predictability reduces exploration; surprise raises it in update().
@@ -178,7 +181,7 @@ class ForwardModel:
             cycle_discount=5 if self.escape and not (closing and goal>0) and (action['id'] in loop_actions or tuple(action['keys']) in loop_keys) else 0
             remembered_discount=self.cycle_discount(state,action,goal)
             score-=cycle_discount+remembered_discount
-            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'loop_action_discount':cycle_discount,'remembered_cycle_discount':remembered_discount,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
+            ranked.append({'candidate':action,'prediction':p,'score':score,'information_gain_proxy':info,'novelty':novelty,'expected_goal_value':goal,'observed_loss_risk':loss,'recent_attempts':attempts,'raw_action_prior':raw_prior,'applied_action_prior':prior,'competence_only_prior_ignored':competence_only,'loop_action_discount':cycle_discount,'remembered_cycle_discount':remembered_discount,'layout_no_effect_discount':transfer,'goal_affordance_trial':bool(affordance),'goal_realization':'observed_transition' if goal>0 else 'bounded_user_binding_trial' if affordance else 'unresolved' if goals else 'none'})
         ranked.sort(key=lambda x:(-x['score'],x['candidate']['id']))
         best=ranked[0]
         # Bounded lookahead on observed graph only. Transit through known nodes is
@@ -278,7 +281,16 @@ class ForwardModel:
                 delayed.append(delay);self.store.put('delayed',delay,step)
         self.pending.append({'step':step,'before':snapshot(before),'action':action['id'],'immediate':copy.deepcopy(effect)})
         event={'context':before['context'],'before_interface':bool(before['interface_hypothesis']),'after_interface':bool(after['interface_hypothesis']),'before':before['id'],'after':after['id'],'action':action['id'],'step':step,'cycle_observation_valid':min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok'}
-        meaningful=new or any(v for k,v in effect.items() if k.startswith('metric.') or k=='floor_changed')
+        goal_improved=False
+        if min(before['quality'],after['quality'])>=.7 and before['measurement_status']==after['measurement_status']=='ok':
+            for target in self.current_targets:
+                a=target_score(before,target);b=target_score(after,target)
+                if a is not None and b is not None and b>a:goal_improved=True
+                if target['feature'].startswith('metric.') and target['operator'] in ('ge','le'):
+                    a=value_at(before,target['feature']);b=value_at(after,target['feature'])
+                    if isinstance(a,(int,float)) and isinstance(b,(int,float)) and (b>a if target['operator']=='ge' else b<a):goal_improved=True
+        progress_evidence='new_state' if new else 'goal_condition_improved' if goal_improved else 'confirmed_floor_transition' if effect.get('floor_changed') else None
+        meaningful=progress_evidence is not None
         self.recent.append(event);loop=None
         if self.escape:
             self.escape['attempts']+=1
@@ -326,7 +338,7 @@ class ForwardModel:
             hypothesis['status']='contradicted' if not supported else 'supported_association'
             hypothesis['confidence']=(hypothesis['support']+1)/(hypothesis['support']+hypothesis['counterexamples']+2)
             self.store.put('hypotheses',hypothesis,key=hypothesis['id']);hypothesis_checks.append(copy.deepcopy(hypothesis))
-        result={'status':'updated','effects':effect,'match':match,'surprise':surprise,'new_state':new,'uncertainty':prediction['uncertainty'],'information_gain':max(0,prediction['uncertainty']-self.predict(before,action['id'])['uncertainty']),
+        result={'status':'updated','effects':effect,'match':match,'surprise':surprise,'new_state':new,'progress_evidence':progress_evidence,'uncertainty':prediction['uncertainty'],'information_gain':max(0,prediction['uncertainty']-self.predict(before,action['id'])['uncertainty']),
           'confidence':confidence,'evaluated_features':mask,'unscored_features':[k for k in effect if k not in mask],'attribution':'observed_association_not_proven_cause','rule_status':rule['status'],'condition_split_node':rule.get('condition_node'),'revisions':rule['revisions'],'loop':loop,'delayed':delayed,'hypothesis_checks':hypothesis_checks}
         self.checks.append({'match':match,'new_state':new,'loop':bool(loop and loop['event']=='loop_detected')})
         self.store.put('evaluation',result,step)
