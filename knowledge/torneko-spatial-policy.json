@@ -1,0 +1,20 @@
+{
+  "source": "User supplied Torneko priorities; replaceable profile policy, not engine rules",
+  "priorities": {
+    "enemy": 3,
+    "item": 2,
+    "frontier": 1,
+    "portal": 1,
+    "stairs": 0.2,
+    "obstacle": 0.1
+  },
+  "max_distance": {
+    "enemy": 2
+  },
+  "mapless_screen_change_assumption": true,
+  "note": "Approaching an enemy is not defeating it. Position arrival is not item possession or stair traversal. No stair direction is assumed.",
+  "grid_topology": 8,
+  "field_reserved_meanings": [
+    "マップ表示"
+  ]
+}
