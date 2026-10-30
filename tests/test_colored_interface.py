@@ -22,7 +22,8 @@ class ColoredInterfaceTests(unittest.TestCase):
         png=(Path(__file__).parent/'fixtures/colored-menu-1793151109362765000.png').read_bytes()
         ocr=Mock();ocr.read.return_value={'status':'ok','frame_sha256':hashlib.sha256(png).hexdigest(),'lines':[{'text':'道具'},{'text':'マップ'}]}
         state=StateBuilder(Settings(),ocr).build(png,False)
-        self.assertTrue(state['interface_hypothesis']);ocr.read.assert_called_once_with(png);ocr.read_regions.assert_not_called()
+        # Unlocated labels force full OCR but cannot corroborate a colored region.
+        self.assertFalse(state['interface_hypothesis']);ocr.read.assert_called_once_with(png);ocr.read_regions.assert_not_called()
     def test_changing_keys_cannot_hide_sixteen_steps_of_stagnation(self):
         cfg=Settings(window_title='generic',allowed_keys=list('abcdefghijklmnop'))
         with tempfile.TemporaryDirectory() as folder:

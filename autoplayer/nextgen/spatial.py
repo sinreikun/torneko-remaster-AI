@@ -4,6 +4,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image,ImageChops,ImageStat
 from .state_hash import digest
+from .interaction_surface import allows_field_input
 
 DIRECTIONS=((0,-1),(1,0),(0,1),(-1,0))
 GRID_STEPS=DIRECTIONS+((-1,-1),(1,-1),(1,1),(-1,1))
@@ -42,10 +43,10 @@ class SpatialModel:
     @staticmethod
     def evidence(state,turn,source):return {'frame':state['frame_sha256'],'turn':turn,'source':source}
     def update(self,state,turn,transition=None,png=None):
-        if transition and transition.get('images') and not state.get('interface_hypothesis') and not transition.get('before',{}).get('interface_hypothesis'):
+        if transition and transition.get('images') and allows_field_input(state) and allows_field_input(transition.get('before',{})):
             transition=copy.deepcopy(transition);transition['motion']=visual_motion(*transition.pop('images'))
         self.revision+=1;ev=self.evidence(state,turn,'OBSERVED');grid=state.get('minimap',{});old_active=self.active;movement={'status':'not_observed'}
-        ui=state.get('interface_hypothesis') or state.get('ui_visual',{}).get('active')
+        ui=not allows_field_input(state)
         measured=grid.get('status') in ('observed','retained') and grid.get('player_cell') is not None
         boundary=bool(transition and transition.get('boundary',{}).get('blackout_seen'))
         fp=fingerprint(png)
@@ -103,7 +104,7 @@ class SpatialModel:
             r=self.region(key,'hypothesis');pose=cell(r['pose'] or [0,0]);ev=self.evidence(state,turn,'HYPOTHESIS')
             if transition and not boundary and old_active==key:
                 intent=transition.get('intent',{});facts=transition.get('motion',{});before=transition.get('before',{})
-                eligible=not ui and not before.get('interface_hypothesis') and transition.get('accepted') and intent.get('delta') in [list(d) for d in DIRECTIONS]
+                eligible=not ui and allows_field_input(before) and transition.get('accepted') and intent.get('delta') in [list(d) for d in DIRECTIONS]
                 if eligible and (facts.get('status')=='translated' or transition.get('assumption') and facts.get('difference',0)>8):
                     previous=pose;pose=plus(pose,cell(intent['delta']));r['pose']=list(pose)
                     r['edges'][tag(previous)+'>'+tag(pose)]={'source':'HYPOTHESIS','evidence':ev}
@@ -127,7 +128,7 @@ class SpatialModel:
                 if obstacle:obstacle['interaction_tried']=True;obstacle['allow_probe']=True
         if transition and measured and old_active==key:
             before=transition['before'];a=before.get('spatial',{}).get('pose');b=r['pose'];intent=transition.get('intent',{})
-            if a is not None and not ui and not before.get('interface_hypothesis') and transition.get('accepted') and grid['status']=='observed':
+            if a is not None and not ui and allows_field_input(before) and transition.get('accepted') and grid['status']=='observed':
                 a=cell(a);b=cell(b);delta=cell(intent.get('delta',[0,0]));expected=plus(a,delta)
                 if max(abs(b[0]-a[0]),abs(b[1]-a[1]))==1:
                     r['edges'][tag(a)+'>'+tag(b)]={'source':'EXPERIENCED','evidence':ev};r['obstacles'].pop(tag(b),None)
@@ -209,7 +210,7 @@ class SpatialLane:
         self.model=SpatialModel(saved);self.pool=ThreadPoolExecutor(max_workers=1,thread_name_prefix='spatial-model');self.pending=None;self.revision=0;self.region=None
     def begin(self,state,turn,control_revision=0,transition=None,png=None):
         if self.pending is not None:raise RuntimeError('Spatial ownership not joined')
-        state=copy.deepcopy({k:v for k,v in state.items() if k in ('frame_sha256','map_domain','floor_confirmation','minimap','interface_hypothesis','ui_visual','spatial','spatial_topology')})
+        state=copy.deepcopy({k:v for k,v in state.items() if k in ('frame_sha256','map_domain','floor_confirmation','minimap','interface_hypothesis','ui_visual','spatial','spatial_topology','input_surface_observation')})
         state['ui_visual']={'active':state.get('ui_visual',{}).get('active',False)}
         self.expected=(state['frame_sha256'],turn,self.region,self.revision,control_revision)
         base=self.expected;working=copy.copy(self.model);working.regions=dict(self.model.regions);working.writable=set();working.portals=copy.deepcopy(self.model.portals);working.calibration=dict(self.model.calibration);working.measured_scopes=dict(self.model.measured_scopes)

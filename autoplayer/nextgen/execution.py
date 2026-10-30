@@ -5,6 +5,7 @@ No OS calls, LLM waits or game-specific keys. Game semantics are profile data.
 import copy,math,re
 from collections import deque
 from .state_hash import digest
+from .interaction_surface import allows_field_input
 
 class ProcedureExecutor:
     def __init__(self,store,bindings,policy):
@@ -113,7 +114,7 @@ class ProcedureExecutor:
         self.requirement=None
         if self.active and step>=self.active['deadline']:self.finish('expired',step,'finite_budget')
         enemies=self.enemies(state,step);adjacent=[e for e in enemies if e['distance']==1 and not(e['stationary_candidate'] and hp and hp[0]<hp[1]*.7 and not self.recent_incoming(step))];near=[e for e in enemies if e['distance']<=2]
-        field=not state.get('interface_hypothesis') and state.get('spatial',{}).get('status')=='ready' and state.get('spatial',{}).get('provider')=='measured'
+        field=allows_field_input(state) and state.get('spatial',{}).get('status')=='ready' and state.get('spatial',{}).get('provider')=='measured'
         if not self.active and field:
             damage=self.expected_incoming(state)
             low=bool(hp and (hp[0]<hp[1]*self.policy.get('low_hp_ratio',.4) or damage and hp[0]<=damage*2));hungry=bool(food and food[0]<=self.policy.get('food_threshold',15))
@@ -227,7 +228,7 @@ class ProcedureExecutor:
                 options.append((estimate['value']-current[0],row,{'purpose':'equip','command':'equip','metric':estimate['slot'],'direction':'increase'}))
         return max(options,key=lambda x:x[0])[1:] if options else None
     def advance(self,state,step):
-        a=self.active;ui=state.get('execution_ui',{});kind=ui.get('kind');field=not state.get('interface_hypothesis');labels=self.policy['labels']
+        a=self.active;ui=state.get('execution_ui',{});kind=ui.get('kind');field=allows_field_input(state);labels=self.policy['labels']
         if a['stage']=='identify_target':
             prompt=bool(re.search(self.policy.get('identification_prompt','(?!)'),' '.join(state.get('quotes',[]))))
             if kind!='inventory' or not prompt:return self.missing(state,step,'identification_target_prompt_unconfirmed')

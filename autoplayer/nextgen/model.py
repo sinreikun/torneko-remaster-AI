@@ -119,7 +119,7 @@ class ForwardModel:
         if len(samples)<3 or len({s['origin'] for s in samples})<2:return 0.
         if any(any(v for v in s['effects'].values() if v is not None) for s in samples):return 0.
         return min(.6,len(samples)*.08)
-    def candidates(self,cfg):
+    def candidates(self,cfg,role_patterns=None):
         keys=list(dict.fromkeys(cfg.allowed_keys));chords=[]
         # Chords come only from the user's direction bindings, not game names.
         directions={}
@@ -129,7 +129,7 @@ class ForwardModel:
                 if label.casefold() in terms:directions[name]=k
         for a,b in (('up','left'),('up','right'),('down','left'),('down','right')):
             if a in directions and b in directions:chords.append([directions[a],directions[b]])
-        modifiers=[k for k,label in cfg.key_bindings.items() if re.search(r'方向転換|補助|modifier',label,re.I) and k in keys][:4]
+        modifiers=[k for k,label in cfg.key_bindings.items() if (re.search(r'方向転換|補助|modifier',label,re.I) or role_patterns and re.search(role_patterns.get('face','(?!)'),label,re.I)) and k in keys][:4]
         diagonal_chords=list(chords)
         chords.extend([[m,d] for m in modifiers for d in directions.values() if m!=d])
         chords.extend([[m]+d for m in modifiers for d in diagonal_chords if m not in d])
@@ -153,7 +153,7 @@ class ForwardModel:
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         loop_keys={tuple(json.loads(identifier)[0]) for identifier in loop_actions}
         for action in candidates:
-            if state['interface_hypothesis'] and len(action['keys'])>1:
+            if not execution and state['interface_hypothesis'] and len(action['keys'])>1:
                 preferred=any(v.get('id')==action['id'] or v.get('keys')==action['keys'] for v in plan.get('candidate_values',[]) if v.get('value',0)>0)
                 singles=[c for c in candidates if len(c['keys'])==1 and c['hold_ms']==min(x['hold_ms'] for x in candidates)]
                 if not preferred:continue

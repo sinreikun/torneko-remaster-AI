@@ -7,6 +7,7 @@ from ..controls import is_torneko
 from ..knowledge import KnowledgeEngine
 from ..map_sensor import MapSensor,FloorConfirmation,read_grid
 from .frame_sensor import interface_frames
+from .interaction_surface import corroborated_frame
 from ..appearance import descriptor
 
 
@@ -148,7 +149,7 @@ class StateBuilder:
         started=time.monotonic();value=self.analyze(png,full);native=value['native'];metrics=value['metrics'];grid=value['minimap'];sha=value['sha']
         if measured_map is not None:grid=self.map_sensor.accumulate(copy.deepcopy(measured_map),value['floor_confirmation'].get('confirmed'))
         quotes,footer,masked=collect(native,value['size'])
-        menu=value['white_frame'].get('visible') is True
+        menu=corroborated_frame(value['white_frame'],native,value['size'])
         # Text is observed, "menu" remains a geometric interface hypothesis.
         body=[re.sub(r'\d+','N',re.sub(r'\s+','',q)) for q in quotes]
         ui=self.ui_vision.measure(png,native,{**self.observation_policy,'ui_surface_observed':menu or bool(masked)})

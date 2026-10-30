@@ -9,6 +9,17 @@ class DungeonObserver:
     def __init__(self,scope,descriptions=()):
         self.inventory=Inventory(scope);self.inventory.description_reads=copy.deepcopy(list(descriptions)[-40:]);self.last_frame=None;self.last=None
     def reset(self,scope):self.__init__(scope,[r for r in self.inventory.description_reads if r.get('identity_scope')=='profile_display_name'])
+    @staticmethod
+    def surface(state,native):
+        from ..battle_messages import read_messages
+        result={'kind':'unknown','frame_sha256':state['frame_sha256'],'evidence':[]}
+        if native.get('frame_sha256')!=state['frame_sha256'] or native.get('status')!='ok':return result
+        if torneko_menu_kind(native) or ordinary_choice(native) or result_screen(native):return {**result,'kind':'interactive'}
+        messages=read_messages(native,state['frame_sha256'])
+        selected=state.get('selection_observation',{}).get('status')=='supported_association'
+        if messages and state.get('metrics',{}).get('hp') and state.get('metrics',{}).get('floor') and not selected:
+            return {**result,'kind':'passive_message','evidence':messages,'basis':'current_battle_text_and_hud_without_selection_or_known_menu'}
+        return result
     def observe(self,state,native,png=None):
         if native.get('frame_sha256')!=state['frame_sha256'] or native.get('status')!='ok':return {'status':'unavailable','frame':state['frame_sha256']}
         # OCR can be refreshed on identical pixels; do not freeze an unknown cursor.

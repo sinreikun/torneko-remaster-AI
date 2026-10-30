@@ -9,7 +9,7 @@
     "confirm": "決定|confirm",
     "cancel": "キャンセル|cancel",
     "menu": "^メニュー$|^menu$",
-    "face": "方向転換",
+    "face": "方向転換|方向を向く|向きを変|face",
     "rest": "足踏み",
     "details": "マップ表示"
   },

@@ -13,6 +13,7 @@ from .pace import PaceController
 from .spatial import SpatialLane,trace as spatial_trace
 from .execution import ProcedureExecutor
 from .dungeon_observer import DungeonObserver
+from .interaction_surface import allows_field_input
 from ..controls import is_torneko
 from ..cancellation import OperationCancelled
 from ..observation_store import message_candidates
@@ -49,9 +50,10 @@ class NextGenController:
             return ImageStat.Stat(ImageChops.difference(x.convert('RGB').resize((32,24)),y.convert('RGB').resize((32,24)))).mean[0]/255
     def sense(self,png,full=True,step=0,base_state=None):
         state=base_state if base_state is not None and base_state.get('frame_sha256')==hashlib.sha256(png).hexdigest() else self.builder.build(png,full)
+        if is_torneko(self.cfg.window_title):state['input_surface_observation']=DungeonObserver.surface(state,self.builder.cache.get(state['frame_sha256'],{}).get('native',{}))
         # This adapter only measures the user's map legend, never chooses actions.
         floor=state['floor_confirmation'];valid_floor=floor.get('status') in ('initialized','confirmed','changed') and floor.get('confirmed') is not None
-        can_map=is_torneko(self.cfg.window_title) and 'num7' in self.cfg.allowed_keys and valid_floor and not state['interface_hypothesis'] and state.get('minimap',{}).get('status')!='observed'
+        can_map=is_torneko(self.cfg.window_title) and 'num7' in self.cfg.allowed_keys and valid_floor and allows_field_input(state) and state.get('minimap',{}).get('status')!='observed'
         if can_map and base_state is not None and self.previous and self.previous.get('minimap',{}).get('status')=='observed' and floor.get('confirmed')==self.previous.get('floor_confirmation',{}).get('confirmed') and getattr(self,'previous_image',None) and self.difference(png,self.previous_image)<.01:
             retained=copy.deepcopy(self.previous['minimap']);retained['status']='retained';retained['retained_from_frame']=self.previous['frame_sha256']
             state['minimap']=retained;state['map_domain']=self.previous.get('map_domain');can_map=False
@@ -64,6 +66,7 @@ class NextGenController:
                     state=self.builder.build(png,full,measured_map=measured)
             state['timing']['map_capture_ms']=(time.monotonic()-started)*1000
         if hasattr(self.backend,'record_frame'):self.backend.record_frame(png,'observation' if step==0 else 'result')
+        if is_torneko(self.cfg.window_title):state['input_surface_observation']=DungeonObserver.surface(state,self.builder.cache.get(state['frame_sha256'],{}).get('native',{}))
         return state
     def wait_time(self,state,protect):
         context=state['context'];samples=self.durations.get(context,[])
@@ -83,7 +86,7 @@ class NextGenController:
         dungeon_observer=DungeonObserver(store.session+':0',descriptions[0].get('records',[]) if descriptions else []) if execution_policy else None
         previous_boundary_tracking=getattr(getattr(self.backend,'observer',None),'track_scene_boundaries',False)
         if hasattr(self.backend,'configure_scene_boundaries'):self.backend.configure_scene_boundaries(True)
-        supervisor=ResearchLayer(self.cfg,self.llm,self.send_event,self.cancel,store);candidates=model.candidates(self.cfg)
+        supervisor=ResearchLayer(self.cfg,self.llm,self.send_event,self.cancel,store);candidates=model.candidates(self.cfg,execution_policy.get('roles'))
         self.builder.ui_vision.restore(store.load('ui_models',limit=64))
         self.builder.ui_interactions.restore(store.load('ui_interactions',limit=64))
         for appearance in store.load('appearances',limit=128):self.builder.tracker.variants[appearance['id']]=appearance['variants']
@@ -245,10 +248,11 @@ class NextGenController:
                     ui_receipt=receipt if kind!='aborted' and revision==getattr(self.control,'revision',0) else {'os_submission':'censored'}
                     ui_transition=self.builder.ui_vision.learn(before,after,action,ui_receipt,step,neutral,neutral_regions)
                     self.builder.apply_ui_selection(after)
+                    if dungeon_observer:after['input_surface_observation']=DungeonObserver.surface(after,self.builder.cache[after['frame_sha256']]['native'])
                     ui_model=self.builder.ui_vision.models.get(after.get('ui_visual',{}).get('layout'))
                     if ui_model:store.put('ui_models',ui_model,step,key=ui_model['key'])
                     meta.check_boundary(after,step)
-                    transition={'before':{k:copy.deepcopy(before.get(k)) for k in ('spatial','interface_hypothesis')},'intent':meta.capabilities.spatial_intent(action),'accepted':ui_receipt.get('os_submission')=='accepted' and kind!='aborted','hold_ms':action['hold_ms'],'target':plan.get('spatial_target'),'boundary':getattr(observation,'scene_boundary',{}) if hasattr(self.backend,'observe_turn') else {},'images':(image,after_image) if before.get('spatial',{}).get('provider')=='hypothesis' else None,'assumption':spatial_policy.get('mapless_screen_change_assumption',False)}
+                    transition={'before':{k:copy.deepcopy(before.get(k)) for k in ('spatial','interface_hypothesis','frame_sha256','input_surface_observation')},'intent':meta.capabilities.spatial_intent(action),'accepted':ui_receipt.get('os_submission')=='accepted' and kind!='aborted','hold_ms':action['hold_ms'],'target':plan.get('spatial_target'),'boundary':getattr(observation,'scene_boundary',{}) if hasattr(self.backend,'observe_turn') else {},'images':(image,after_image) if before.get('spatial',{}).get('provider')=='hypothesis' else None,'assumption':spatial_policy.get('mapless_screen_change_assumption',False)}
                     after['spatial_topology']=spatial_policy.get('grid_topology',4)
                     spatial_lane.begin(after,step,revision,transition,after_image)
                     progress_lane.begin(meta.progress,after,step)
