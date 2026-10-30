@@ -172,12 +172,20 @@ class SpatialPlanner:
         def add(kind,dest,path,confidence,source,probe=None):
             targets.append({'id':digest([r['id'],kind,dest,probe]),'kind':kind,'cell':list(dest),'probe':list(probe) if probe else None,'distance':len(path)-1,'path':[list(p) for p in path],'confidence':confidence,'source':source,'evidence':[r['cells'][tag(path[0])]['evidence']],'stamp':copy.deepcopy(view['stamp'])})
         for a,path in paths.items():
-            degree=sum(plus(a,d) in known for d in DIRECTIONS)
+            neighbors=[d for d in DIRECTIONS if plus(a,d) in known]
+            degree=len(neighbors)
             for d in DIRECTIONS:
                 b=plus(a,d)
                 if bounds and not (0<=b[0]<bounds[0] and 0<=b[1]<bounds[1]):continue
                 if b in known or b in blocked:continue
-                add('frontier',b,path+[b],.65 if degree<=2 else .25,'HYPOTHESIS',b)
+                # A corridor's unknown side is not equivalent to its continuation.
+                # These are ranked hypotheses, never inferred permanent walls.
+                straight=degree==2 and neighbors[0]==(-neighbors[1][0],-neighbors[1][1])
+                continuation=degree==1 and d==(-neighbors[0][0],-neighbors[0][1])
+                confidence=.75 if continuation else .65 if degree==0 else .15 if straight else .2 if degree==1 else .25
+                add('frontier',b,path+[b],confidence,'HYPOTHESIS',b)
+                targets[-1]['frontier_basis']='axial_continuation' if continuation else 'isolated_unknown' if degree==0 else 'corridor_side_unverified' if straight else 'side_or_boundary_unverified'
+                targets[-1]['topology_evidence']={'origin':list(a),'known_neighbor_directions':[list(v) for v in neighbors],'not_wall_confirmation':True}
         for plural,kind in (('items','item'),('enemies','enemy'),('stairs','stairs'),('portals','portal')):
             for p in r['icons'].get(plural,[]):
                 p=cell(p)

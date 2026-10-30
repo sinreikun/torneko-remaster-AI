@@ -146,3 +146,29 @@ class SpatialContracts(unittest.TestCase):
     def test_live_icon_disappearance_removes_item_target(self):
         m=SpatialModel();m.update(state(),0);s=state('b');s['minimap']['items']=[]
         self.assertFalse(any(t['kind']=='item' for t in SpatialPlanner.candidates(m.update(s,1))))
+    def test_recorded_corridor_geometry_prefers_continuation_without_deleting_sides(self):
+        import json
+        f=json.loads((Path(__file__).parent/'fixtures/spatial-corridor-1793329276462314800.json').read_text())
+        s=state(pose=f['pose'],known=f['known']);s['minimap']['items']=[];s['minimap']['grid_size']=f['grid_size']
+        m=SpatialModel();v=m.update(s,0);v['targets']=SpatialPlanner.candidates(v)
+        side=next(t for t in v['targets'] if t['kind']=='frontier' and t['cell']==f['old_target'])
+        self.assertEqual(side['frontier_basis'],'corridor_side_unverified');self.assertLess(side['confidence'],.6)
+        with tempfile.TemporaryDirectory() as d:
+            store=ExperienceStore(Path(d)/'s.sqlite','p','s');p=ProgressManager(store);p.spatial_goal=side
+            target=p.select_spatial(v,{}, {'priorities':{'frontier':1}})
+            self.assertEqual(target['cell'],[3,23]);self.assertEqual(target['frontier_basis'],'axial_continuation')
+            self.assertEqual(target['path'],[[1,22],[1,23],[2,23],[3,23]])
+            self.assertNotIn('0,22',v['region_data']['obstacles']);store.close()
+    def test_corridor_sides_remain_available_after_axial_candidates_are_refuted(self):
+        m=SpatialModel();s=state(pose=(2,2),known=[(2,1),(2,2),(2,3)])
+        s['minimap']['items']=[];v=m.update(s,0);v['targets']=SpatialPlanner.candidates(v)
+        v['targets']=[t for t in v['targets'] if t.get('frontier_basis')=='corridor_side_unverified']
+        with tempfile.TemporaryDirectory() as d:
+            store=ExperienceStore(Path(d)/'s.sqlite','p','s');p=ProgressManager(store)
+            target=p.select_spatial(v,{}, {'priorities':{'frontier':1}})
+            self.assertIsNotNone(target);self.assertEqual(target['distance'],1);store.close()
+    def test_unknown_boundary_of_bent_or_room_floor_is_not_axial_evidence(self):
+        m=SpatialModel();s=state(pose=(2,2),known=[(1,2),(2,2),(2,1),(1,1)]);s['minimap']['items']=[]
+        v=m.update(s,0);ts=SpatialPlanner.candidates(v)
+        for t in ts:
+            if t['path'][-2]==[2,2]:self.assertEqual(t['frontier_basis'],'side_or_boundary_unverified')
