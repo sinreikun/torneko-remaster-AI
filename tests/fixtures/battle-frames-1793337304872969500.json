@@ -1,0 +1,93 @@
+{
+  "source": "diagnostics-1793337304872969500, stored Dracky events at steps 148/149; replay of sampled OCR, not game simulation",
+  "evidence": [
+    {
+      "message": {
+        "kind": "damage_dealt",
+        "enemy": "ドラキー",
+        "quote": "トルネコはドラキーに4ポイントのダメージを与えた",
+        "source_frame_sha256": "c26fbf680c766a57ad6253671ac1a2a0e06902625648a6147d4fe6e7296cdc25",
+        "source": "explicit_ocr_message",
+        "unverified_ocr": true,
+        "damage": 4
+      },
+      "step": 148,
+      "before": "72a602a96f574ca791d0a3cdd3a3c0b39b092a11c75c73b4d961ccf13f650e60",
+      "after": "b9fbd6302e421df9ed50906b054a2f02b166c0e6fdd859c95c9d90a3c4111fcb",
+      "relative_targets": [
+        [
+          -1,
+          -1
+        ]
+      ],
+      "appearance_candidates": [],
+      "identity_link": "unconfirmed"
+    },
+    {
+      "message": {
+        "kind": "damage_dealt",
+        "enemy": "ドラキー",
+        "quote": "トルネコはドラキーに4ポイントのダメージを与えた",
+        "source_frame_sha256": "f4ceaa1ae196ebffad17ebb6e035a25d17ee86e3713cc04a7a41aeb4c2bed649",
+        "source": "explicit_ocr_message",
+        "unverified_ocr": true,
+        "damage": 4
+      },
+      "step": 148,
+      "before": "72a602a96f574ca791d0a3cdd3a3c0b39b092a11c75c73b4d961ccf13f650e60",
+      "after": "b9fbd6302e421df9ed50906b054a2f02b166c0e6fdd859c95c9d90a3c4111fcb",
+      "relative_targets": [
+        [
+          -1,
+          -1
+        ]
+      ],
+      "appearance_candidates": [],
+      "identity_link": "unconfirmed"
+    },
+    {
+      "message": {
+        "kind": "damage_dealt",
+        "enemy": "ドラキー",
+        "quote": "トルネコはドラキーに4ポイントのダメージを与えた",
+        "source_frame_sha256": "de6a6f8bd050417f1774b13e7ddf6097b7aad3c7e9e7bb2c10a105ed5d577539",
+        "source": "explicit_ocr_message",
+        "unverified_ocr": true,
+        "damage": 4
+      },
+      "step": 149,
+      "before": "a5dc0511184aacc7defedbb1c400d499247bd64579f638bda4f04dd8bc000fab",
+      "after": "f8ee2df561dbce30e0ffd5d4857c97046387d4d3ac08a1ddfa079aee1dc67a39",
+      "relative_targets": [
+        [
+          -1,
+          -1
+        ]
+      ],
+      "appearance_candidates": [],
+      "identity_link": "unconfirmed"
+    },
+    {
+      "message": {
+        "kind": "damage_dealt",
+        "enemy": "ドラキー",
+        "quote": "トルネコはドラキーに4ポイントのダメージを与えた",
+        "source_frame_sha256": "f8ee2df561dbce30e0ffd5d4857c97046387d4d3ac08a1ddfa079aee1dc67a39",
+        "source": "explicit_ocr_message",
+        "unverified_ocr": true,
+        "damage": 4
+      },
+      "step": 149,
+      "before": "a5dc0511184aacc7defedbb1c400d499247bd64579f638bda4f04dd8bc000fab",
+      "after": "f8ee2df561dbce30e0ffd5d4857c97046387d4d3ac08a1ddfa079aee1dc67a39",
+      "relative_targets": [
+        [
+          -1,
+          -1
+        ]
+      ],
+      "appearance_candidates": [],
+      "identity_link": "unconfirmed"
+    }
+  ]
+}
