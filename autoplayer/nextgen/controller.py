@@ -279,6 +279,7 @@ class NextGenController:
                         battle_events=[]
                         for entry in text_evidence:battle_events.extend(read_messages(entry['native'],entry['frame_sha256']))
                         battle_events.extend(read_messages(self.builder.cache[after['frame_sha256']]['native'],after['frame_sha256']))
+                        before['battle_message_observation']=read_messages(self.builder.cache[before['frame_sha256']]['native'],before['frame_sha256'])
                         executor.feedback(before,after,action,ui_receipt,step,battle_events)
                         requested_skill='handle_target' if procedure and procedure['task']=='combat' and procedure['role']=='confirm' else 'inspect_inventory' if procedure and procedure['task']=='review' else 'equip' if procedure and procedure['task']=='equip' else 'use_item' if procedure and executor.active and executor.active.get('item') else None
                         if requested_skill:meta.capabilities.observe(before,action,after,result,step,requested_skill,neutral=neutral)

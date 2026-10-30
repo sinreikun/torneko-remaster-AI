@@ -66,15 +66,18 @@
     {
       "names": [
         "パン",
-        "大きなパン"
+        "大きなパン",
+        "大きいパン"
       ],
       "purpose": "food",
       "command": "eat",
       "metric": "fullness",
       "direction": "increase",
       "description_patterns": [
-        "満腹度.{0,12}回復"
-      ]
+        "満腹度.{0,12}回復",
+        "おなか.{0,12}いっぱい"
+      ],
+      "source_note": "大きいパン / おなかがいっぱいになるぞ: observed in diagnostics-1793337304872969500; exact recovery amount remains unverified"
     },
     {
       "names": [

@@ -166,3 +166,56 @@ class ExecutionContracts(unittest.TestCase):
         before=frame('before',[(0,1)],(5,15));after=frame('after',[(0,1)],(4,15))
         self.e.feedback(before,after,{'keys':['num1']},{'os_submission':'accepted'},3,[])
         self.assertEqual(self.choose(after,4)['role'],'face')
+    def test_recorded_duplicate_frames_are_one_event_group_per_input(self):
+        f=json.loads((Path(__file__).parent/'fixtures/battle-frames-1793337304872969500.json').read_text(encoding='utf-8'))
+        for step in (148,149):
+            messages=[e['message'] for e in f['evidence'] if e['step']==step]
+            self.assertEqual(len(messages),2)
+            self.e.feedback(frame('before'+str(step)),frame('after'+str(step)),{'keys':['num1']},{'os_submission':'accepted'},step,messages)
+        self.assertEqual(sum(b['hits'] for b in self.e.battles.values()),2)
+        self.assertTrue(all(e['message']['count_basis']=='one_input_event_group_lower_bound' for b in self.e.battles.values() for e in b['evidence']))
+    def test_conflicting_names_from_one_input_remain_unknown_not_two_species(self):
+        messages=[{'kind':'damage_dealt','damage':4,'enemy':name,'quote':name,'source_frame_sha256':str(n)} for n,name in enumerate(('スライム','スフイム'))]
+        out=self.e.group_battle_messages(messages);self.assertEqual(len(out),1);self.assertIsNone(out[0]['enemy']);self.assertEqual(len(out[0]['name_candidates']),2)
+    def test_incoming_only_observations_do_not_report_zero_hit_probability(self):
+        m={'kind':'damage_received','damage':2,'enemy':'スライム','quote':'受けた','source_frame_sha256':'b'}
+        self.e.feedback(frame(),frame('b'),{'keys':['w']},{'os_submission':'accepted'},1,[m])
+        self.assertIsNone(next(iter(self.e.battles.values()))['hit_rate_observed'])
+    def test_new_inventory_evidence_invalidates_review_cooldown_but_gold_does_not(self):
+        s=frame();self.e.begin('review',s,0,'test');self.e.finish('observed_partial_inventory',6,'test')
+        self.assertIsNone(self.choose(frame(),20))
+        a=frame('pickup');a['quotes']=['火炎草を手に入れた。'];self.e.feedback(s,a,{'keys':['w']},{'os_submission':'accepted'},25)
+        self.assertEqual(self.choose(frame('next'),26)['task'],'review');generation=self.e.review_generation
+        a=frame('gold');a['quotes']=['２５ゴールドを手に入れた。'];self.e.feedback(s,a,{'keys':['w']},{'os_submission':'accepted'},27)
+        self.assertEqual(self.e.review_generation,generation)
+    def test_observed_large_bread_name_and_description_are_food_candidates(self):
+        row=item('大きいパン');self.e.pages={'p':[row]};self.assertIsNotNone(self.e.known_item('food'))
+        row=item('名称不明の食料');row['known_description']={'quotes':['おなかがいっぱいになるぞ。']};self.e.pages={'p':[row]};self.assertIsNotNone(self.e.known_item('food'))
+    def test_legacy_duplicated_combat_counts_are_archived_and_excluded(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'s.sqlite';store=ExperienceStore(path,'p','one')
+            store.put('autonomy',{'battles':{'old':{'hits':4}}},key='execution_knowledge')
+            store.put('knowledge_claims',{'id':'combat:old','source':'EXPERIENCED','status':'UNCONFIRMED','evidence':[{'frame':'a'}]},key='combat:old');store.close()
+            store=ExperienceStore(path,'p','two');e=ProcedureExecutor(store,ACTIONS,POLICY)
+            self.assertEqual(e.battles,{});self.assertEqual(e.legacy_battle_models,1);e.save(1,force=True);store.close()
+            with sqlite3.connect(path) as db:
+                record=json.loads(db.execute("SELECT data FROM knowledge_claims WHERE id='combat:old'").fetchone()[0]);self.assertEqual(record['status'],'DISPUTED')
+                saved=json.loads(db.execute("SELECT data FROM autonomy WHERE key='execution_knowledge'").fetchone()[0]);self.assertEqual(saved['schema'],2)
+                self.assertIsNotNone(db.execute("SELECT data FROM autonomy WHERE key='execution_knowledge_legacy'").fetchone())
+    def test_disagreeing_damage_across_frames_is_unknown_not_multiple_attacks(self):
+        messages=[{'kind':'damage_dealt','damage':n,'enemy':'スライム','quote':str(n),'source_frame_sha256':str(n)} for n in (4,7)]
+        out=self.e.group_battle_messages(messages);self.assertEqual(len(out),1);self.assertIsNone(out[0]['damage']);self.assertEqual(out[0]['damage_candidates'],[4,7])
+        self.e.feedback(frame(),frame('b'),{'keys':['num1']},{'os_submission':'accepted'},1,messages)
+        row=next(iter(self.e.battles.values()));self.assertEqual(row['hits'],1);self.assertEqual(row['dealt'],[])
+    def test_food_description_is_not_inventory_capacity_or_acquisition_evidence(self):
+        before=frame();after=frame('b');after['quotes']=['おなかがいっぱいになるぞ。'];old=self.e.review_generation
+        self.e.feedback(before,after,{'keys':['num7']},{'os_submission':'accepted'},1)
+        self.assertEqual(self.e.review_generation,old);self.assertEqual(len(self.e.pickups),0)
+        after=frame('c');after['quotes']=['持ち物がいっぱいで持てない。']
+        self.e.feedback(before,after,{'keys':['w']},{'os_submission':'accepted'},2);self.assertGreater(self.e.review_generation,old)
+    def test_persistent_native_message_not_present_in_quotes_is_not_a_new_event(self):
+        m={'kind':'damage_dealt','damage':4,'enemy':'スライム','quote':'4ポイントのダメージを与えた','source_frame_sha256':'before'}
+        b=frame('before');b['quotes']=[];b['battle_message_observation']=[m]
+        self.e.feedback(b,frame('after'),{'keys':['num5','w']},{'os_submission':'accepted'},1,[{**m,'source_frame_sha256':'after'}])
+        self.assertFalse(self.e.battles)

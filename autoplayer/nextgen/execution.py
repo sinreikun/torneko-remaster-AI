@@ -12,13 +12,22 @@ class ProcedureExecutor:
         self.store=store;self.policy=policy;self.bindings=bindings
         self.roles={role:next((k for k,v in bindings.items() if re.search(pattern,v,re.I)),None) for role,pattern in policy.get('roles',{}).items()}
         saved=store.load('autonomy','execution_knowledge') if store else []
-        self.battles=(saved[0].get('battles',{}) if saved else {});self.active=None;self.pending=None;self.history=deque(maxlen=24);self.pages={};self.inventory={};self.status={};self.scope=None;self.facing=None;self.last_review=-10000;self.review_needed=True;self.attempted={};self.described=set();self.stationary={};self.last_enemies=set();self.events_seen=deque(maxlen=128);self.pickups=deque(maxlen=16);self.control_revision=None;self.combat_pending=False;self.requirement=None;self.last_region=None;self.item_checks={};self.last_input_role=None;self.adventure_revision=0;self.dead=False;self.dirty=False;self.last_damage_step=-10000
+        current=saved[0] if saved else {};legacy=current.get('battles',{}) if current.get('schema')!=2 else {}
+        self.battles=current.get('battles',{}) if current.get('schema')==2 else {};self.review_generation=0;self.legacy_battle_models=len(legacy)
+        if legacy and store:
+            store.put('autonomy',{'schema':1,'battles':legacy,'status':'unverified_frame_duplicate_counts'},key='execution_knowledge_legacy')
+            for key in legacy:
+                for record in store.load('knowledge_claims','combat:'+key):
+                    record['status']='DISPUTED';record.setdefault('counterevidence',[]).append({'reason':'frame_sampling_was_counted_as_independent_combat_events','replacement_schema':2})
+                    store.put('knowledge_claims',record,key=record['id'])
+        self.active=None;self.pending=None;self.history=deque(maxlen=24);self.pages={};self.inventory={};self.status={};self.scope=None;self.facing=None;self.last_review=-10000;self.review_needed=True;self.attempted={};self.described=set();self.stationary={};self.last_enemies=set();self.events_seen=deque(maxlen=128);self.pickups=deque(maxlen=16);self.control_revision=None;self.combat_pending=False;self.requirement=None;self.last_region=None;self.item_checks={};self.last_input_role=None;self.adventure_revision=0;self.dead=False;self.dirty=bool(legacy);self.last_damage_step=-10000
     def death(self):
         if not self.dead:self.adventure_revision+=1
         self.dead=True;self.interrupt('death_or_result');self.pages={};self.inventory={};self.status={};self.review_needed=True;self.described=set();self.item_checks={};self.attempted={}
     def interrupt(self,reason):
         if self.active:self.history.append({'event':'procedure_interrupted','task':self.active['kind'],'reason':reason,'resume_required':True})
         self.active=None;self.pending=None;self.facing=None
+        if reason=='control_revision':self.review_generation+=1
     def attach(self,state,view,step):
         region=state.get('spatial',{}).get('stamp',{}).get('region');floor=state.get('floor_confirmation',{}).get('confirmed')
         # A floor transition does not destroy inventory; a confirmed death does.
@@ -62,8 +71,7 @@ class ProcedureExecutor:
         if a['kind']=='review':self.last_review=step;self.review_needed=False
         self.active=None;self.pending=None
         while len(self.attempted)>128:self.attempted.pop(next(iter(self.attempted)))
-    @staticmethod
-    def task_token(kind,item):return digest([kind,(item or ({},))[0].get('entry_id') if item else None])
+    def task_token(self,kind,item):return digest([kind,(item or ({},))[0].get('entry_id') if item else None,self.review_generation if kind=='review' else None])
     def request(self,state,keys,role,reason,step):
         keys=[k for k in keys if k]
         if not keys:return None
@@ -317,7 +325,7 @@ class ProcedureExecutor:
                 a['item_selected']=bool(a.get('current_target') and a['current_target']['entry_id']==a['item'][0]['entry_id'])
             elif kind=='item_actions' and a.get('item_selected'):
                 a['stage']='identify_target' if a['kind']=='identify' else 'verify';a['sent']=True;a['before_metrics']={**copy.deepcopy(before.get('retained',{})),**copy.deepcopy(before.get('metrics',{}))}
-                self.pages={};self.inventory={};self.review_needed=True
+                self.pages={};self.inventory={};self.review_needed=True;self.review_generation+=1
         if a and a.get('stage')=='verify' and a.get('item'):
             metric=a['item'][1].get('metric');old=a['before_metrics'].get(metric,{}).get('values');new=after.get('metrics',{}).get(metric,{}).get('values')
             if old and new and new[0]>old[0]:
@@ -326,32 +334,56 @@ class ProcedureExecutor:
         if hp and previous_hp and hp[0]<previous_hp[0]:self.last_damage_step=step
         if hp and hp[0]==0:self.death()
         quotes=set(after.get('quotes',[]))-set(before.get('quotes',[]))
+        inventory_changed=False
         for q in quotes:
-            if re.search(r'拾った|ひろった|手に入れた|持てない|いっぱい',q):self.pickups.append({'quote':q,'frame':after['frame_sha256'],'step':step});self.review_needed=True
+            if re.search(r'拾った|ひろった|手に入れた',q) or re.search(r'(?:持ち物|道具|アイテム).*(?:いっぱい|一杯|持てない)|これ以上.*持て',q):
+                self.pickups.append({'quote':q,'frame':after['frame_sha256'],'step':step})
+                if not re.search(r'ゴールド',q):inventory_changed=True
+        if inventory_changed:self.review_needed=True;self.review_generation+=1
         if a and a.get('stage')=='verify':
             new_quotes=[q for q in after.get('quotes',[]) if q not in before.get('quotes',[])]
             purpose=(a.get('item') or ({},{}))[1].get('purpose')
             patterns={'discard':r'置いた|おいた','identify':r'正体|だった|とわかった|と分かった','ranged':r'ダメージを与えた|攻撃は|はずれ|外れ'}
             matching=[q for q in new_quotes if purpose in patterns and re.search(patterns[purpose],q)]
             if matching:a['message_effect']={'quotes':matching,'frame':after['frame_sha256'],'source':'new_explicit_ocr_message'}
-        fresh=[m for m in messages if m.get('source_frame_sha256')!=before['frame_sha256'] and not any(m.get('quote','') and m['quote'] in re.sub(r'\s+','',q) for q in before.get('quotes',[]))]
-        after['battle_observation']={'events':fresh,'frame_sha256':after['frame_sha256'],'input_role':p['role']}
+        prior_events={(m.get('kind'),m.get('damage')) for m in before.get('battle_message_observation',[])}
+        fresh=[m for m in messages if (m.get('kind'),m.get('damage')) not in prior_events and m.get('source_frame_sha256')!=before['frame_sha256'] and not any(m.get('quote','') and m['quote'] in re.sub(r'\s+','',q) for q in before.get('quotes',[]))]
+        raw_fresh=fresh;fresh=self.group_battle_messages(fresh)
+        after['battle_observation']={'raw_messages':raw_fresh,'events':fresh,'frame_sha256':after['frame_sha256'],'input_role':p['role']}
         self.record_battle(before,after,fresh,step,p.get('task','unattributed_input'))
         self.last_input_role=p['role']
         self.save(step)
+    @staticmethod
+    def group_battle_messages(messages):
+        groups={}
+        for m in messages:groups.setdefault(m.get('kind'),[]).append(m)
+        out=[]
+        for samples in groups.values():
+            item=copy.deepcopy(samples[-1]);names=sorted({m['enemy'] for m in samples if m.get('enemy')})
+            damages=sorted({m['damage'] for m in samples if isinstance(m.get('damage'),(int,float))})
+            item['damage_candidates']=damages;item['damage']=damages[0] if len(damages)==1 else None
+            item['enemy']=names[0] if len(names)==1 else None
+            item['name_candidates']=names;item['source_frames']=list(dict.fromkeys(m.get('source_frame_sha256') for m in samples))
+            item['quotes']=list(dict.fromkeys(m.get('quote') for m in samples));item['count_basis']='one_input_event_group_lower_bound';item['multiplicity']='unresolved_across_frames'
+            if len(names)>1:item['enemy_name_status']='conflicting_ocr_names_not_merged_as_species'
+            out.append(item)
+        return out
     def record_battle(self,before,after,messages,step,attack_mode='unknown'):
+
         for message in messages:
-            mark=digest(message)
+            mark=digest([getattr(self.store,'session','current'),step,message.get('kind'),message.get('enemy'),message.get('damage')])
             if mark in self.events_seen:continue
             self.events_seen.append(mark);self.dirty=True
-            signature=digest([self.values(before,'level'),self.values(before,'strength'),self.values(before,'sword'),self.values(before,'shield'),message.get('enemy'),attack_mode])
-            row=self.battles.setdefault(signature,{'enemy_name':message.get('enemy'),'attack_mode':attack_mode,'status_values':{k:self.values(before,k) for k in ('level','strength','sword','shield')},'dealt':[],'received':[],'hits':0,'misses':0,'defeats':0,'evidence':[]})
+            signature=digest([2,self.values(before,'level'),self.values(before,'strength'),self.values(before,'sword'),self.values(before,'shield'),message.get('enemy'),attack_mode])
+            row=self.battles.setdefault(signature,{'sample_unit':'input_event_group_lower_bound','enemy_name':message.get('enemy'),'attack_mode':attack_mode,'status_values':{k:self.values(before,k) for k in ('level','strength','sword','shield')},'dealt':[],'received':[],'hits':0,'misses':0,'defeats':0,'evidence':[]})
             kind=message.get('kind')
-            if kind=='damage_dealt':row['hits']+=1;row['dealt']=(row['dealt']+[message['damage']])[-32:]
-            if kind=='damage_received':row['received']=(row['received']+[message['damage']])[-32:]
+            if kind=='damage_dealt':
+                row['hits']+=1
+                if message.get('damage') is not None:row['dealt']=(row['dealt']+[message['damage']])[-32:]
+            if kind=='damage_received' and message.get('damage') is not None:row['received']=(row['received']+[message['damage']])[-32:]
             if kind=='miss':row['misses']+=1
             if kind=='defeated_enemy':row['defeats']+=1
-            row['hit_rate_observed']=row['hits']/max(1,row['hits']+row['misses']);row['evidence']=(row['evidence']+[{'message':message,'step':step,'before':before['frame_sha256'],'after':after['frame_sha256'],'relative_targets':before.get('minimap',{}).get('enemies',[]),'appearance_candidates':before.get('objects',[])[:4],'identity_link':'unconfirmed'}])[-8:]
+            row['hit_rate_observed']=row['hits']/(row['hits']+row['misses']) if row['hits']+row['misses'] else None;row['evidence']=(row['evidence']+[{'message':message,'step':step,'session':getattr(self.store,'session','current'),'before':before['frame_sha256'],'after':after['frame_sha256'],'relative_targets':before.get('minimap',{}).get('enemies',[]),'appearance_candidates':before.get('objects',[])[:4],'identity_link':'unconfirmed'}])[-8:]
             if self.store:
                 from .knowledge_access import KnowledgeAccess,claim
                 record=claim('combat:'+signature,'conditional_combat_experience',row,'EXPERIENCED',evidence=[{'frame':after['frame_sha256'],'step':step,'session':self.store.session}],scope={'profile':self.store.profile},entity_kind='monster')
@@ -359,8 +391,8 @@ class ProcedureExecutor:
         while len(self.battles)>128:self.battles.pop(next(iter(self.battles)))
     def save(self,step,force=False):
         if self.store and self.dirty and (force or step%8==0):
-            self.store.put('autonomy',{'battles':self.battles},step,key='execution_knowledge');self.dirty=False
-    def summary(self,step):return {'active':copy.deepcopy(self.active),'adventure_revision':self.adventure_revision,'last_review':self.last_review,'review_needed':self.review_needed,'known_pages':len(self.pages),'inventory_count_observed':self.inventory.get('occupancy'),'recent':list(self.history)[-6:],'battle_models':len(self.battles),'battle_estimates':[{'enemy':b['enemy_name'],'status_values':b['status_values'],'hits':b['hits'],'misses':b['misses'],'hit_rate':b.get('hit_rate_observed'),'damage_received_max':max(b['received']) if b['received'] else None,'damage_dealt_mean':sum(b['dealt'])/len(b['dealt']) if b['dealt'] else None,'evidence_count':len(b['evidence'])} for b in list(self.battles.values())[-4:]],'requirement':self.requirement,'pickups':list(self.pickups)[-4:],'not_campaign_completion':True}
+            self.store.put('autonomy',{'schema':2,'battles':self.battles},step,key='execution_knowledge');self.dirty=False
+    def summary(self,step):return {'active':copy.deepcopy(self.active),'adventure_revision':self.adventure_revision,'last_review':self.last_review,'review_needed':self.review_needed,'review_generation':self.review_generation,'legacy_battle_models_excluded':self.legacy_battle_models,'known_pages':len(self.pages),'inventory_count_observed':self.inventory.get('occupancy'),'recent':list(self.history)[-6:],'battle_models':len(self.battles),'battle_estimates':[{'enemy':b['enemy_name'],'status_values':b['status_values'],'hits':b['hits'],'misses':b['misses'],'hit_rate':b.get('hit_rate_observed'),'damage_received_max':max(b['received']) if b['received'] else None,'damage_dealt_mean':sum(b['dealt'])/len(b['dealt']) if b['dealt'] else None,'evidence_count':len(b['evidence'])} for b in list(self.battles.values())[-4:]],'requirement':self.requirement,'pickups':list(self.pickups)[-4:],'not_campaign_completion':True}
     @staticmethod
     def realize(state,request,candidates):
         if not request or request['frame']!=state['frame_sha256'] or request.get('stamp')!=state.get('spatial',{}).get('stamp'):return None
