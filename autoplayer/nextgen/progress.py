@@ -126,3 +126,38 @@ class ProgressManager:
         current=self.current()
         return {'current':copy.deepcopy(current),'nodes':[{'id':n['id'],'label':n['label'],'status':n['status'],'scope':n['scope'],'source':n['source']} for n in self.nodes.values()],
                 'available':[n['id'] for n in self.available()],'knowledge_is_evidence':False}
+    def select_spatial(self,view,local,policy=None):
+        """Choose purpose, not keys; priorities are profile data, not engine law."""
+        policy=policy or {};local=local or {}
+        turn=view.get('stamp',{}).get('turn',0)
+        deferred=getattr(self,'spatial_deferred',{})
+        self.spatial_deferred={k:v for k,v in deferred.items() if v['until']>turn}
+        if local.get('conditions') or view.get('status')!='ready':return None
+        kinds={'acquire':['item'],'handle_target':['enemy'],'find_exit':['stairs','portal'],'transition':['stairs','portal'],'cross_obstacle':['obstacle']}.get(local.get('capability'))
+        priorities=policy.get('priorities',{'frontier':1,'portal':1,'obstacle':.1})
+        candidates=[t for t in view.get('targets',[]) if t['id'] not in self.spatial_deferred and (not kinds or t['kind'] in kinds) and priorities.get(t['kind'],1 if kinds else 0)>0 and t['distance']<=policy.get('max_distance',{}).get(t['kind'],100000)]
+        if not candidates:return None
+        previous=getattr(self,'spatial_goal',None)
+        if previous is None:
+            rows=self.store.load('autonomy','spatial_goal');previous=rows[0].get('target') if rows else None
+        best=min(candidates,key=lambda t:(-priorities.get(t['kind'],1),int(t['kind']=='frontier' and t['confidence']<.6),t['distance']+(1-t['confidence'])*3,t['id']))
+        incumbent=next((t for t in candidates if previous and t['id']==previous['id'] and t['distance']>0),None)
+        if incumbent and (priorities.get(incumbent['kind'],1)>=priorities.get(best['kind'],1) or incumbent.get('stage')=='reprobe' and best['kind']=='frontier') and not(incumbent['kind']==best['kind']=='frontier' and incumbent['confidence']<.6<=best['confidence']):best=incumbent
+        self.spatial_goal=copy.deepcopy(best)
+        self.store.put('autonomy',{'target':best,'parent':(self.current() or {}).get('id'),'basis':'position_goal_not_item_acquisition_or_campaign_completion'},key='spatial_goal')
+        return copy.deepcopy(best)
+
+    def defer_spatial(self,target,turn,reason):
+        if not hasattr(self,'spatial_deferred'):self.spatial_deferred={}
+        self.spatial_deferred[target['id']]={'until':turn+8,'reason':reason}
+        if len(self.spatial_deferred)>256:self.spatial_deferred.pop(next(iter(self.spatial_deferred)))
+    def spatial_feedback(self,record,turn):
+        target=record.get('target')
+        if not target:return
+        # Reaching an icon is not acquisition or a successful interaction.
+        key=target['id'];old=getattr(self,'spatial_arrival_trials',{})
+        if len(target.get('path',[]))==1 and record.get('receipt',{}).get('os_submission')=='accepted' and record.get('outcome')!='region_changed':
+            old[key]=old.get(key,0)+1
+            if old[key]>=3:self.defer_spatial(target,turn,'interaction_effect_unconfirmed');old.pop(key,None)
+        else:old.pop(key,None)
+        self.spatial_arrival_trials=dict(list(old.items())[-256:])

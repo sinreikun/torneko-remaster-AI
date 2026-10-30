@@ -270,7 +270,7 @@ class AutonomyContracts(unittest.TestCase):
         events=[r for r in rows if r.get('event')=='autonomy_update'];self.assertEqual(len(events),3)
         self.assertTrue(all(r['state']['current_goal'] for r in events));self.assertEqual(backend.act.call_count,3)
         with sqlite3.connect(Path(self.tmp.name)/'world-v2.sqlite') as db:
-            self.assertEqual(db.execute('SELECT count(*) FROM autonomy').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM autonomy WHERE key="manager"').fetchone()[0],1)
     def test_recovery_hypotheses_do_not_restart_forever(self):
         m=MetaController(self.store,'達成');s=state(menu=True);m.prepare(s,0)
         for i in range(1,49):m.observe(s,self.action,s,result(),{'os_submission':'accepted'},i,100)

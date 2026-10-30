@@ -82,3 +82,26 @@ class CapabilityManager:
         return [{'id':s['input']['id'],'value':min(1.5,s['confidence']),'kind':'capability_evidence','reason':'同じ観測条件で成功した技能 '+name} for s in self.matching(name,state,conditions)[:3] if s['input']['id'] in allowed]
     def summary(self,state):
         return [{'name':s['name'],'confidence':round(s['confidence'],3),'status':s['status'],'applicable':s['scope']==scope(state,s['name']),'successes':len(s['successes']),'failures':len(s['failures'])} for s in list(self.skills.values())[-24:]]
+    @staticmethod
+    def spatial_intent(action):
+        import re
+        directions={'up':(0,-1),'down':(0,1),'left':(-1,0),'right':(1,0),'上移動':(0,-1),'下移動':(0,1),'左移動':(-1,0),'右移動':(1,0)}
+        meanings=[m.strip().casefold() for m in action.get('declared_meanings',[])]
+        if meanings and all(m in directions for m in meanings):
+            return {'role':'move','delta':[sum(directions[m][0] for m in meanings),sum(directions[m][1] for m in meanings)],'source':'user_binding_hypothesis'}
+        if len(action.get('keys',[]))==1 and any(re.search(r'決定|confirm|interact',m) for m in meanings):return {'role':'interact','source':'user_binding_hypothesis'}
+        return {'role':'other'}
+    def realize_spatial(self,state,target,candidates):
+        from .spatial import current_target
+        if not current_target(state,target):return {'status':'stale','candidate_ids':[]}
+        path=target['path'];ids=[];capability='move'
+        if len(path)>1:
+            delta=[path[1][i]-path[0][i] for i in (0,1)]
+            ids=[a['id'] for a in candidates if self.spatial_intent(a).get('delta')==delta]
+        elif target['kind'] in ('obstacle','portal','item','stairs'):
+            capability='cross_obstacle' if target['kind']=='obstacle' else 'acquire' if target['kind']=='item' else 'transition'
+            ids=[a['id'] for a in candidates if self.spatial_intent(a)['role']=='interact']
+        elif target['kind']=='enemy':
+            capability='handle_target'
+            ids=[s['input']['id'] for s in self.matching(capability,state) if any(a['id']==s['input']['id'] for a in candidates)]
+        return {'status':'ready' if ids else 'capability_missing','capability':capability,'candidate_ids':ids,'target':target,'basis':'known_skill_or_bounded_user_binding_trial_not_proven_effect'}

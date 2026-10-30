@@ -135,6 +135,11 @@ class ForwardModel:
         return [{'id':action_id(k,h),'keys':k,'hold_ms':h,'declared_meanings':[cfg.key_bindings.get(key,'') for key in k]} for k in [[x] for x in keys]+chords for h in holds]
     def choose(self,state,candidates,plan=None,weight=.6):
         started=time.monotonic();plan=plan or {};ranked=[];self.prediction_ms=0.;self.search_ms=0.
+        spatial=plan.get('spatial_realization')
+        if spatial and spatial.get('status')=='ready':
+            from .spatial import current_target
+            if current_target(state,spatial['target']):candidates=[c for c in candidates if c['id'] in spatial['candidate_ids']] or candidates
+            else:plan={k:v for k,v in plan.items() if k not in ('spatial_realization','spatial_target')}
         goals=[t for t in plan.get('targets',[]) if target_score(state,t)!=1];self.current_targets=copy.deepcopy(goals);current_goal=[target_score(state,t) for t in goals]
         loop_actions=set(self.escape.get('actions',[])) if self.escape else set()
         loop_keys={tuple(json.loads(identifier)[0]) for identifier in loop_actions}
@@ -187,7 +192,7 @@ class ForwardModel:
         # Bounded lookahead on observed graph only. Transit through known nodes is
         # allowed; it is not penalized merely because a floor was visited.
         closing_route=state.get('interface_hypothesis') and any(t.get('feature')=='interface_open' and t.get('operator')=='eq' and t.get('value')==0 for t in goals)
-        if closing_route or not self.escape and not state['interface_hypothesis']:
+        if not plan.get('spatial_realization') and (closing_route or not self.escape and not state['interface_hypothesis']):
             route=self.route(state['id'],goals,state['context'])
             if route:
                 alternate=next((x for x in ranked if x['candidate']['id']==route),None)

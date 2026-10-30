@@ -162,6 +162,9 @@ class ResearchLayer:
         if not self.pending and due and not self.closed and not self.stop.is_set():
             self.last_step=step;self.last_time=time.monotonic();self.next_review=step+interval;self.requests+=1
             current={k:copy.deepcopy(state.get(k)) for k in ('id','context','frame_sha256','observed_at','quality','measurement_status','metrics','interface_hypothesis')}
+            spatial=state.get('spatial',{})
+            current['spatial']={k:copy.deepcopy(spatial.get(k)) for k in ('stamp','provider','status','pose','pose_source','movement')}
+            current['spatial']['target_candidates']=[{k:copy.deepcopy(t.get(k)) for k in ('id','kind','cell','distance','confidence','source')} for t in spatial.get('targets',[])[:8]]
             current['quotes']=list(state.get('quotes',[]))[:20]
             current['ui']={k:copy.deepcopy(state.get('ui_visual',{}).get(k)) for k in ('layout','selection','needs_observation')}
             current['minimap']={k:copy.deepcopy(state.get('minimap',{}).get(k)) for k in ('status','player_cell','enemies','items','stairs')}

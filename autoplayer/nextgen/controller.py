@@ -10,6 +10,7 @@ from .research import ResearchLayer
 from .field_pipeline import RulePrefetch,ProgressLane
 from .meta import MetaController
 from .pace import PaceController
+from .spatial import SpatialLane,trace as spatial_trace
 from ..controls import is_torneko
 from ..cancellation import OperationCancelled
 from ..observation_store import message_candidates
@@ -41,7 +42,10 @@ class NextGenController:
         state=base_state if base_state is not None and base_state.get('frame_sha256')==hashlib.sha256(png).hexdigest() else self.builder.build(png,full)
         # This adapter only measures the user's map legend, never chooses actions.
         floor=state['floor_confirmation'];valid_floor=floor.get('status') in ('initialized','confirmed','changed') and floor.get('confirmed') is not None
-        can_map=is_torneko(self.cfg.window_title) and 'num7' in self.cfg.allowed_keys and valid_floor and not state['interface_hypothesis']
+        can_map=is_torneko(self.cfg.window_title) and 'num7' in self.cfg.allowed_keys and valid_floor and not state['interface_hypothesis'] and state.get('minimap',{}).get('status')!='observed'
+        if can_map and base_state is not None and self.previous and self.previous.get('minimap',{}).get('status')=='observed' and floor.get('confirmed')==self.previous.get('floor_confirmation',{}).get('confirmed') and getattr(self,'previous_image',None) and self.difference(png,self.previous_image)<.01:
+            retained=copy.deepcopy(self.previous['minimap']);retained['status']='retained';retained['retained_from_frame']=self.previous['frame_sha256']
+            state['minimap']=retained;state['map_domain']=self.previous.get('map_domain');can_map=False
         if can_map and hasattr(self.backend,'capture_map_display') and not self.cancel.is_set():
             started=time.monotonic();sample=self.backend.capture_map_display(self.cancel,baseline=False)
             if sample and sample.get('image'):
@@ -63,6 +67,12 @@ class NextGenController:
         store=ExperienceStore(self.data/'world-v2.sqlite',profile,self.journal.stem);model=ForwardModel(store);adaptive=AdaptivePolicy();meta=MetaController(store,self.cfg.goal,self.cfg.knowledge)
         self.observation_policy=meta.observer.policy;self.builder.observation_policy=self.observation_policy
         prefetch=RulePrefetch(store.path,profile);progress_lane=ProgressLane()
+        spatial_saved=store.load('autonomy','spatial_model');spatial_lane=SpatialLane(spatial_saved[0].get('model') if spatial_saved else None)
+        spatial_policy={}
+        if is_torneko(self.cfg.window_title):
+            spatial_policy=json.loads((Path(__file__).resolve().parents[2]/'knowledge'/'torneko-spatial-policy.json').read_text())
+        previous_boundary_tracking=getattr(getattr(self.backend,'observer',None),'track_scene_boundaries',False)
+        if hasattr(self.backend,'configure_scene_boundaries'):self.backend.configure_scene_boundaries(True)
         supervisor=ResearchLayer(self.cfg,self.llm,self.send_event,self.cancel,store);candidates=model.candidates(self.cfg)
         self.builder.ui_vision.restore(store.load('ui_models',limit=64))
         self.builder.ui_interactions.restore(store.load('ui_interactions',limit=64))
@@ -106,19 +116,39 @@ class NextGenController:
                     sense_started=time.monotonic();before=self.sense(image,full,base_state=before)
                     stages['pre_input_sense_ms']=(time.monotonic()-sense_started)*1000
                     stages['pre_input_map_capture_ms']=before['timing'].get('map_capture_ms',0)
+                    before['spatial_topology']=spatial_policy.get('grid_topology',4)
+                    spatial_lane.begin(before,step,revision,png=image)
                     prefetch.begin(before,candidates)
                     if step==0:
                         from .knowledge_access import KnowledgeAccess
                         KnowledgeAccess(store).capture(before,0,self.cfg.knowledge)
                     meta.prepare(before,step)
+                    spatial_join=time.monotonic();spatial_packet=spatial_lane.merge(before['frame_sha256'],step,getattr(self.control,'revision',0))
+                    before['spatial']=spatial_packet['view'];stages['spatial_before_join_ms']=(time.monotonic()-spatial_join)*1000
                     t=time.monotonic();requests_before=supervisor.requests
                     plan,_=supervisor.tick(before,candidates,step,revision,guidance,image,model,self.last,meta)
-                    stages['research_mailbox_and_snapshot_ms']=(time.monotonic()-t)*1000
-                    stages['llm_wait_ms']=0.
+                    stages['research_mailbox_and_snapshot_ms']=(time.monotonic()-t)*1000;stages['llm_wait_ms']=0.
                     plan=meta.guide(plan,before,candidates)
+                    if not meta.recovery:
+                        target=meta.progress.select_spatial(before['spatial'],meta.local,spatial_policy)
+                        if target:
+                            before['spatial']['selected']=target
+                            realization=meta.capabilities.realize_spatial(before,target,candidates)
+                            plan['spatial_realization']=realization;plan['spatial_target']=target
+                            plan['objective']='Spatial '+target['kind']+' → '+str(target['cell'])
+                            if realization['status']=='capability_missing':
+                                meta.fresh_observation_requested=True
+                                meta.progress.defer_spatial(target,step,'capability_missing')
+                                task={'status':'capability_missing','capability':realization['capability'],'target':target,'deadline_turn':step+8,'success':'observed_effect_not_input_submission','source':'spatial_requirement'}
+                                store.put('spatial_tasks',task,step,key=target['id'])
+                                plan['spatial_learning_task']=task;before['spatial']['learning_task']=task
+                                self.send_event({'event':'spatial_capability_missing','step':step,**task})
+                    before['spatial']['targets']=[{k:v for k,v in t.items() if k!='path'} for t in before['spatial'].get('targets',[])]
                     retrieval=prefetch.merge(before,candidates,model);stages['experience_prefetch_join_ms']=retrieval['join_ms']
                     if retrieval['status']!='merged':self.send_event({'event':'experience_prefetch',**retrieval,'learning':False})
-                    t=time.monotonic();chosen,ranking,choice_ms=model.choose(before,candidates,plan,adaptive.weight)
+                    reserved=spatial_policy.get('field_reserved_meanings',[]) if not before['interface_hypothesis'] else []
+                    execution_candidates=[a for a in candidates if not any(m in reserved for m in a.get('declared_meanings',[]))] or candidates
+                    t=time.monotonic();chosen,ranking,choice_ms=model.choose(before,execution_candidates,plan,adaptive.weight)
                     stages['action_selection_ms']=max(0,choice_ms-model.search_ms-model.prediction_ms);stages['experience_search_ms']=model.search_ms;stages['world_prediction_ms']=model.prediction_ms;stages['experience_search_and_prediction_ms']=(time.monotonic()-t)*1000
                     action=chosen['candidate'];prediction=chosen['prediction']
                     def brief_choice(item):
@@ -187,6 +217,9 @@ class NextGenController:
                     ui_model=self.builder.ui_vision.models.get(after.get('ui_visual',{}).get('layout'))
                     if ui_model:store.put('ui_models',ui_model,step,key=ui_model['key'])
                     meta.check_boundary(after,step)
+                    transition={'before':{k:copy.deepcopy(before.get(k)) for k in ('spatial','interface_hypothesis')},'intent':meta.capabilities.spatial_intent(action),'accepted':ui_receipt.get('os_submission')=='accepted' and kind!='aborted','hold_ms':action['hold_ms'],'target':plan.get('spatial_target'),'boundary':getattr(observation,'scene_boundary',{}) if hasattr(self.backend,'observe_turn') else {},'images':(image,after_image) if before.get('spatial',{}).get('provider')=='hypothesis' else None,'assumption':spatial_policy.get('mapless_screen_change_assumption',False)}
+                    after['spatial_topology']=spatial_policy.get('grid_topology',4)
+                    spatial_lane.begin(after,step,revision,transition,after_image)
                     progress_lane.begin(meta.progress,after,step)
                     try:
                         result=model.observe(before,action,after,prediction,receipt,step,neutral,kind,natural_confidence)
@@ -197,6 +230,17 @@ class NextGenController:
                     interaction_model=self.builder.ui_interactions.model(before)
                     if interaction_model:store.put('ui_interactions',interaction_model,step,key=interaction_model['key'])
                     self.builder.ui_vision.last=copy.deepcopy(after.get('ui_visual',{}))
+                    spatial_join=time.monotonic();spatial_packet=spatial_lane.merge(after['frame_sha256'],step,getattr(self.control,'revision',0))
+                    after['spatial']=spatial_packet['view'];stages['spatial_after_join_ms']=(time.monotonic()-spatial_join)*1000
+                    if plan.get('spatial_learning_task'):after['spatial']['learning_task']=copy.deepcopy(plan['spatial_learning_task'])
+                    selected=next((t for t in after['spatial'].get('targets',[]) if t['id']==(plan.get('spatial_target') or {}).get('id')),None)
+                    if selected:after['spatial']['selected']=copy.deepcopy(selected)
+                    after['spatial']['targets']=[{k:v for k,v in t.items() if k!='path'} for t in after['spatial'].get('targets',[])]
+                    spatial_record=spatial_trace(before,after,plan.get('spatial_target'),action,ui_receipt)
+                    meta.progress.spatial_feedback(spatial_record,step)
+                    if step%8==0 or spatial_record['outcome']=='region_changed':store.put('autonomy',{'model':spatial_packet['saved']},step,key='spatial_model')
+                    store.put('spatial_trace',spatial_record,step)
+                    self.send_event({'event':'spatial_trace','step':step,**spatial_record})
                     self.last=result
                     if text_evidence:
                         from .knowledge_access import KnowledgeAccess
@@ -232,7 +276,7 @@ class NextGenController:
                       'result_ocr':self.builder.cache[after['frame_sha256']]['native'],'message_evidence':text_evidence,'ui_transition':ui_transition,'ui_interaction':interaction,'transition_attribution':result.get('attribution','censored'),'neutral_before':neutral,
                       'supervision':supervisor.context(step),'loop_guard':result.get('loop') or {},'forecast_evaluation':{'status':'matched' if result.get('match') is True else 'mismatch' if result.get('match') is False else 'unscored'},
                       'performance':{'total_ms':(time.monotonic()-started)*1000,'stages_ms':stages,'pace':copy.deepcopy(self.pace.last),'llm_requested':supervisor.pending is not None,'message_evidence':evidence_info,'synchronization':{'input_source_frame':before['frame_sha256'],'result_source_frame':after['frame_sha256'],'commit_order':'input_result_then_parallel_world_progress_then_skill_meta','research_blocks_input':False}},
-                      'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}
+                      'spatial':spatial_record,'nextgen':{'metrics':metrics,'prediction_before_input':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'selected':shown_chosen,'candidates':shown_ranking,'objective':plan['objective'],'hypotheses':copy.deepcopy(model.hypotheses[-8:]),'semantic_interpretations':plan.get('interpretations',[]),'parameters':{'exploration_weight':adaptive.weight,'trial':adaptive.trial},'db':{'queued':store.queue.qsize(),'commit_ms':store.commit_ms,'written':store.written}}}
                     t=time.monotonic();store.put('transition',{'before':snapshot(before),'input':action,'receipt':receipt,'after':snapshot(after),'prediction':{k:v for k,v in prediction.items() if k!='outcomes'},'result':result,'neutral':neutral,'message_evidence':text_evidence},step)
                     for identifier in list(self.builder.tracker.dirty):
                         variants=self.builder.tracker.variants.get(identifier)
@@ -242,7 +286,11 @@ class NextGenController:
                     self.log(row);self.emit(row)
                     self.emit({'event':'ui_vision_frame','image':after_image,'ui':copy.deepcopy(after.get('ui_visual',{}))})
                     if hasattr(self.backend,'record_important'):self.backend.record_important(row,image,after_image)
-                    self.previous=after;self.summary={'generation':2,'steps':step,'metrics':metrics,'legacy_learning_imported':False}
+                    self.previous=after;self.previous_image=after_image;self.summary={'generation':2,'steps':step,'metrics':metrics,'legacy_learning_imported':False}
+                except ValueError as error:
+                    if str(error) not in ('Stale Spatial result','Spatial stamp mismatch'):raise
+                    model.pending.clear();self.previous=None
+                    self.send_event({'event':'spatial_discarded','reason':str(error),'step':step});continue
                 except OperationCancelled:
                     model.pending.clear();self.previous=None
                     if self.control and self.control.paused.is_set() and not self.control.intervention.is_set() and not self.stop.is_set():
@@ -251,11 +299,13 @@ class NextGenController:
                     raise
             if self.control and self.control.intervention.is_set():raise OperationCancelled('手動介入へ切替')
         finally:
-            supervisor.close();self.builder.close();prefetch.close();progress_lane.close()
+            supervisor.close();self.builder.close();prefetch.close();progress_lane.close();spatial_lane.close()
+            store.put('autonomy',{'model':spatial_lane.model.dump()},step,key='spatial_model')
             try:
                 try:
                     self.backend.release_all()
                     if hasattr(self.backend,'configure_fast_learning'):self.backend.configure_fast_learning(False)
+                    if hasattr(self.backend,'configure_scene_boundaries'):self.backend.configure_scene_boundaries(previous_boundary_tracking)
                 finally:
                     store.close()
                     try:
